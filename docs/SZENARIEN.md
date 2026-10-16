@@ -243,6 +243,7 @@ Prozessdienst.
 | A04 | Agent trennt | eingetragene Speicherwerte gelten wieder; sein Dienst wird nicht erreichbar |
 | A06 | Dienst braucht mehr, als er nach dem Start belegt | verplant wird der Bedarf (Budget), dem System zugerechnet nur, was die Modelle nicht wirklich belegen (Ist-Wert) |
 | A07 | Dienstdatei verbietet der Leitstelle das Anhalten | Modell gilt als geschützt, Speicher freigeben lässt es stehen, ein Entladen von Hand lehnt der Maschinenraum ab |
+| A08 | Anwendung ruft einen ausgeschalteten Dienst über `/v1/dienste/<name>/...` | Leitstelle startet ihn über den Maschinenraum, reicht Anfrage und Antwort unverändert durch (auch Fehlerstatus des Dienstes), Auftrag fertig mit Messung; ohne passende Fähigkeit `faehigkeit_nicht_erlaubt`, unbekannter Dienst `kein_modell`, ohne Schlüssel 401 |
 | A05 | Neuer Agent-Schlüssel | der verbundene Agent wird getrennt und kommt mit dem alten Schlüssel nicht wieder herein |
 | A07 | Absturz eines Dienstes, der laufen soll | Neustart nach Pause; mehr Abstürze im Zeitfenster als erlaubt: bleibt aus |
 | A08 | Dienst läuft schon, von außen gestartet | wird übernommen statt doppelt gestartet; Anhalten trifft den lauschenden Prozess und seine Nachfahren |

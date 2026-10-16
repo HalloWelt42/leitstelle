@@ -98,6 +98,10 @@ wiederkommt oder die Aufbewahrung endet.
 | `knoten.befehl_ergebnis` | Agent an Leitstelle, mit `bezug` auf den Befehl | `befehl`, `ziel`, `erfolg`, `meldung`; ein Start antwortet erst, wenn der Dienst erreichbar ist oder seine Startzeit verstrichen ist |
 | `knoten.angemeldet`, `knoten.getrennt` | Leitstelle an Oberfläche | `knoten`, `name`; bei der Anmeldung dazu die Angaben aus `knoten.anmelden` |
 
+Durchleitung: der Agent meldet in `knoten.anmelden` den Port `durchleitung_port`. Die Leitstelle ruft dort
+`/<dienst>/<pfad>` mit demselben Schlüssel als Bearer auf; der Agent reicht an den Dienst weiter, der nur auf seinem
+Rechner lauscht. Ziel ist die Adresse, von der aus sich der Agent verbunden hat.
+
 Transport: WebSocket `/agent/kanal` mit dem Schlüssel des Agenten als Bearer. Unbekannter Schlüssel: Schließen mit
 Code 4401 und Grund `unbekannter_schluessel`; ein neu erzeugter Schlüssel trennt den verbundenen Agenten mit
 `schluessel_erneuert`. Die Modelle der Nutzlasten stehen in `backend/leitstelle/protokoll/knoten.py`; der Agent
@@ -200,6 +204,7 @@ Für Anwendungen ohne Umbau. Basisadresse mit oder ohne `/v1` wird angenommen.
 | `POST /v1/audio/transcriptions` | `auftrag.anlegen` (hoeren) | multipart; lange Dateien laufen als Hintergrund-Auftrag, Antwort erst am Ende |
 | `POST /v1/audio/speech` | `auftrag.anlegen` (stimme) | Audio-Stream |
 | `POST /v1/images/generations` | `auftrag.anlegen` (bild_erzeugen) | Antwort mit Verweisen |
+| `GET, POST, PUT, PATCH, DELETE /v1/dienste/<name>/<pfad>` | `auftrag.anlegen` (Fähigkeit, die Dienst und Anwendung teilen) | jeder Dienst mit eigener Schnittstelle (Sprache, Bild, Musik): die Leitstelle startet ihn bei Bedarf über den Maschinenraum seines Rechners, plant seinen Bedarf ein und reicht Anfrage und Antwort unverändert durch (auch Binärdaten). `<name>` ist die Kennung des Dienstes im Maschinenraum (Dateiname der Dienstdatei) |
 | `GET /api/v0/models`, `GET /api/v1/models` | `frage.modelle` | nachgebildete Form des Modell-Läufers (Feld `state`, `loaded_instances`), weil mehrere Anwendungen genau diese Form lesen |
 
 Hinweise an Fassaden-Anwendungen: Signale lassen sich über die Fassade nicht zustellen. Die Leitstelle

@@ -22,8 +22,11 @@ class AgentGetrennt(Exception):
 
 
 class AgentVerbindung:
-    def __init__(self, knoten: str, anmeldung: KnotenAnmeldung, senden: Senden, seit_s: float, beenden: Beenden | None = None) -> None:
+    def __init__(self, knoten: str, anmeldung: KnotenAnmeldung, senden: Senden, seit_s: float, beenden: Beenden | None = None,
+                 adresse: str | None = None, schluessel: str = "") -> None:
         self.knoten = knoten
+        self.adresse = adresse          # Netzadresse, von der der Agent sich verbunden hat (Ziel der Durchleitung)
+        self.schluessel = schluessel    # derselbe Schlüssel öffnet die Durchleitung des Agenten
         self.anmeldung = anmeldung
         self.senden = senden
         self.beenden = beenden          # schließt die Verbindung von der Leitstelle aus (neuer Schlüssel)
@@ -50,12 +53,13 @@ class Agentenvermittlung:
     def verbundene(self) -> list[AgentVerbindung]:
         return list(self._verbindungen.values())
 
-    def anmelden(self, knoten: str, anmeldung: KnotenAnmeldung, senden: Senden, jetzt_s: float, beenden: Beenden | None = None) -> AgentVerbindung:
+    def anmelden(self, knoten: str, anmeldung: KnotenAnmeldung, senden: Senden, jetzt_s: float, beenden: Beenden | None = None,
+                 adresse: str | None = None, schluessel: str = "") -> AgentVerbindung:
         """Neue Verbindung eines Knotens; eine ältere desselben Knotens gilt als getrennt."""
         alt = self._verbindungen.get(knoten)
         if alt:
             alt.trennen()
-        v = AgentVerbindung(knoten, anmeldung, senden, jetzt_s, beenden)
+        v = AgentVerbindung(knoten, anmeldung, senden, jetzt_s, beenden, adresse, schluessel)
         self._verbindungen[knoten] = v
         return v
 

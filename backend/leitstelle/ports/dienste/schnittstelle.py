@@ -38,6 +38,16 @@ class Dienstbericht(BaseModel):
     meldung: str = ""
 
 
+class Durchleitung(BaseModel):
+    """Eine Anfrage, die unverändert an einen Dienst geht (Fassade `/v1/dienste/<name>/<pfad>`)."""
+
+    methode: str
+    pfad: str                           # ohne führenden Schrägstrich, relativ zum Dienst
+    abfrage: str = ""                   # Teil nach dem Fragezeichen
+    kopf: dict[str, str] = Field(default_factory=dict)
+    inhalt: bytes = b""
+
+
 class DienstFehler(Exception):
     """Der Dienst hat abgelehnt oder ist gestört. `grund` ist ein Wort aus PROTOKOLL.md Abschnitt 7."""
 
@@ -55,6 +65,7 @@ class Strom(Protocol):
     kopf: dict[str, str]
 
     def zeilen(self) -> AsyncIterator[bytes]: ...
+    def stuecke(self) -> AsyncIterator[bytes]: ...
     async def lesen(self) -> bytes: ...
     async def schliessen(self) -> None: ...
 
@@ -64,4 +75,5 @@ class DienstAdapter(Protocol):
     async def laden(self, schluessel: str) -> str: ...
     async def entladen(self, instanz: str) -> None: ...
     async def anfrage(self, pfad: str, koerper: dict[str, Any]) -> Strom: ...
+    async def durchleiten(self, schluessel: str, d: Durchleitung) -> Strom: ...
     async def schliessen(self) -> None: ...

@@ -9,11 +9,15 @@ Nutzung, und er weicht nicht. Anfragen gehen weiterhin direkt an den Dienst, nic
 
 from __future__ import annotations
 
+import json
 from typing import Any
+
+import httpx
 
 from ...protokoll.knoten import Befehl, Befehlsart, Prozesszustand
 from ..agenten import AgentGetrennt, Agentenvermittlung
-from .schnittstelle import Dienstbericht, DienstFehler, ModellBericht, Strom
+from .openai_kompatibel import HttpStrom
+from .schnittstelle import Dienstbericht, DienstFehler, Durchleitung, ModellBericht, Strom
 
 SCHEMA = "agent://"
 IM_SPEICHER = {Prozesszustand.STARTET, Prozesszustand.LAEUFT, Prozesszustand.STOPPT}
@@ -24,11 +28,12 @@ def agent_adresse(knoten: str) -> str:
 
 
 class AgentDienste:
-    def __init__(self, adresse: str, agenten: Agentenvermittlung) -> None:
+    def __init__(self, adresse: str, agenten: Agentenvermittlung, verbindung_s: float = 10.0) -> None:
         if not adresse.startswith(SCHEMA):
             raise ValueError(f"keine Agent-Adresse: {adresse}")
         self.knoten = adresse[len(SCHEMA):]
         self.agenten = agenten
+        self._client = httpx.AsyncClient(timeout=httpx.Timeout(connect=verbindung_s, read=None, write=None, pool=None))
 
     async def zustand(self) -> Dienstbericht:
         v = self.agenten.verbindung(self.knoten)
@@ -56,7 +61,23 @@ class AgentDienste:
         await self._befehl(Befehlsart.DIENST_ANHALTEN, instanz)
 
     async def anfrage(self, pfad: str, koerper: dict[str, Any]) -> Strom:
-        raise DienstFehler("nicht_unterstuetzt", "Dienste im Maschinenraum werden direkt angesprochen, nicht über die Fassade.")
+        return await self.durchleiten("", Durchleitung(methode="POST", pfad=pfad, kopf={"content-type": "application/json"},
+                                                       inhalt=json.dumps(koerper).encode()))
+
+    async def durchleiten(self, schluessel: str, d: Durchleitung) -> Strom:
+        """Über die Durchleitung des Maschinenraums an den Dienst `schluessel`; Ziel ist die Adresse, von der sich der
+        Maschinenraum verbunden hat, mit seinem eigenen Schlüssel."""
+        v = self.agenten.verbindung(self.knoten)
+        if v is None or not v.adresse or not v.anmeldung.durchleitung_port:
+            raise DienstFehler("dienst_nicht_erreichbar", "Maschinenraum nicht verbunden oder ohne Durchleitung", wiederholbar=True)
+        host = f"[{v.adresse}]" if ":" in v.adresse else v.adresse
+        url = httpx.URL(f"http://{host}:{v.anmeldung.durchleitung_port}/{schluessel}/{d.pfad.lstrip('/')}", query=d.abfrage.encode())
+        kopf = {**d.kopf, "authorization": f"Bearer {v.schluessel}"}
+        try:
+            antwort = await self._client.send(self._client.build_request(d.methode, url, headers=kopf, content=d.inhalt), stream=True)
+        except httpx.HTTPError as fehler:
+            raise DienstFehler("dienst_nicht_erreichbar", f"Durchleitung: {type(fehler).__name__} {fehler}".strip(), wiederholbar=True) from fehler
+        return HttpStrom(antwort)
 
     async def schliessen(self) -> None:
-        return None
+        await self._client.aclose()

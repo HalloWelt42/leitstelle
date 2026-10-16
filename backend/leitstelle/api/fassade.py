@@ -19,6 +19,7 @@ from ..fach.fehler import Ablehnung
 from ..fach.vermittlung import Vorgang, Wartet
 from ..kern.werte import WORT, Auftragszustand, Faehigkeit, Modellzustand, Prioritaet, Zone
 from ..ports.ablage.eintraege import AnwendungEintrag
+from ..ports.dienste import Durchleitung
 from .gemeinsam import betrieb, fehler_antwort, konfig, vermittlung
 
 router = APIRouter()
@@ -128,6 +129,46 @@ async def chat(request: Request) -> Response:
 async def einbettung(request: Request) -> Response:
     return await _vermitteln(request, "/v1/embeddings", Faehigkeit.EINBETTUNG)
 
+
+# Köpfe, die nur einer Verbindung gelten oder die Leitstelle selbst auswertet
+OHNE_KOPF = {"host", "authorization", "content-length", "connection", "keep-alive", "transfer-encoding", "te", "trailer", "upgrade",
+             "x-leitstelle-titel", "x-leitstelle-prioritaet"}
+
+
+async def dienst(request: Request, name: str, pfad: str) -> Response:
+    """Jeder Dienst mit eigener Schnittstelle (Sprache, Bild, Musik): `/v1/dienste/<name>/<pfad>` wird ein Auftrag. Die
+    Leitstelle prüft die Rechte, startet den Dienst bei Bedarf, plant seinen Speicher ein und reicht Anfrage und Antwort
+    unverändert durch. So geht jeder Zugriff über die Leitstelle, auch zu Diensten, die nur auf ihrem Rechner lauschen."""
+    app = _anwendung(request)
+    if app is None:
+        return fehler_antwort("unbekannter_schluessel", "Schlüssel fehlt oder ist unbekannt (Kopf Authorization: Bearer ...).")
+    b, verm = betrieb(request), vermittlung(request)
+    familie = b.familie_fuer(name)
+    if familie is None:
+        return fehler_antwort("kein_modell", f"Den Dienst {name} kennt die Leitstelle nicht.")
+    try:
+        faehigkeit = verm.faehigkeit_fuer(app.kennung, familie)
+        v = verm.annehmen(app.kennung, faehigkeit, name, _prioritaet(request, app), _titel(request, faehigkeit))
+    except Ablehnung as a:
+        return fehler_antwort(a.grund, a.begruendung)
+    anfrage = Durchleitung(methode=request.method, pfad=pfad, abfrage=request.url.query, inhalt=await request.body(),
+                           kopf={k: w for k, w in request.headers.items() if k.lower() not in OHNE_KOPF})
+    try:
+        async for _ in verm.warten(v, getrennt=request.is_disconnected):
+            pass
+        antwort = await verm.roh_anfragen(v, anfrage)
+    except Ablehnung as a:
+        verm.aufraeumen(v)
+        fehler = fehler_antwort(a.grund, a.begruendung)
+        fehler.headers.update(_kopf(request, v))
+        return fehler
+    kopf = {k: w for k, w in antwort.kopf.items() if k.lower() not in OHNE_KOPF} | _kopf(request, v) | {"X-Leitstelle-Modell": v.modellname}
+    if v.knoten:
+        kopf["X-Leitstelle-Knoten"] = v.knoten
+    return StreamingResponse(verm.roh_strom(v, antwort), status_code=antwort.status, headers=kopf)
+
+
+router.add_api_route("/v1/dienste/{name}/{pfad:path}", dienst, methods=["GET", "POST", "PUT", "PATCH", "DELETE"], name="dienst")
 
 for basis in ("/v1", ""):     # Basisadresse mit oder ohne /v1
     router.add_api_route(f"{basis}/chat/completions", chat, methods=["POST"], include_in_schema=basis == "/v1", name=f"chat{basis or '_ohne_v1'}")

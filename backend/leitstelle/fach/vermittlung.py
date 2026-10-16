@@ -16,7 +16,7 @@ from typing import Any
 from ..kern.modelle import Auftrag
 from ..kern.werte import Auftragszustand, Faehigkeit, Modellzustand, Prioritaet
 from ..konfig import Konfig
-from ..ports.dienste import DienstFehler
+from ..ports.dienste import DienstFehler, Durchleitung, Strom
 from .betrieb import Betrieb, Lauf, Messung
 from .fehler import Ablehnung
 
@@ -46,6 +46,7 @@ class Vorgang:
     neuversuche: int = 0
     modellname: str = ""
     knoten: str | None = None
+    start_s: float = 0.0              # Beginn der Durchleitung, für die Zeit bis zum ersten Stück
 
 
 def _fehler_json(grund: str, text: str) -> dict[str, Any]:
@@ -241,6 +242,55 @@ class Vermittlung:
     def _fehler(strom: bool, grund: str, text: str) -> bytes:
         daten = json.dumps(_fehler_json(grund, text), ensure_ascii=False)
         return f"data: {daten}\n\ndata: [DONE]\n\n".encode() if strom else daten.encode()
+
+    # ── Allgemeine Durchleitung (Dienste mit eigener Schnittstelle) ──────
+    def faehigkeit_fuer(self, anwendung: str, familie: str) -> Faehigkeit:
+        """Unter welcher Fähigkeit ein Aufruf an ein bestimmtes Modell läuft: die erste, die Modell und Anwendung teilen."""
+        a = self.betrieb.verbund.anwendungen.get(anwendung)
+        faehig = set().union(*(m.faehigkeiten for m in self.betrieb.verbund.modelle.values() if m.familie == familie)) if a else set()
+        gemeinsam = [f for f in Faehigkeit if f in faehig and a and f in a.faehigkeiten]
+        if not gemeinsam:
+            raise Ablehnung("faehigkeit_nicht_erlaubt", f"Die Anwendung darf {familie} nicht nutzen (keine gemeinsame Fähigkeit).")
+        return gemeinsam[0]
+
+    async def roh_anfragen(self, v: Vorgang, d: Durchleitung) -> Strom:
+        """Nach der Freigabe: Anfrage unverändert an den zugeteilten Dienst. Fehler schließen den Auftrag ab."""
+        b = self.betrieb
+        a = v.auftrag
+        modell = b.verbund.modelle.get(a.modell or "")
+        v.modellname, v.knoten = (modell.name if modell else ""), a.knoten
+        v.messung = Messung()
+        v.start_s = b.uhr.jetzt()
+        try:
+            return await self._bis_ende(b.adapter[a.dienst or ""].durchleiten(b.ort(a.modell or "").schluessel, d), v.lauf)
+        except _Abbruch:
+            self._abschliessen(v, Auftragszustand.ABGEBROCHEN, v.lauf.grund or "nutzer", v.lauf.begruendung)
+            raise Ablehnung(v.lauf.grund or "nutzer", v.lauf.begruendung) from None
+        except DienstFehler as f:
+            self._abschliessen(v, Auftragszustand.FEHLGESCHLAGEN, f.grund, f.meldung)
+            raise Ablehnung(f.grund, f.meldung) from None
+
+    async def roh_strom(self, v: Vorgang, antwort: Strom) -> AsyncIterator[bytes]:
+        """Die Antwort des Dienstes, wie sie kommt; am Ende wird der Auftrag mit dem Ergebnis abgeschlossen."""
+        b = self.betrieb
+        v.lauf.abbrecher = lambda: b._nebenbei(antwort.schliessen())
+        try:
+            async for stueck in antwort.stuecke():
+                if v.messung.erstes_stueck_s is None:
+                    v.messung.erstes_stueck_s = b.uhr.jetzt() - v.start_s
+                yield stueck
+            if v.lauf.ende.is_set():
+                self._abschliessen(v, Auftragszustand.ABGEBROCHEN, v.lauf.grund or "nutzer", v.lauf.begruendung)
+            elif antwort.status >= 400:
+                self._abschliessen(v, Auftragszustand.FEHLGESCHLAGEN, "dienst_fehler", f"Der Dienst antwortet mit {antwort.status}.")
+            else:
+                self._abschliessen(v, Auftragszustand.FERTIG)
+        except DienstFehler as f:
+            self._abschliessen(v, Auftragszustand.FEHLGESCHLAGEN, f.grund, f.meldung)
+        finally:
+            v.lauf.abbrecher = None
+            await antwort.schliessen()
+            self.aufraeumen(v)
 
     async def ausfuehren(self, v: Vorgang, pfad: str, koerper: dict[str, Any], strom: bool,
                          getrennt: Callable[[], Awaitable[bool]] | None = None) -> AsyncIterator[bytes | Wartet]:

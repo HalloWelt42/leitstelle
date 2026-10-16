@@ -18,7 +18,7 @@ from typing import Any
 import httpx
 
 from ...kern.werte import Faehigkeit as F
-from .schnittstelle import Dienstbericht, DienstFehler, ModellBericht
+from .schnittstelle import Dienstbericht, DienstFehler, Durchleitung, ModellBericht
 
 TEXT_FAEHIGKEITEN = {F.TEXT, F.UEBERSETZEN}
 
@@ -71,6 +71,16 @@ class HttpStrom:
         try:
             async for zeile in self._antwort.aiter_lines():
                 yield zeile.encode("utf-8")
+        except Exception as fehler:
+            if self._geschlossen:
+                return
+            raise DienstFehler("dienst_nicht_erreichbar", f"Strom abgerissen: {type(fehler).__name__} {fehler}".strip(), wiederholbar=False) from fehler
+
+    async def stuecke(self) -> AsyncIterator[bytes]:
+        """Die Antwort, wie sie kommt (auch Binärdaten wie Audio)."""
+        try:
+            async for stueck in self._antwort.aiter_raw():
+                yield stueck
         except Exception as fehler:
             if self._geschlossen:
                 return
@@ -156,6 +166,15 @@ class OpenAIKompatibel:
     async def anfrage(self, pfad: str, koerper: dict[str, Any]) -> HttpStrom:
         try:
             antwort = await self._client.send(self._client.build_request("POST", pfad, json=koerper), stream=True)
+        except httpx.HTTPError as fehler:
+            raise DienstFehler("dienst_nicht_erreichbar", f"{type(fehler).__name__} {fehler}".strip(), wiederholbar=True) from fehler
+        return HttpStrom(antwort)
+
+    async def durchleiten(self, schluessel: str, d: Durchleitung) -> HttpStrom:
+        """Allgemeiner Weg an den Läufer; der Modellschlüssel spielt hier keine Rolle (die Anfrage nennt ihr Modell selbst)."""
+        url = httpx.URL("/" + d.pfad.lstrip("/"), query=d.abfrage.encode())
+        try:
+            antwort = await self._client.send(self._client.build_request(d.methode, url, headers=d.kopf, content=d.inhalt), stream=True)
         except httpx.HTTPError as fehler:
             raise DienstFehler("dienst_nicht_erreichbar", f"{type(fehler).__name__} {fehler}".strip(), wiederholbar=True) from fehler
         return HttpStrom(antwort)

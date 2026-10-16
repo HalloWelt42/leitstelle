@@ -7,6 +7,7 @@ import asyncio
 import socket
 import sys
 from contextlib import asynccontextmanager
+from types import SimpleNamespace
 from pathlib import Path
 
 import httpx
@@ -19,6 +20,7 @@ from leitstelle.konfig import Konfig
 from schein.server import laufend
 
 pytest.importorskip("maschinenraum")
+from maschinenraum import durchleitung  # noqa: E402
 from maschinenraum.konfig import Ordner  # noqa: E402
 from maschinenraum.leitstelle import Leitstellenkanal  # noqa: E402
 from maschinenraum.messen import Messer  # noqa: E402
@@ -72,21 +74,30 @@ async def aufbau(tmp_path: Path):
 
 @asynccontextmanager
 async def agent_laeuft(o: Ordner):
+    """Maschinenraum wie im Betrieb: Dienstverwaltung, Kanal zur Leitstelle und Durchleitung auf einem freien Port."""
     e = o.einstellungen()
     verwalter = Verwalter(o, e)
     messer = Messer(e.messung.takt_s, macmon=False)
-    kanal = Leitstellenkanal(o, verwalter, messer)
-    aufgabe = asyncio.create_task(verwalter.schleife())
-    kanal.starten()
-    try:
-        yield verwalter
-    finally:
-        await kanal.beenden()
-        aufgabe.cancel()
-        await asyncio.gather(aufgabe, return_exceptions=True)
-        for d in verwalter.dienste.values():
-            if d.stand.gruppe is not None:
-                await d.anhalten()
+    weg = durchleitung.erstellen(SimpleNamespace(ordner=o, verwalter=verwalter))
+    async with laufend(weg) as weg_url:
+        e.durchleitung.port = int(weg_url.rsplit(":", 1)[1])
+        o.einstellungen_speichern(e)
+        kanal = Leitstellenkanal(o, verwalter, messer)
+        aufgabe = asyncio.create_task(verwalter.schleife())
+        kanal.starten()
+        try:
+            yield verwalter
+        finally:
+            await kanal.beenden()
+            await _aufraeumen(verwalter, aufgabe)
+
+
+async def _aufraeumen(verwalter: Verwalter, aufgabe: asyncio.Task) -> None:
+    aufgabe.cancel()
+    await asyncio.gather(aufgabe, return_exceptions=True)
+    for d in verwalter.dienste.values():
+        if d.stand.gruppe is not None:
+            await d.anhalten()
 
 
 async def _knoten(c: httpx.AsyncClient, kennung: str) -> dict:
@@ -243,6 +254,45 @@ async def test_a07_anhalten_nur_von_hand(tmp_path):
             await asyncio.sleep(2.5)
             assert _offen(port)                                                   # der Maschinenraum lehnt ab
             assert (await _modell(c, "probe"))["zustand"] == "geladen"
+
+
+async def test_a08_anfrage_an_einen_dienst_nur_ueber_die_leitstelle(tmp_path):
+    """Die Anwendung kennt nur die Leitstelle. Der Dienst ist aus und lauscht nur auf seinem Rechner: die Leitstelle
+    startet ihn über den Maschinenraum und reicht Anfrage und Antwort durch; der Auftrag steht im Verlauf."""
+    port = _freier_port()
+    (tmp_path / "hallo.txt").write_text("Grüße aus dem Dienst")
+    async with aufbau(tmp_path) as (c, url, knoten, schluessel):
+        r = await c.post("/api/anwendungen", json={"name": "Sprache", "faehigkeiten": ["stimme"]})
+        app_schluessel = r.json()["schluessel"]
+        r = await c.post("/api/anwendungen", json={"name": "Nur Text", "faehigkeiten": ["text"]})
+        fremd_schluessel = r.json()["schluessel"]
+        async with agent_laeuft(_agentenordner(tmp_path, url, schluessel, port)):
+            async def da():
+                return await _modell(c, "probe") is not None
+            await _warte_bis(da)
+            assert (await _modell(c, "probe"))["zustand"] == "frei" and not _offen(port)
+
+            async with httpx.AsyncClient(base_url=url, timeout=60) as anw:
+                r = await anw.get("/v1/dienste/probe/hallo.txt", headers={"Authorization": f"Bearer {app_schluessel}"})
+                assert r.status_code == 200, r.text
+                assert r.content.decode() == "Grüße aus dem Dienst" and r.headers["x-leitstelle-modell"] == "Probe"
+                auftrag = r.headers["x-leitstelle-auftrag"]
+                assert _offen(port)                                                   # die Leitstelle hat ihn gestartet
+
+                r = await anw.get("/v1/dienste/probe/fehlt.txt", headers={"Authorization": f"Bearer {app_schluessel}"})
+                assert r.status_code == 404                                          # Antwort des Dienstes, unverändert
+
+                r = await anw.get("/v1/dienste/probe/hallo.txt", headers={"Authorization": f"Bearer {fremd_schluessel}"})
+                assert r.status_code >= 400 and r.json()["error"]["code"] == "faehigkeit_nicht_erlaubt"
+                r = await anw.get("/v1/dienste/gibtsnicht/x", headers={"Authorization": f"Bearer {app_schluessel}"})
+                assert r.json()["error"]["code"] == "kein_modell"
+                assert (await anw.get("/v1/dienste/probe/hallo.txt")).status_code == 401
+
+            async def fertig():
+                return (await c.get(f"/api/auftraege/{auftrag}")).json()["zustand"] == "fertig"
+            await _warte_bis(fertig)
+            e = (await c.get(f"/api/auftraege/{auftrag}")).json()
+            assert e["faehigkeit"] == "stimme" and e["erstes_stueck_s"] is not None
 
 
 def test_protokoll_von_agent_und_kern_ist_deckungsgleich():

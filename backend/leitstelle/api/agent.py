@@ -31,7 +31,8 @@ def _schluessel(kopf: str | None) -> str | None:
 @router.websocket("/agent/kanal")
 async def kanal(ws: WebSocket) -> None:
     betrieb: Betrieb = ws.app.state.betrieb
-    knoten = betrieb.knoten_zum_agentschluessel(_schluessel(ws.headers.get("authorization")) or "")
+    schluessel = _schluessel(ws.headers.get("authorization")) or ""
+    knoten = betrieb.knoten_zum_agentschluessel(schluessel)
     await ws.accept()                       # erst annehmen, damit der Agent das Grundwort lesen kann
     if knoten is None:
         await ws.close(code=4401, reason="unbekannter_schluessel")
@@ -60,7 +61,8 @@ async def kanal(ws: WebSocket) -> None:
     alt = betrieb.agenten.verbindung(knoten.kennung)
     if alt and alt.beenden:
         await alt.beenden()
-    v = betrieb.agenten.anmelden(knoten.kennung, anmeldung, senden, betrieb.uhr.jetzt(), beenden)
+    v = betrieb.agenten.anmelden(knoten.kennung, anmeldung, senden, betrieb.uhr.jetzt(), beenden,
+                                 adresse=ws.client.host if ws.client else None, schluessel=schluessel)
     await senden(umschlag("knoten.angemeldet", {"knoten": knoten.kennung, "name": knoten.name}, an=f"agent:{knoten.kennung}", bezug=erste.id))
     betrieb.agent_angemeldet(v)
     try:
