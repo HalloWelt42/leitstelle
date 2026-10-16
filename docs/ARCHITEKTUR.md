@@ -11,6 +11,18 @@ Modell, reiht nach Priorität ein, verwaltet den Speicher und führt den Auftrag
 durch. Zurück fließen Fortschritt, Ergebnis und Signale (Speicher knapp, pausiert, gesperrt, Modell
 bereit), damit sich jede Anwendung auf die Lage einstellen kann.
 
+## Grundsätze der Rollen (Nutzer, 16.10.2026)
+
+- **Die Leitstelle vermittelt nur.** Sie lädt nie selbst ein Modell und rechnet nie selbst; sie nutzt Kommunikation
+  und Zustände. Geladen und gerechnet wird im Modell-Läufer oder im Maschinenraum des jeweiligen Rechners, auf ihre
+  Anweisung. Die Leitstelle hat keine Modellbibliothek und bekommt keine.
+- **Der Maschinenraum bündelt alles, was der Modell-Läufer nicht verwaltet**, je Rechner, und ist für sich allein
+  bedienbar wie der Modell-Läufer.
+- **Alles geht nur über die Leitstelle:** Anwendungen sprechen nur mit ihr (Fassade, auch `/v1/dienste/...`); die
+  Dienste lauschen nur auf ihrem Rechner und sind nur über die Durchleitung des Maschinenraums erreichbar.
+- **Die Leitstelle sieht nur Fähigkeiten:** Programme ohne Fähigkeit (Oberflächen, Backends von Anwendungen,
+  Datenbanken) verwaltet allein der Maschinenraum.
+
 ## 2. Rollen und Bausteine
 
 ```
