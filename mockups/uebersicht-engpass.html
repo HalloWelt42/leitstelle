@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leitstelle - Entwurf: Übersicht im Engpass</title>
+<link rel="icon" href="symbol.svg">
+<link rel="stylesheet" href="../frontend/node_modules/@fortawesome/fontawesome-free/css/all.min.css">
+<link rel="stylesheet" href="stil.css">
+<style>
+  .ueber-kopf { display: flex; align-items: center; gap: var(--ls-a4); flex-wrap: wrap; }
+  .ueber-kopf h1 { margin: 0; }
+  .ueber-kopf .lagezeile { color: var(--ls-text-2); }
+  .ueber-kopf .lagezeile b { color: var(--ls-gefahr); font-weight: 600; }
+  .ueber-kopf .aktionen { margin-left: auto; display: flex; gap: var(--ls-a2); }
+  .kennzahlen { margin-top: var(--ls-a3); }
+
+  /* Engpass-Block: Lage links, Entscheidung rechts, alles in einem Hinweis */
+  .engpass-block { display: grid; grid-template-columns: 24px 340px minmax(0, 1fr); gap: var(--ls-a4) var(--ls-a4); align-items: stretch;
+             padding: var(--ls-a4) var(--ls-a5); margin: 0 0 var(--ls-a4); font-size: var(--ls-gr-text); }
+  .engpass-block > i { font-size: 22px; margin-top: 4px; }
+  .engpass-block .lage-text { display: flex; flex-direction: column; gap: var(--ls-a2); min-width: 0; }
+  .engpass-block .lage-text h2 { display: flex; align-items: baseline; gap: var(--ls-a2); color: var(--ls-gefahr); }
+  .engpass-block .lage-text h2 .seit { font-size: var(--ls-gr-klein); font-weight: 500; color: var(--ls-text-3); }
+  .engpass-block .lage-text p { color: var(--ls-text); }
+  .engpass-block .braucht { margin-top: var(--ls-a2); display: grid; gap: 4px; font-size: var(--ls-gr-klein); }
+  .engpass-block .braucht .etikett { margin-bottom: 2px; }
+  .engpass-block .braucht .z { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; gap: var(--ls-a2); align-items: center; color: var(--ls-text-2); }
+  .engpass-block .braucht .z i { font-size: 10px; color: var(--f); }
+  .engpass-block .braucht .z .zahl { color: var(--ls-text); font-weight: 600; }
+  .engpass-block .braucht .summe { display: flex; justify-content: space-between; gap: var(--ls-a2); margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--ls-rand); color: var(--ls-text); font-weight: 600; }
+  .engpass-block .braucht .summe .zahl.frei { color: var(--ls-gefahr); }
+  .engpass-block .lage-text .knoepfe { margin-top: auto; display: flex; gap: var(--ls-a2); padding-top: var(--ls-a3); flex-wrap: wrap; }
+  .engpass-block .entscheidung .etikett { margin-bottom: var(--ls-a2); }
+  .engpass-block .wahl .folge { margin-top: 4px; }
+  .engpass-block .wahl .pruef { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 6px; margin-top: 4px; }
+  .engpass-block .wahl .pruef i { text-align: center; margin-top: 4px; font-size: 14px; }
+  .engpass-block .wahl .pruef.ja i { color: var(--ls-erfolg); }
+  .engpass-block .wahl .pruef.nein i { color: var(--ls-gefahr); }
+  .engpass-block .wahl .pruef.ja, .engpass-block .wahl .pruef.nein { color: var(--ls-text); }
+  .engpass-block .wahl .pruef.nein { color: var(--ls-text-2); }
+  .engpass-block .wahl strong { font-weight: 600; }
+  .empfohlen { display: inline-block; margin-left: var(--ls-a2); padding: 1px 8px; vertical-align: 2px; border-radius: var(--ls-ecke-klein);
+               font-size: var(--ls-gr-marke); font-weight: 700; font-style: normal; letter-spacing: 0.04em; color: var(--ls-erfolg); background: rgba(var(--ls-erfolg-rgb), 0.14); }
+
+  /* Ein Rollfeld, darin der breite Block und darunter zwei Spalten */
+  .inhalt { display: grid; grid-template-columns: minmax(0, 1fr) 440px; gap: var(--ls-a4); }
+
+  /* Laufende Aufträge unter dem Netzbild */
+  .laufend { display: grid; gap: 2px; }
+  .lauf { display: grid; grid-template-columns: 34px minmax(0, 1fr) 150px 130px auto; gap: var(--ls-a3); align-items: center;
+          padding: var(--ls-a3); border-radius: var(--ls-ecke); background: var(--ls-karte); }
+  .lauf:hover { background: var(--ls-karte-2); }
+  .lauf .symbol { display: grid; place-items: center; width: 34px; height: 34px; border-radius: var(--ls-ecke); background: rgba(var(--f-rgb), var(--ls-tint)); color: var(--f); }
+  .lauf .titel { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lauf .zweit { display: flex; gap: var(--ls-a3); align-items: center; font-size: var(--ls-gr-klein); color: var(--ls-text-2); margin-top: 3px; flex-wrap: wrap; }
+  .lauf .zweit .app { color: var(--ls-text); font-weight: 500; }
+  .lauf .balken { margin-top: 8px; }
+  .lauf .rest { font-size: var(--ls-gr-klein); color: var(--ls-text-2); text-align: right; }
+  .lauf .rest b { display: block; color: var(--ls-text); font-family: var(--ls-schrift-zahl); font-size: var(--ls-gr-text); }
+  .lauf .knoepfe { display: flex; gap: 2px; }
+  .abschnitt { margin-top: var(--ls-a5); }
+  .abschnitt-kopf { display: flex; align-items: baseline; gap: var(--ls-a3); margin-bottom: var(--ls-a3); }
+  .abschnitt-kopf h2 { margin: 0; }
+  .abschnitt-kopf .mehr { margin-left: auto; font-weight: 600; font-size: var(--ls-gr-klein); }
+
+  /* Rechte Spalte */
+  .speicherkarte .zeile-sp { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--ls-a2); align-items: center; margin-top: var(--ls-a3); }
+  .speicherkarte .zeile-sp:first-of-type { margin-top: 0; }
+  .speicherkarte .n { font-weight: 600; display: flex; align-items: center; gap: var(--ls-a2); flex-wrap: wrap; }
+  .speicherkarte .w { font-size: var(--ls-gr-klein); color: var(--ls-text-3); }
+  .speicherkarte .w.warn { color: var(--ls-gefahr); font-weight: 600; }
+  .speicherkarte .speicher { margin-top: 6px; }
+  .speicherkarte .wartungszeile { font-size: var(--ls-gr-klein); color: var(--ls-text-3); margin-top: 4px; }
+  .wartet-k .eintrag { padding: var(--ls-a3); border-radius: var(--ls-ecke); background: var(--ls-flaeche); }
+  .wartet-k .eintrag + .eintrag { margin-top: var(--ls-a2); }
+  .wartet-k .eintrag .t { font-weight: 600; display: flex; gap: var(--ls-a2); align-items: center; }
+  .wartet-k .eintrag .t .faehigkeit { margin-left: auto; }
+  .wartet-k .eintrag .g { font-size: var(--ls-gr-klein); color: var(--ls-text-2); margin-top: 4px; }
+  .wartet-k .eintrag .g .neu { color: var(--ls-info); font-weight: 600; }
+  .wartet-k .eintrag .v { font-size: var(--ls-gr-klein); color: var(--ls-text); margin-top: 6px; display: flex; gap: var(--ls-a2); align-items: flex-start; }
+  .wartet-k .eintrag .v i { color: var(--ls-akzent-schrift); margin-top: 4px; }
+  .wartet-k .eintrag .tun { display: flex; gap: var(--ls-a2); margin-top: var(--ls-a2); flex-wrap: wrap; }
+  .meldungen .m { display: grid; grid-template-columns: 62px 24px minmax(0, 1fr); gap: var(--ls-a2); align-items: baseline; padding: 6px 0; border-top: 1px solid var(--ls-rand); font-size: var(--ls-gr-klein); }
+  .meldungen .m:first-of-type { border-top: 0; }
+  .meldungen .m .zeit { color: var(--ls-text-3); min-width: 0; }
+  .meldungen .m i { text-align: center; color: var(--ls-text-3); }
+  .meldungen .m.warnung i { color: var(--ls-warnung); }
+  .meldungen .m.gefahr i { color: var(--ls-gefahr); }
+  .meldungen .m.erfolg i { color: var(--ls-erfolg); }
+  .meldungen .m.signal i { color: var(--ls-akzent-schrift); }
+  .kosten { display: flex; align-items: baseline; gap: var(--ls-a3); }
+  .kosten b { font-family: var(--ls-schrift-zahl); font-size: var(--ls-gr-kennzahl); font-weight: 600; color: var(--ls-koralle); }
+  .kosten .balken { flex: 1; }
+  .kosten .balken b { background: var(--ls-koralle); font-size: 0; }
+  .versteckt { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+<div class="schale">
+  <div data-block="kopf"></div>
+  <div data-block="seite"></div>
+  <main class="haupt rahmen" id="haupt"></main>
+  <div data-block="fuss"></div>
+</div>
+
+<script type="module">
+  import { seite, AUFTRAEGE, KNOTEN, MODELLE, WORT, FARBE, faehigkeit, zustand, anwendung, modell, knoten, gb } from './gemeinsam.js';
+  import { netzbild } from './netzbild.js';
+  seite('uebersicht', { lage: 'engpass' });
+
+  // ── Beispielwelt für diese Seite abwandeln: Engpass ───────────────────
+  // Knoten werden vom Netzbild über die Kennung aus KNOTEN gelesen, deshalb
+  // werden die beiden betroffenen Einträge hier direkt verändert (nur auf
+  // dieser Seite wirksam). Aufträge werden kopiert und abgewandelt.
+  Object.assign(knoten('mac-128'), { ram: 98 });
+  Object.assign(knoten('mac-32'), { zustand: 'wartung', beschreibung: 'Wartung seit 14:50, läuft aus', auftraege: 0 });
+
+  const AUFTRAEGE_ENGPASS = AUFTRAEGE.map(a => ({ ...a }));
+  const ab = (k) => AUFTRAEGE_ENGPASS.find(a => a.kennung === k);
+  Object.assign(ab('a-c150'), { zustand: 'wartet_speicher', seit: '01:40', rest: 'nach a-7f3c',
+    grund: 'Textmodell belegt; ein zweiter Lauf braucht etwa 4 GB Kontextspeicher, 2,6 GB frei',
+    vorschlag: 'Läuft direkt nach dem Zusage-Auftrag auf dem noch geladenen Textmodell (etwa 25 s).',
+    schritte: ['angenommen', 'eingereiht', 'wartet auf Speicher', 'rechnet', 'ergebnis', 'fertig'], schritt: 2 });
+  Object.assign(ab('a-e77a'), { seit: '03:10',
+    grund: 'Bildmodell (11,8 GB) passt nicht neben das Textmodell (84,7 GB); 2,6 GB frei',
+    vorschlag: 'Wartet, bis das Textmodell frei ist, dann wird es geladen (etwa 30 s).' });
+  Object.assign(ab('a-88c3'), { zustand: 'wartet_speicher', seit: '00:20', rest: 'offen', neu: 'neu eingereiht 14:58',
+    grund: 'Coder-Modell (46,3 GB) passt nicht neben das Textmodell (84,7 GB); 2,6 GB frei',
+    vorschlag: 'Extern möglich: Externer Anbieter, etwa 0,03 Euro. Codehilfe erlaubt das.',
+    schritte: ['angenommen', 'eingereiht', 'wartet auf Speicher', 'modell laden', 'rechnet', 'fertig'], schritt: 2 });
+  // Vierter wartender Auftrag: Folgeauftrag von TubeVault auf das laufende Transkript
+  AUFTRAEGE_ENGPASS.push({ ...ab('a-2b91'), kennung: 'a-2b92', titel: 'Zusammenfassung: Einstieg in OpenTelemetry', faehigkeit: 'text', modell: 'qwen-80b', dienst: 'laeufer',
+    zustand: 'wartet', fortschritt: 0, seit: '00:46', rest: 'nach a-2b91', abschnitte: undefined,
+    grund: 'Folgeauftrag: braucht zuerst das fertige Transkript (Rest etwa 22 min)',
+    vorschlag: 'Startet von selbst, sobald das Transkript fertig ist.',
+    schritte: ['angenommen', 'eingereiht', 'modell bereit', 'rechnet', 'ergebnis', 'fertig'], schritt: 1 });
+
+  const laufend = AUFTRAEGE_ENGPASS.filter(a => a.zustand === 'laeuft');
+  const wartend = AUFTRAEGE_ENGPASS.filter(a => a.zustand === 'wartet' || a.zustand === 'wartet_speicher');
+  const aufSpeicher = wartend.filter(a => a.zustand === 'wartet_speicher');
+  const pausiert = AUFTRAEGE_ENGPASS.filter(a => a.zustand === 'pausiert');
+  const erreichbar = KNOTEN.filter(k => k.zustand === 'aktiv');
+
+  // Fußleiste und Navi-Zähler an das Szenario angleichen. Gehört als Option in seite() von gemeinsam.js.
+  function schaleAngleichen({ laufen, warten, speicher, extern, knotenText, knotenKlasse, zaehler }) {
+    const fuss = document.querySelector('.fuss');
+    const felder = fuss.querySelectorAll(':scope > span');
+    felder[0].innerHTML = `<i class="fa-solid fa-circle-play"></i>&nbsp; <span class="zahl">${laufen}</span> Aufträge laufen · <span class="zahl">${warten}</span> warten`;
+    felder[1].innerHTML = `<i class="fa-solid fa-memory"></i>&nbsp; ${speicher}`;
+    felder[2].innerHTML = `<i class="fa-solid fa-cloud"></i>&nbsp; Extern heute <span class="zahl">${extern}</span>`;
+    fuss.querySelector('.rechts span[title]').innerHTML = `<span class="punkt ${knotenKlasse}"></span>${knotenText}`;
+    for (const [schluessel, wert] of Object.entries(zaehler)) {
+      const z = document.querySelector(`.navi[href="${schluessel}.html"] .zaehler`);
+      if (!z) continue;
+      if (wert == null) z.remove(); else z.textContent = wert;
+    }
+  }
+  schaleAngleichen({ laufen: laufend.length, warten: wartend.length, speicher: 'Mac Studio <span class="zahl">98 %</span> Speicher', extern: '0,42 Euro',
+                     knotenText: `${erreichbar.length} von ${KNOTEN.length} Knoten`, knotenKlasse: 'warnung', zaehler: { auftraege: laufend.length + wartend.length } });
+
+  const lauf = (a) => `<div class="lauf" style="--f:${FARBE[a.faehigkeit][0]};--f-rgb:${FARBE[a.faehigkeit][1]}" title="${a.titel}: ${a.fortschritt} Prozent, ${a.rest} verbleibend">
+      <div class="symbol"><i class="fa-solid ${WORT.faehigkeit_symbol[a.faehigkeit]}"></i></div>
+      <div style="min-width:0">
+        <div class="titel">${a.titel}</div>
+        <div class="zweit"><span class="app">${anwendung(a.anwendung).name}</span><span>${modell(a.modell).name} auf ${knoten(a.knoten).name}</span>
+          ${a.streamt ? `<span class="zahl">${a.token_s} Token/s</span>` : ''}${a.abschnitte ? `<span class="zahl">${a.abschnitte}</span>` : ''}</div>
+        <div class="balken lebt"><b style="width:${a.fortschritt}%"></b></div>
+      </div>
+      <div class="rest">Rest<b>${a.rest}</b></div>
+      <div class="rest">Priorität<b style="font-family: var(--ls-schrift); font-weight: 600">${WORT.prioritaet[a.prioritaet]}</b></div>
+      <div class="knoepfe">
+        <button class="knopf ohne symbol klein" title="${a.pausierbar ? 'Anhalten: der Auftrag bleibt stehen und läuft später weiter' : 'Dieser Auftrag streamt und lässt sich nicht anhalten, nur stoppen'}" ${a.pausierbar ? '' : 'disabled'}><i class="fa-solid fa-pause"></i></button>
+        <button class="knopf ohne symbol klein" title="Auslaufen lassen: fertig rechnen, aber nichts Neues dieser Anwendung annehmen"><i class="fa-solid fa-person-walking-arrow-right"></i></button>
+        <button class="knopf ohne symbol klein gefahr" title="Sofort stoppen: Rechnung abbrechen, die Anwendung bekommt das Signal abgebrochen"><i class="fa-solid fa-stop"></i></button>
+      </div>
+    </div>`;
+
+  const mac = knoten('mac-128');
+  const speicher = (k, modelle) => {
+    const farbe = { text: 'modell', einbettung: 'modell einbettung', bild: 'modell vision', hoeren: 'modell hoeren', stimme: 'modell stimme' };
+    const geladen = modelle.filter(m => m.zustand === 'geladen' || m.zustand === 'rechnet');
+    const summe = geladen.reduce((s, m) => s + m.gb, 0);
+    const system = Math.max(0, k.ram_gb * k.ram / 100 - summe);
+    const frei = k.ram_gb - summe - system;
+    const wartung = k.zustand === 'wartung';
+    return `<div class="zeile-sp"><span class="n">${k.name} <span class="leise klein">${k.ram_gb} GB</span>${wartung ? zustand('wartung') : ''}</span><span class="w${k.ram >= 90 ? ' warn' : ''}">${k.ram} % belegt · ${gb(frei)} frei</span></div>
+      <div class="speicher">${geladen.map(m => `<span class="${farbe[m.faehigkeit] || 'modell'}" style="width:${(m.gb / k.ram_gb * 100).toFixed(1)}%" title="${m.name}: ${gb(m.gb)}${m.zustand === 'rechnet' ? ', rechnet gerade' : ''}"></span>`).join('')}
+        <span class="system" style="width:${(system / k.ram_gb * 100).toFixed(1)}%" title="System und andere Programme: ${gb(system)}"></span></div>
+      ${wartung ? `<div class="wartungszeile">Von dir in Wartung genommen um 14:50; nimmt nichts Neues an, letzter Auftrag fertig 14:58.</div>` : ''}`;
+  };
+  const modelleVon = (kennungen) => MODELLE.filter(m => kennungen.includes(m.dienst));
+
+  const KOPF = `
+    <div class="rahmen-kopf">
+      <div class="ueber-kopf">
+        <h1>Übersicht</h1>
+        <span class="lagezeile"><b>Engpass:</b> Speicher auf Mac Studio zu 98 Prozent belegt, drei Aufträge warten auf Speicher, zwei Knoten fehlen.</span>
+        <div class="aktionen">
+          <button class="knopf" title="Alle Hintergrund-Aufträge anhalten, damit interaktive Anwendungen Vorrang bekommen"><i class="fa-solid fa-pause"></i> Hintergrund anhalten</button>
+          <button class="knopf" title="Speicher freigeben: zeigt zuerst, welche Modelle entladen würden, nichts passiert ohne Bestätigung"><i class="fa-solid fa-broom"></i> Speicher freigeben</button>
+        </div>
+      </div>
+      <div class="kennzahlen">
+        <div class="kennzahl laeuft"><b>${laufend.length}</b><span>Läuft</span></div>
+        <div class="kennzahl wartet"><b>${wartend.length}</b><span>Wartet</span><small>${aufSpeicher.length} davon auf Speicher</small></div>
+        <div class="kennzahl"><b>${pausiert.length}</b><span>Pausiert</span><small>Bildschmiede, von dir</small></div>
+        <div class="kennzahl erfolg"><b>67</b><span>Heute fertig</span><small>mittlere Wartezeit 4 s</small></div>
+        <div class="kennzahl fehler"><b>1</b><span>Fehler</span><small>Codehilfe, neu eingereiht</small></div>
+        <div class="kennzahl"><b>${erreichbar.length}<span style="font-size: 18px; color: var(--ls-text-3)"> / ${KNOTEN.length}</span></b><span>Knoten</span><small>Pi Werkstatt nicht erreichbar · MacBook in Wartung</small></div>
+      </div>
+    </div>`;
+
+  const ENGPASS = `
+    <section class="hinweis gefahr engpass-block" aria-label="Engpass und Entscheidung">
+      <i class="fa-solid fa-triangle-exclamation"></i>
+      <div class="lage-text">
+        <h2>Engpass <span class="seit">seit <span class="zahl">14:58</span></span></h2>
+        <p>Mac Studio ist zu 98 Prozent belegt, weil das Textmodell für Zusage 84,7 GB hält; drei Aufträge warten deshalb auf Speicher. Das MacBook ist in Wartung und Pi Werkstatt nicht erreichbar, im Heimnetz gibt es keinen Ausweichknoten.</p>
+        <div class="braucht" title="Speicherbedarf der drei wartenden Aufträge gegenüber dem freien Speicher auf Mac Studio">
+          <div class="etikett">Wartet auf Speicher</div>
+          <div class="z" style="--f: var(--ls-flieder)"><i class="fa-solid fa-circle"></i><span>Kiste: Foto beschreiben, Bildmodell</span><span class="zahl">11,8 GB</span></div>
+          <div class="z" style="--f: var(--ls-himmel)"><i class="fa-solid fa-circle"></i><span>Codehilfe: Durchsicht, Coder-Modell</span><span class="zahl">46,3 GB</span></div>
+          <div class="z" style="--f: var(--ls-tuerkis)"><i class="fa-solid fa-circle"></i><span>Medienpool: Übersetzung, Kontext</span><span class="zahl">4,0 GB</span></div>
+          <div class="summe"><span>Bedarf <span class="zahl">62,1 GB</span></span><span>frei <span class="zahl frei">2,6 GB</span></span></div>
+        </div>
+        <div class="knoepfe">
+          <button class="knopf haupt" id="so-machen" title="Führt den gewählten Weg aus: Textmodell auslaufen lassen. Nichts wird ohne diese Bestätigung entladen."><i class="fa-solid fa-check"></i> So machen</button>
+          <button class="knopf ohne" title="Entscheidung vertagen: die Warteschlange bleibt wie sie ist, der Block bleibt sichtbar">Später</button>
+        </div>
+      </div>
+      <div class="entscheidung">
+        <div class="etikett">Entscheidung: drei Wege</div>
+        <div class="wahl" id="wege">
+          <label class="an" title="Empfohlen: der Zusage-Auftrag rechnet fertig, danach wird das Textmodell entladen und die wartenden Modelle laden nacheinander. Kein Auftrag geht verloren.">
+            <input class="versteckt" type="radio" name="weg" value="auslaufen" checked>
+            <span class="kreis"></span>
+            <div>
+              <b>Textmodell auslaufen lassen<em class="empfohlen">Empfohlen</em></b>
+              <span class="folge">Zusage-Auftrag rechnet fertig (etwa <strong class="zahl">25 s</strong>), die kurze Übersetzung folgt. Dann wird das Textmodell entladen: <strong class="zahl">84,7 GB</strong> frei. Bildmodell und Coder-Modell laden nacheinander. Nichts geht verloren.</span>
+            </div>
+          </label>
+          <label title="Zwei wartende Aufträge über Externer Anbieter rechnen. Nur Codehilfe erlaubt externes Rechnen, Kiste nicht; deshalb ginge nur einer der beiden.">
+            <input class="versteckt" type="radio" name="weg" value="extern">
+            <span class="kreis"></span>
+            <div>
+              <b>Zwei Aufträge extern rechnen</b>
+              <span class="folge">Kiste und Codehilfe über Externer Anbieter, etwa <strong class="zahl">0,04 Euro</strong>. Daten verlassen das Heimnetz.</span>
+              <span class="pruef ja"><i class="fa-solid fa-check"></i><span>Codehilfe darf das: Code-Durchsicht extern, etwa <strong class="zahl">0,03 Euro</strong>.</span></span>
+              <span class="pruef nein"><i class="fa-solid fa-xmark"></i><span>Kiste darf das nicht: Daten bleiben laut Regel im Heimnetz, das Foto wartet weiter. Nur einer der beiden ist also möglich.</span></span>
+            </div>
+          </label>
+          <label title="Nichts verändern: die Warteschlange arbeitet sich nach dem Zusage-Auftrag von selbst ab.">
+            <input class="versteckt" type="radio" name="weg" value="nichts">
+            <span class="kreis"></span>
+            <div>
+              <b>Nichts tun</b>
+              <span class="folge">Die Warteschlange arbeitet sich nach dem Zusage-Auftrag selbst ab, ein Modell nach dem anderen; geschätzt <strong class="zahl">3 min</strong>.</span>
+            </div>
+          </label>
+        </div>
+      </div>
+    </section>`;
+
+  const LINKS = `
+    <div id="netz"></div>
+    <div class="abschnitt">
+      <div class="abschnitt-kopf"><h2>Läuft gerade</h2><span class="zahl leise">${laufend.length}</span><a class="mehr" href="auftraege.html">Alle Aufträge</a></div>
+      <div class="laufend">${laufend.map(lauf).join('')}</div>
+    </div>`;
+
+  const RECHTS = `
+    <div class="karte speicherkarte">
+      <h3><i class="fa-solid fa-memory"></i>Speicherlage <span class="rechts">Modelle im Speicher</span></h3>
+      ${speicher(mac, modelleVon(['laeufer', 'txt2voice', 'bildschmiede']))}
+      ${speicher(knoten('mac-32'), modelleVon(['whisper-32', 'acestep']))}
+      ${speicher(knoten('pi-archiv'), modelleVon(['piper-pi']))}
+      <div class="speicher-legende">
+        <span><i class="fa-solid fa-square" style="color: var(--ls-himmel)"></i>Text</span>
+        <span><i class="fa-solid fa-square" style="color: var(--ls-petrol)"></i>Einbettung</span>
+        <span><i class="fa-solid fa-square" style="color: var(--ls-minze)"></i>Hören</span>
+        <span><i class="fa-solid fa-square" style="color: var(--ls-rose)"></i>Stimme</span>
+        <span><i class="fa-solid fa-square" style="color: var(--ls-stahl)"></i>System</span>
+      </div>
+    </div>
+    <div class="karte wartet-k">
+      <h3><i class="fa-solid fa-hourglass-half"></i>Wartet <span class="rechts">${wartend.length} Aufträge, ${aufSpeicher.length} auf Speicher</span></h3>
+      ${wartend.map(a => `<div class="eintrag">
+          <div class="t">${a.titel}${faehigkeit(a.faehigkeit)}</div>
+          <div class="g">${anwendung(a.anwendung).name} · ${a.neu ? `<span class="neu">${a.neu}</span> · ` : ''}${a.grund}</div>
+          ${a.vorschlag ? `<div class="v"><i class="fa-solid fa-lightbulb"></i><span>${a.vorschlag}</span></div>` : ''}
+          <div class="tun">
+            ${a.zustand === 'wartet_speicher' && anwendung(a.anwendung).extern ? `<button class="knopf klein" title="Rechnet den Auftrag extern (Externer Anbieter, Qwen3.6 35B extern). Kostet etwa 0,03 Euro, Daten verlassen das Heimnetz."><i class="fa-solid fa-cloud"></i> Extern rechnen</button>` : ''}
+            <button class="knopf klein ohne" title="Priorität anheben: der Auftrag kommt in der Warteschlange nach vorn"><i class="fa-solid fa-arrow-up"></i> Vorziehen</button>
+            <button class="knopf klein ohne gefahr" title="Auftrag verwerfen: die Anwendung bekommt das Signal abgebrochen"><i class="fa-solid fa-xmark"></i> Verwerfen</button>
+          </div>
+        </div>`).join('')}
+    </div>
+    <div class="karte">
+      <h3><i class="fa-solid fa-cloud"></i>Extern heute <span class="rechts">Grenze 5,00 Euro</span></h3>
+      <div class="kosten"><b>0,42 Euro</b><div class="balken"><b style="width: 8.4%"></b></div><span class="klein leise zahl">8 %</span></div>
+      <div class="klein leise" style="margin-top: 8px">3 Aufträge über Externer Anbieter, alle von Fundus (Tiefenrecherche). Schlüssel liegt nur in der Leitstelle.</div>
+    </div>
+    <div class="karte meldungen">
+      <h3><i class="fa-solid fa-bell"></i>Meldungen <span class="rechts"><a href="protokoll.html">Protokoll</a></span></h3>
+      <div class="m gefahr"><span class="zeit zahl">14:58</span><i class="fa-solid fa-triangle-exclamation"></i><span>Lage <b>Engpass</b>: drei Aufträge warten auf Speicher, zwei Knoten fehlen</span></div>
+      <div class="m signal"><span class="zeit zahl">14:58</span><i class="fa-solid fa-paper-plane"></i><span>Hinweis an <b>Codehilfe</b> (Fassade): wartet auf Speicher, Code-Durchsicht neu eingereiht auf Platz 3</span></div>
+      <div class="m signal"><span class="zeit zahl">14:57</span><i class="fa-solid fa-paper-plane"></i><span>Hinweis an <b>Medienpool</b> (Fassade): wartet auf Speicher, Kontextspeicher für zweiten Lauf fehlt</span></div>
+      <div class="m signal"><span class="zeit zahl">14:56</span><i class="fa-solid fa-paper-plane"></i><span>Hinweis an <b>Kiste</b> (Fassade): wartet auf Speicher, voraussichtlich 25 s</span></div>
+      <div class="m erfolg"><span class="zeit zahl">14:55</span><i class="fa-solid fa-check"></i><span>Rufzeichen: Antwort gesprochen in 2,1 s (dringend, vorgezogen)</span></div>
+      <div class="m warnung"><span class="zeit zahl">14:54</span><i class="fa-solid fa-memory"></i><span>Mac Studio: Speicher über 95 Prozent, Lage angespannt</span></div>
+      <div class="m warnung"><span class="zeit zahl">14:50</span><i class="fa-solid fa-screwdriver-wrench"></i><span>MacBook von dir in Wartung genommen, lässt auslaufen; Hörer und Klangschmiede nehmen nichts Neues an</span></div>
+      <div class="m gefahr"><span class="zeit zahl">14:41</span><i class="fa-solid fa-triangle-exclamation"></i><span>Codehilfe: Modell Qwen3 Coder Next konnte nicht geladen werden (Speicher)</span></div>
+      <div class="m warnung"><span class="zeit zahl">13:52</span><i class="fa-solid fa-circle-pause"></i><span>Bildschmiede von dir angehalten, damit Zusage Vorrang hat</span></div>
+      <div class="m gefahr"><span class="zeit zahl">Di 09:10</span><i class="fa-solid fa-server"></i><span>Pi Werkstatt meldet sich nicht mehr</span></div>
+    </div>`;
+
+  const haupt = document.getElementById('haupt');
+  haupt.innerHTML = KOPF + `<div class="rollfeld">${ENGPASS}<div class="inhalt"><div>${LINKS}</div><div>${RECHTS}</div></div></div>`;
+  netzbild(document.getElementById('netz'), { anwendungen: ['zusage', 'tubevault', 'fundus', 'medienpool', 'kiste', 'Codehilfe', 'rufzeichen', 'bildschmiede-app'], auftraege: AUFTRAEGE_ENGPASS });
+
+  // Wahl: Markierung und Beschriftung des Hauptknopfs folgen der gewählten Karte
+  const NAME_WEG = { auslaufen: 'Textmodell auslaufen lassen', extern: 'Codehilfe extern rechnen', nichts: 'nichts tun' };
+  const wege = document.getElementById('wege');
+  wege.addEventListener('change', (e) => {
+    wege.querySelectorAll('label').forEach(l => l.classList.toggle('an', l.querySelector('input').checked));
+    const knopf = document.getElementById('so-machen');
+    knopf.title = `Führt den gewählten Weg aus: ${NAME_WEG[e.target.value]}. Nichts wird ohne diese Bestätigung entladen.`;
+  });
+</script>
+</body>
+</html>

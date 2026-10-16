@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leitstelle - Entwurf: Mobil</title>
+<link rel="icon" href="symbol.svg">
+<link rel="stylesheet" href="../frontend/node_modules/@fortawesome/fontawesome-free/css/all.min.css">
+<link rel="stylesheet" href="stil.css">
+<style>
+  /* Eigenständige Handy-Ansicht: nur, was man am Telefon wirklich tut. Lage sehen, Hauptregler
+     bedienen (Drücken und Halten für Folgenreiches), laufende Aufträge stoppen, Speicher im Blick,
+     Meldungen lesen. Keine Regeln, keine Tabellen, keine Diagnose. Drei Bildschirme nebeneinander. */
+  body { padding: var(--ls-a6); }
+  .kopfzeile { max-width: 1320px; margin: 0 auto var(--ls-a5); }
+  .kopfzeile p { color: var(--ls-text-2); max-width: 900px; margin-top: 6px; }
+  .telefone { display: flex; gap: var(--ls-a6); flex-wrap: wrap; justify-content: center; }
+  .telefon { width: 390px; height: 844px; border-radius: 44px; background: var(--ls-grund); border: 10px solid #0b0f15; box-shadow: var(--ls-schatten);
+             display: flex; flex-direction: column; overflow: hidden; position: relative; }
+  .telefon .aussparung { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: 120px; height: 30px; border-radius: 16px; background: #0b0f15; }
+  .m-kopf { flex: none; display: flex; align-items: center; gap: 10px; padding: 54px 18px 12px; }
+  .m-kopf img { width: 30px; height: 30px; }
+  .m-kopf b { font-size: 20px; }
+  .m-kopf .lage { margin-left: auto; margin-right: 0; height: 36px; font-size: 15px; }
+  .m-inhalt { flex: 1; min-height: 0; overflow-y: auto; padding: 0 16px 16px; display: flex; flex-direction: column; gap: 14px; }
+  .m-fuss { flex: none; display: flex; justify-content: space-around; align-items: center; height: 76px; padding-bottom: 14px; background: var(--ls-leiste); border-top: 1px solid var(--ls-rand); }
+  .m-fuss a { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 64px; min-height: 44px; justify-content: center; color: var(--ls-text-3); font-size: 13px; font-weight: 700; }
+  .m-fuss a i { font-size: 20px; }
+  .m-fuss a.aktiv { color: var(--ls-akzent-schrift); }
+  .m-fuss a .pille { position: absolute; margin-left: 34px; margin-top: -30px; }
+  .m-fuss a { position: relative; }
+  .m-titel { font-size: 24px; font-weight: 700; margin: 4px 0 0; }
+  .m-karte { background: var(--ls-karte); border-radius: var(--ls-ecke); padding: 14px 16px; }
+  .m-karte h3 { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 17px; }
+  .m-karte h3 i { color: var(--ls-akzent-schrift); }
+  .m-karte h3 .rechts { margin-left: auto; font-weight: 500; color: var(--ls-text-3); font-size: 15px; }
+
+  /* Hauptregler am Telefon: drei große Flächen, Halt und Auslaufen nur mit Drücken und Halten */
+  .m-regler { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .m-regler button { height: 84px; border: 1px solid var(--ls-rand-stark); border-radius: var(--ls-ecke); background: var(--ls-karte-2); color: var(--ls-text);
+                     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; font-weight: 700; font-size: 15px; position: relative; }
+  .m-regler button i { font-size: 22px; }
+  .m-regler button.an.normal { color: var(--ls-erfolg); border-color: rgba(var(--ls-erfolg-rgb), 0.6); background: rgba(var(--ls-erfolg-rgb), var(--ls-tint)); }
+  .m-regler button.auslaufen i { color: var(--ls-warnung); }
+  .m-regler button.halt i { color: var(--ls-gefahr); }
+  .m-regler button.haelt { border-color: var(--ls-gefahr); }
+  .m-regler .ring { position: absolute; inset: 6px; width: auto; height: auto; border-radius: var(--ls-ecke); background: none; }
+  .m-regler .ring::before { display: none; }
+  .m-regler .ring svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .m-regler .ring rect { fill: none; stroke: var(--ls-gefahr); stroke-width: 3; stroke-dasharray: 440; stroke-dashoffset: 180; }
+  .m-regler .halten { font-size: 13px; color: var(--ls-text-3); font-weight: 500; }
+  .m-hint { font-size: 15px; color: var(--ls-text-2); margin-top: 10px; }
+  .m-kenn { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .m-kenn .kennzahl { min-width: 0; padding: 10px 14px; }
+  .m-kenn .kennzahl b { font-size: 28px; }
+
+  /* Aufträge am Telefon: eine Zeile je Auftrag, große Berührflächen */
+  .m-auftrag { display: grid; grid-template-columns: 40px minmax(0, 1fr) 44px; gap: 12px; align-items: center; padding: 12px 0; border-top: 1px solid var(--ls-rand); }
+  .m-auftrag:first-of-type { border-top: 0; padding-top: 4px; }
+  .m-auftrag .symbol { width: 40px; height: 40px; border-radius: var(--ls-ecke); display: grid; place-items: center; background: rgba(var(--f-rgb), var(--ls-tint)); color: var(--f); font-size: 17px; }
+  .m-auftrag .t { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .m-auftrag .z { font-size: 15px; color: var(--ls-text-2); margin-top: 2px; display: flex; gap: 8px; }
+  .m-auftrag .balken { margin-top: 8px; height: 6px; }
+  .m-auftrag .stopp { width: 44px; height: 44px; border-radius: var(--ls-ecke); border: 1px solid var(--ls-rand-stark); background: var(--ls-karte-2); color: var(--ls-gefahr); font-size: 16px; }
+  .m-auftrag.offen { grid-template-columns: 40px minmax(0, 1fr); }
+  .m-wahl { grid-column: 1 / -1; display: grid; gap: 8px; margin-top: 4px; }
+  .m-wahl button { height: 56px; border-radius: var(--ls-ecke); border: 1px solid var(--ls-rand-stark); background: var(--ls-karte-2); color: var(--ls-text); font-weight: 600; font-size: 16px;
+                   display: flex; align-items: center; gap: 10px; padding: 0 14px; text-align: left; }
+  .m-wahl button small { display: block; font-weight: 500; font-size: 14px; color: var(--ls-text-2); }
+  .m-wahl button.warnung i { color: var(--ls-warnung); }
+  .m-wahl button.gefahr i { color: var(--ls-gefahr); }
+  .m-wahl .halten { font-size: 13px; color: var(--ls-text-3); margin-left: auto; }
+
+  /* Knoten am Telefon: Name, Speicher, ein Ring */
+  .m-knoten { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 14px; align-items: center; padding: 12px 0; border-top: 1px solid var(--ls-rand); }
+  .m-knoten:first-of-type { border-top: 0; padding-top: 4px; }
+  .m-knoten .n { font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .m-knoten .n .punkt { margin: 0; }
+  .m-knoten .w { font-size: 15px; color: var(--ls-text-2); margin-top: 2px; }
+  .m-knoten .speicher { margin-top: 8px; height: 10px; }
+  .m-meldung { display: grid; grid-template-columns: 54px 22px minmax(0, 1fr); gap: 8px; padding: 8px 0; border-top: 1px solid var(--ls-rand); font-size: 15px; align-items: baseline; }
+  .m-meldung:first-of-type { border-top: 0; }
+  .m-meldung .zeit { color: var(--ls-text-3); min-width: 0; }
+  .m-meldung i { color: var(--ls-text-3); text-align: center; }
+  .m-meldung.warnung i { color: var(--ls-warnung); }
+  .m-meldung.gefahr i { color: var(--ls-gefahr); }
+  .m-meldung.erfolg i { color: var(--ls-erfolg); }
+</style>
+</head>
+<body>
+<div class="kopfzeile">
+  <div class="etikett">Leitstelle · Entwurf · Mobil</div>
+  <h1>Handy-Ansicht</h1>
+  <p>Eigenständig und reduziert, kein verkleinerter Schreibtisch: Lage und Hauptregler, laufende Aufträge stoppen, Speicher je Knoten, Meldungen.
+     Alles mit Folgen (Halt, Auslaufen, Stoppen) geht nur mit Drücken und Halten, der Ring füllt sich dabei. Berührflächen mindestens 44 Punkte,
+     Schrift wie am Schreibtisch. Regeln, Tabellen, Nachrichtenverkehr und Diagnose bleiben am Rechner.</p>
+</div>
+<div class="telefone" id="telefone"></div>
+
+<script type="module">
+  import { AUFTRAEGE, KNOTEN, MODELLE, WORT, FARBE, anwendung, modell, knoten, zustand, gb } from './gemeinsam.js';
+  // Entwurfs-Umschalter (Thema, Schrift, Farben) auch hier
+  const { seite } = await import('./gemeinsam.js');
+  seite('mobil');
+  const schalter = document.querySelector('.entwurf-schalter'); if (schalter) schalter.style.bottom = '16px';
+
+  const laufend = AUFTRAEGE.filter(a => a.zustand === 'laeuft');
+  const wartend = AUFTRAEGE.filter(a => a.zustand === 'wartet' || a.zustand === 'wartet_speicher');
+  const kopf = (lage, klasse) => `<div class="m-kopf"><img src="symbol-frei.svg" alt=""><b>Leitstelle</b><span class="lage ${klasse}" title="Lage"><span class="punkt lebt"></span>${lage}</span></div>`;
+  const fuss = (aktiv) => `<nav class="m-fuss">
+      <a class="${aktiv === 'lage' ? 'aktiv' : ''}"><i class="fa-solid fa-tower-observation"></i>Lage</a>
+      <a class="${aktiv === 'auftraege' ? 'aktiv' : ''}"><i class="fa-solid fa-list-check"></i>Aufträge<span class="zaehler pille akzent">3</span></a>
+      <a class="${aktiv === 'knoten' ? 'aktiv' : ''}"><i class="fa-solid fa-server"></i>Knoten<span class="zaehler pille gefahr">1</span></a>
+      <a class="${aktiv === 'meldungen' ? 'aktiv' : ''}"><i class="fa-solid fa-bell"></i>Meldungen<span class="zaehler pille warnung">2</span></a>
+    </nav>`;
+  const telefon = (inhalt, aktiv, lage = 'Angespannt', klasse = 'angespannt') => `<div class="telefon"><div class="aussparung"></div>${kopf(lage, klasse)}<div class="m-inhalt">${inhalt}</div>${fuss(aktiv)}</div>`;
+
+  // Bildschirm 1: Lage und Hauptregler
+  const LAGE = `
+    <h2 class="m-titel">Lage</h2>
+    <div class="m-karte">
+      <h3><i class="fa-solid fa-sliders"></i>Hauptregler<span class="rechts">wirkt sofort</span></h3>
+      <div class="m-regler">
+        <button class="normal an"><i class="fa-solid fa-play"></i>Normal</button>
+        <button class="auslaufen"><i class="fa-solid fa-person-walking-arrow-right"></i>Auslaufen<span class="halten">Halten</span></button>
+        <button class="halt haelt"><span class="ring"><svg viewBox="0 0 110 72" preserveAspectRatio="none"><rect x="2" y="2" width="106" height="68" rx="3"></rect></svg></span><i class="fa-solid fa-hand"></i>Halt<span class="halten">Halten ...</span></button>
+      </div>
+      <div class="m-hint">Auslaufen: laufende Aufträge enden, nichts Neues. Halt: alles stoppt sofort, Anwendungen bekommen den bisherigen Stand. Der Ring füllt sich beim Halten.</div>
+    </div>
+    <div class="m-kenn">
+      <div class="kennzahl laeuft"><b>${laufend.length}</b><span>Läuft</span></div>
+      <div class="kennzahl wartet"><b>${wartend.length}</b><span>Wartet</span></div>
+      <div class="kennzahl erfolg"><b>67</b><span>Heute fertig</span></div>
+      <div class="kennzahl fehler"><b>1</b><span>Fehler</span></div>
+    </div>
+    <div class="m-karte">
+      <h3><i class="fa-solid fa-memory"></i>Mac Studio<span class="rechts zahl">96 % · 5,1 GB frei</span></h3>
+      <div class="speicher" style="height: 12px">
+        <span class="modell" style="width:66.2%"></span><span class="modell einbettung" style="width:0.9%"></span><span class="modell hoeren" style="width:2.4%"></span><span class="modell stimme" style="width:1.5%"></span><span class="system" style="width:25%"></span>
+      </div>
+      <div class="m-hint">Textmodell 84,7 GB hält den Speicher; ein Bildauftrag wartet etwa 25 s.</div>
+    </div>`;
+
+  // Bildschirm 2: Aufträge mit Stopp-Wahl
+  const zeile = (a, offen = false) => `<div class="m-auftrag${offen ? ' offen' : ''}" style="--f:${FARBE[a.faehigkeit][0]};--f-rgb:${FARBE[a.faehigkeit][1]}">
+      <div class="symbol"><i class="fa-solid ${WORT.faehigkeit_symbol[a.faehigkeit]}"></i></div>
+      <div style="min-width:0"><div class="t">${a.titel}</div><div class="z"><span>${anwendung(a.anwendung).name}</span><span class="zahl">${a.fortschritt} %</span><span>Rest ${a.rest}</span></div>
+        <div class="balken lebt"><b style="width:${a.fortschritt}%"></b></div></div>
+      ${offen ? '' : `<button class="stopp" title="Stoppen: Auslaufen oder sofort"><i class="fa-solid fa-stop"></i></button>`}
+      ${offen ? `<div class="m-wahl">
+          <button class="warnung"><i class="fa-solid fa-person-walking-arrow-right"></i><span>Auslaufen lassen<small>rechnet fertig, nichts Neues von Zusage</small></span><span class="halten">Tippen</span></button>
+          <button class="gefahr"><i class="fa-solid fa-hand"></i><span>Sofort stoppen<small>Zusage bekommt die bisherigen 1.240 Token</small></span><span class="halten">Halten</span></button>
+        </div>` : ''}
+    </div>`;
+  const AUFTRAEGE_S = `
+    <h2 class="m-titel">Aufträge</h2>
+    <div class="m-karte"><h3><i class="fa-solid fa-circle-play"></i>Läuft<span class="rechts">${laufend.length}</span></h3>
+      ${zeile(laufend[0], true)}${laufend.slice(1).map(a => zeile(a)).join('')}</div>
+    <div class="m-karte"><h3><i class="fa-solid fa-hourglass-half"></i>Wartet<span class="rechts">${wartend.length}</span></h3>
+      ${wartend.map(a => `<div class="m-auftrag" style="--f:${FARBE[a.faehigkeit][0]};--f-rgb:${FARBE[a.faehigkeit][1]}"><div class="symbol"><i class="fa-solid ${WORT.faehigkeit_symbol[a.faehigkeit]}"></i></div>
+        <div style="min-width:0"><div class="t">${a.titel}</div><div class="z"><span>${anwendung(a.anwendung).name}</span>${zustand(a.zustand)}</div></div>
+        <button class="stopp" title="Verwerfen"><i class="fa-solid fa-xmark"></i></button></div>`).join('')}</div>`;
+
+  // Bildschirm 3: Knoten und Meldungen
+  const kn = (k) => `<div class="m-knoten">
+      <div class="ring${k.ram >= 90 ? ' gefahr' : k.ram >= 75 ? ' warnung' : ''}" style="--wert:${k.ram}"><b class="zahl">${k.ram}%</b></div>
+      <div style="min-width:0"><div class="n"><span class="punkt${k.zustand === 'aus' ? ' aus' : ' lebt'}"></span>${k.name}</div>
+        <div class="w">${k.zustand === 'aus' ? k.seit : `${k.beschreibung} · ${k.auftraege} Aufträge`}</div></div>
+    </div>`;
+  const KNOTEN_S = `
+    <h2 class="m-titel">Knoten</h2>
+    <div class="m-karte">${KNOTEN.map(kn).join('')}</div>
+    <h2 class="m-titel">Meldungen</h2>
+    <div class="m-karte">
+      <div class="m-meldung"><span class="zeit zahl">14:56</span><i class="fa-solid fa-paper-plane"></i><span>Hinweis an Kiste: wartet auf Speicher, etwa 25 s</span></div>
+      <div class="m-meldung erfolg"><span class="zeit zahl">14:55</span><i class="fa-solid fa-check"></i><span>Rufzeichen: Antwort gesprochen in 2,1 s</span></div>
+      <div class="m-meldung warnung"><span class="zeit zahl">14:54</span><i class="fa-solid fa-memory"></i><span>Mac Studio über 95 Prozent Speicher</span></div>
+      <div class="m-meldung gefahr"><span class="zeit zahl">14:41</span><i class="fa-solid fa-triangle-exclamation"></i><span>Codehilfe: Modell konnte nicht geladen werden</span></div>
+      <div class="m-meldung gefahr"><span class="zeit zahl">Di</span><i class="fa-solid fa-server"></i><span>Pi Werkstatt meldet sich nicht mehr</span></div>
+    </div>`;
+
+  document.getElementById('telefone').innerHTML = telefon(LAGE, 'lage') + telefon(AUFTRAEGE_S, 'auftraege') + telefon(KNOTEN_S, 'knoten');
+</script>
+</body>
+</html>

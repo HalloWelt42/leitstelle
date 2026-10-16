@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leitstelle - Entwurf: Knoten</title>
+<link rel="icon" href="symbol.svg">
+<link rel="stylesheet" href="../frontend/node_modules/@fortawesome/fontawesome-free/css/all.min.css">
+<link rel="stylesheet" href="stil.css">
+<style>
+  .rahmen-kopf .filter { margin: var(--ls-a3) 0 0; }
+
+  /* Karten in zwei Spalten */
+  .knoten-raster { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: var(--ls-a4); }
+  .knotenkarte { display: flex; flex-direction: column; gap: var(--ls-a3); padding: var(--ls-a4); background: var(--ls-karte); border-radius: var(--ls-ecke); min-width: 0; }
+  .knotenkarte.aus { background: var(--ls-flaeche); outline: 1px dashed var(--ls-rand-stark); color: var(--ls-text-2); }
+  .kk-kopf { display: flex; align-items: center; gap: var(--ls-a2); flex-wrap: wrap; }
+  .kk-kopf h2 { font-size: var(--ls-gr-titel); margin-right: var(--ls-a1); }
+  .kk-kopf .zustand { margin-left: auto; }
+  .kk-meta { display: flex; gap: var(--ls-a3); flex-wrap: wrap; font-size: var(--ls-gr-klein); color: var(--ls-text-2); margin-top: calc(-1 * var(--ls-a2)); }
+  .kk-koerper { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: var(--ls-a3) var(--ls-a4); }
+  .kk-links, .kk-rechts { display: flex; flex-direction: column; gap: var(--ls-a3); min-width: 0; }
+
+  /* Messwerte in einer Zeile: Symbol, Zahl, Wort */
+  .kk-werte { display: flex; gap: var(--ls-a2) var(--ls-a4); flex-wrap: wrap; font-size: var(--ls-gr-klein); color: var(--ls-text-2); }
+  .kk-werte span { white-space: nowrap; }
+  .kk-werte i { color: var(--ls-text-3); margin-right: 6px; width: 18px; text-align: center; }
+  .kk-werte b { font-family: var(--ls-schrift-zahl); font-weight: 600; color: var(--ls-text); }
+
+  /* Dienste mit Zustandspunkt und Wort */
+  .kk-dienste ul { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 6px; }
+  .kk-dienste li { display: flex; align-items: center; gap: var(--ls-a2); font-size: var(--ls-gr-klein); min-width: 0; }
+  .kk-dienste li .punkt { margin: 0; }
+  .kk-dienste li .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .kk-dienste li .wort { margin-left: auto; color: var(--ls-text-3); font-size: var(--ls-gr-marke); font-weight: 600; white-space: nowrap; }
+  .kk-leer { margin-top: 4px; font-size: var(--ls-gr-klein); color: var(--ls-text-3); }
+
+  /* Kleiner Speicher-Verlauf unten rechts in der Karte */
+  .kk-verlauf { margin-top: auto; }
+  .kk-verlauf-kopf { display: flex; align-items: baseline; justify-content: space-between; gap: var(--ls-a2); margin-bottom: 4px; }
+  .kk-verlauf-kopf b { font-family: var(--ls-schrift-zahl); font-weight: 600; font-size: var(--ls-gr-klein); white-space: nowrap; }
+  .kk-zeitachse { display: flex; justify-content: space-between; margin-top: 4px; font-size: var(--ls-gr-marke); color: var(--ls-text-3); }
+  .knotenkarte .verlauf .jetzt { animation: none; }   /* Ruhe: sechs blinkende Punkte wären zu viel Bewegung */
+
+  .knotenkarte .hinweis { padding: var(--ls-a2) var(--ls-a3); }
+  .knotenkarte .hinweis i { margin-top: 3px; }
+  .knotenkarte .hinweis span { min-width: 0; line-height: 1.35; }   /* höchstens zwei Zeilen, voller Satz im title */
+
+  /* Nicht erreichbarer Knoten: statt Ringen ein Block mit Zeitangabe */
+  .kk-aus { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: var(--ls-a3); align-items: center; padding: var(--ls-a3); border-radius: var(--ls-ecke); background: rgba(var(--ls-gefahr-rgb), 0.08); }
+  .kk-aus i { font-size: 30px; color: var(--ls-gefahr); text-align: center; }
+  .kk-aus b { display: block; color: var(--ls-text); }
+  .kk-aus .klein { color: var(--ls-text-2); }
+
+  .kk-knoepfe { display: flex; gap: var(--ls-a2); flex-wrap: wrap; margin-top: auto; padding-top: var(--ls-a1); }
+
+  /* Schmale Karte am Ende: externe Anbieter sind keine Knoten */
+  .extern-karte { grid-column: 1 / -1; display: flex; align-items: center; gap: var(--ls-a4); flex-wrap: wrap; padding: var(--ls-a3) var(--ls-a4); background: var(--ls-flaeche); border-radius: var(--ls-ecke); }
+  .extern-karte > i { font-size: 26px; color: var(--ls-koralle); }
+  .extern-karte .text { flex: 1; min-width: 320px; }
+  .extern-karte .text b { display: block; }
+  .extern-karte .text span { color: var(--ls-text-2); font-size: var(--ls-gr-klein); }
+  .extern-karte .kosten { display: flex; align-items: center; gap: var(--ls-a2); font-size: var(--ls-gr-klein); color: var(--ls-text-2); white-space: nowrap; }
+  .extern-karte .kosten b { font-family: var(--ls-schrift-zahl); color: var(--ls-koralle); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="schale">
+  <div data-block="kopf"></div>
+  <div data-block="seite"></div>
+  <main class="haupt rahmen" id="haupt"></main>
+  <div data-block="fuss"></div>
+</div>
+
+<script type="module">
+  import { seite, KNOTEN, AUFTRAEGE, WORT, zustand, zone, dienst, anwendung, ring, verlauf, reihe, zahl, euro } from './gemeinsam.js';
+  seite('knoten');
+
+  const erreichbar = KNOTEN.filter(k => k.zustand === 'aktiv');
+  const nichtErreichbar = KNOTEN.filter(k => k.zustand === 'aus');
+  const inZone = (z) => KNOTEN.filter(k => k.zone === z).length;
+  const wartetSpeicher = (k) => AUFTRAEGE.filter(a => a.knoten === k.kennung && a.zustand === 'wartet_speicher');
+  const punktKlasse = (z) => (z === 'laeuft' || z === 'bereit') ? '' : z === 'pausiert' ? ' warnung' : ' aus';
+  const adresse = (k) => k.adresse.replace(' über VPN', '');
+  const mehrzahl = (n, eins, viele) => `${n} ${n === 1 ? eins : viele}`;
+
+  const dienste = (k) => k.dienste.length
+    ? `<ul>${k.dienste.map(dk => { const d = dienst(dk); return `<li title="${d.name}: ${WORT.zustand[d.zustand]}, ${d.art}"><span class="punkt${punktKlasse(d.zustand)}"></span><span class="name">${d.name}</span><span class="wort">${WORT.zustand[d.zustand]}</span></li>`; }).join('')}</ul>`
+    : `<div class="kk-leer">Keine Dienste gemeldet</div>`;
+
+  const werte = (k) => `<div class="kk-werte">
+      ${k.temp ? `<span title="Temperatur des Prozessors"><i class="fa-solid fa-temperature-half"></i><b>${k.temp} °C</b></span>` : ''}
+      <span title="Netzdurchsatz der letzten Minute in Megabit je Sekunde"><i class="fa-solid fa-network-wired"></i><b>${zahl(k.netz_mbit)}</b> Megabit</span>
+      <span title="Aufträge, die gerade auf diesem Knoten rechnen"><i class="fa-solid fa-list-check"></i><b>${k.auftraege}</b> ${k.auftraege === 1 ? 'Auftrag' : 'Aufträge'}</span>
+    </div>`;
+
+  const hinweise = (k) => {
+    const teile = [];
+    const w = wartetSpeicher(k);
+    if (w.length) teile.push(`<div class="hinweis warnung klein" title="${w.map(a => `${a.titel} (${anwendung(a.anwendung).name}): ${a.grund}. ${a.vorschlag || ''}`).join(' ')}">
+        <i class="fa-solid fa-memory"></i><span>Wartet auf Speicher: <b class="zahl">${mehrzahl(w.length, 'Auftrag', 'Aufträge')}</b></span></div>`);
+    if (k.kennung === 'server-fern') teile.push(`<div class="hinweis klein" title="Dieser Server ist nur über das VPN erreichbar. Hier laufen der Netzfilter des Heimnetzes und die Anbindung an Externer Anbieter; der Schlüssel dafür liegt nur in der Leitstelle.">
+        <i class="fa-solid fa-circle-info"></i><span>Netzfilter und Anbindung an Externer Anbieter laufen hier</span></div>`);
+    return teile.join('');
+  };
+
+  const speicherVerlauf = (k) => `<div class="kk-verlauf" title="Speicherbelegung der letzten 24 Stunden, ein Messwert je Stunde">
+      <div class="kk-verlauf-kopf"><span class="etikett">Speicher</span><b class="zahl">${k.ram} % von ${k.ram_gb} GB</b></div>
+      ${verlauf(reihe(k.kennung + 'ram', 24, k.ram, 20), 'var(--ls-himmel)')}
+      <div class="kk-zeitachse"><span>vor 24 Stunden</span><span>jetzt</span></div>
+    </div>`;
+
+  const karte = (k) => `<article class="knotenkarte">
+      <header class="kk-kopf"><h2>${k.name}</h2>${zone(k.zone)}${zustand(k.zustand)}</header>
+      <div class="kk-meta"><span>${k.beschreibung}</span><span class="zahl" title="Adresse im Netz">${adresse(k)}</span></div>
+      <div class="kk-koerper">
+        <div class="kk-links">
+          <div class="ringe">${ring(k.cpu, 'Prozessor')}${k.gpu ? ring(k.gpu, 'Grafik') : ''}${ring(k.ram, 'Speicher')}${ring(k.platte, 'Platte')}</div>
+          ${werte(k)}
+          ${hinweise(k)}
+        </div>
+        <div class="kk-rechts">
+          <div class="kk-dienste"><div class="etikett">Dienste</div>${dienste(k)}</div>
+          ${speicherVerlauf(k)}
+        </div>
+      </div>
+      <footer class="kk-knoepfe">
+        <a class="knopf" href="knoten-detail.html" title="Alle Messwerte, Modelle, Dienste und Aufträge dieses Knotens">Einzelheiten</a>
+        <button class="knopf ohne" title="Wartung: lässt laufende Aufträge auslaufen und nimmt nichts Neues an"><i class="fa-solid fa-screwdriver-wrench"></i> Wartung</button>
+        <button class="knopf ohne" title="Speicher freigeben: zeigt zuerst, was entladen würde; nichts passiert ohne Bestätigung"><i class="fa-solid fa-broom"></i> Speicher freigeben</button>
+      </footer>
+    </article>`;
+
+  const karteAus = (k) => `<article class="knotenkarte aus">
+      <header class="kk-kopf"><h2>${k.name}</h2>${zone(k.zone)}${zustand(k.zustand)}</header>
+      <div class="kk-meta"><span>${k.beschreibung}</span><span class="zahl" title="Adresse im Netz">${adresse(k)}</span></div>
+      <div class="kk-koerper">
+        <div class="kk-links">
+          <div class="kk-aus"><i class="fa-solid fa-circle-xmark"></i><div><b>Seit 2 Tagen nicht erreichbar</b><span class="klein">Zuletzt gemeldet Dienstag <span class="zahl">09:10</span></span></div></div>
+        </div>
+        <div class="kk-rechts">
+          <div class="kk-dienste"><div class="etikett">Dienste</div><div class="kk-leer">Keine Dienste gemeldet</div></div>
+          <div class="kk-verlauf"><div class="kk-verlauf-kopf"><span class="etikett">Speicher</span></div><div class="kk-leer">Keine Messwerte seit Dienstag</div></div>
+        </div>
+      </div>
+      <footer class="kk-knoepfe">
+        <button class="knopf" title="Erneut prüfen: fragt den Knoten-Agenten sofort ab, statt auf den nächsten Takt zu warten"><i class="fa-solid fa-rotate"></i> Erneut prüfen</button>
+        <a class="knopf ohne" href="knoten-detail.html" title="Letzte bekannte Messwerte und Ereignisse dieses Knotens">Einzelheiten</a>
+      </footer>
+    </article>`;
+
+  const externKarte = `<div class="extern-karte">
+      <i class="fa-solid fa-cloud"></i>
+      <div class="text"><b>Externe Anbieter sind keine Knoten</b><span>Externer Anbieter rechnet beim Anbieter und steht deshalb unter Dienste; Kosten und Grenzen werden dort geführt.</span></div>
+      ${zone('extern')}
+      <div class="kosten" title="Kosten heute über externe Anbieter, Tagesgrenze 5,00 Euro">Heute <b>${euro(0.42)}</b> von <b>${euro(5)}</b></div>
+      <a class="knopf" href="dienste.html" title="Zur Liste aller Dienste, dort steht auch Externer Anbieter">Zu den Diensten <i class="fa-solid fa-arrow-right"></i></a>
+    </div>`;
+
+  const KOPF = `
+    <div class="rahmen-kopf">
+      <div class="seitenkopf">
+        <h1>Knoten</h1><span class="zahl">${KNOTEN.length}</span>
+        <div class="aktionen">
+          <button class="knopf haupt" title="Öffnet die Anleitung zum Installieren des Knoten-Agenten auf einem weiteren Rechner"><i class="fa-solid fa-plus"></i> Knoten hinzufügen</button>
+        </div>
+      </div>
+      <div class="kennzahlen">
+        <div class="kennzahl"><b>${KNOTEN.length}</b><span>Knoten</span><small>2 Macs, 3 Pis, 1 Server</small></div>
+        <div class="kennzahl erfolg"><b>${erreichbar.length}</b><span>Erreichbar</span><small>melden sich im Takt</small></div>
+        <div class="kennzahl fehler"><b>${nichtErreichbar.length}</b><span>Nicht erreichbar</span><small>${nichtErreichbar.map(k => k.name).join(', ')}</small></div>
+        <div class="kennzahl"><b>3</b><span>Zonen</span><small>Heimnetz, über VPN, extern</small></div>
+      </div>
+      <div class="filter">
+        <span class="etikett">Zone</span>
+        <button class="chip aktiv" title="Alle Knoten zeigen"><i class="fa-solid fa-layer-group"></i> Alle <span class="zaehler">${KNOTEN.length}</span></button>
+        <button class="chip" title="Nur Knoten im Heimnetz"><i class="fa-solid ${WORT.zone_symbol.heim}"></i> ${WORT.zone.heim} <span class="zaehler">${inZone('heim')}</span></button>
+        <button class="chip" title="Nur Knoten, die über das VPN erreichbar sind"><i class="fa-solid ${WORT.zone_symbol.fern}"></i> ${WORT.zone.fern} <span class="zaehler">${inZone('fern')}</span></button>
+        <button class="chip" title="Externe Anbieter sind keine Knoten; sie stehen unter Dienste"><i class="fa-solid ${WORT.zone_symbol.extern}"></i> ${WORT.zone.extern} <span class="zaehler">${inZone('extern')}</span></button>
+        <span class="trenner"></span>
+        <span class="etikett">Zustand</span>
+        <button class="chip" title="Nur Knoten, deren Agent sich in den letzten 15 Sekunden gemeldet hat"><i class="fa-solid fa-circle"></i> ${WORT.zustand.aktiv} <span class="zaehler">${erreichbar.length}</span></button>
+        <button class="chip" title="Nur Knoten ohne Meldung des Agenten"><i class="fa-solid fa-circle-xmark"></i> ${WORT.zustand.aus} <span class="zaehler">${nichtErreichbar.length}</span></button>
+      </div>
+    </div>`;
+
+  const LISTE = `<div class="knoten-raster">${KNOTEN.map(k => k.zustand === 'aus' ? karteAus(k) : karte(k)).join('')}${externKarte}</div>`;
+
+  document.getElementById('haupt').innerHTML = KOPF + `<div class="rollfeld">${LISTE}</div>`;
+</script>
+</body>
+</html>

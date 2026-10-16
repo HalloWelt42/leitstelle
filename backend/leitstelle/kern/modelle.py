@@ -1,0 +1,249 @@
+"""Fachmodell der Leitstelle: Knoten, Dienste, Modelle, Anwendungen, Aufträge, Regelwerk, Maßnahmen.
+
+Alles Pydantic, nichts als rohes Dict. Der Verbund ist das Aggregat, über das Zuteiler,
+Speicherplaner und Umschichter arbeiten. Zeiten sind Sekunden seit Start (float), damit der
+Kern ohne echte Uhr läuft und im Schein-Verbund deterministisch bleibt.
+"""
+
+from __future__ import annotations
+
+from pydantic import BaseModel, Field
+
+from .werte import (
+    IM_SPEICHER,
+    OFFENE_ZUSTAENDE,
+    WARTENDE_ZUSTAENDE,
+    Auftragszustand,
+    Automatik,
+    Betriebsmodus,
+    Dienstzustand,
+    Faehigkeit,
+    Massnahmenart,
+    Massnahmenzustand,
+    Modellzustand,
+    Prioritaet,
+    Zone,
+)
+
+
+class Knoten(BaseModel):
+    kennung: str
+    name: str
+    zone: Zone
+    speicher_gb: float
+    system_gb: float = 6.0            # was System und andere Programme belegen (Messwert des Agenten)
+    erreichbar: bool = True
+    hintergrund_fenster: tuple[int, int] | None = None   # Stunden (von, bis), in denen Hintergrundarbeit hierher darf
+    budget_fest_gb: float | None = None                  # von Hand gesetztes Budget; sonst Gesamtspeicher minus Reserve
+
+    def budget_gb(self, reserve_gb: float) -> float:
+        """Speicher, den Modelle zusammen höchstens belegen dürfen."""
+        if self.budget_fest_gb is not None:
+            return max(0.0, min(self.budget_fest_gb, self.speicher_gb - self.system_gb))
+        return max(0.0, self.speicher_gb - max(reserve_gb, self.system_gb))
+
+
+class Dienst(BaseModel):
+    kennung: str
+    name: str
+    knoten: str | None                # None = externer Anbieter
+    art: str
+    faehigkeiten: set[Faehigkeit]
+    zustand: Dienstzustand = Dienstzustand.BEREIT
+    installiert: bool = True
+    startzeit_s: float = 3.0          # Vorgabe ohne Messung
+    extern: bool = False
+    plaetze: int = 1                  # gleichzeitige Aufträge je Modell
+
+    @property
+    def nutzbar(self) -> bool:
+        return self.zustand == Dienstzustand.BEREIT
+
+
+class Modell(BaseModel):
+    kennung: str
+    name: str
+    dienst: str
+    familie: str                      # gleiches Modell auf mehreren Diensten trägt dieselbe Familie
+    faehigkeiten: set[Faehigkeit]     # ein Textmodell kann auch übersetzen; eine Instanz, ein Speicherblock
+    gb: float
+    parameter_mrd: float
+    zustand: Modellzustand = Modellzustand.FREI
+    geschuetzt_fest: bool = False     # Einbettungsmodelle und ausdrücklich geschützte
+    geladen_seit_s: float | None = None
+    letzte_nutzung_s: float | None = None
+    auftraege_aktiv: int = 0
+    # Hat der Dienst das Laden abgelehnt (zu wenig Speicher, Fehler), wird bis dahin kein neuer Versuch geplant
+    ladesperre_bis_s: float | None = None
+    ladesperre_grund: str = ""
+
+    def geschuetzt(self, schutzgrenze_mrd: float) -> bool:
+        return self.geschuetzt_fest or self.parameter_mrd < schutzgrenze_mrd
+
+    def ladbar(self, jetzt_s: float) -> bool:
+        """Darf jetzt ein Ladeversuch geplant werden? Nein, solange die Ladesperre läuft."""
+        return self.ladesperre_bis_s is None or self.ladesperre_bis_s <= jetzt_s
+
+    @property
+    def im_speicher(self) -> bool:
+        return self.zustand in IM_SPEICHER
+
+
+class Anwendung(BaseModel):
+    kennung: str
+    name: str
+    prioritaet: Prioritaet = Prioritaet.NORMAL
+    faehigkeiten: set[Faehigkeit]
+    zonen: set[Zone] = Field(default_factory=lambda: {Zone.HEIM})
+    extern_erlaubt: bool = False
+    ketten: dict[Faehigkeit, list[str]] = Field(default_factory=dict)   # Modellfamilien in Reihenfolge
+    gleichzeitig: int = 4
+
+
+class Auftrag(BaseModel):
+    kennung: str
+    anwendung: str
+    faehigkeit: Faehigkeit
+    prioritaet: Prioritaet
+    eingang_s: float
+    zustand: Auftragszustand = Auftragszustand.EINGEREIHT
+    festes_modell: str | None = None  # Familie, wenn die Anwendung ein Modell verlangt
+    modell: str | None = None
+    dienst: str | None = None
+    knoten: str | None = None
+    laufzeit_s: float = 20.0          # wahre Dauer (nur der Schein-Verbund kennt sie; die Leitstelle schätzt)
+    fortschritt_s: float = 0.0
+    start_s: float | None = None
+    ende_s: float | None = None
+    umgeleitet: int = 0
+    anhaltbar: bool = True
+    begruendung: str = ""
+    extern: bool = False
+    # vom Zuteiler gesetzt, damit die Regeln wissen, worauf ein Auftrag wartet
+    wartet_auf_familie: str | None = None
+    wartet_auf_knoten: str | None = None
+    voraussichtlich_s: float | None = None
+    teilergebnis: bool = False
+    grund: str | None = None          # Wort aus PROTOKOLL.md Abschnitt 7, wenn abgelehnt oder abgebrochen
+
+    @property
+    def offen(self) -> bool:
+        return self.zustand in OFFENE_ZUSTAENDE
+
+    @property
+    def wartet(self) -> bool:
+        return self.zustand in WARTENDE_ZUSTAENDE
+
+
+class Regelwerk(BaseModel):
+    """Alles Einstellbare an einem Ort; jede Grenze sichtbar und erklärt (Oberfläche: Regeln)."""
+
+    budget_reserve_gb: float = 18.0
+    schutzgrenze_mrd: float = 10.0
+    mindestverweildauer_s: float = 600.0
+    leerlauf_s: float = 1800.0            # ab wann ein Modell als Leerlauf gilt (Anzeige, Doppel auflösen)
+    bedarfsfrist_s: float = 60.0          # wartet ein Auftrag auf den Platz, darf ein Modell schon nach dieser Zeit ohne Auftrag weichen
+    gewinnfaktor: float = 2.0
+    extern_schwelle_s: float = 120.0
+    hintergrund_spaetestens_s: float = 900.0
+    hintergrund_bei_angespannt_anhalten: bool = True
+    speicher_warnschwelle: float = 0.92   # Anteil belegt, ab dem die Lage angespannt ist
+    automatik: Automatik = Automatik.SELBST
+    szenarien_an: dict[Massnahmenart, bool] = Field(default_factory=lambda: {a: True for a in Massnahmenart})
+    # Schleifenschutz
+    max_massnahmen_je_fenster: int = 6
+    fenster_s: float = 600.0
+    ruhezeit_s: float = 1800.0
+    max_umleitungen_je_auftrag: int = 1
+    umschichter_takt_s: float = 5.0
+    geladene_zuerst: bool = True
+
+
+class Massnahme(BaseModel):
+    kennung: str
+    art: Massnahmenart
+    zustand: Massnahmenzustand
+    regel: str
+    zeit_s: float
+    grund: str
+    gewinn_s: float = 0.0
+    aufwand_s: float = 0.0
+    schritte: list[str] = Field(default_factory=list)
+    auftraege: list[str] = Field(default_factory=list)
+    knoten: str | None = None
+    modell: str | None = None         # Modellfamilie
+    richtung: str | None = None       # laden, entladen, umleiten (Hauptrichtung)
+    bewegungen: list[str] = Field(default_factory=list)   # "laden:familie@knoten", "entladen:familie@knoten" für den Flatterschutz
+
+
+class Verbund(BaseModel):
+    """Der ganze Zustand, über den der Kern entscheidet."""
+
+    knoten: dict[str, Knoten] = Field(default_factory=dict)
+    dienste: dict[str, Dienst] = Field(default_factory=dict)
+    modelle: dict[str, Modell] = Field(default_factory=dict)
+    anwendungen: dict[str, Anwendung] = Field(default_factory=dict)
+    auftraege: dict[str, Auftrag] = Field(default_factory=dict)
+    regelwerk: Regelwerk = Field(default_factory=Regelwerk)
+    betriebsmodus: Betriebsmodus = Betriebsmodus.NORMAL
+    hintergrund_an: bool = True       # Regel "Hintergrund bei Lage" (mit Fairness: nach der Frist rückt Hintergrund trotzdem auf)
+    hintergrund_erlaubt: bool = True  # Schalter am Hauptregler: aus heißt ohne Ausnahme angehalten
+    hintergrund_knoten_bevorzugt: str | None = None
+    zeit_s: float = 0.0
+    stunde: int = 12                  # Uhrzeit für Zeitfenster
+    massnahmen: list[Massnahme] = Field(default_factory=list)
+    ereignisse: list[str] = Field(default_factory=list)
+
+    # ── Nachschlagen ─────────────────────────────────────────────────────
+    def dienste_auf(self, knoten: str) -> list[Dienst]:
+        return [d for d in self.dienste.values() if d.knoten == knoten]
+
+    def modelle_auf(self, knoten: str) -> list[Modell]:
+        dienste = {d.kennung for d in self.dienste_auf(knoten)}
+        return [m for m in self.modelle.values() if m.dienst in dienste]
+
+    def modelle_von(self, dienst: str) -> list[Modell]:
+        return [m for m in self.modelle.values() if m.dienst == dienst]
+
+    def knoten_von_dienst(self, dienst: str) -> Knoten | None:
+        k = self.dienste[dienst].knoten
+        return self.knoten[k] if k else None
+
+    def geladen_gb(self, knoten: str) -> float:
+        return sum(m.gb for m in self.modelle_auf(knoten) if m.im_speicher)
+
+    def frei_gb(self, knoten: str) -> float:
+        k = self.knoten[knoten]
+        return k.budget_gb(self.regelwerk.budget_reserve_gb) - self.geladen_gb(knoten)
+
+    def belegt_anteil(self, knoten: str) -> float:
+        k = self.knoten[knoten]
+        return min(1.0, (k.system_gb + self.geladen_gb(knoten)) / k.speicher_gb) if k.speicher_gb else 0.0
+
+    def offene_auftraege(self) -> list[Auftrag]:
+        return [a for a in self.auftraege.values() if a.offen]
+
+    def wartende_auftraege(self) -> list[Auftrag]:
+        return [a for a in self.auftraege.values() if a.wartet]
+
+    def laufende_auf_modell(self, modell: str) -> list[Auftrag]:
+        return [a for a in self.auftraege.values() if a.zustand == Auftragszustand.LAEUFT and a.modell == modell]
+
+    def belegung(self, modell: str) -> list[Auftrag]:
+        """Aufträge, die das Modell halten: laufende und schon zugeteilte."""
+        return [a for a in self.auftraege.values() if a.zustand in (Auftragszustand.LAEUFT, Auftragszustand.ZUGETEILT) and a.modell == modell]
+
+    def wartende_auf_familie(self, familie: str) -> list[Auftrag]:
+        return [a for a in self.wartende_auftraege() if a.festes_modell == familie or self.erste_familie(a) == familie]
+
+    def erste_familie(self, auftrag: Auftrag) -> str | None:
+        kette = self.kette(auftrag)
+        return kette[0] if kette else None
+
+    def kette(self, auftrag: Auftrag) -> list[str]:
+        if auftrag.festes_modell:
+            return [auftrag.festes_modell]
+        return list(self.anwendungen[auftrag.anwendung].ketten.get(auftrag.faehigkeit, []))
+
+    def melden(self, text: str) -> None:
+        self.ereignisse.append(f"{self.zeit_s:08.1f} {text}")

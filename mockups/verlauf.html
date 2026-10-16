@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leitstelle - Entwurf: Verlauf</title>
+<link rel="icon" href="symbol.svg">
+<link rel="stylesheet" href="../frontend/node_modules/@fortawesome/fontawesome-free/css/all.min.css">
+<link rel="stylesheet" href="stil.css">
+<style>
+  .seitenkopf .reiter { margin: 0 0 0 var(--ls-a3); }
+  .seitenkopf .aktionen select.eingabe { height: 42px; }
+  .kennzahl.warnung b { color: var(--ls-warnung); }
+  .kennzahl.extern b { color: var(--ls-koralle); }
+  .kennzahl small .zahl { text-transform: none; letter-spacing: 0.02em; font-weight: 500; color: inherit; font-size: inherit; }
+
+  /* Raster der Diagramm-Karten */
+  .raster { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: var(--ls-a4); }
+  .raster > .karte { margin-top: 0; min-width: 0; }
+  .raster > .karte.breit { grid-column: 1 / -1; }
+  .karte h3 .rechts { white-space: nowrap; }
+
+  /* SVG-Diagramme: Beschriftungen mindestens 15 px im gezeichneten Maßstab */
+  .diagramm { display: block; width: 100%; height: auto; overflow: visible; }
+  .diagramm.verlauf { height: auto; }
+  .diagramm text { font-family: var(--ls-schrift-zahl); font-size: 15px; fill: var(--ls-text-3); font-variant-numeric: tabular-nums; }
+  .diagramm text.wort { font-family: var(--ls-schrift); }
+  .diagramm text.stark { fill: var(--ls-text); font-weight: 600; }
+  .diagramm .hilfslinie { stroke: var(--ls-diagrammlinie); stroke-width: 1; }
+  .diagramm .achse { stroke: var(--ls-rand-stark); stroke-width: 1; }
+  .diagramm .grenze { stroke: var(--ls-akzent); stroke-width: 2; stroke-dasharray: 6 6; }
+  .diagramm text.grenze { fill: var(--ls-akzent-schrift); stroke: none; font-weight: 700; }
+  .diagramm .jetztlinie { stroke: var(--ls-akzent); stroke-width: 1.5; stroke-dasharray: 3 4; }
+  .diagramm text.jetztwort { fill: var(--ls-akzent-schrift); font-weight: 700; }
+  .diagramm .saeule { opacity: 0.92; }
+  .diagramm .saeule:hover { opacity: 1; }
+  .diagramm path.linie { stroke-width: 2.5; }
+  .diagramm .spitze { fill: var(--ls-warnung); }
+  .diagramm text.spitze { fill: var(--ls-warnung); font-weight: 700; }
+  .diagramm .punkt-grenze { fill: var(--ls-karte); stroke-width: 2; }
+
+  /* Legende unter dem Diagramm (Wörter, nie Farbe allein) */
+  .legende { display: flex; flex-wrap: wrap; gap: var(--ls-a2) var(--ls-a4); margin-top: var(--ls-a2); font-size: var(--ls-gr-klein); color: var(--ls-text-2); }
+  .legende i { font-size: 10px; margin-right: 6px; vertical-align: 1px; }
+  .legende .strich { display: inline-block; width: 14px; height: 0; border-top: 2px dashed var(--ls-akzent); margin-right: 6px; vertical-align: 4px; }
+  .legende .linie { display: inline-block; width: 14px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: 3px; }
+
+  /* Waagerechte Balken (Anwendungen, Modelle) */
+  .balkenliste { display: grid; gap: 7px; }
+  .balkenliste .b { display: grid; grid-template-columns: 150px minmax(0, 1fr) 64px; gap: var(--ls-a3); align-items: center; font-size: var(--ls-gr-klein); }
+  .balkenliste.modelle .b { grid-template-columns: 250px minmax(0, 1fr) 96px; }
+  .balkenliste .b .n { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: var(--ls-a2); }
+  .balkenliste .b .balken { height: 12px; }
+  .balkenliste .b .balken b { background: var(--b-farbe, var(--ls-stahl)); }
+  .balkenliste .b .z { text-align: right; white-space: nowrap; }
+
+  /* Lage über den Tag: Streifen aus Abschnitten */
+  .lagestreifen { display: flex; height: 24px; background: var(--ls-mulde); border-radius: 1px; overflow: hidden; }
+  .lagestreifen span { display: block; height: 100%; }
+  .lagestreifen span + span { box-shadow: inset 1px 0 0 var(--ls-karte); }
+  .lagestreifen .ruhig { background: var(--ls-erfolg); }
+  .lagestreifen .angespannt { background: var(--ls-warnung); }
+  .lagestreifen .engpass { background: var(--ls-gefahr); }
+  .lagestreifen .offen { background: transparent; }
+  .lage-achse { display: flex; justify-content: space-between; margin-top: 6px; font-size: var(--ls-gr-marke); color: var(--ls-text-3); }
+</style>
+</head>
+<body>
+<div class="schale">
+  <div data-block="kopf"></div>
+  <div data-block="seite"></div>
+  <main class="haupt rahmen" id="haupt"></main>
+  <div data-block="fuss"></div>
+</div>
+
+<script type="module">
+  import { seite, KNOTEN, ANWENDUNGEN, MODELLE, WORT, faehigkeit, modell, zahl, euro, reihe } from './gemeinsam.js';
+  seite('verlauf');
+
+  const FARBE = { text: 'var(--ls-himmel)', einbettung: 'var(--ls-petrol)', uebersetzen: 'var(--ls-tuerkis)', hoeren: 'var(--ls-minze)', bild: 'var(--ls-flieder)', musik: 'var(--ls-violett)', stimme: 'var(--ls-rose)', werkzeug: 'var(--ls-sand)' };
+  const JETZT = 14 + 56 / 60;              // 14:56
+  const STUNDEN = Array.from({ length: 15 }, (_, i) => i);   // 0 bis 14 Uhr haben Daten
+  const BREIT = 1240, HALB = 596;           // Innenbreiten der Karten (Raster bei 1600 px Fensterbreite)
+
+  // ── Zahlenhilfen ─────────────────────────────────────────────────────
+  const f1 = (n) => n.toFixed(1).replace('.', ',');
+  const dauer = (sek) => sek >= 60 ? `${Math.floor(sek / 60)} min ${Math.round(sek % 60)} s` : `${Math.round(sek)} s`;
+  const minuten = (min) => min >= 60 ? `${Math.floor(min / 60)} h ${min % 60} min` : `${min} min`;
+  const uhr = (h) => `${String(Math.floor(h)).padStart(2, '0')}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`;
+  const tagesgang = (h) => h < 6 ? 0.25 : h < 9 ? 0.7 : 1;
+  // Verteilt eine Gesamtzahl stabil auf Stunden (Tagesgang mal Zufallsreihe), Summe bleibt exakt
+  function verteile(schluessel, gesamt, stunden = STUNDEN) {
+    const r = reihe(schluessel, stunden.length, 50, 60);
+    const gew = r.map((w, i) => w * tagesgang(stunden[i]));
+    const summe = gew.reduce((a, b) => a + b, 0);
+    const roh = gew.map(g => g / summe * gesamt);
+    const ganz = roh.map(Math.floor);
+    const rest = gesamt - ganz.reduce((a, b) => a + b, 0);
+    roh.map((v, i) => [v - Math.floor(v), i]).sort((a, b) => b[0] - a[0]).slice(0, rest).forEach(([, i]) => ganz[i]++);
+    return ganz;
+  }
+  // Achsenschritt: 1, 2, 2,5, 5 oder 10 mal Zehnerpotenz
+  function schritt(max) {
+    const roh = max / 4, p = Math.pow(10, Math.floor(Math.log10(roh))), n = roh / p;
+    return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * p;
+  }
+  function yStufen(max) { const s = schritt(max); const t = []; for (let v = 0; v < max + s - 1e-9; v += s) t.push(+v.toFixed(6)); return t; }
+
+  // ── Grundgerüst eines Diagramms: Rahmen, Hilfslinien, Achsen ─────────
+  // stufen: feste Achsenwerte (sonst aus max berechnet); skala: Anteil 0..1 je Wert (Vorgabe linear)
+  function gerüst(breite, hoehe, { stufen, max, yText, randLinks = 64, skala = (v, m) => v / m }) {
+    const liste = stufen || yStufen(max);
+    const ymax = liste[liste.length - 1];
+    const r = { x0: randLinks, x1: breite - 16, y0: 24, y1: hoehe - 32 };
+    const y = (v) => r.y1 - skala(v, ymax) * (r.y1 - r.y0);
+    stufen = liste;
+    const linien = stufen.map(v => `<line class="hilfslinie" x1="${r.x0}" x2="${r.x1}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"></line>
+      <text x="${r.x0 - 10}" y="${(y(v) + 5).toFixed(1)}" text-anchor="end">${yText(v)}</text>`).join('');
+    return { r, y, linien: linien + `<line class="achse" x1="${r.x0}" x2="${r.x1}" y1="${r.y1}" y2="${r.y1}"></line>` };
+  }
+  const xStunde = (r, stunden = 24) => (h) => r.x0 + (h / stunden) * (r.x1 - r.x0);
+  const stundenAchse = (r, alle, y1) => {
+    const x = xStunde(r);
+    return Array.from({ length: 25 }, (_, h) => h).filter(h => h % alle === 0).map(h =>
+      `<text class="wort" x="${x(h).toFixed(1)}" y="${y1 + 22}" text-anchor="${h === 24 ? 'end' : h === 0 ? 'start' : 'middle'}">${h} Uhr</text>`).join('');
+  };
+  const jetztMarke = (r, y0, y1, oben = true) => {
+    const x = xStunde(r)(JETZT).toFixed(1);
+    return `<line class="jetztlinie" x1="${x}" x2="${x}" y1="${y0}" y2="${y1}"></line>
+      <text class="jetztwort" x="${(+x + 7).toFixed(1)}" y="${oben ? y0 + 12 : y1 + 22}" text-anchor="start">jetzt ${uhr(JETZT)}</text>`;
+  };
+
+  // ── (a) Aufträge je Stunde nach Fähigkeit: gestapelte Säulen ─────────
+  const ANTEILE = [['text', 35], ['einbettung', 14], ['stimme', 10], ['hoeren', 7], ['bild', 5], ['uebersetzen', 2]];   // Summe 73
+  const reihenA = ANTEILE.map(([f, n]) => ({ f, werte: verteile(`auftraege-${f}`, n) }));
+  const summenA = STUNDEN.map(h => reihenA.reduce((s, r) => s + r.werte[h], 0));
+  function auftraegeJeStunde() {
+    const obergrenze = Math.ceil(Math.max(...summenA) / 2) * 2 + 2;   // gerade Stufen, Luft für die Werte
+    const { r, y, linien } = gerüst(BREIT, 300, { stufen: Array.from({ length: obergrenze / 2 + 1 }, (_, i) => i * 2), yText: v => zahl(v), randLinks: 48 });
+    const x = xStunde(r), slot = (r.x1 - r.x0) / 24, breite = slot * 0.68;
+    const saeulen = STUNDEN.map(h => {
+      let boden = 0;
+      return reihenA.map(({ f, werte }) => {
+        const w = werte[h]; if (!w) return '';
+        const yo = y(boden + w), yu = y(boden); boden += w;
+        return `<rect class="saeule" x="${(x(h) + slot * 0.16).toFixed(1)}" y="${yo.toFixed(1)}" width="${breite.toFixed(1)}" height="${(yu - yo).toFixed(1)}" fill="${FARBE[f]}"><title>${h}:00 bis ${h + 1}:00 Uhr, ${WORT.faehigkeit[f]}: ${w} ${w === 1 ? 'Auftrag' : 'Aufträge'}</title></rect>`;
+      }).join('') + `<text x="${(x(h) + slot / 2).toFixed(1)}" y="${(y(summenA[h]) - 6).toFixed(1)}" text-anchor="middle">${summenA[h]}</text>`;
+    }).join('');
+    return `<svg class="diagramm" viewBox="0 0 ${BREIT} 300" role="img" aria-label="Aufträge je Stunde nach Fähigkeit">
+      ${linien}${saeulen}${stundenAchse(r, 3, r.y1)}${jetztMarke(r, r.y0, r.y1)}
+    </svg>
+    <div class="legende">${ANTEILE.map(([f, n]) => `<span><i class="fa-solid fa-square" style="color:${FARBE[f]}"></i>${WORT.faehigkeit[f]} <span class="zahl">${n}</span></span>`).join('')}<span><span class="strich"></span>jetzt</span></div>`;
+  }
+
+  // ── (b) Wartezeit: Median und Maximum als Linien ─────────────────────
+  const medianB = reihe('wartezeit-median', 15, 4, 6).map(v => Math.max(1, Math.round(v * 0.9 * 10) / 10));
+  const maxB = reihe('wartezeit-max', 15, 28, 40).map(v => Math.round(v * 0.6)); maxB[14] = 130;
+  function wartezeit() {
+    // Wurzelachse: Median (wenige Sekunden) und Maximum (über zwei Minuten) bleiben zusammen lesbar
+    const { r, y, linien } = gerüst(HALB, 260, { stufen: [0, 5, 20, 50, 100, 150], yText: v => `${v} s`, randLinks: 56, skala: (v, m) => Math.sqrt(v / m) });
+    const x = xStunde(r), slot = (r.x1 - r.x0) / 24;
+    const pfad = (werte) => werte.map((v, h) => `${h ? 'L' : 'M'}${(x(h) + slot / 2).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+    const letztes = (werte) => [x(14) + slot / 2, y(werte[14])];
+    const [mx, my] = letztes(maxB), [dx, dy] = letztes(medianB);
+    return `<svg class="diagramm verlauf" viewBox="0 0 ${HALB} 260" role="img" aria-label="Wartezeit je Stunde: Median und Maximum">
+      ${linien}
+      <path class="linie" d="${pfad(maxB)}" style="--v-farbe: var(--ls-warnung)"></path>
+      <path class="linie" d="${pfad(medianB)}" style="--v-farbe: var(--ls-himmel)"></path>
+      <circle class="spitze" cx="${mx.toFixed(1)}" cy="${my.toFixed(1)}" r="4"><title>Längste Wartezeit heute: ${dauer(130)} um 14:41 (Codehilfe)</title></circle>
+      <text class="spitze wort" x="${(mx - 10).toFixed(1)}" y="${(my + 5).toFixed(1)}" text-anchor="end">${dauer(130)} um 14:41</text>
+      <circle class="jetzt" cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="3.5" style="--v-farbe: var(--ls-himmel)"></circle>
+      ${stundenAchse(r, 6, r.y1)}
+    </svg>
+    <div class="legende"><span><span class="linie" style="background: var(--ls-himmel)"></span>Median, heute <span class="zahl">4 s</span></span><span><span class="linie" style="background: var(--ls-warnung)"></span>Maximum je Stunde</span><span class="schwach" title="Die senkrechte Achse ist gestaucht (Wurzel), damit Sekunden und Minuten zusammen lesbar bleiben">Achse gestaucht</span></div>`;
+  }
+
+  // ── (c) Speicher Mac Studio: Fläche mit Budgetlinie ──────────────────
+  const speicherC = [[0, 39], [1, 39], [2, 38], [3, 38], [4, 38], [5, 39], [6, 41], [7, 54], [8, 57], [9, 60], [10, 118], [11, 119], [12, 120], [13, 121], [14, 121.5], [14.9, 122.9]];
+  function speicherMac() {
+    const { r, y, linien } = gerüst(HALB, 260, { stufen: [0, 32, 64, 96, 128], yText: v => `${v} GB`, randLinks: 64 });
+    const x = xStunde(r);
+    const pfad = speicherC.map(([h, v], i) => `${i ? 'L' : 'M'}${x(h).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+    const [lh, lv] = speicherC[speicherC.length - 1];
+    return `<svg class="diagramm verlauf" viewBox="0 0 ${HALB} 260" role="img" aria-label="Speicherbelegung Mac Studio über 24 Stunden">
+      ${linien}
+      <path class="flaeche" d="${pfad} L${x(lh).toFixed(1)},${r.y1} L${r.x0},${r.y1} Z" style="--v-farbe: var(--ls-himmel)"></path>
+      <path class="linie" d="${pfad}" style="--v-farbe: var(--ls-himmel)"></path>
+      <line class="grenze" x1="${r.x0}" x2="${r.x1}" y1="${y(110).toFixed(1)}" y2="${y(110).toFixed(1)}"></line>
+      <text class="grenze wort" x="${r.x0 + 8}" y="${(y(110) - 7).toFixed(1)}">Budget 110 GB</text>
+      <circle class="jetzt" cx="${x(lh).toFixed(1)}" cy="${y(lv).toFixed(1)}" r="4" style="--v-farbe: var(--ls-himmel)"><title>Spitze: ${f1(lv)} GB, 96 Prozent um 14:54</title></circle>
+      <text class="stark wort" x="${(x(lh) - 10).toFixed(1)}" y="${(y(lv) - 9).toFixed(1)}" text-anchor="end">96 % um 14:54</text>
+      ${stundenAchse(r, 6, r.y1)}
+    </svg>
+    <div class="legende"><span><i class="fa-solid fa-square" style="color: var(--ls-himmel)"></i>Belegt (Modelle und System)</span><span><span class="strich"></span>Budget <span class="zahl">110 GB</span></span><span><i class="fa-solid fa-circle" style="color: var(--ls-himmel)"></i>jetzt</span></div>`;
+  }
+
+  // ── (d) Token je Stunde: Säulen ──────────────────────────────────────
+  const tokenD = verteile('token', 4600).map(v => v * 1000);
+  function tokenJeStunde() {
+    const { r, y, linien } = gerüst(HALB, 260, { max: Math.max(...tokenD), yText: v => zahl(v), randLinks: 78 });
+    const x = xStunde(r), slot = (r.x1 - r.x0) / 24, breite = slot * 0.68;
+    const saeulen = STUNDEN.map(h => `<rect class="saeule" x="${(x(h) + slot * 0.16).toFixed(1)}" y="${y(tokenD[h]).toFixed(1)}" width="${breite.toFixed(1)}" height="${(r.y1 - y(tokenD[h])).toFixed(1)}" fill="var(--ls-himmel)"><title>${h}:00 bis ${h + 1}:00 Uhr: ${zahl(tokenD[h])} Token</title></rect>`).join('');
+    return `<svg class="diagramm" viewBox="0 0 ${HALB} 260" role="img" aria-label="Token je Stunde">
+      ${linien}${saeulen}${stundenAchse(r, 6, r.y1)}${jetztMarke(r, r.y0, r.y1)}
+    </svg>
+    <div class="legende"><span><i class="fa-solid fa-square" style="color: var(--ls-himmel)"></i>Token (Eingabe und Ausgabe), heute <span class="zahl">4,6 Millionen</span></span></div>`;
+  }
+
+  // ── (e) Externe Kosten je Tag: 14 Tage mit Tagesgrenze ───────────────
+  const kostenE = [1.2, 0, 2.3, 0.8, 0, 0, 3.1, 1.7, 0.6, 0, 2.4, 1.1, 0.9, 0.42];
+  const summeE = kostenE.reduce((a, b) => a + b, 0);
+  function externeKosten() {
+    const { r, y, linien } = gerüst(HALB, 260, { stufen: [0, 2, 4, 6], yText: v => `${zahl(v)} Euro`, randLinks: 72 });
+    const slot = (r.x1 - r.x0) / 14, breite = slot * 0.62;
+    const datum = (i) => `${3 + i}.10.`;
+    const saeulen = kostenE.map((v, i) => `<rect class="saeule" x="${(r.x0 + i * slot + slot * 0.19).toFixed(1)}" y="${y(v).toFixed(1)}" width="${breite.toFixed(1)}" height="${(r.y1 - y(v)).toFixed(1)}" fill="var(--ls-koralle)"><title>${i === 13 ? 'Heute' : datum(i)}: ${euro(v)}</title></rect>`).join('');
+    const achse = kostenE.map((_, i) => (i % 2 === 1 || i === 13) && i !== 11 ? `<text class="${i === 13 ? 'wort stark' : ''}" x="${(r.x0 + i * slot + slot / 2).toFixed(1)}" y="${r.y1 + 22}" text-anchor="middle">${i === 13 ? 'heute' : datum(i)}</text>` : '').join('');
+    return `<svg class="diagramm" viewBox="0 0 ${HALB} 260" role="img" aria-label="Externe Kosten je Tag, 14 Tage">
+      ${linien}${saeulen}
+      <line class="grenze" x1="${r.x0}" x2="${r.x1}" y1="${y(5).toFixed(1)}" y2="${y(5).toFixed(1)}"></line>
+      <text class="grenze wort" x="${r.x0 + 8}" y="${(y(5) - 7).toFixed(1)}">Tagesgrenze 5,00 Euro</text>
+      ${achse}
+    </svg>
+    <div class="legende"><span><i class="fa-solid fa-square" style="color: var(--ls-koralle)"></i>Externer Anbieter</span><span><span class="strich"></span>Tagesgrenze</span><span class="leise">Summe <span class="zahl">14</span> Tage: <span class="zahl">${euro(summeE)}</span></span></div>`;
+  }
+
+  // ── (f) Anwendungen heute: waagerechte Balken ────────────────────────
+  const anwendungenF = ANWENDUNGEN.filter(a => a.heute > 0).sort((a, b) => b.heute - a.heute);
+  const anwendungenHeute = () => `<div class="balkenliste">${anwendungenF.map(a => `
+    <div class="b" title="${a.name}: ${a.heute} Aufträge heute, Priorität ${WORT.prioritaet[a.prioritaet]}">
+      <span class="n">${a.name}</span>
+      <div class="balken"><b style="width:${(a.heute / anwendungenF[0].heute * 100).toFixed(1)}%"></b></div>
+      <span class="z zahl">${zahl(a.heute)}</span>
+    </div>`).join('')}</div>`;
+
+  // ── (g) Modelle nach Rechenzeit: waagerechte Balken ──────────────────
+  const rechenzeitG = [['qwen-80b', 372], ['whisper-gross', 161], ['bge-m3', 48], ['whisper-mittel', 48], ['xtts-klon', 9]];
+  const modelleRechenzeit = () => `<div class="balkenliste modelle">${rechenzeitG.map(([k, min]) => { const m = modell(k); return `
+    <div class="b" style="--b-farbe:${FARBE[m.faehigkeit]}" title="${m.name}: ${minuten(min)} Rechenzeit heute">
+      <span class="n">${m.name} ${faehigkeit(m.faehigkeit)}</span>
+      <div class="balken"><b style="width:${(min / rechenzeitG[0][1] * 100).toFixed(1)}%"></b></div>
+      <span class="z zahl">${minuten(min)}</span>
+    </div>`; }).join('')}</div>`;
+
+  // ── (h) Lage über den Tag: Streifen aus Abschnitten ──────────────────
+  const lageH = [
+    ['ruhig', 0, 630, 'Alle Knoten erreichbar, keine Wartezeiten'],
+    ['angespannt', 630, 675, 'Speicher auf Mac Studio knapp, Übersetzung wartete'],
+    ['ruhig', 675, 830, 'Alle Knoten erreichbar, keine Wartezeiten'],
+    ['angespannt', 830, 870, 'Zusage hat Vorrang, Bildschmiede angehalten'],
+    ['engpass', 870, 881, 'Qwen3 Coder Next konnte nicht geladen werden, zwei Aufträge warteten'],
+    ['angespannt', 881, 896, 'Speicher über 95 Prozent, ein Auftrag wartet auf Speicher'],
+  ];
+  const summeLage = (art) => lageH.filter(l => l[0] === art).reduce((s, l) => s + l[2] - l[1], 0);
+  const WORT_LAGE = { ruhig: 'Ruhig', angespannt: 'Angespannt', engpass: 'Engpass' };
+  const lageTag = () => `
+    <div class="lagestreifen">${lageH.map(([art, von, bis, grund]) => `<span class="${art}" style="width:${((bis - von) / 1440 * 100).toFixed(2)}%" title="${WORT_LAGE[art]} von ${uhr(von / 60)} bis ${uhr(bis / 60)} Uhr: ${grund}"></span>`).join('')}<span class="offen" style="flex:1" title="Rest des Tages, noch offen"></span></div>
+    <div class="lage-achse zahl">${[0, 6, 12, 18, 24].map(h => `<span>${h} Uhr</span>`).join('')}</div>
+    <div class="legende" style="margin-top: var(--ls-a3)">
+      <span><i class="fa-solid fa-square" style="color: var(--ls-erfolg)"></i>Ruhig <span class="zahl">${minuten(summeLage('ruhig'))}</span></span>
+      <span><i class="fa-solid fa-square" style="color: var(--ls-warnung)"></i>Angespannt <span class="zahl">${minuten(summeLage('angespannt'))}</span></span>
+      <span><i class="fa-solid fa-square" style="color: var(--ls-gefahr)"></i>Engpass <span class="zahl">${minuten(summeLage('engpass'))}</span></span>
+      <span><i class="fa-regular fa-square" style="color: var(--ls-text-3)"></i>Noch offen</span>
+    </div>`;
+
+  // ── Seite ────────────────────────────────────────────────────────────
+  const karte = (titel, symbol, zeitraum, inhalt, breit = false) => `
+    <div class="karte${breit ? ' breit' : ''}"><h3><i class="fa-solid ${symbol}"></i>${titel} <span class="rechts">${zeitraum}</span></h3>${inhalt}</div>`;
+  const HEUTE = 'Heute, 0 bis 15 Uhr';
+
+  const KOPF = `
+    <div class="rahmen-kopf">
+      <div class="seitenkopf">
+        <h1>Verlauf</h1>
+        <div class="reiter">
+          <button class="aktiv" title="Heutiger Tag, Stunde für Stunde"><i class="fa-solid fa-calendar-day"></i> Heute</button>
+          <button title="Die letzten sieben Tage, Tag für Tag"><i class="fa-solid fa-calendar-week"></i> 7 Tage</button>
+          <button title="Die letzten dreißig Tage, Tag für Tag"><i class="fa-solid fa-calendar"></i> 30 Tage</button>
+        </div>
+        <div class="aktionen">
+          <select class="eingabe" title="Nur Aufträge eines Knotens zeigen"><option>Alle Knoten</option>${KNOTEN.map(k => `<option>${k.name}</option>`).join('')}<option>Extern</option></select>
+          <select class="eingabe" title="Nur Aufträge einer Anwendung zeigen"><option>Alle Anwendungen</option>${ANWENDUNGEN.map(a => `<option>${a.name}</option>`).join('')}</select>
+        </div>
+      </div>
+      <div class="kennzahlen">
+        <div class="kennzahl"><b>73</b><span>Aufträge heute</span><small>davon <span class="zahl">67</span> fertig</small></div>
+        <div class="kennzahl erfolg"><b>4 s</b><span>Mittlere Wartezeit</span><small>Median bis zum Start</small></div>
+        <div class="kennzahl warnung"><b>2 min 10 s</b><span>Längste Wartezeit</span><small>um 14:41, Codehilfe</small></div>
+        <div class="kennzahl"><b>4,6 Millionen</b><span>Token heute</span><small>Eingabe und Ausgabe</small></div>
+        <div class="kennzahl extern"><b>${euro(0.42)}</b><span>Extern</span><small>Grenze <span class="zahl">${euro(5)}</span> je Tag</small></div>
+      </div>
+    </div>`;
+
+  const RASTER = `<div class="raster">
+    ${karte('Aufträge je Stunde nach Fähigkeit', 'fa-chart-column', HEUTE, auftraegeJeStunde(), true)}
+    ${karte('Wartezeit', 'fa-hourglass-half', HEUTE, wartezeit())}
+    ${karte('Speicher Mac Studio', 'fa-memory', 'Heute, 24 Stunden', speicherMac())}
+    ${karte('Token je Stunde', 'fa-coins', HEUTE, tokenJeStunde())}
+    ${karte('Externe Kosten je Tag', 'fa-cloud', '14 Tage', externeKosten())}
+    ${karte('Anwendungen heute', 'fa-cubes', `${anwendungenF.length} von ${ANWENDUNGEN.length} aktiv`, anwendungenHeute())}
+    ${karte('Modelle nach Rechenzeit', 'fa-brain', HEUTE, modelleRechenzeit())}
+    ${karte('Lage über den Tag', 'fa-gauge-high', 'Heute, 24 Stunden', lageTag(), true)}
+  </div>`;
+
+  document.getElementById('haupt').innerHTML = KOPF + `<div class="rollfeld">${RASTER}</div>`;
+</script>
+</body>
+</html>

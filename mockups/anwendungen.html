@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leitstelle - Entwurf: Anwendungen</title>
+<link rel="icon" href="symbol.svg">
+<link rel="stylesheet" href="../frontend/node_modules/@fortawesome/fontawesome-free/css/all.min.css">
+<link rel="stylesheet" href="stil.css">
+<style>
+  /* Tabelle der Anwendungen */
+  .tabelle .name { font-weight: 600; color: var(--ls-text); font-size: var(--ls-gr-text); }
+  .tabelle .name a { color: inherit; }
+  .tabelle .name a:hover { color: var(--ls-akzent-schrift); }
+  .tabelle .wo { display: flex; align-items: center; gap: var(--ls-a2); margin-top: 4px; color: var(--ls-text-2); white-space: nowrap; }
+  .tabelle .marken { display: flex; flex-wrap: wrap; gap: 4px; }
+  .tabelle tr.gewaehlt td { background: rgba(var(--ls-akzent-rgb), 0.07); }
+  .tabelle tr.gewaehlt { outline: 1px solid rgba(var(--ls-akzent-rgb), 0.5); outline-offset: -1px; }
+  .tabelle td.aktionen { white-space: nowrap; }
+  .tabelle td.aktionen .knopf + .knopf { margin-left: 2px; }
+  .tabelle .heute { white-space: nowrap; }
+  .tabelle .heute b { display: block; font-family: var(--ls-schrift-zahl); font-weight: 600; color: var(--ls-text); }
+  .tabelle .heute span { color: var(--ls-text-3); }
+  .tabelle tr.getrennt .name, .tabelle tr.getrennt .heute b { color: var(--ls-text-2); }
+
+  /* Priorität als Wort mit Gewicht */
+  .prio { font-weight: 600; white-space: nowrap; }
+  .prio.dringend { color: var(--ls-gefahr); font-weight: 700; }
+  .prio.hoch { color: var(--ls-akzent-schrift); }
+  .prio.hintergrund { color: var(--ls-text-3); font-weight: 500; }
+
+  /* Anbindungsweg und Extern: Symbol plus Wort */
+  .weg, .extern { display: inline-flex; align-items: center; gap: var(--ls-a2); white-space: nowrap; }
+  .weg i { width: 18px; text-align: center; color: var(--ls-text-3); }
+  .weg.signale i { color: var(--ls-erfolg); }
+  .weg.fassade { color: var(--ls-text-2); cursor: help; }
+  .extern i { width: 18px; text-align: center; color: var(--ls-text-3); }
+  .extern.ja { color: var(--ls-koralle); font-weight: 600; }
+  .extern.ja i { color: var(--ls-koralle); }
+
+  /* Umbau-Stand: vier Stufen der Anbindung */
+  .umbau { margin-top: var(--ls-a5); }
+  .umbau-inhalt { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--ls-a5); }
+  .stufenliste { display: grid; gap: var(--ls-a2); }
+  .stufe { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: var(--ls-a3); padding: var(--ls-a3); border-radius: var(--ls-ecke); background: var(--ls-flaeche); }
+  .stufe .nr { display: grid; place-items: center; width: 34px; height: 34px; border-radius: var(--ls-ecke); background: var(--ls-karte-2); font-family: var(--ls-schrift-zahl); font-weight: 700; color: var(--ls-text-2); }
+  .stufe b { display: block; }
+  .stufe span { display: block; font-size: var(--ls-gr-klein); color: var(--ls-text-2); margin-top: 2px; }
+  .stufenanzeige { display: inline-flex; gap: 3px; vertical-align: middle; }
+  .stufenanzeige i { display: block; width: 22px; height: 8px; border-radius: 1px; background: var(--ls-mulde); }
+  .stufenanzeige i.voll { background: var(--ls-erfolg); }
+  .stufenanzeige.fertig i.voll { background: var(--ls-erfolg); }
+  .umbau-apps { display: grid; grid-template-columns: 1fr; gap: 2px; align-content: start; }
+  .umbau-app { display: grid; grid-template-columns: minmax(0, 1fr) auto 90px; gap: var(--ls-a4); align-items: center; padding: 7px var(--ls-a3); border-radius: var(--ls-ecke); font-size: var(--ls-gr-klein); }
+  .umbau-app:hover { background: var(--ls-flaeche); }
+  .umbau-app .n { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .umbau-app .s { color: var(--ls-text-3); text-align: right; white-space: nowrap; }
+  .umbau-app .s.fertig { color: var(--ls-erfolg); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="schale">
+  <div data-block="kopf"></div>
+  <div data-block="seite"></div>
+  <main class="haupt rahmen" id="haupt"></main>
+  <div data-block="fuss"></div>
+</div>
+
+<script type="module">
+  import { seite, ANWENDUNGEN, WORT, faehigkeit, zustand, zone, knoten, zahl, kurz, hilfepunkt } from './gemeinsam.js';
+  seite('anwendungen');
+
+  const gewaehlt = 'fundus';
+  const verbunden = ANWENDUNGEN.filter(a => a.zustand === 'verbunden');
+  const getrennt = ANWENDUNGEN.filter(a => a.zustand === 'getrennt');
+  const mitSignalen = ANWENDUNGEN.filter(a => a.signale);
+  const nurFassade = ANWENDUNGEN.filter(a => !a.signale);
+  const extern = ANWENDUNGEN.filter(a => a.extern);
+
+  // Umbau-Stufe je Anwendung; mit Signalkanal (signale) ist es mindestens Stufe 3
+  const STUFE = { fundus: 3, zusage: 3, tubevault: 4, rufzeichen: 3, mitschrift: 3, 'bildschmiede-app': 3, medienpool: 2, kiste: 2, Codehilfe: 1, pinnwand: 1 };
+  const STUFEN = [
+    ['Fassade', 'Nur die Adresse umstellen: die Anwendung spricht die Leitstelle wie einen Modell-Läufer an.'],
+    ['Anmeldung', 'Mit Schlüssel und Priorität angemeldet: die Leitstelle kennt die Anwendung und ordnet ihre Aufträge ein.'],
+    ['Signalkanal', 'Die Anwendung hört zu: Speicher knapp, gesperrt, pausiert, Modell bereit kommen als Signale an.'],
+    ['Eigene Aufträge', 'Aufträge mit Fortschritt, Anhalten und Fortsetzen: die Leitstelle steuert, die Anwendung meldet.'],
+  ];
+  const FASSADE_TITEL = 'Spricht die Leitstelle wie einen Modell-Läufer an; bekommt keine Signale wie Speicher knapp oder pausiert, kann aber jederzeit umgebaut werden.';
+
+  const zeile = (a) => `
+    <tr class="${a.kennung === gewaehlt ? 'gewaehlt ' : ''}${a.zustand}">
+      <td>
+        <div class="name">${a.kennung === gewaehlt ? `<a href="anwendung-detail.html" title="Einzelheiten zu ${a.name} öffnen">${a.name}</a>` : a.name}</div>
+        <div class="wo klein">${knoten(a.knoten).name} ${zone(knoten(a.knoten).zone)}</div>
+      </td>
+      <td>${zustand(a.zustand)}</td>
+      <td><div class="marken">${a.faehigkeiten.map(faehigkeit).join('')}</div></td>
+      <td><span class="prio ${a.prioritaet}" title="Vorgabe-Priorität der Anwendung; einzelne Aufträge können abweichen">${WORT.prioritaet[a.prioritaet]}</span></td>
+      <td class="heute"><b>${zahl(a.heute)} Aufträge</b><span class="zahl">${kurz(a.token_heute)} Token</span></td>
+      <td>${a.signale
+        ? `<span class="weg signale" title="Angemeldet über das Protokoll Leitstelle/1; empfängt Signale wie Speicher knapp, pausiert oder Modell bereit"><i class="fa-solid fa-right-left"></i>Protokoll mit Signalen</span>`
+        : `<span class="weg fassade" title="${FASSADE_TITEL}"><i class="fa-solid fa-door-open"></i>Nur OpenAI-Fassade</span>`}</td>
+      <td>${a.extern
+        ? `<span class="extern ja" title="Darf externe Anbieter nutzen; Kosten zählen auf die Tagesgrenze"><i class="fa-solid fa-cloud"></i>Ja</span>`
+        : `<span class="extern" title="Rechnet nur im Heimnetz oder über VPN"><i class="fa-solid fa-house"></i>Nein</span>`}</td>
+      <td class="aktionen">
+        <a class="knopf ohne symbol klein" href="anwendung-detail.html" title="Einzelheiten: Zugang, Rechte, Modelle und Signale dieser Anwendung"><i class="fa-solid fa-arrow-right"></i></a>
+        <button class="knopf ohne symbol klein" title="Pausieren: alle Aufträge dieser Anwendung anhalten"><i class="fa-solid fa-pause"></i></button>
+        <button class="knopf ohne symbol klein gefahr" title="Sperren: nimmt nichts mehr an, laufende Aufträge enden"><i class="fa-solid fa-ban"></i></button>
+      </td>
+    </tr>`;
+
+  const KOPF = `
+    <div class="rahmen-kopf">
+      <div class="seitenkopf">
+        <h1>Anwendungen</h1><span class="zahl">${ANWENDUNGEN.length}</span>
+        <div class="aktionen">
+          <a class="knopf haupt" href="anwendung-anmelden.html" title="Neue Anwendung anmelden: Name, Fähigkeiten, Zone, Schlüssel und Einbau in fünf Schritten"><i class="fa-solid fa-plus"></i> Anwendung anmelden</a>
+        </div>
+      </div>
+      <div class="kennzahlen">
+        <div class="kennzahl"><b>${ANWENDUNGEN.length}</b><span>Anwendungen</span></div>
+        <div class="kennzahl erfolg"><b>${verbunden.length}</b><span>Verbunden</span><small>${getrennt.length} getrennt</small></div>
+        <div class="kennzahl"><b>${mitSignalen.length}</b><span>Mit Signalkanal</span><small>${nurFassade.length} nur Fassade</small></div>
+        <div class="kennzahl"><b>${extern.length}</b><span>Dürfen extern</span><small>heute 0,42 Euro</small></div>
+      </div>
+      <div class="filter">
+        <span class="etikett">Anzeigen</span>
+        <button class="chip aktiv"><i class="fa-solid fa-layer-group"></i> Alle <span class="zaehler">${ANWENDUNGEN.length}</span></button>
+        <button class="chip"><i class="fa-solid fa-link"></i> Verbunden <span class="zaehler">${verbunden.length}</span></button>
+        <button class="chip"><i class="fa-solid fa-link-slash"></i> Getrennt <span class="zaehler">${getrennt.length}</span></button>
+        <button class="chip" title="Anwendungen, die über das Protokoll angemeldet sind und Signale empfangen"><i class="fa-solid fa-right-left"></i> Mit Signalkanal <span class="zaehler">${mitSignalen.length}</span></button>
+        <button class="chip" title="${FASSADE_TITEL}"><i class="fa-solid fa-door-open"></i> Nur Fassade <span class="zaehler">${nurFassade.length}</span></button>
+        <div class="rechts"><span class="klein leise">Sortiert nach Aufträgen heute</span>${hilfepunkt('Anwendungen und Anbindung')}</div>
+      </div>
+    </div>`;
+
+  const sortiert = [...ANWENDUNGEN].sort((x, y) => y.heute - x.heute);
+  const TABELLE = `
+    <table class="tabelle">
+      <thead><tr>
+        <th>Anwendung</th><th>Zustand</th><th>Fähigkeiten</th><th>Priorität</th><th>Heute</th><th>Weg</th><th>Extern</th><th>Aktionen</th>
+      </tr></thead>
+      <tbody>${sortiert.map(zeile).join('')}</tbody>
+    </table>`;
+
+  const stufenanzeige = (n) => `<span class="stufenanzeige" title="Stufe ${n} von 4: ${STUFEN[n - 1][0]}">${[1, 2, 3, 4].map(i => `<i class="${i <= n ? 'voll' : ''}"></i>`).join('')}</span>`;
+  const UMBAU = `
+    <div class="karte umbau">
+      <h3><i class="fa-solid fa-stairs"></i>Umbau-Stand <span class="rechts">Vier Stufen der Anbindung; jede Anwendung kann bei Stufe 1 anfangen</span></h3>
+      <div class="umbau-inhalt">
+        <div class="stufenliste">
+          ${STUFEN.map(([name, text], i) => `<div class="stufe"><span class="nr">${i + 1}</span><div><b>${name}</b><span>${text}</span></div></div>`).join('')}
+        </div>
+        <div class="umbau-apps">
+          ${[...ANWENDUNGEN].sort((x, y) => STUFE[y.kennung] - STUFE[x.kennung] || x.name.localeCompare(y.name, 'de')).map(a => `
+            <div class="umbau-app">
+              <span class="n">${a.name}</span>
+              ${stufenanzeige(STUFE[a.kennung])}
+              <span class="s${STUFE[a.kennung] === 4 ? ' fertig' : ''}">Stufe <span class="zahl">${STUFE[a.kennung]}</span></span>
+            </div>`).join('')}
+        </div>
+      </div>
+    </div>`;
+
+  document.getElementById('haupt').innerHTML = KOPF + `<div class="rollfeld">${TABELLE}${UMBAU}</div>`;
+</script>
+</body>
+</html>

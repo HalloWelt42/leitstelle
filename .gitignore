@@ -1,0 +1,11 @@
+node_modules/
+.run/
+.venv/
+__pycache__/
+*.pyc
+dist/
+.DS_Store
+.test-*/
+zugaenge/
+privat/
+daten/

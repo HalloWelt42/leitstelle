@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leitstelle - Entwurf: Modelle</title>
+<link rel="icon" href="symbol.svg">
+<link rel="stylesheet" href="../frontend/node_modules/@fortawesome/fontawesome-free/css/all.min.css">
+<link rel="stylesheet" href="stil.css">
+<style>
+  /* Kennzahl für externe Modelle (Koralle = Zone extern) */
+  .kennzahl.extern b { color: var(--ls-koralle); }
+
+  /* Speicherzeile im Kopf: Name und Lage, Balken mit Budgetmarke, Legende */
+  .speicherkopf { margin-top: var(--ls-a3); padding: var(--ls-a3) var(--ls-a4) var(--ls-a4); background: var(--ls-flaeche); border-radius: var(--ls-ecke); }
+  .speicherkopf .sp-zeile { display: flex; align-items: baseline; gap: var(--ls-a3); flex-wrap: wrap; }
+  .speicherkopf .sp-zeile .n { font-weight: 600; }
+  .speicherkopf .sp-zeile .w { font-size: var(--ls-gr-klein); color: var(--ls-text-3); }
+  .speicherkopf .sp-zeile .w.warn { color: var(--ls-warnung); font-weight: 600; }
+  .speicherkopf .sp-zeile .speicher-legende { margin: 0 0 0 auto; }
+  .sp-rahmen { position: relative; padding-top: 26px; }
+  .budgetmarke { position: absolute; top: 22px; bottom: -5px; width: 2px; background: var(--ls-akzent); transform: translateX(-1px); }
+  .budgetmarke > span { position: absolute; right: 8px; top: -24px; white-space: nowrap; font-size: var(--ls-gr-marke); font-weight: 700;
+                      letter-spacing: 0.04em; color: var(--ls-akzent-schrift); }
+  .legende-strich { display: inline-block; width: 3px; height: 12px; background: var(--ls-akzent); margin-right: 6px; vertical-align: -1px; }
+  .speicher-legende .frei { color: var(--ls-text-3); }
+
+  /* Zwei Spalten, rechts schmaler als in der Vorgabe, damit die Tabelle Platz hat */
+  .spalten.schmal-rechts { grid-template-columns: minmax(0, 1fr) 400px; }
+
+  /* Modelltabelle: zwei Zeilen je Zelle, enge Spalten */
+  .modelltabelle th, .modelltabelle td { padding-left: var(--ls-a2); padding-right: var(--ls-a2); }
+  .modelltabelle th { line-height: 1.3; }
+  .modelltabelle td { padding-top: 9px; padding-bottom: 9px; }
+  .modelltabelle .n { font-weight: 600; display: flex; align-items: center; gap: 7px; }
+  .modelltabelle .n .schutz { color: var(--ls-text-2); font-size: 14px; cursor: help; }
+  .modelltabelle .zweit { font-size: var(--ls-gr-marke); color: var(--ls-text-3); margin-top: 3px; white-space: nowrap; }
+  .modelltabelle .zweit .akzent { font-weight: 600; }
+  .modelltabelle td.zahl .zweit { text-align: right; }
+  .modelltabelle .dienst { font-size: var(--ls-gr-klein); }
+  .modelltabelle .zustand { white-space: nowrap; }
+  .modelltabelle .knopf.klein { min-width: 92px; }
+  .modelltabelle tr.gewaehlt td { background: rgba(var(--ls-akzent-rgb), 0.08); border-top-color: rgba(var(--ls-akzent-rgb), 0.55); }
+  .modelltabelle tr.gewaehlt + tr td { border-top-color: rgba(var(--ls-akzent-rgb), 0.55); }
+  .modelltabelle tr.gewaehlt td:first-child { box-shadow: inset 1px 0 0 rgba(var(--ls-akzent-rgb), 0.55); }
+  .modelltabelle tr.gewaehlt td:last-child { box-shadow: inset -1px 0 0 rgba(var(--ls-akzent-rgb), 0.55); }
+
+  /* Rechts: Vorschau des Freigebens */
+  .vorschau .satz { color: var(--ls-text-2); font-size: var(--ls-gr-klein); }
+  .pruefung { margin-top: var(--ls-a3); display: grid; gap: 2px; }
+  .pruefung .p { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--ls-a3); align-items: center; padding: var(--ls-a2) var(--ls-a3);
+                 background: var(--ls-flaeche); border-radius: var(--ls-ecke); }
+  .pruefung .p b { font-weight: 600; }
+  .pruefung .p .g { font-size: var(--ls-gr-marke); color: var(--ls-text-3); margin-top: 2px; }
+  .vorschau .hinweis { margin-top: var(--ls-a3); }
+  .tun { display: flex; gap: var(--ls-a2); flex-wrap: wrap; margin-top: var(--ls-a3); }
+
+  /* Angaben-Liste (wie auftraege.html, dort ebenfalls seitenlokal) */
+  .angaben { display: grid; grid-template-columns: 124px minmax(0, 1fr); gap: 6px var(--ls-a3); font-size: var(--ls-gr-klein); margin-top: var(--ls-a3); }
+  .angaben dt { color: var(--ls-text-3); }
+  .angaben dd { margin: 0; overflow-wrap: anywhere; }
+  .angaben dd .laeufer { display: grid; gap: 2px; justify-items: start; }
+  .angaben dd .laeufer + .laeufer { margin-top: 6px; }
+  .angaben dd .laeufer .etikett { letter-spacing: 0.06em; }
+  .angaben dd code { font-size: 14px; }
+  .angaben dd .erkl { font-size: var(--ls-gr-marke); color: var(--ls-text-3); margin-top: 6px; }
+  .nutzung { margin-top: var(--ls-a3); }
+  .nutzung .verlauf { height: 52px; }
+  .nutzung .achse { display: flex; justify-content: space-between; font-size: var(--ls-gr-marke); color: var(--ls-text-3); margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="schale">
+  <div data-block="kopf"></div>
+  <div data-block="seite"></div>
+  <main class="haupt rahmen" id="haupt"></main>
+  <div data-block="fuss"></div>
+</div>
+
+<script type="module">
+  import { seite, MODELLE, KNOTEN, AUFTRAEGE, WORT, faehigkeit, zustand, zone, dienst, knoten, anwendung, modell, gb, zahl, verlauf, reihe, hilfepunkt } from './gemeinsam.js';
+  seite('modelle');
+
+  const gewaehlt = 'glm-vision';
+  const BUDGET_GB = 110;
+
+  // Abkürzungen aus der Beispielwelt ausschreiben ("vor 3 Std." wird "vor 3 Stunden")
+  const lang = (s) => s
+    .replace(/(\d+) Std\./, (_, n) => `${n} ${n === '1' ? 'Stunde' : 'Stunden'}`)
+    .replace(/(\d+) Min\./, (_, n) => `${n} ${n === '1' ? 'Minute' : 'Minuten'}`);
+
+  const knotenVon = (m) => { const d = dienst(m.dienst); return d.knoten === 'extern' ? null : knoten(d.knoten); };
+  const imSpeicher = (m) => m.zustand === 'geladen' || m.zustand === 'rechnet';
+  const modelleAuf = (k) => MODELLE.filter(m => k.dienste.includes(m.dienst));
+  const belegt = (k) => modelleAuf(k).filter(imSpeicher).reduce((s, m) => s + m.gb, 0);
+  const system = (k) => Math.max(0, k.ram_gb * k.ram / 100 - belegt(k));
+  const freiAuf = (k) => k.ram_gb - belegt(k) - system(k);
+
+  const anzahl = {
+    alle: MODELLE.length,
+    speicher: MODELLE.filter(imSpeicher).length,
+    rechnet: MODELLE.filter(m => m.zustand === 'rechnet').length,
+    geschuetzt: MODELLE.filter(m => m.geschuetzt).length,
+    extern: MODELLE.filter(m => m.zustand === 'extern').length,
+  };
+  const jeKnoten = (kennung) => MODELLE.filter(m => (kennung === 'extern' ? dienst(m.dienst).knoten === 'extern' : dienst(m.dienst).knoten === kennung)).length;
+
+  // ── Kopf: Speicherbalken Mac Studio mit Budgetmarke ──────────────────
+  const mac = knoten('mac-128');
+  const farbe = { text: 'modell', einbettung: 'modell einbettung', bild: 'modell vision', hoeren: 'modell hoeren', stimme: 'modell stimme' };
+  const geladenMac = modelleAuf(mac).filter(imSpeicher);
+  const systemMac = system(mac), freiMac = freiAuf(mac);
+  const prozent = (g) => (g / mac.ram_gb * 100).toFixed(1);
+  const speicherMac = `
+    <div class="speicherkopf">
+      <div class="sp-zeile">
+        <span class="n">${mac.name} <span class="leise klein">${mac.ram_gb} GB</span></span>
+        <span class="w warn"><span class="zahl">${mac.ram} %</span> belegt · <span class="zahl">${gb(freiMac)}</span> frei · über dem Budget</span>
+        <div class="speicher-legende">
+          <span><i class="fa-solid fa-square" style="color: var(--ls-himmel)"></i>Text</span>
+          <span><i class="fa-solid fa-square" style="color: var(--ls-petrol)"></i>Einbettung</span>
+          <span><i class="fa-solid fa-square" style="color: var(--ls-minze)"></i>Hören</span>
+          <span><i class="fa-solid fa-square" style="color: var(--ls-rose)"></i>Stimme</span>
+          <span><i class="fa-solid fa-square" style="color: var(--ls-stahl)"></i>System <span class="zahl">${gb(systemMac)}</span></span>
+          <span class="frei"><i class="fa-regular fa-square"></i>Frei</span>
+          <span><span class="legende-strich"></span>Budget <span class="zahl">${BUDGET_GB} GB</span></span>
+        </div>
+      </div>
+      <div class="sp-rahmen">
+        <div class="speicher" title="${mac.name}: ${gb(belegt(mac))} Modelle, ${gb(systemMac)} System, ${gb(freiMac)} frei">
+          ${geladenMac.map(m => `<span class="${farbe[m.faehigkeit] || 'modell'}" style="width:${prozent(m.gb)}%" title="${m.name}: ${gb(m.gb)}${m.zustand === 'rechnet' ? ', rechnet gerade' : ''}"></span>`).join('')}
+          <span class="system" style="width:${prozent(systemMac)}%" title="System und andere Programme: ${gb(systemMac)}"></span>
+        </div>
+        <div class="budgetmarke" style="left:${prozent(BUDGET_GB)}%" title="Budget für Modelle auf ${mac.name}: ${BUDGET_GB} GB von ${mac.ram_gb} GB; darüber macht die Leitstelle Platz, bevor sie lädt"><span>Budget <span class="zahl">${BUDGET_GB} GB</span></span></div>
+      </div>
+    </div>`;
+
+  const KOPF = `
+    <div class="rahmen-kopf">
+      <div class="seitenkopf">
+        <h1>Modelle</h1><span class="zahl">${anzahl.alle}</span>
+        <div class="aktionen">
+          <button class="knopf aktiv" title="Speicher freigeben: die Vorschau rechts zeigt, welche Modelle entladen würden; nichts passiert ohne Bestätigung"><i class="fa-solid fa-broom"></i> Speicher freigeben</button>
+        </div>
+      </div>
+      <div class="kennzahlen">
+        <div class="kennzahl"><b>${anzahl.alle}</b><span>Modelle</span><small>auf allen Diensten</small></div>
+        <div class="kennzahl erfolg"><b>${anzahl.speicher}</b><span>Im Speicher</span><small>geladen oder rechnet</small></div>
+        <div class="kennzahl laeuft"><b>${anzahl.rechnet}</b><span>Rechnen</span><small>je ein Auftrag</small></div>
+        <div class="kennzahl"><b>${anzahl.geschuetzt}</b><span>Geschützt</span><small>werden nie entladen</small></div>
+        <div class="kennzahl extern"><b>${anzahl.extern}</b><span>Extern</span><small>Externer Anbieter</small></div>
+      </div>
+      ${speicherMac}
+      <div class="filter" style="margin-top: var(--ls-a3); margin-bottom: 0">
+        <span class="etikett">Knoten</span>
+        <button class="chip aktiv" title="Alle Modelle aller Knoten">Alle <span class="zaehler">${anzahl.alle}</span></button>
+        <button class="chip" title="Nur Modelle auf Mac Studio">Mac Studio <span class="zaehler">${jeKnoten('mac-128')}</span></button>
+        <button class="chip" title="Nur Modelle auf dem MacBook">MacBook <span class="zaehler">${jeKnoten('mac-32')}</span></button>
+        <button class="chip" title="Nur Modelle auf dem Pi Archiv">Pi Archiv <span class="zaehler">${jeKnoten('pi-archiv')}</span></button>
+        <button class="chip" title="Nur Modelle externer Anbieter">Extern <span class="zaehler">${jeKnoten('extern')}</span></button>
+        <div class="rechts">
+          <select class="eingabe" title="Nach Fähigkeit filtern" style="height: 36px">
+            <option>Alle Fähigkeiten</option><option>Text</option><option>Einbettung</option><option>Bild</option><option>Hören</option><option>Stimme</option><option>Musik</option>
+          </select>
+          <select class="eingabe" title="Nach Zustand filtern" style="height: 36px">
+            <option>Alle Zustände</option><option>Im Speicher</option><option>Rechnet</option><option>Nicht geladen</option><option>Extern</option>
+          </select>
+        </div>
+      </div>
+    </div>`;
+
+  // ── Links: Tabelle aller Modelle ─────────────────────────────────────
+  const aktion = (m) => {
+    const k = knotenVon(m);
+    if (m.zustand === 'extern') return '';
+    if (m.zustand === 'rechnet') return `<button class="knopf klein" disabled title="Entladen nicht möglich: rechnet gerade; erst wenn der Auftrag fertig ist">Entladen</button>`;
+    if (m.zustand === 'geladen') return `<button class="knopf klein" title="Entladen: gibt ${gb(m.gb)} auf ${k.name} frei${m.geschuetzt ? '. Die Schutzregel gilt nur für das automatische Freimachen, von Hand geht es immer' : ''}">Entladen</button>`;
+    const passt = m.gb <= freiAuf(k);
+    return `<button class="knopf klein" title="Laden: belegt ${gb(m.gb)} auf ${k.name}${passt ? '' : `. Passt gerade nicht (${gb(freiAuf(k))} frei); die Leitstelle macht zuerst nach den Regeln Platz`}${m.wartet ? `. ${m.wartet} Auftrag wartet darauf` : ''}">Laden</button>`;
+  };
+  const zweitZustand = (m) => {
+    if (m.zustand === 'rechnet') return `<span class="zahl">${m.auftraege}</span> Auftrag läuft`;
+    if (m.wartet) return `<span class="akzent"><span class="zahl">${m.wartet}</span> Auftrag wartet darauf</span>`;
+    return `<span class="zahl">0</span> Aufträge`;
+  };
+  const zeile = (m) => {
+    const d = dienst(m.dienst), k = knotenVon(m);
+    const schutz = m.geschuetzt ? `<i class="fa-solid fa-shield-halved schutz" title="Geschützt: unter 10 Milliarden Parametern oder Einbettung, wird nie entladen"></i>` : '';
+    return `<tr class="${m.kennung === gewaehlt ? 'gewaehlt' : ''}">
+      <td><div class="n">${m.name}${schutz}</div><div class="zweit"><span class="zahl">${m.parameter}</span> · zuletzt ${lang(m.zuletzt)}</div></td>
+      <td>${faehigkeit(m.faehigkeit)}</td>
+      <td><div class="dienst">${d.name}</div><div class="zweit">${k ? k.name : WORT.zone.extern}</div></td>
+      <td class="zahl">${m.zustand === 'extern' ? `<div>-</div><div class="zweit">beim Anbieter</div>` : `<div>${gb(m.gb)}</div><div class="zweit">${m.kontext ? zahl(m.kontext) : '-'}</div>`}</td>
+      <td>${zustand(m.zustand, true)}<div class="zweit">${zweitZustand(m)}</div></td>
+      <td>${aktion(m)}</td>
+    </tr>`;
+  };
+  const LINKS = `
+    <table class="tabelle modelltabelle">
+      <thead><tr>
+        <th>Modell<br><span style="letter-spacing: 0; text-transform: none; font-weight: 500">Parameter · zuletzt genutzt</span></th>
+        <th>Fähigkeit</th>
+        <th>Dienst<br>Knoten</th>
+        <th class="zahl">Größe<br>Kontext</th>
+        <th>Zustand<br><span style="letter-spacing: 0; text-transform: none; font-weight: 500">Aufträge</span></th>
+        <th>Aktion</th>
+      </tr></thead>
+      <tbody>${MODELLE.map(zeile).join('')}</tbody>
+    </table>`;
+
+  // ── Rechts: Vorschau, gewähltes Modell, Regeln ───────────────────────
+  const qwen = modell('qwen-80b'), glm = modell(gewaehlt), zusage = AUFTRAEGE.find(a => a.kennung === 'a-7f3c'), kisteAuftrag = AUFTRAEGE.find(a => a.modell === gewaehlt);
+  const nichtJetzt = `<span class="zustand pausiert"><i class="fa-solid fa-clock"></i>Nicht jetzt</span>`;
+  const bleibt = `<span class="zustand wartung"><i class="fa-solid fa-shield-halved"></i>Geschützt</span>`;
+  const VORSCHAU = `
+    <div class="karte vorschau">
+      <h3><i class="fa-solid fa-broom"></i>Speicher freigeben: Vorschau <span class="rechts">${mac.name}</span></h3>
+      <p class="satz">Auf ${mac.name} lässt sich jetzt nichts freigeben, ohne einen laufenden Auftrag abzubrechen.</p>
+      <div class="pruefung">
+        <div class="p" title="Qwen3 Next 80B rechnet für Zusage; rechnende Modelle werden nie entladen"><div><b>${qwen.name}</b> <span class="leise klein zahl">${gb(qwen.gb)}</span><div class="g">Rechnet: ${anwendung(zusage.anwendung).name}, Rest <span class="zahl">25 s</span></div></div>${nichtJetzt}</div>
+        <div class="p" title="Einbettungsmodelle werden nie entladen: ein Wechsel macht alle Einbettungen ungültig"><div><b>${modell('bge-m3').name}</b> <span class="leise klein zahl">${gb(modell('bge-m3').gb)}</span><div class="g">Geschützt: Einbettung</div></div>${bleibt}</div>
+        <div class="p" title="Whisper groß v3 rechnet das Transkript für TubeVault"><div><b>${modell('whisper-gross').name}</b> <span class="leise klein zahl">${gb(modell('whisper-gross').gb)}</span><div class="g">Rechnet: TubeVault</div></div>${nichtJetzt}</div>
+        <div class="p" title="Stimmklon hat 0,5 Milliarden Parameter und liegt unter der Schutzgrenze"><div><b>${modell('xtts-klon').name}</b> <span class="leise klein zahl">${gb(modell('xtts-klon').gb)}</span><div class="g">Geschützt: unter <span class="zahl">10</span> Milliarden</div></div>${bleibt}</div>
+      </div>
+      <div class="hinweis"><i class="fa-solid fa-lightbulb"></i><span>Nach dem Zusage-Auftrag frei: <span class="zahl">${gb(qwen.gb)}</span>. Dann wird ${glm.name} (<span class="zahl">${gb(glm.gb)}</span>) für Kiste geladen.</span></div>
+      <div class="tun">
+        <button class="knopf haupt" title="Merkt sich den Wunsch: sobald der Zusage-Auftrag fertig ist, wird Qwen3 Next 80B entladen und GLM 4.6V Flash für Kiste geladen"><i class="fa-solid fa-clock-rotate-left"></i> Nach dem Auftrag freigeben</button>
+        <button class="knopf ohne" title="Vorschau schließen, nichts ändern">Abbrechen</button>
+      </div>
+    </div>`;
+
+  const glmDienst = dienst(glm.dienst), glmKnoten = knoten(glmDienst.knoten);
+  const GEWAEHLT = `
+    <div class="karte gewaehltes-modell">
+      <h3><i class="fa-solid fa-brain"></i>Gewähltes Modell: ${glm.name}</h3>
+      <dl class="angaben">
+        <dt>Dienst</dt><dd>${glmDienst.name} auf ${glmKnoten.name} ${zone(glmKnoten.zone)}</dd>
+        <dt>Fähigkeit</dt><dd>${faehigkeit(glm.faehigkeit)}</dd>
+        <dt>Größe</dt><dd><span class="zahl">${gb(glm.gb)}</span> <span class="leise">im Speicher, wenn geladen</span></dd>
+        <dt>Kontext</dt><dd><span class="zahl">${zahl(glm.kontext)}</span> Token</dd>
+        <dt>Parameter</dt><dd><span class="zahl">${glm.parameter}</span> <span class="leise">unter der Schutzgrenze von <span class="zahl">10</span> Milliarden</span> ${hilfepunkt('Schutzgrenze')}</dd>
+        <dt>Zustand</dt><dd>${zustand(glm.zustand)}</dd>
+        <dt>Namen beim Läufer</dt><dd>
+          <div class="laeufer"><span class="etikett">Schlüssel</span><code>zai-org/glm-4.6v-flash</code></div>
+          <div class="laeufer"><span class="etikett">Instanz-Kennung</span><code>glm-4.6v-flash</code></div>
+          <div class="erkl">Die Leitstelle kennt beide Namen und pflegt die Aliasse. Anwendungen sehen nur den Namen ${glm.name}.</div>
+        </dd>
+        <dt>Wartet darauf</dt><dd><a href="auftraege.html" title="Zum Auftrag in der Warteschlange">${kisteAuftrag.titel}</a> <span class="leise">(${anwendung(kisteAuftrag.anwendung).name})</span></dd>
+      </dl>
+      <div class="nutzung">
+        <div class="klein leise" style="display: flex; justify-content: space-between"><span>Nutzung <span class="zahl">7</span> Tage</span><span class="zahl">${reihe('glm-vision', 7, 30, 50).reduce((s, w) => s + Math.round(w / 10), 0)} Aufträge</span></div>
+        ${verlauf(reihe('glm-vision', 7, 30, 50), 'var(--ls-flieder)', 336, 52)}
+        <div class="achse"><span>vor <span class="zahl">7</span> Tagen</span><span>heute</span></div>
+      </div>
+    </div>`;
+
+  const REGELN = `
+    <div class="karte">
+      <h3><i class="fa-solid fa-scale-balanced"></i>Regeln <span class="rechts"><a href="regeln.html" title="Alle Regeln der Zuteilung ansehen und ändern">Ändern</a></span></h3>
+      <dl class="angaben" style="margin-top: 0">
+        <dt>Budget</dt><dd><span class="zahl">${BUDGET_GB} GB</span> von <span class="zahl">${mac.ram_gb} GB</span> auf ${mac.name}</dd>
+        <dt>Schutzgrenze</dt><dd>Modelle unter <span class="zahl">10</span> Milliarden Parametern und Einbettungen werden nie entladen</dd>
+        <dt>Leerlauf</dt><dd>Leerlauf-Entladen aus: entladen wird nur, wenn Platz fehlt</dd>
+        <dt>Rechnend</dt><dd>Rechnende Modelle werden nie entladen</dd>
+      </dl>
+    </div>`;
+
+  document.getElementById('haupt').innerHTML = KOPF + `<div class="spalten schmal-rechts"><div class="rollfeld">${LINKS}</div><div class="rollfeld">${VORSCHAU}${GEWAEHLT}${REGELN}</div></div>`;
+</script>
+</body>
+</html>

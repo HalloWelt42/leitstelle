@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leitstelle - Entwurf: Einstellungen</title>
+<link rel="icon" href="symbol.svg">
+<link rel="stylesheet" href="../frontend/node_modules/@fortawesome/fontawesome-free/css/all.min.css">
+<link rel="stylesheet" href="stil.css">
+<style>
+  .gruppen { display: grid; gap: var(--ls-a4); max-width: 1180px; }
+  .gruppe-kopf { display: flex; align-items: baseline; gap: var(--ls-a3); margin-bottom: var(--ls-a2); flex-wrap: wrap; }
+  .gruppe-kopf h2 { display: flex; align-items: center; gap: var(--ls-a2); }
+  .gruppe-kopf h2 i { color: var(--ls-akzent-schrift); font-size: var(--ls-gr-text); width: 24px; text-align: center; }
+  .gruppe-kopf .leise { font-size: var(--ls-gr-klein); }
+
+  /* Seitenlokal: breitere Wertspalte, damit Adresse, Pfad und Knöpfe mit Text Platz haben */
+  .einstellung { grid-template-columns: minmax(0, 1fr) 340px; }
+  .einstellung .wert .eingabe.weit { width: 100%; text-align: left; font-family: var(--ls-schrift-code); font-size: var(--ls-gr-klein); }
+  .einstellung .wert .fest { display: inline-flex; align-items: center; gap: var(--ls-a2); font-weight: 600; color: var(--ls-text-2); }
+  .einstellung .wert .fest i { color: var(--ls-text-3); }
+  .einstellung .erklaerung .zahl { color: var(--ls-text-2); }
+
+  /* Gefahrenzone: ganzer Rahmen in Gefahrfarbe, nie nur eine Kante */
+  .gefahrenzone { border: 1px solid rgba(var(--ls-gefahr-rgb), 0.4); }
+  .gefahrenzone h2, .gefahrenzone h2 i { color: var(--ls-gefahr); }
+  .gefahrenzone .hinweis { margin-bottom: var(--ls-a2); }
+  .bestaetigen .text { flex: 1; min-width: 280px; }
+  .bestaetigen .eingabe { width: 330px; }
+</style>
+</head>
+<body>
+<div class="schale">
+  <div data-block="kopf"></div>
+  <div data-block="seite"></div>
+  <main class="haupt rahmen" id="haupt"></main>
+  <div data-block="fuss"></div>
+</div>
+
+<script type="module">
+  import { seite, APP, hilfepunkt } from './gemeinsam.js';
+  seite('einstellungen');
+
+  // ── Thema und Schriftstufe: echte Wirkung, gemerkt wie der Entwurfs-Umschalter ──
+  const abfrage = new URLSearchParams(location.search);
+  const gespeichert = (k) => { try { return localStorage.getItem('ls-entwurf-' + k); } catch { return null; } };
+  const merken = (k, v) => { try { v === null ? localStorage.removeItem('ls-entwurf-' + k) : localStorage.setItem('ls-entwurf-' + k, v); } catch {} };
+  const systemThema = () => matchMedia('(prefers-color-scheme: light)').matches ? 'hell' : 'dunkel';
+  let themaWahl = abfrage.get('theme') || gespeichert('theme') || 'system';
+  let schriftWahl = abfrage.get('schrift') || gespeichert('schrift') || 'normal';
+
+  // Den schwebenden Entwurfs-Umschalter nachführen, damit beide dasselbe zeigen
+  const umschalterNachfuehren = (gruppe, wert) =>
+    document.querySelectorAll(`.entwurf-schalter [data-gruppe="${gruppe}"]`).forEach(b => b.classList.toggle('an', b.dataset.wert === wert));
+
+  function setzeThema(wahl) {
+    themaWahl = wahl;
+    const wirksam = wahl === 'system' ? systemThema() : wahl;
+    document.documentElement.dataset.theme = wirksam;
+    merken('theme', wahl === 'system' ? null : wahl);
+    umschalterNachfuehren('theme', wirksam);
+  }
+  function setzeSchrift(wert) {
+    schriftWahl = wert;
+    document.documentElement.dataset.schrift = wert;
+    merken('schrift', wert);
+    umschalterNachfuehren('schrift', wert);
+  }
+
+  // ── Bausteine der Seite ──
+  const zeile = (name, erklaerung, wert, thema) => `
+    <div class="einstellung">
+      <div><div class="name">${name}${thema ? hilfepunkt(thema) : ''}</div><div class="erklaerung">${erklaerung}</div></div>
+      <div class="wert">${wert}</div>
+    </div>`;
+  const stufen = (gruppe, werte, an, title) =>
+    `<span class="stufen" data-stufen="${gruppe}" title="${title}">${werte.map(([w, n]) => `<button data-wert="${w}"${w === an ? ' class="an"' : ''}>${n}</button>`).join('')}</span>`;
+  const schalter = (an, title) => `<button class="schalter${an ? ' an' : ''}" title="${title}" aria-pressed="${an}"></button>`;
+  const eingabe = (wert, einheit, title) => `<input class="eingabe" value="${wert}" title="${title}" inputmode="numeric"><span class="einheit">${einheit}</span>`;
+  const fest = (symbol, text) => `<span class="fest"><i class="fa-solid ${symbol}"></i>${text}</span>`;
+  const z = (n) => `<span class="zahl">${n}</span>`;
+  const gruppe = (symbol, titel, hinweis, inhalt, klasse = '') => `
+    <section class="bereich ${klasse}">
+      <header class="gruppe-kopf"><h2><i class="fa-solid ${symbol}"></i>${titel}</h2>${hinweis ? `<span class="leise">${hinweis}</span>` : ''}</header>
+      ${inhalt}
+    </section>`;
+
+  const KOPF = `
+    <div class="rahmen-kopf">
+      <div class="seitenkopf">
+        <h1>Einstellungen</h1>
+        <div class="aktionen">
+          <button class="knopf haupt" title="Speichert alle Änderungen dieser Seite. Thema und Schriftstufe gelten sofort und je Gerät, alles andere für die ganze Leitstelle."><i class="fa-solid fa-floppy-disk"></i> Speichern</button>
+        </div>
+        <div class="unterzeile">Knapp gehalten: nur Regler mit echtem Nutzen. Die Zuteilung steht unter <a href="regeln.html">Regeln</a>.</div>
+      </div>
+    </div>`;
+
+  const DARSTELLUNG = gruppe('fa-palette', 'Darstellung', 'Gilt für diesen Browser, nicht für die Leitstelle.',
+    zeile('Thema', 'Sanftes Dunkel oder mildes Hell. Vorgabe: System, folgt der Einstellung des Geräts.',
+      stufen('thema', [['system', 'System'], ['hell', 'Hell'], ['dunkel', 'Dunkel']], themaWahl, 'Thema der Oberfläche; System folgt der Einstellung des Geräts. Wirkt sofort.')) +
+    zeile('Schriftstufe', `Grundschrift ${z(18)}, ${z(20)} oder ${z(22)} Pixel; nichts wird kleiner als ${z(14)} Pixel. Vorgabe: Normal.`,
+      stufen('schrift', [['normal', 'Normal'], ['gross', 'Groß'], ['sehr-gross', 'Sehr groß']], schriftWahl, 'Schriftstufe: skaliert alle Texte und die Seitenleiste mit. Wirkt sofort.'), 'Schriftstufe') +
+    zeile('Bewegung reduzieren', 'Flüsse, Pakete und Schimmer stehen dann still; Zahlen ändern sich weiter. Vorgabe: aus, folgt sonst dem Gerät.',
+      schalter(false, 'Hält Flüsse im Netzbild, wandernde Pakete und den Schimmer auf Balken an. Zahlen aktualisieren sich weiter.')) +
+    zeile('Zahlen in der Zahlenschrift', 'Zeiten, Größen und Zähler in gleich breiten Ziffern, damit Spalten ruhig stehen. Vorgabe: an.',
+      schalter(true, 'Zahlen, Zeiten und Größen in der technischen Zahlenschrift mit gleich breiten Ziffern; aus: alles in der Textschrift.')));
+
+  const DATENFRISCHE = gruppe('fa-rotate', 'Datenfrische', 'Je Datenart ein eigener Takt; schneller heißt mehr Last auf den Knoten.',
+    zeile('Messwerte der Knoten', `Prozessor, Grafik, Speicher und Temperatur je Knoten. Vorgabe ${z(5)} s; ${z(2)} s belastet die Pis spürbar.`,
+      stufen('messwerte', [['2', `${z(2)} s`], ['5', `${z(5)} s`], ['15', `${z(15)} s`]], '5', 'Wie oft die Knoten-Agenten Messwerte melden; wirkt auf Ringe, Netzbild und Speicherlage.'), 'Messwerte') +
+    zeile('Diagramme', `Verläufe auf Übersicht, Knoten und Verlauf. Vorgabe ${z(30)} s.`,
+      stufen('diagramme', [['10', `${z(10)} s`], ['30', `${z(30)} s`], ['60', `${z(60)} s`]], '30', 'Wie oft Verläufe und Ringe neu gezeichnet werden.')) +
+    zeile('Nachrichtenverkehr', 'Kommt über den Nachrichtenkanal, sobald ein Umschlag eintrifft. Kein Takt einstellbar.',
+      fest('fa-bolt', 'Live')) +
+    zeile('Externe Kosten', `Abfrage des Verbrauchs beim externen Anbieter; die Abfrage selbst kostet nichts. Vorgabe ${z(5)} min.`,
+      stufen('kosten', [['1', `${z(1)} min`], ['5', `${z(5)} min`], ['15', `${z(15)} min`]], '5', 'Wie oft der Verbrauch beim externen Anbieter abgefragt wird; wirkt auf die Kostenanzeige und die Kostengrenze.')));
+
+  const AUFBEWAHRUNG = gruppe('fa-box-archive', 'Aufbewahrung', `Älteres wird nachts um ${z('03:00')} gelöscht oder verdichtet.`,
+    zeile('Aufträge', `Fertige, abgebrochene und fehlgeschlagene Aufträge mit Verlauf und Signalen. Vorgabe ${z(90)} Tage.`,
+      eingabe(90, 'Tage', 'Wie lange abgeschlossene Aufträge sichtbar bleiben; laufende sind nie betroffen.')) +
+    zeile('Nachrichten', `Umschläge des Nachrichtenverkehrs im Wortlaut. Vorgabe ${z(14)} Tage.`,
+      eingabe(14, 'Tage', 'Wie lange Umschläge im Wortlaut durchsuchbar bleiben.')) +
+    zeile('Messwerte verdichtet', `Nach ${z(24)} Stunden auf Minutenwerte, nach ${z(30)} Tagen auf Stundenwerte verdichtet. Vorgabe ${z(365)} Tage.`,
+      eingabe(365, 'Tage', 'Wie lange verdichtete Messwerte für den Verlauf bleiben; Rohwerte leben 24 Stunden.'), 'Verdichtung') +
+    zeile('Protokoll', `Betriebsprotokoll der Leitstelle und der Agenten. Vorgabe ${z(30)} Tage.`,
+      eingabe(30, 'Tage', 'Wie lange Protokollzeilen bleiben; Fehlerzeilen zählen mit.')) +
+    zeile('Prüfprotokoll', 'Anmeldungen, Schlüsselwechsel und Regeländerungen bleiben dauerhaft, einsehbar unter Sicherheit.',
+      fest('fa-lock', 'Nie gelöscht')));
+
+  const MELDUNGEN = gruppe('fa-bell', 'Meldungen', 'Erscheinen unten rechts und stehen im Protokoll.',
+    zeile('Lagewechsel im Kopf anzeigen', 'Wechsel zwischen ruhig, angespannt und Engpass wird im Kopf hervorgehoben. Vorgabe: an.',
+      schalter(true, 'Zeigt jeden Lagewechsel als Meldung und hebt die Lage im Kopf hervor.')) +
+    zeile('Fehler sofort melden', 'Fehlgeschlagene Aufträge und nicht erreichbare Knoten sofort, nicht erst in der Zusammenfassung. Vorgabe: an.',
+      schalter(true, 'Meldet Fehler im Moment des Auftretens; aus: nur in der Tageszusammenfassung.')) +
+    zeile('Kostengrenze zu 80 Prozent melden', `Meldung, sobald die Tagesgrenze externer Kosten zu ${z(80)} Prozent erreicht ist; heute ${z('0,42')} von ${z('5,00')} Euro. Vorgabe: an.`,
+      schalter(true, 'Warnt bei 80 Prozent der Tagesgrenze externer Kosten; die Grenze selbst steht unter Regeln.'), 'Kostengrenze') +
+    zeile('Meldungen vorlesen lassen über Rufzeichen', 'Nutzt die angemeldete Anwendung Rufzeichen als Sprecher, nur wenn sie verbunden ist. Vorgabe: aus.',
+      schalter(false, 'Lässt Meldungen über die Anwendung Rufzeichen sprechen; ohne Verbindung bleibt es still.')));
+
+  const LEITSTELLE = gruppe('fa-tower-observation', 'Leitstelle', '',
+    zeile('Adresse', 'Unter dieser Adresse erreichen Anwendungen und Agenten die Leitstelle; sie steht in jedem Einbau-Schnipsel.',
+      `<input class="eingabe weit" value="http://leitstelle.local:8530" title="Öffentliche Adresse der Leitstelle; eine Änderung erfordert neue Einbau-Schnipsel in den Anwendungen." spellcheck="false">`) +
+    zeile('Datenordner', 'Datenbank, Sicherungen und Prüfprotokoll liegen hier. Eine Änderung wirkt erst nach einem Neustart.',
+      `<input class="eingabe weit" value="/mnt/data/leitstelle" title="Ordner für Datenbank, Sicherungen und Prüfprotokoll; wirkt nach dem nächsten Neustart." spellcheck="false">`) +
+    zeile('Sicherung', `Letzter Stand heute ${z('03:00')}, ${z(48)} MB. Täglich um ${z('03:00')} automatisch.`,
+      `<button class="knopf" title="Schreibt sofort eine vollständige Sicherung in den Datenordner; der Betrieb läuft dabei weiter."><i class="fa-solid fa-download"></i> Sicherung jetzt erstellen</button>`) +
+    zeile('Version', 'Fragt die Freigabeliste ab und zeigt, was sich ändert. Nichts wird ohne Bestätigung eingespielt.',
+      `${z(APP.version)}<button class="knopf klein" title="Prüft, ob eine neuere Fassung freigegeben ist, und zeigt die Änderungen vor dem Einspielen."><i class="fa-solid fa-arrows-rotate"></i> Auf Aktualisierung prüfen</button>`) +
+    zeile('Betriebsort', `Wo die Leitstelle selbst läuft: Knoten Pi Archiv im Heimnetz, ${z('192.168.1.49')}.`,
+      fest('fa-server', 'Pi Archiv (Container)')));
+
+  const GEFAHR = gruppe('fa-triangle-exclamation', 'Gefahrenzone', '',
+    `<p class="hinweis gefahr"><i class="fa-solid fa-triangle-exclamation"></i><span>Diese Aktionen lassen sich nicht rückgängig machen. Jede fragt vorher auf dieser Seite nach.</span></p>` +
+    zeile('Wartende Aufträge', `Betrifft die ${z(2)} wartenden Aufträge (Medienpool, Kiste). Laufende und pausierte bleiben.`,
+      `<button class="knopf gefahr" title="Verwirft die 2 wartenden Aufträge; jede Anwendung bekommt das Signal abgebrochen. Laufende und pausierte Aufträge bleiben unberührt."><i class="fa-solid fa-xmark"></i> Alle wartenden Aufträge verwerfen</button>`) +
+    zeile('Zurücksetzen', 'Löscht alle Knoten, Anwendungen, Schlüssel, Regeln und den Verlauf, auch die Merker in diesem Browser. Danach beginnt die Einrichtung wie beim ersten Start.',
+      `<button class="knopf gefahr" title="Setzt die Leitstelle in den Zustand nach der Installation zurück; fragt darunter nach einer Bestätigung."><i class="fa-solid fa-rotate-left"></i> Leitstelle zurücksetzen wie neu</button>`) +
+    `<div class="bestaetigen">
+      <i class="fa-solid fa-triangle-exclamation"></i>
+      <span class="text">Löscht ${z(6)} Knoten, ${z(10)} Anwendungen, alle Schlüssel und Regeln.</span>
+      <input class="eingabe" id="bestaetigung" placeholder="Zur Bestätigung LEITSTELLE eingeben" aria-label="Zur Bestätigung LEITSTELLE eingeben" title="Erst das Wort LEITSTELLE in Großbuchstaben schaltet den Knopf frei." autocomplete="off" spellcheck="false">
+      <div class="rechts">
+        <button class="knopf ohne" title="Nichts passiert; die Leiste schließt sich">Abbrechen</button>
+        <button class="knopf gefahr-voll" id="zuruecksetzen" disabled title="Wird frei, sobald LEITSTELLE eingegeben ist"><i class="fa-solid fa-rotate-left"></i> Zurücksetzen</button>
+      </div>
+    </div>`, 'gefahrenzone');
+
+  const haupt = document.getElementById('haupt');
+  haupt.innerHTML = KOPF + `<div class="rollfeld"><div class="gruppen">${DARSTELLUNG}${DATENFRISCHE}${AUFBEWAHRUNG}${MELDUNGEN}${LEITSTELLE}${GEFAHR}</div></div>`;
+
+  // ── Verhalten im Entwurf ──
+  const stufenAn = (gruppe, wert) =>
+    haupt.querySelectorAll(`[data-stufen="${gruppe}"] button`).forEach(b => b.classList.toggle('an', b.dataset.wert === wert));
+
+  haupt.addEventListener('click', (e) => {
+    const stufe = e.target.closest('.stufen button');
+    if (stufe) {
+      const g = stufe.closest('.stufen');
+      stufenAn(g.dataset.stufen, stufe.dataset.wert);
+      if (g.dataset.stufen === 'thema') setzeThema(stufe.dataset.wert);
+      if (g.dataset.stufen === 'schrift') setzeSchrift(stufe.dataset.wert);
+      return;
+    }
+    const s = e.target.closest('.schalter');
+    if (s) { s.classList.toggle('an'); s.setAttribute('aria-pressed', s.classList.contains('an')); }
+  });
+
+  // Bestätigung: erst das Wort schaltet den roten Knopf frei
+  const bestaetigung = document.getElementById('bestaetigung');
+  const zuruecksetzen = document.getElementById('zuruecksetzen');
+  bestaetigung.addEventListener('input', () => {
+    const frei = bestaetigung.value.trim() === 'LEITSTELLE';
+    zuruecksetzen.disabled = !frei;
+    zuruecksetzen.title = frei ? 'Setzt die Leitstelle jetzt zurück. Es gibt kein Zurück.' : 'Wird frei, sobald LEITSTELLE eingegeben ist';
+  });
+
+  // Wenn der schwebende Entwurfs-Umschalter umschaltet, folgen die Stufen hier
+  new MutationObserver(() => {
+    const t = document.documentElement.dataset.theme;
+    if (!(themaWahl === 'system' && t === systemThema())) stufenAn('thema', t);
+    stufenAn('schrift', document.documentElement.dataset.schrift || 'normal');
+  }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-schrift'] });
+
+  // Untergruppen: eine Gruppe sichtbar, Reiter im festen Kopf (Nutzerwunsch: kein langes Rollen)
+  const { untergruppen } = await import('./untergruppen.js');
+  untergruppen({ wurzel: '.rollfeld .gruppen', pillen: { 'Leitstelle': ['1', 'info', 'Eine neuere Fassung ist verfügbar'] } });
+</script>
+</body>
+</html>

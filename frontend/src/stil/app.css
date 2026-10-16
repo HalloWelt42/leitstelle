@@ -1,0 +1,62 @@
+/*
+ * Ergänzungen der Oberfläche zu stil.css (Bausteine, die mehrere Seiten teilen).
+ * Seitenstile aus den Entwürfen stehen in seiten.css (mit Seitenpräfix).
+ */
+@import './seiten.css';
+
+/* Seiteninhalt füllt den Rahmen: fester Kopf, eigenes Rollfeld */
+.seiteninhalt { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+/* Speicherbalken mit Budgetmarke (aus dem Entwurf der Modellseite, hier für alle Seiten) */
+.sp-rahmen { position: relative; }
+.sp-rahmen.mit-marke { padding-top: 26px; }
+.budgetmarke { position: absolute; top: 22px; bottom: -5px; width: 2px; background: var(--ls-akzent); transform: translateX(-1px); }
+.budgetmarke > span { position: absolute; right: 8px; top: -24px; white-space: nowrap; font-size: var(--ls-gr-marke); font-weight: 700;
+                      letter-spacing: 0.04em; color: var(--ls-akzent-schrift); }
+.speicher .laedt { opacity: 0.55; }
+
+/* Rückmeldungen gestapelt unten rechts */
+.rueckmeldungen { position: fixed; right: var(--ls-a5); bottom: calc(var(--ls-fuss-hoehe) + var(--ls-a4)); z-index: 40;
+                  display: flex; flex-direction: column; gap: var(--ls-a2); align-items: flex-end; pointer-events: none; }
+.rueckmeldungen .meldung { position: static; pointer-events: auto; max-width: 560px; }
+.rueckmeldungen .meldung.erfolg > i { color: var(--ls-erfolg); }
+.rueckmeldungen .meldung.fehler { border-color: rgba(var(--ls-gefahr-rgb), 0.6); }
+.rueckmeldungen .meldung.fehler > i { color: var(--ls-gefahr); }
+.rueckmeldungen .meldung.hinweis > i { color: var(--ls-info); }
+
+/* Ansicht unten in der Seitenleiste */
+.seite .ansicht { margin-top: auto; display: flex; flex-direction: column; gap: var(--ls-a2); padding: var(--ls-a3) var(--ls-a1) 0; }
+.seite .ansicht .stufen button { flex: 1; padding: 0 6px; white-space: nowrap; font-size: var(--ls-gr-marke); min-width: 0; }
+.seite .ansicht .stufen { display: flex; }
+@media (max-width: 1240px) { .seite .ansicht { display: none; } }
+
+/* Breiter Dialog (Anschluss, Stoppen) */
+.dialog.breit { width: min(980px, calc(100vw - 48px)); max-height: calc(100vh - 80px); overflow-y: auto; }
+
+/* Formularfelder: Bezeichnung oben, Feld darunter */
+.feldreihe { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--ls-a3); margin-top: var(--ls-a3); }
+.feld-l { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.feld-l > span { font-size: var(--ls-gr-klein); color: var(--ls-text-2); }
+.feld-l > span small { display: block; color: var(--ls-text-3); font-size: var(--ls-gr-marke); }
+.feld-l .eingabe { width: 100%; }
+.feld-l.zeile-feld { flex-direction: row; align-items: center; gap: var(--ls-a2); }
+
+/* Symbole in Knöpfen eines leeren Zustands behalten Knopfgröße */
+.leer .knopf i { font-size: inherit; color: inherit; }
+
+/* Verbindungsanzeige ohne Lagebild */
+.verbinden { flex: 1; display: grid; place-items: center; }
+
+/* Codezeile zum Kopieren (Einbau) */
+.einbau { display: flex; align-items: center; gap: var(--ls-a2); padding: var(--ls-a2) var(--ls-a3); background: var(--ls-mulde); border-radius: var(--ls-ecke); margin-top: var(--ls-a2); }
+.einbau code { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: var(--ls-gr-klein); }
+
+/* Nachladen am Fuß langer Listen */
+.listenfuss { padding: var(--ls-a3); text-align: center; color: var(--ls-text-3); font-size: var(--ls-gr-klein); }
+
+/* Hinweis mit Schlüssel: umbrechen statt über den Rand laufen */
+.hinweis.schluessel-neu { flex-wrap: wrap; }
+.hinweis.schluessel-neu code { overflow-wrap: anywhere; }
+
+/* Lange Begründungen in Karten: höchstens zwei Zeilen, der volle Satz steht im Schwebehinweis */
+.zwei-zeilen { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }

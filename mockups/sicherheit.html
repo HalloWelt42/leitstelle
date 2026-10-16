@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leitstelle - Entwurf: Sicherheit</title>
+<link rel="icon" href="symbol.svg">
+<link rel="stylesheet" href="../frontend/node_modules/@fortawesome/fontawesome-free/css/all.min.css">
+<link rel="stylesheet" href="stil.css">
+<style>
+  /* Bereiche mit Überschrift; "buendig" lässt eine Tabelle bis an den Rand des Bereichs laufen */
+  .bereich + .bereich { margin-top: var(--ls-a4); }
+  .bereich h2 { display: flex; align-items: center; gap: var(--ls-a2); margin-bottom: var(--ls-a2); }
+  .bereich h2 i { color: var(--ls-akzent-schrift); font-size: 20px; }
+  .bereich h2 .rechts { margin-left: auto; display: flex; align-items: center; gap: var(--ls-a2); font-size: var(--ls-gr-klein); font-weight: 500; color: var(--ls-text-3); }
+  .bereich .unter { color: var(--ls-text-2); font-size: var(--ls-gr-klein); margin-bottom: var(--ls-a3); }
+  .bereich.buendig { padding-left: 0; padding-right: 0; }
+  .bereich.buendig > h2, .bereich.buendig > .unter, .bereich.buendig > .nachsatz { padding-left: var(--ls-a5); padding-right: var(--ls-a5); }
+  .nachsatz { display: flex; align-items: center; gap: var(--ls-a3); margin-top: var(--ls-a3); font-size: var(--ls-gr-klein); color: var(--ls-text-3); flex-wrap: wrap; }
+  .nachsatz .rechts { margin-left: auto; }
+
+  /* Zonen: drei Karten nebeneinander */
+  .zonen { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--ls-a3); }
+  .zonenkarte { display: flex; flex-direction: column; }
+  .zonenkarte .kopf-z { display: flex; align-items: center; gap: var(--ls-a2); margin-bottom: var(--ls-a2); flex-wrap: wrap; }
+  .zonenkarte .kopf-z .adresse { font-family: var(--ls-schrift-zahl); color: var(--ls-text-2); font-size: var(--ls-gr-klein); }
+  .zonenkarte .kopf-z .anzahl { margin-left: auto; color: var(--ls-text-3); font-size: var(--ls-gr-klein); }
+  .zonenkarte ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: var(--ls-gr-klein); }
+  .zonenkarte li { display: flex; justify-content: space-between; gap: var(--ls-a2); align-items: baseline; }
+  .zonenkarte li .zahl { color: var(--ls-text-3); white-space: nowrap; }
+  .zonenkarte li.aus { color: var(--ls-text-3); }
+  .zonenkarte li.hinweis-z { font-size: var(--ls-gr-marke); color: var(--ls-text-3); margin-top: -2px; }
+  .zonenkarte ul.stapel li { flex-direction: column; gap: 0; align-items: flex-start; }
+  .zonenkarte .regel { margin-top: auto; padding-top: var(--ls-a3); display: flex; gap: var(--ls-a2); font-size: var(--ls-gr-klein); color: var(--ls-text-2); }
+  .zonenkarte .regel i { color: var(--ls-akzent-schrift); margin-top: 5px; }
+
+  /* Schlüssel: Maske in der Zahlenschrift, daneben Auge und Kopieren */
+  .schluessel { display: inline-flex; align-items: center; gap: 2px; }
+  .schluessel .maske { font-family: var(--ls-schrift-zahl); letter-spacing: 0.05em; color: var(--ls-text); margin-right: var(--ls-a1); white-space: nowrap; }
+  .tabelle .zweit { display: block; font-size: var(--ls-gr-klein); color: var(--ls-text-3); font-weight: 400; margin-top: 1px; white-space: nowrap; }
+  .tabelle td b { font-weight: 600; white-space: nowrap; }
+  .tabelle td.ja { color: var(--ls-koralle); font-weight: 600; }
+  .tabelle td.nein { color: var(--ls-text-3); }
+  .tabelle th.umbruch { line-height: 1.2; white-space: nowrap; }
+
+  /* Knoten-Agenten: sechs knappe Einträge in zwei Spalten */
+  .agenten { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: var(--ls-a2) var(--ls-a3); padding: var(--ls-a3) var(--ls-a5) 0; }
+  .agent-eintrag { display: flex; align-items: center; gap: var(--ls-a2); padding: 6px var(--ls-a3); background: var(--ls-karte); border-radius: var(--ls-ecke); font-size: var(--ls-gr-klein); min-width: 0; }
+  .agent-eintrag b { font-weight: 600; white-space: nowrap; }
+  .agent-eintrag .maske { font-family: var(--ls-schrift-zahl); letter-spacing: 0.05em; margin-left: auto; white-space: nowrap; }
+  .agent-eintrag .seit { color: var(--ls-text-3); white-space: nowrap; }
+  .agent-eintrag.aus b, .agent-eintrag.aus .maske { color: var(--ls-text-3); }
+
+  /* Geheimnis eines externen Anbieters */
+  .geheimnis .zeile-s { display: flex; align-items: center; gap: var(--ls-a2); flex-wrap: wrap; margin-bottom: var(--ls-a3); }
+  .geheimnis .zeile-s .maske { font-family: var(--ls-schrift-zahl); letter-spacing: 0.05em; font-size: var(--ls-gr-text); }
+  .geheimnis p { font-size: var(--ls-gr-klein); color: var(--ls-text-2); }
+  .geheimnis .fakten { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 6px var(--ls-a3); font-size: var(--ls-gr-klein); margin-top: var(--ls-a3); }
+  .geheimnis .fakten dt { color: var(--ls-text-3); }
+  .geheimnis .fakten dd { margin: 0; }
+  .geheimnis .fakten dd.mit-balken { display: flex; align-items: center; gap: var(--ls-a2); }
+  .geheimnis .fakten .balken { width: 160px; }
+  .geheimnis .fakten .balken b { background: var(--ls-koralle); }
+
+  /* Oberfläche: feste Angabe statt Regler */
+  .einstellung .fest { display: inline-flex; align-items: center; gap: var(--ls-a2); color: var(--ls-text-2); font-size: var(--ls-gr-klein); font-weight: 600; }
+  .einstellung .fest i { color: var(--ls-text-3); }
+
+  /* Rechts: Prüfprotokoll und Grundsätze */
+  .pruef td.zeit { white-space: nowrap; color: var(--ls-text-3); min-width: 0; font-weight: 500; }
+  .pruef .wer { font-weight: 600; }
+  .pruef .wer.du { color: var(--ls-akzent-schrift); }
+  .pruef .wer.knotenagent { color: var(--ls-stahl); }
+  .grundsaetze ol { margin: 0; padding-left: 26px; display: grid; gap: var(--ls-a2); font-size: var(--ls-gr-klein); color: var(--ls-text-2); }
+  .grundsaetze li::marker { color: var(--ls-akzent-schrift); font-weight: 700; font-family: var(--ls-schrift-zahl); }
+  .grundsaetze li b { color: var(--ls-text); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="schale">
+  <div data-block="kopf"></div>
+  <div data-block="seite"></div>
+  <main class="haupt rahmen" id="haupt"></main>
+  <div data-block="fuss"></div>
+</div>
+
+<script type="module">
+  import { seite, KNOTEN, DIENSTE, ANWENDUNGEN, WORT, zone, zustand, knoten, dienst, zahl, euro, hilfepunkt } from './gemeinsam.js';
+  seite('sicherheit');
+
+  // Stabile Endungen der verdeckten Schlüssel (je Anwendung und je Knoten-Agent eine andere)
+  const ENDUNG = { zusage: '3c1f', tubevault: '9a42', fundus: 'e7d0', medienpool: '51b8', kiste: '0c6e', Codehilfe: 'b2f7', rufzeichen: '7d19', mitschrift: 'a4c3', pinnwand: 'f08d', 'bildschmiede-app': '2e5a',
+                   'mac-128': '9e4b', 'mac-32': '61af', 'pi-archiv': 'c7d2', 'pi-stube': '38e9', 'pi-werkstatt': 'd50c', 'server-fern': '7a2e' };
+  const ZULETZT = { zusage: 'vor 2 s', tubevault: 'vor 12 s', fundus: 'vor 3 s', medienpool: '14:55', kiste: '14:54', Codehilfe: '14:41',
+                    rufzeichen: '14:55', mitschrift: '14:10', pinnwand: 'Montag', 'bildschmiede-app': '13:52' };
+  const RATE = { zusage: 60, tubevault: 30, fundus: 120, medienpool: 30, kiste: 20, Codehilfe: 120, rufzeichen: 60, mitschrift: 30, pinnwand: 20, 'bildschmiede-app': 30 };
+  const HERZSCHLAG = { 'mac-128': 'vor 4 s', 'mac-32': 'vor 7 s', 'pi-archiv': 'vor 2 s', 'pi-stube': 'vor 9 s', 'pi-werkstatt': 'seit 2 Tagen still', 'server-fern': 'vor 6 s' };
+  const maske = (kennung, laenge = 12) => `${'•'.repeat(laenge)}${ENDUNG[kennung]}`;
+
+  const schluessel = (kennung, wer) => `<span class="schluessel">
+      <span class="maske zahl" title="Verdeckter Schlüssel von ${wer}; die letzten vier Zeichen bleiben sichtbar, damit du ihn wiedererkennst">${maske(kennung)}</span>
+      <button class="knopf ohne symbol klein" title="Aufdecken: zeigt den vollständigen Schlüssel; er bleibt derselbe, nur das Prüfprotokoll vermerkt das Aufdecken"><i class="fa-regular fa-eye"></i></button>
+      <button class="knopf ohne symbol klein" title="Kopiert den Schlüssel in die Zwischenablage, ohne ihn anzuzeigen"><i class="fa-regular fa-copy"></i></button>
+    </span>`;
+
+  // ── (1) Zonen ────────────────────────────────────────────────────────
+  const heim = KNOTEN.filter(k => k.zone === 'heim');
+  const fern = KNOTEN.filter(k => k.zone === 'fern');
+  const extern = DIENSTE.filter(d => d.zone === 'extern');
+  const zonenkarte = (z, adresse, anzahl, liste, regel, stapel = false) => `<div class="karte zonenkarte">
+      <div class="kopf-z">${zone(z)}<span class="adresse">${adresse}</span><span class="anzahl">${anzahl}</span></div>
+      <ul class="${stapel ? 'stapel' : ''}">${liste}</ul>
+      <div class="regel"><i class="fa-solid fa-scale-balanced"></i><span>${regel}</span></div>
+    </div>`;
+  const ZONEN = `
+    <div class="bereich">
+      <h2><i class="fa-solid fa-map"></i>Zonen <span class="rechts">Wo etwas läuft, entscheidet, was es darf ${hilfepunkt('Zonen und Datenwege')}</span></h2>
+      <div class="zonen">
+        ${zonenkarte('heim', '192.168.1.0/24', `${heim.length} Knoten`,
+          heim.map(k => `<li class="${k.zustand === 'aus' ? 'aus' : ''}" title="${k.name}: ${WORT.zustand[k.zustand]}"><span>${k.name}</span><span class="zahl">${k.adresse}</span></li>${k.zustand === 'aus' ? `<li class="hinweis-z"><span>${k.seit}</span></li>` : ''}`).join(''),
+          'Knoten im Heimnetz dürfen Aufträge annehmen und Modelle laden; Anwendungen melden sich nur von hier oder über VPN an.')}
+        ${zonenkarte('fern', '10.66.0.0/24', `${fern.length} Knoten`,
+          fern.map(k => `<li title="${k.name}: ${k.beschreibung}"><span>${k.name}</span><span class="zahl">${k.adresse.replace(' über VPN', '')}</span></li>`).join(''),
+          'Der Server zählt wie ein eigener Rechner; alles zu ihm läuft durch den verschlüsselten Tunnel, nichts offen durch das Internet.')}
+        ${zonenkarte('extern', 'fremde Anbieter', `${extern.length} Anbieter`,
+          extern.map(d => `<li title="${d.name}: ${d.art}"><span>${d.name}</span><span class="zahl">${d.adresse.replace('https://', '').replace('/api/v1', '')}</span></li>`).join(''),
+          'Daten verlassen das Heimnetz nur, wenn die Anwendung es ausdrücklich darf und die Tagesgrenze es zulässt.', true)}
+      </div>
+    </div>`;
+
+  // ── (2) Zugänge ──────────────────────────────────────────────────────
+  const zugang = (a) => {
+    const k = knoten(a.knoten);
+    return `<tr>
+      <td title="${a.name}: zuletzt genutzt ${ZULETZT[a.kennung]}"><b>${a.name}</b><span class="zweit">zuletzt ${ZULETZT[a.kennung]}</span></td>
+      <td>${schluessel(a.kennung, a.name)}</td>
+      <td><span class="zahl">${k.adresse}</span><span class="zweit">${k.name}</span></td>
+      <td class="${a.extern ? 'ja' : 'nein'}" title="${a.extern ? a.name + ' darf extern rechnen lassen; Daten dürfen das Heimnetz verlassen, innerhalb der Tagesgrenze' : a.name + ' rechnet nur im Heimnetz; der Server weist externe Wege ab'}">${a.extern ? 'Ja' : 'Nein'}</td>
+      <td class="zahl" title="Obergrenze an Anfragen je Minute, sichtbar und einstellbar; darüber antwortet der Server mit Warten">${RATE[a.kennung]}</td>
+      <td><button class="knopf ohne klein" title="Neu erzeugen: braucht Bestätigung; der alte Schlüssel gilt danach nicht mehr, die Anwendung muss den neuen eintragen">Neu erzeugen</button></td>
+    </tr>`;
+  };
+  const agent = (k) => `<div class="agent-eintrag${k.zustand === 'aus' ? ' aus' : ''}" title="Knoten-Agent ${k.name}: eigener Schlüssel, meldet Messwerte und Dienste, führt Befehle der Leitstelle aus; Herzschlag ${HERZSCHLAG[k.kennung]}">
+      <b>${k.name}</b><span class="seit">${HERZSCHLAG[k.kennung]}</span><span class="maske zahl">${maske(k.kennung, 6)}</span>
+    </div>`;
+  const ZUGAENGE = `
+    <div class="bereich buendig">
+      <h2><i class="fa-solid fa-key"></i>Zugänge <span class="rechts">${ANWENDUNGEN.length} Anwendungen, ${KNOTEN.length} Knoten-Agenten</span></h2>
+      <div class="unter">Jede Anwendung meldet sich mit einem eigenen Schlüssel an. Der Schlüssel ist stabil; was hier verdeckt oder gesperrt ist, weist der Server selbst ab.</div>
+      <table class="tabelle">
+        <thead><tr>
+          <th>Anwendung</th>
+          <th title="Der Schlüssel bleibt stabil; das Auge deckt ihn auf, Kopieren legt ihn in die Zwischenablage">Schlüssel</th>
+          <th title="Erlaubte Herkunft: nur Anfragen von dieser Adresse werden angenommen, alle anderen weist der Server ab">Herkunft</th>
+          <th title="Darf die Anwendung extern rechnen lassen? Nur dann verlassen ihre Daten das Heimnetz">Extern</th>
+          <th class="umbruch" title="Obergrenze an Anfragen je Minute, sichtbar und einstellbar">Rate je<br>Minute</th>
+          <th></th>
+        </tr></thead>
+        <tbody>${ANWENDUNGEN.map(zugang).join('')}</tbody>
+      </table>
+      <div class="nachsatz"><span><b style="color: var(--ls-text)">Knoten-Agenten</b> mit eigenen Schlüsseln: messen, melden Dienste, führen Befehle aus; sie lesen keine Nutzerdaten.</span>
+        <button class="knopf ohne klein rechts" title="Zeigt die Schlüssel der Knoten-Agenten mit Aufdecken, Kopieren und Neu erzeugen">Alle Agenten</button></div>
+      <div class="agenten">${KNOTEN.map(agent).join('')}</div>
+    </div>`;
+
+  // ── (3) Geheimnisse externer Anbieter ─────────────────────────────────
+  const hz = dienst('extern-anbieter');
+  const GEHEIMNISSE = `
+    <div class="bereich">
+      <h2><i class="fa-solid fa-vault"></i>Geheimnisse externer Anbieter <span class="rechts">${extern.length} Anbieter</span></h2>
+      <div class="karte geheimnis">
+        <h3><i class="fa-solid fa-cloud"></i>${hz.name} <span class="rechts">${zone('extern')}</span></h3>
+        <div class="zeile-s">
+          <span class="maske zahl" title="Verdeckter Schlüssel des Anbieters; die letzten vier Zeichen bleiben sichtbar">${'•'.repeat(20)}8f3a</span>
+          <button class="knopf ohne symbol klein" title="Aufdecken: zeigt den vollständigen Schlüssel; das Aufdecken steht im Prüfprotokoll"><i class="fa-regular fa-eye"></i></button>
+          <button class="knopf ohne symbol klein" title="Kopiert den Schlüssel in die Zwischenablage, ohne ihn anzuzeigen"><i class="fa-regular fa-copy"></i></button>
+          <button class="knopf klein" title="Ersetzen: braucht Bestätigung; der neue Schlüssel gilt sofort für alle Aufrufe, der alte wird vergessen"><i class="fa-solid fa-rotate"></i> Ersetzen</button>
+        </div>
+        <p>Liegt nur hier, verschlüsselt auf der Platte der Leitstelle; keine Anwendung sieht ihn, Aufrufe laufen immer über die Leitstelle.</p>
+        <dl class="fakten">
+          <dt>Zuletzt genutzt</dt><dd><span class="zahl">12:20</span>, Fundus, Tiefenrecherche</dd>
+          <dt>Kosten heute</dt><dd class="mit-balken"><span class="zahl">${euro(hz.kosten_heute)}</span><div class="balken" title="${euro(hz.kosten_heute)} von ${euro(hz.kosten_grenze)} Tagesgrenze"><b style="width:${(hz.kosten_heute / hz.kosten_grenze * 100).toFixed(1)}%"></b></div><span class="leise">von <span class="zahl">${euro(hz.kosten_grenze)}</span> Tagesgrenze</span></dd>
+          <dt>Anfragen heute</dt><dd><span class="zahl">3</span>, alle von Fundus; Grenze <span class="zahl">10</span> je Minute</dd>
+          <dt>Adresse</dt><dd><span class="zahl">${hz.adresse}</span></dd>
+        </dl>
+      </div>
+      <div style="margin-top: var(--ls-a3); display: flex; gap: var(--ls-a2); align-items: center">
+        <button class="knopf" title="Legt einen weiteren Anbieter an: Name, Adresse, Schlüssel, Tagesgrenze; der Schlüssel bleibt in der Leitstelle"><i class="fa-solid fa-plus"></i> Anbieter hinzufügen</button>
+        <span class="klein schwach">Ein Anbieter wird erst nutzbar, wenn mindestens eine Anwendung extern rechnen darf.</span>
+      </div>
+    </div>`;
+
+  // ── (4) Oberfläche ───────────────────────────────────────────────────
+  const einstellung = (name, erklaerung, wert, titel) => `<div class="einstellung" title="${titel}">
+      <div><div class="name">${name}</div><div class="erklaerung">${erklaerung}</div></div>
+      <div class="wert">${wert}</div>
+    </div>`;
+  const OBERFLAECHE = `
+    <div class="bereich">
+      <h2><i class="fa-solid fa-display"></i>Oberfläche <span class="rechts">Zugang zu dieser Ansicht</span></h2>
+      ${einstellung('Erreichbar aus', 'Heimnetz und VPN; nie aus dem offenen Internet',
+        `<span class="fest"><i class="fa-solid fa-lock"></i>Heimnetz und VPN</span>`,
+        'Fest eingestellt: die Oberfläche bindet sich nur an Heimnetz und VPN; ein Weg aus dem Internet ist nicht vorgesehen')}
+      ${einstellung('Anmeldung mit Passkey', 'An das Gerät gebunden, kein Passwort nötig',
+        `<button class="schalter an" title="Passkey ist an; abschalten geht nur, wenn der Rückfall unten eingeschaltet bleibt"></button>`,
+        'Passkey: Anmeldung über den Schlüsselspeicher des Geräts; wird im Prüfprotokoll mit Adresse vermerkt')}
+      ${einstellung('Zweiter Faktor: Einmalcode', 'Rückfall, wenn kein Passkey zur Hand ist',
+        `<button class="schalter an" title="Einmalcode ist an; er gilt 30 Sekunden und wird nur als Rückfall abgefragt"></button>`,
+        'Einmalcode aus einer Codes-Anwendung als Rückfall; ohne Passkey und ohne Code bleibt die Oberfläche zu')}
+      ${einstellung('Sitzung endet nach', 'Danach ist eine neue Anmeldung nötig',
+        `<span class="stufen" title="Wie lange eine Anmeldung gilt; Nie heißt: bis zum Abmelden"><button>1</button><button class="an">12</button><button>24</button><button>Nie</button></span><span class="einheit">Stunden</span>`,
+        'Sitzungsdauer in Stunden; bei 12 Stunden reicht eine Anmeldung je Arbeitstag')}
+      ${einstellung('Verschlüsselung', `HTTPS mit eigenem Zertifikat, einmal einrichten ${hilfepunkt('Zertifikat einrichten')}`,
+        `<button class="knopf klein" title="Lädt das Zertifikat der Leitstelle herunter. Danach dem Rechner als vertrauenswürdig bekannt machen: Datei öffnen, in die Schlüsselverwaltung aufnehmen, Vertrauen bestätigen; dann zeigt der Browser kein Warnschild mehr."><i class="fa-solid fa-download"></i> Zertifikat herunterladen</button>`,
+        'Die Oberfläche spricht nur verschlüsselt; das Zertifikat stellt die Leitstelle selbst aus')}
+    </div>`;
+
+  // ── (5) Prüfprotokoll und Grundsätze ─────────────────────────────────
+  const PRUEF = [
+    ['14:56', 'du', 'Schlüssel aufgedeckt: Fundus'],
+    ['14:41', 'du', 'Auftrag gestoppt: Codehilfe a-88c3'],
+    ['13:52', 'du', 'Auftrag angehalten: Bildschmiede a-4a12'],
+    ['12:20', 'Fundus', 'Extern gerechnet: Tiefenrecherche, 0,14 Euro'],
+    ['11:48', 'Fundus', 'Extern gerechnet: Tiefenrecherche, 0,17 Euro'],
+    ['11:06', 'du', 'Regel geändert: Tagesgrenze extern 3,00 auf 5,00 Euro'],
+    ['11:05', 'du', 'Angemeldet mit Passkey von 192.168.1.31'],
+    ['10:12', 'Fundus', 'Extern gerechnet: Tiefenrecherche, 0,11 Euro'],
+    ['09:34', 'du', 'Anwendung freigegeben: Pinnwand'],
+    ['09:30', 'du', 'Anwendung gesperrt: Pinnwand'],
+    ['07:58', 'Knoten-Agent MacBook', 'Agent neu angemeldet: MacBook'],
+    ['06:30', 'Knoten-Agent Mac Studio', 'Agent neu angemeldet: Mac Studio, nach Neustart'],
+  ];
+  const werKlasse = (w) => w === 'du' ? 'du' : w.startsWith('Knoten-Agent') ? 'knotenagent' : '';
+  const RECHTS = `
+    <div class="bereich buendig pruef">
+      <h2><i class="fa-solid fa-clipboard-check"></i>Prüfprotokoll <span class="rechts">heute, <span class="zahl">${PRUEF.length}</span> Einträge</span></h2>
+      <div class="unter">Wer hat was getan: Regeln, Schlüssel, Eingriffe in Aufträge, externe Rechnungen.</div>
+      <table class="tabelle">
+        <thead><tr><th>Zeit</th><th>Wer</th><th>Was</th></tr></thead>
+        <tbody>${PRUEF.map(([z, w, t]) => `<tr><td class="zeit zahl">${z}</td><td class="wer ${werKlasse(w)}">${w}</td><td>${t}</td></tr>`).join('')}</tbody>
+      </table>
+      <div class="nachsatz">
+        <button class="knopf klein" title="Öffnet das vollständige Prüfprotokoll mit Filter nach Wer und Was"><i class="fa-solid fa-list"></i> Alle Einträge</button>
+        <span class="rechts" title="Das Prüfprotokoll wird nur angehängt; Herunterladen liefert es als Textdatei"><i class="fa-solid fa-lock"></i> Lässt sich nicht löschen, nur herunterladen</span>
+      </div>
+    </div>
+    <div class="bereich grundsaetze">
+      <h2><i class="fa-solid fa-shield-halved"></i>Grundsätze</h2>
+      <ol>
+        <li><b>Schlüssel sind stabil.</b> Das Auge deckt den echten Schlüssel auf; nur das Protokoll maskiert.</li>
+        <li><b>Der Server entscheidet.</b> Alles, was die Oberfläche versteckt oder sperrt, weist der Server selbst ab.</li>
+        <li><b>Externe Schlüssel nur hier.</b> Anwendungen sehen sie nie; jeder Aufruf läuft über die Leitstelle.</li>
+        <li><b>Daten bleiben im Heimnetz,</b> es sei denn, die Anwendung darf es ausdrücklich und die Tagesgrenze lässt es zu.</li>
+        <li><b>Agenten lesen keine Nutzerdaten.</b> Sie messen, melden Dienste und führen Befehle der Leitstelle aus.</li>
+      </ol>
+    </div>`;
+
+  const KOPF = `
+    <div class="rahmen-kopf">
+      <div class="seitenkopf">
+        <h1>Sicherheit</h1>
+        <div class="aktionen">
+          <button class="knopf" title="Lädt das Prüfprotokoll von heute als Textdatei herunter"><i class="fa-solid fa-download"></i> Prüfprotokoll herunterladen</button>
+        </div>
+        <div class="unterzeile">Wer darf was, wo liegen Geheimnisse, was wurde getan.</div>
+      </div>
+    </div>`;
+
+  document.getElementById('haupt').innerHTML = KOPF + `<div class="spalten"><div class="rollfeld">${ZONEN}${ZUGAENGE}${GEHEIMNISSE}${OBERFLAECHE}</div><div class="rollfeld">${RECHTS}</div></div>`;
+
+  // Untergruppen: eine Gruppe sichtbar, Reiter im festen Kopf (Nutzerwunsch: kein langes Rollen)
+  const { untergruppen } = await import('./untergruppen.js');
+  untergruppen({ wurzel: '.spalten > .rollfeld', pillen: { 'Zugänge': ['2', 'neutral', '2 Anwendungen getrennt, Schlüssel seit mehr als einem Tag ungenutzt'], 'Zonen': ['1', 'gefahr', 'Pi Werkstatt im Heimnetz nicht erreichbar'] } });
+</script>
+</body>
+</html>

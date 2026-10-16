@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leitstelle - Entwurf: Grundlagen</title>
+<link rel="icon" href="symbol.svg">
+<link rel="stylesheet" href="../frontend/node_modules/@fortawesome/fontawesome-free/css/all.min.css">
+<link rel="stylesheet" href="stil.css">
+<style>
+  body { padding: var(--ls-a6) var(--ls-a6) 140px; max-width: 1320px; margin: 0 auto; }
+  .kopfzeile { display: flex; align-items: center; gap: var(--ls-a4); }
+  .kopfzeile img { width: 64px; height: 64px; border-radius: 8px; }
+  section { margin-top: var(--ls-a7); }
+  section > h2 { margin-bottom: var(--ls-a3); display: flex; align-items: center; gap: var(--ls-a3); }
+  section > h2 .zahl { color: var(--ls-text-3); font-weight: 500; font-size: var(--ls-gr-text); }
+  section > p { color: var(--ls-text-2); max-width: 900px; margin-bottom: var(--ls-a4); }
+  .seiten { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--ls-a3); }
+  .seiten a { display: block; padding: var(--ls-a4); background: var(--ls-flaeche); border-radius: var(--ls-ecke); color: var(--ls-text); border: 1px solid var(--ls-rand); }
+  .seiten a:hover { border-color: rgba(var(--ls-akzent-rgb), 0.6); }
+  .seiten a i { color: var(--ls-akzent-schrift); margin-right: var(--ls-a2); width: 22px; text-align: center; }
+  .seiten a .leise { margin-top: 4px; }
+  .seiten a .zustandsliste { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px; }
+  .seiten a .zustandsliste span { font-size: var(--ls-gr-marke); padding: 1px 7px; background: var(--ls-karte-2); border-radius: var(--ls-ecke-klein); color: var(--ls-text-2); }
+  .gruppe-titel { grid-column: 1 / -1; margin-top: var(--ls-a3); }
+  .farben { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: var(--ls-a3); }
+  .farbe { border-radius: var(--ls-ecke); overflow: hidden; border: 1px solid var(--ls-rand); }
+  .farbe div { height: 64px; display: flex; align-items: flex-end; padding: 6px 10px; font-size: var(--ls-gr-marke); font-weight: 700; }
+  .farbe p { margin: 0; padding: var(--ls-a2) var(--ls-a3); font-size: var(--ls-gr-klein); background: var(--ls-flaeche); }
+  .farbe p span { display: block; color: var(--ls-text-3); font-size: var(--ls-gr-marke); font-family: var(--ls-schrift-code); }
+  .reihe { display: flex; flex-wrap: wrap; gap: var(--ls-a3); align-items: center; }
+  .stufen-tabelle > div { display: flex; align-items: baseline; gap: var(--ls-a4); padding: var(--ls-a2) 0; border-bottom: 1px solid var(--ls-rand); }
+  .stufen-tabelle code { width: 230px; flex: none; }
+  .zwei { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: var(--ls-a4); }
+  .kontrast td:first-child { font-weight: 600; }
+  .kontrast .ok { color: var(--ls-erfolg); font-weight: 700; }
+  .kontrast .knapp { color: var(--ls-warnung); font-weight: 700; }
+  .kontrast .nein { color: var(--ls-gefahr); font-weight: 700; }
+  .probe { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: var(--ls-ecke); font-weight: 600; }
+  .beispiel-netz { margin-top: var(--ls-a3); }
+</style>
+</head>
+<body>
+  <div class="etikett">Leitstelle · Entwurf Runde 1 · 16.10.2026</div>
+  <div class="kopfzeile" style="margin-top: var(--ls-a2)">
+    <img src="symbol.svg" alt="">
+    <div>
+      <h1>Neue Oberfläche: Grundlagen</h1>
+      <p class="leise" style="max-width: 880px; margin-top: 6px">
+        Bläuliche Abwandlung der TubeVault-Flächen, Bernstein (gelb-orange) als Akzent, dazu Zwischenfarben für
+        Fähigkeiten und Zonen. Zwei Themen: sanftes Dunkel und mildes Hell; Farbwelten Sanft, Kräftig (Vorgabe) und Leuchtend, Flächen Blaugrau oder Tiefblau, Blauart Königsblau (Vorgabe) oder drei weitere. Große Schrift: Grundschrift 18 px, nichts
+        unter 14 px, drei Schriftstufen. Text in Barlow, Zahlen in Chakra Petch. Unten in der Mitte lassen sich Thema, Schriftstufe, Farbwelt, Flächen
+        und Blauart umschalten - die Wahl gilt für alle Entwurfsseiten.
+      </p>
+    </div>
+  </div>
+
+  <section>
+    <h2>Entwurfsseiten <span class="zahl">25</span></h2>
+    <p>Jede Seite ist ein Zustand der späteren App mit echten Beispieldaten aus einer gemeinsamen Beispielwelt
+      (zwei Macs, drei Pis, ein Server, ein externer Anbieter, zehn Anwendungen, neun Aufträge). Alle Seiten teilen Kopf,
+      Seitenleiste, Fußleiste und Zahlen.</p>
+    <div class="seiten">
+      <div class="gruppe-titel etikett">Lagebild</div>
+      <a href="uebersicht.html"><i class="fa-solid fa-tower-observation"></i>Übersicht<div class="leise klein">Netzbild mit lebenden Flüssen, Kennzahlen, laufende Aufträge, Speicherlage, Meldungen</div><div class="zustandsliste"><span>angespannt</span></div></a>
+      <a href="uebersicht-engpass.html"><i class="fa-solid fa-triangle-exclamation"></i>Übersicht: Engpass<div class="leise klein">Mehrere Aufträge warten auf Speicher, ein Knoten weg; Entscheidung direkt auf der Seite</div><div class="zustandsliste"><span>Engpass</span><span>Vorschlag</span></div></a>
+      <a href="uebersicht-umschichtung.html"><i class="fa-solid fa-wand-magic-sparkles"></i>Übersicht: Selbststeuerung<div class="leise klein">Die Leitstelle hat von selbst umgeschichtet: Bildauftrag aufs MacBook, Modell-Läufer dort gestartet; Maßnahmen mit Grund, Gewinn, Rückgängig</div><div class="zustandsliste"><span>umgeleitet</span><span>vorgewärmt</span><span>geprüft</span></div></a>
+      <a href="uebersicht-leer.html"><i class="fa-solid fa-seedling"></i>Erster Start<div class="leise klein">Noch kein Knoten: Einrichtung in sichtbaren Schritten</div><div class="zustandsliste"><span>leer</span><span>Ablauf</span></div></a>
+      <div class="gruppe-titel etikett">Arbeit</div>
+      <a href="auftraege.html"><i class="fa-solid fa-list-check"></i>Aufträge<div class="leise klein">Warteschlange mit Prioritäten, rechts Einzelheiten mit Prozesskette und Live-Ausgabe</div><div class="zustandsliste"><span>läuft</span><span>wartet</span><span>pausiert</span><span>fertig</span><span>Fehler</span></div></a>
+      <a href="hauptregler.html"><i class="fa-solid fa-sliders"></i>Hauptregler<div class="leise klein">Zentral in der Kopfleiste jeder Seite: Normal, Auslaufen (sanft), Halt (harter Schnitt) mit Bestätigungsleiste</div><div class="zustandsliste"><span>Auslaufen aktiv</span><span>Halt angefragt</span></div></a>
+      <a href="auftrag-stoppen.html"><i class="fa-solid fa-hand"></i>Auftrag stoppen<div class="leise klein">Auslaufen lassen oder sofort stoppen: Wahl mit Folgen, Signal an die Anwendung</div><div class="zustandsliste"><span>Dialog</span></div></a>
+      <a href="nachrichten.html"><i class="fa-solid fa-right-left"></i>Nachrichtenverkehr<div class="leise klein">Das offene Protokoll live: Umschläge in beide Richtungen zwischen Leitstelle, Anwendungen und Knoten</div><div class="zustandsliste"><span>Filter</span><span>Umschlag offen</span></div></a>
+      <div class="gruppe-titel etikett">Verbund</div>
+      <a href="knoten.html"><i class="fa-solid fa-server"></i>Knoten<div class="leise klein">Alle Rechner als Karten: Ringe, Verläufe, Dienste, Wartung</div><div class="zustandsliste"><span>erreichbar</span><span>nicht erreichbar</span></div></a>
+      <a href="knoten-detail.html"><i class="fa-solid fa-microchip"></i>Knoten: Mac Studio<div class="leise klein">Speicher nach Modellen, Dienste, Aufträge, Verläufe, Wartungsmodus</div><div class="zustandsliste"><span>Speicher knapp</span></div></a>
+      <a href="dienste.html"><i class="fa-solid fa-plug"></i>Dienste<div class="leise klein">Anbieter von Fähigkeiten: Zustand, Modelle, Besonderheiten, externe Kosten</div><div class="zustandsliste"><span>läuft</span><span>pausiert</span><span>extern</span></div></a>
+      <a href="anschluss-hinzufuegen.html"><i class="fa-solid fa-plug-circle-plus"></i>Anschluss hinzufügen<div class="leise klein">Rechner, Dienst, externer Anbieter oder Anwendung mit den wenigsten Angaben; Erkennung und verschlüsselter Weg</div><div class="zustandsliste"><span>Dialog</span><span>Erkannt</span></div></a>
+      <a href="modelle.html"><i class="fa-solid fa-brain"></i>Modelle<div class="leise klein">Alle Modelle aller Dienste, Speicherbudget, Schutz, Laden und Entladen mit Vorschau</div><div class="zustandsliste"><span>geladen</span><span>rechnet</span><span>geschützt</span><span>Vorschau Freigeben</span></div></a>
+      <div class="gruppe-titel etikett">Anwendungen</div>
+      <a href="anwendungen.html"><i class="fa-solid fa-cubes"></i>Anwendungen<div class="leise klein">Angemeldete Verbraucher: Fähigkeiten, Priorität, Verbrauch, Signale</div><div class="zustandsliste"><span>verbunden</span><span>getrennt</span><span>nur Fassade</span></div></a>
+      <a href="anwendung-detail.html"><i class="fa-solid fa-cube"></i>Anwendung: Fundus<div class="leise klein">Zugang mit Auge, Rechte, bevorzugte Modelle, empfangene und gesendete Signale</div><div class="zustandsliste"><span>Schlüssel verdeckt</span></div></a>
+      <a href="anwendung-anmelden.html"><i class="fa-solid fa-plus"></i>Anwendung anmelden<div class="leise klein">Ablauf in Schritten bis zum Einbau-Schnipsel</div><div class="zustandsliste"><span>Schritt 3 von 5</span></div></a>
+      <div class="gruppe-titel etikett">Steuerung</div>
+      <a href="regelwerk.html"><i class="fa-solid fa-diagram-project"></i>Regelwerk als Graph<div class="leise klein">Jede Regel als Fluss aus Auslöser, Prüfungen und Aktionen; Vorlagen, Bausteine, Trockenlauf, Fassungen; Zeichenweise wie der Techbaum</div><div class="zustandsliste"><span>Vorlage offen</span><span>Trockenlauf</span></div></a>
+      <a href="regeln.html"><i class="fa-solid fa-scale-balanced"></i>Regeln<div class="leise klein">Prioritäten, Speicherbudget je Knoten, Schutzgrenze, Leerlauf, Zeitfenster, externe Kosten</div></a>
+      <a href="verlauf.html"><i class="fa-solid fa-chart-line"></i>Verlauf<div class="leise klein">Auslastung über Zeit: Aufträge, Wartezeiten, Token, Speicher, Kosten</div><div class="zustandsliste"><span>24 Stunden</span><span>7 Tage</span></div></a>
+      <a href="sicherheit.html"><i class="fa-solid fa-shield-halved"></i>Sicherheit<div class="leise klein">Zonen, Zugänge, Geheimnisse externer Anbieter, Prüfprotokoll</div></a>
+      <div class="gruppe-titel etikett">System</div>
+      <a href="protokoll.html"><i class="fa-solid fa-terminal"></i>Protokoll<div class="leise klein">Schwebendes Live-Fenster über der Übersicht</div><div class="zustandsliste"><span>Fenster</span></div></a>
+      <a href="einstellungen.html"><i class="fa-solid fa-gear"></i>Einstellungen<div class="leise klein">Thema, Schriftstufe, Datenfrische, Aufbewahrung, Version</div></a>
+      <a href="hilfe.html"><i class="fa-solid fa-circle-question"></i>Hilfe<div class="leise klein">Schwebendes, durchsuchbares Fenster mit Sprungmarken über einer Seite</div><div class="zustandsliste"><span>Fenster</span><span>Suche</span></div></a>
+      <a href="mobil.html"><i class="fa-solid fa-mobile-screen"></i>Handy-Ansicht<div class="leise klein">Eigenständig und reduziert: Lage, Hauptregler mit Halten, Aufträge stoppen, Knoten, Meldungen</div><div class="zustandsliste"><span>3 Bildschirme</span></div></a>
+      <a href="app-symbol.html"><i class="fa-solid fa-icons"></i>App-Symbol<div class="leise klein">Varianten in allen Größen</div></a>
+    </div>
+  </section>
+
+  <section>
+    <h2>Flächen und Schrift</h2>
+    <p>Von hinten nach vorn: Leiste, Grund, Fläche, Karte. Im hellen Thema kehrt sich die Ordnung um (Karte ist am hellsten), die Marken bleiben dieselben.</p>
+    <div class="farben">
+      <div class="farbe"><div style="background: var(--ls-leiste)"></div><p>Leiste<span>--ls-leiste</span></p></div>
+      <div class="farbe"><div style="background: var(--ls-grund)"></div><p>Grund<span>--ls-grund</span></p></div>
+      <div class="farbe"><div style="background: var(--ls-flaeche)"></div><p>Fläche<span>--ls-flaeche</span></p></div>
+      <div class="farbe"><div style="background: var(--ls-karte)"></div><p>Karte<span>--ls-karte</span></p></div>
+      <div class="farbe"><div style="background: var(--ls-karte-2)"></div><p>Karte 2 (Knöpfe)<span>--ls-karte-2</span></p></div>
+      <div class="farbe"><div style="background: var(--ls-karte-3)"></div><p>Karte 3 (gedrückt)<span>--ls-karte-3</span></p></div>
+      <div class="farbe"><div style="background: var(--ls-mulde)"></div><p>Mulde (Diagrammgrund)<span>--ls-mulde</span></p></div>
+      <div class="farbe"><div style="background: var(--ls-text)"></div><p>Text<span>--ls-text</span></p></div>
+      <div class="farbe"><div style="background: var(--ls-text-2)"></div><p>Text 2<span>--ls-text-2</span></p></div>
+      <div class="farbe"><div style="background: var(--ls-text-3)"></div><p>Text 3<span>--ls-text-3</span></p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Akzent und Bedeutung</h2>
+    <p>Bernstein ist die eine Hervorhebung: Hauptknopf, aktiver Eintrag, laufender Fortschritt. Als Schrift auf hellem Grund wird es dunkler
+      (eigene Marke), damit der Kontrast stimmt. Bedeutungsfarben stehen nie allein, immer mit Wort und Symbol.</p>
+    <div class="farben">
+      <div class="farbe"><div style="background: var(--ls-akzent); color: var(--ls-akzent-text)">Fläche</div><p>Akzent Bernstein<span>--ls-akzent</span></p></div>
+      <div class="farbe"><div style="background: var(--ls-karte); color: var(--ls-akzent-schrift)">Schrift</div><p>Akzent als Schrift<span>--ls-akzent-schrift</span></p></div>
+      <div class="farbe"><div style="background: var(--ls-erfolg)"></div><p>Erfolg, fertig, erreichbar<span>--ls-erfolg</span></p></div>
+      <div class="farbe"><div style="background: var(--ls-warnung)"></div><p>Warnung, läuft aus<span>--ls-warnung</span></p></div>
+      <div class="farbe"><div style="background: var(--ls-gefahr)"></div><p>Gefahr, Fehler, stoppen<span>--ls-gefahr</span></p></div>
+      <div class="farbe"><div style="background: var(--ls-info)"></div><p>Hinweis, wartet<span>--ls-info</span></p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Zwischenfarben</h2>
+    <p>Zwischen Blau und Bernstein liegen die Farben der Fähigkeiten und Zonen. Sie färben Flüsse im Netzbild, Marken an Aufträgen und
+      Segmente im Speicherbalken. Jede Farbe hat genau eine Bedeutung.</p>
+    <div class="farben">
+      <div class="farbe"><div style="background: var(--ls-himmel)"></div><p>Himmel: Text, Chat<span>--ls-himmel</span></p></div>
+      <div class="farbe"><div style="background: var(--ls-petrol)"></div><p>Petrol: Einbettung, Suche<span>--ls-petrol</span></p></div>
+      <div class="farbe"><div style="background: var(--ls-tuerkis)"></div><p>Türkis: Übersetzen<span>--ls-tuerkis</span></p></div>
+      <div class="farbe"><div style="background: var(--ls-minze)"></div><p>Minze: Hören (Transkription)<span>--ls-minze</span></p></div>
+      <div class="farbe"><div style="background: var(--ls-flieder)"></div><p>Flieder: Bild<span>--ls-flieder</span></p></div>
+      <div class="farbe"><div style="background: var(--ls-violett)"></div><p>Violett: Musik<span>--ls-violett</span></p></div>
+      <div class="farbe"><div style="background: var(--ls-rose)"></div><p>Rose: Stimme<span>--ls-rose</span></p></div>
+      <div class="farbe"><div style="background: var(--ls-koralle)"></div><p>Koralle: extern, Kosten<span>--ls-koralle</span></p></div>
+      <div class="farbe"><div style="background: var(--ls-honig)"></div><p>Honig: pausiert, Vorwarnung<span>--ls-honig</span></p></div>
+      <div class="farbe"><div style="background: var(--ls-sand)"></div><p>Sand: Werkzeuge, Wartung, Reserve<span>--ls-sand</span></p></div>
+      <div class="farbe"><div style="background: var(--ls-stahl)"></div><p>Stahl: Heimnetz, neutral<span>--ls-stahl</span></p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Kontrast im aktuellen Thema</h2>
+    <p>Live aus den Marken gerechnet (Verhältnis nach WCAG). Ziel: Fließtext mindestens 4,5, große Schrift und Marken mindestens 3.</p>
+    <div class="bereich"><table class="tabelle kontrast" id="kontrast"></table></div>
+  </section>
+
+  <section>
+    <h2>Bausteine</h2>
+    <div class="zwei">
+      <div class="bereich">
+        <div class="etikett" style="margin-bottom: 10px">Knöpfe</div>
+        <div class="reihe">
+          <button class="knopf haupt"><i class="fa-solid fa-play"></i> Fortsetzen</button>
+          <button class="knopf"><i class="fa-solid fa-pause"></i> Anhalten</button>
+          <button class="knopf aktiv"><i class="fa-solid fa-filter"></i> Nur laufende</button>
+          <button class="knopf ohne">Abbrechen</button>
+          <button class="knopf warnung"><i class="fa-solid fa-person-walking-arrow-right"></i> Auslaufen lassen</button>
+          <button class="knopf gefahr"><i class="fa-solid fa-stop"></i> Sofort stoppen</button>
+          <button class="knopf symbol" title="Einstellungen"><i class="fa-solid fa-sliders"></i></button>
+          <button class="knopf" disabled>Gesperrt</button>
+        </div>
+        <div class="etikett" style="margin: 20px 0 10px">Zustände</div>
+        <div class="reihe" id="zustaende"></div>
+        <div class="etikett" style="margin: 20px 0 10px">Fähigkeiten und Zonen</div>
+        <div class="reihe" id="faehigkeiten"></div>
+        <div class="etikett" style="margin: 20px 0 10px">Chips und Stufen</div>
+        <div class="reihe">
+          <span class="chip aktiv">Alle <span class="zaehler">9</span></span><span class="chip">Läuft <span class="zaehler">3</span></span><span class="chip">Fehler <span class="zaehler">1</span></span>
+          <span class="stufen"><button>Hintergrund</button><button>Normal</button><button class="an">Hoch</button><button>Dringend</button></span>
+          <button class="schalter an" title="Beispiel: Schalter an"></button>
+          <button class="hilfepunkt" title="Erklärung öffnen">i</button>
+        </div>
+      </div>
+      <div class="bereich">
+        <div class="etikett" style="margin-bottom: 10px">Fortschritt</div>
+        <div class="balken lebt"><b style="width: 62%"></b></div>
+        <div class="balken fertig" style="margin-top: 8px"><b style="width: 100%"></b></div>
+        <div class="balken unbestimmt info" style="margin-top: 8px"><b></b></div>
+        <div class="etikett" style="margin: 20px 0 10px">Speicher nach Modellen (Mac Studio, 128 GB)</div>
+        <div class="speicher">
+          <span class="modell" style="width: 66.2%" title="Qwen3 Next 80B: 84,7 GB"></span>
+          <span class="modell einbettung" style="width: 0.9%" title="bge-m3: 1,1 GB"></span>
+          <span class="modell hoeren" style="width: 2.4%" title="Whisper groß: 3,1 GB"></span>
+          <span class="modell stimme" style="width: 1.5%" title="Stimmklon: 1,9 GB"></span>
+          <span class="system" style="width: 25%" title="System und andere Programme: 32 GB"></span>
+        </div>
+        <div class="speicher-legende">
+          <span><i class="fa-solid fa-square" style="color: var(--ls-himmel)"></i>Text 84,7 GB</span>
+          <span><i class="fa-solid fa-square" style="color: var(--ls-petrol)"></i>Einbettung 1,1 GB</span>
+          <span><i class="fa-solid fa-square" style="color: var(--ls-minze)"></i>Hören 3,1 GB</span>
+          <span><i class="fa-solid fa-square" style="color: var(--ls-rose)"></i>Stimme 1,9 GB</span>
+          <span><i class="fa-solid fa-square" style="color: var(--ls-stahl)"></i>System 32 GB</span>
+          <span><i class="fa-regular fa-square"></i>Frei 5,1 GB</span>
+        </div>
+        <div class="etikett" style="margin: 20px 0 10px">Ringe und Verlauf</div>
+        <div class="reihe">
+          <div class="ringe" id="ringe"></div>
+          <div style="flex: 1; min-width: 200px" id="verlauf"></div>
+        </div>
+        <div class="etikett" style="margin: 20px 0 10px">Prozesskette eines Auftrags</div>
+        <div class="kette">
+          <span class="schritt erledigt"><i class="fa-solid fa-check"></i>Angenommen</span><span class="pfeil erledigt"></span>
+          <span class="schritt erledigt"><i class="fa-solid fa-check"></i>Eingereiht</span><span class="pfeil erledigt"></span>
+          <span class="schritt erledigt"><i class="fa-solid fa-check"></i>Modell bereit</span><span class="pfeil laeuft"></span>
+          <span class="schritt jetzt"><i class="fa-solid fa-gear fa-spin"></i>Rechnet</span><span class="pfeil"></span>
+          <span class="schritt offen"><i class="fa-regular fa-circle"></i>Streamt</span><span class="pfeil"></span>
+          <span class="schritt offen"><i class="fa-regular fa-circle"></i>Fertig</span>
+        </div>
+      </div>
+    </div>
+    <div class="bereich beispiel-netz">
+      <div class="etikett" style="margin-bottom: 10px">Netzbild (Ausschnitt): Flüsse laufen in Richtung der Arbeit, Pakete sind Aufträge unterwegs, der Herzpunkt atmet am rechnenden Knoten</div>
+      <div id="netz"></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Schriftgrößen</h2>
+    <p>Drei Stufen, je Gerät gemerkt. Die Stufe skaliert alle Größen und die Breite der Seitenleiste mit.</p>
+    <div class="bereich stufen-tabelle">
+      <div><code>--ls-gr-seite</code><span style="font-size: var(--ls-gr-seite); font-weight: 700">Seitentitel</span></div>
+      <div><code>--ls-gr-titel</code><span style="font-size: var(--ls-gr-titel); font-weight: 700">Abschnitt und Kartentitel</span></div>
+      <div><code>--ls-gr-text</code><span>Grundschrift für Fließtext, Erklärungen und Hilfe. Lesbar auch bei längeren Absätzen.</span></div>
+      <div><code>--ls-gr-klein</code><span class="klein leise">Nebenangaben, Zeiten, Zweitzeilen - nie kleiner als 16 Pixel in der Normalstufe.</span></div>
+      <div><code>--ls-gr-marke</code><span class="etikett">Etikett und Zähler - nie kleiner als 14 Pixel</span></div>
+      <div><code>--ls-schrift-zahl</code><span class="zahl" style="font-size: var(--ls-gr-kennzahl); font-weight: 600">84,7 GB · 38 Token/s · 14:55</span></div>
+    </div>
+  </section>
+
+<script type="module">
+  import { WORT, faehigkeit, zustand, zone, ring, verlauf, reihe } from './gemeinsam.js';
+  import { netzbild } from './netzbild.js';
+  import './gemeinsam.js';
+
+  // Entwurfs-Umschalter auch auf der Galerie
+  const { seite } = await import('./gemeinsam.js');
+  seite('index');
+  const schalter = document.querySelector('.entwurf-schalter'); if (schalter) schalter.style.bottom = '16px';
+
+  document.getElementById('zustaende').innerHTML = ['laeuft', 'wartet', 'wartet_speicher', 'pausiert', 'auslaufend', 'fertig', 'fehler', 'abgebrochen', 'wartung', 'aus'].map(z => zustand(z, true)).join('');
+  document.getElementById('faehigkeiten').innerHTML = Object.keys(WORT.faehigkeit).map(faehigkeit).join('') + zone('heim') + zone('fern') + zone('extern');
+  document.getElementById('ringe').innerHTML = ring(34, 'Prozessor') + ring(78, 'Grafik') + ring(96, 'Speicher') + ring(61, 'Platte');
+  document.getElementById('verlauf').innerHTML = `<div class="klein leise" style="margin-bottom: 4px">Aufträge je Stunde</div>${verlauf(reihe('galerie', 24, 50, 60), 'var(--ls-akzent)', 320, 56)}`;
+  netzbild(document.getElementById('netz'), { anwendungen: ['zusage', 'tubevault', 'fundus', 'kiste'], knoten: ['mac-128', 'mac-32', 'pi-archiv'] });
+
+  // Kontrastprüfung aus den echten Marken
+  function farbe(v) { const c = document.createElement('div'); c.style.color = v; document.body.append(c); const s = getComputedStyle(c).color; c.remove();
+    const m = s.match(/[\d.]+/g).map(Number); return m.slice(0, 3); }
+  function lum([r, g, b]) { const f = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); }
+  function kontrast(a, b) { const [l1, l2] = [lum(farbe(a)), lum(farbe(b))].sort((x, y) => y - x); return (l1 + 0.05) / (l2 + 0.05); }
+  const paare = [
+    ['Text auf Grund', 'var(--ls-text)', 'var(--ls-grund)', 4.5], ['Text auf Karte', 'var(--ls-text)', 'var(--ls-karte)', 4.5],
+    ['Text 2 auf Karte', 'var(--ls-text-2)', 'var(--ls-karte)', 4.5], ['Text 3 auf Fläche (Etiketten)', 'var(--ls-text-3)', 'var(--ls-flaeche)', 3],
+    ['Akzent-Schrift auf Karte', 'var(--ls-akzent-schrift)', 'var(--ls-karte)', 4.5], ['Akzent-Schrift auf Grund', 'var(--ls-akzent-schrift)', 'var(--ls-grund)', 4.5],
+    ['Schrift auf Akzentfläche', 'var(--ls-akzent-text)', 'var(--ls-akzent)', 4.5],
+    ['Erfolg auf Karte', 'var(--ls-erfolg)', 'var(--ls-karte)', 3], ['Warnung auf Karte', 'var(--ls-warnung)', 'var(--ls-karte)', 3],
+    ['Gefahr auf Karte', 'var(--ls-gefahr)', 'var(--ls-karte)', 3], ['Hinweis auf Karte', 'var(--ls-info)', 'var(--ls-karte)', 3],
+    ['Himmel auf Karte', 'var(--ls-himmel)', 'var(--ls-karte)', 3], ['Petrol auf Karte', 'var(--ls-petrol)', 'var(--ls-karte)', 3],
+    ['Flieder auf Karte', 'var(--ls-flieder)', 'var(--ls-karte)', 3], ['Rose auf Karte', 'var(--ls-rose)', 'var(--ls-karte)', 3],
+    ['Honig auf Karte', 'var(--ls-honig)', 'var(--ls-karte)', 3], ['Stahl auf Karte', 'var(--ls-stahl)', 'var(--ls-karte)', 3],
+  ];
+  function zeichneKontrast() {
+    const t = document.getElementById('kontrast');
+    t.innerHTML = `<thead><tr><th>Paar</th><th>Probe</th><th class="zahl">Verhältnis</th><th>Ziel</th><th>Ergebnis</th></tr></thead><tbody>` + paare.map(([n, v, h, ziel]) => {
+      const k = kontrast(v, h); const kl = k >= ziel ? 'ok' : k >= ziel - 0.5 ? 'knapp' : 'nein';
+      return `<tr><td>${n}</td><td><span class="probe" style="color:${v};background:${h}">Beispiel 123</span></td><td class="zahl">${k.toFixed(2).replace('.', ',')}</td><td class="zahl">${ziel}</td><td class="${kl}">${kl === 'ok' ? 'erfüllt' : kl === 'knapp' ? 'knapp' : 'nicht erfüllt'}</td></tr>`; }).join('') + '</tbody>';
+  }
+  zeichneKontrast();
+  new MutationObserver(zeichneKontrast).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+</script>
+</body>
+</html>

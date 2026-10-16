@@ -1,0 +1,491 @@
+"""Bausteine der Regelgraphen: Auslöser, Prüfungen, Aktionen.
+
+Jeder Baustein ist eine kleine, typisierte Funktion über einem Kontext. Auslöser liefern
+Instanzen (zum Beispiel je wartendem Auftrag einen Kontext), Prüfungen liefern ja oder nein
+und schreiben Zwischenwerte in den Kontext, Aktionen beschreiben, was zu tun wäre. Nichts hier
+verändert den Verbund; das tut der Vollzug im Umschichter.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any, Callable
+
+from ..messungen import Messwerk
+from ..modelle import Auftrag, Modell, Verbund
+from ..speicherplaner import planen
+from ..werte import Auftragszustand, Dienstzustand, Lage, Modellzustand, Prioritaet, Zone
+from .. import lage as lagebeurteilung
+from ..text import komma
+
+
+@dataclass
+class Kontext:
+    """Was ein Regellauf gerade betrachtet; Prüfungen füllen Zielknoten, Modell und Zahlen."""
+
+    verbund: Verbund
+    messwerk: Messwerk
+    instanz: str = ""
+    auftrag: Auftrag | None = None
+    knoten_quelle: str | None = None
+    knoten_ziel: str | None = None
+    dienst_ziel: str | None = None
+    modell_ziel: str | None = None
+    modelle_entladen: list[str] = field(default_factory=list)
+    gewinn_s: float = 0.0
+    aufwand_s: float = 0.0
+    werte: dict[str, Any] = field(default_factory=dict)
+    lage: Lage | None = None
+
+    @property
+    def r(self):
+        return self.verbund.regelwerk
+
+
+@dataclass(frozen=True)
+class Baustein:
+    name: str
+    art: str                      # ausloeser, pruefung, aktion
+    wort: str
+    erklaerung: str
+    funktion: Callable[..., Any]
+    parameter: dict[str, Any] = field(default_factory=dict)
+
+
+BAUSTEINE: dict[str, Baustein] = {}
+
+
+def baustein(name: str, art: str, wort: str, erklaerung: str, **parameter: Any):
+    def registrieren(f: Callable[..., Any]) -> Callable[..., Any]:
+        BAUSTEINE[name] = Baustein(name=name, art=art, wort=wort, erklaerung=erklaerung, funktion=f, parameter=parameter)
+        return f
+    return registrieren
+
+
+# ── Hilfen ───────────────────────────────────────────────────────────────
+
+def erlaubte_zone(verbund: Verbund, auftrag: Auftrag, knoten: str) -> bool:
+    k = verbund.knoten[knoten]
+    return k.erreichbar and k.zone in verbund.anwendungen[auftrag.anwendung].zonen
+
+
+def instanz_der_familie(verbund: Verbund, familie: str, faehigkeit, knoten: str) -> Modell | None:
+    for m in verbund.modelle_auf(knoten):
+        if m.familie == familie and faehigkeit in m.faehigkeiten:
+            return m
+    return None
+
+
+def erwartete_wartezeit(k: Kontext, a: Auftrag) -> float:
+    """Wie lange der Auftrag an seinem bisherigen Platz voraussichtlich noch wartet (aus Messungen und Regeln)."""
+    if a.voraussichtlich_s is not None:
+        return a.voraussichtlich_s
+    v = k.verbund
+    if a.wartet_auf_familie and a.wartet_auf_knoten:
+        m = instanz_der_familie(v, a.wartet_auf_familie, a.faehigkeit, a.wartet_auf_knoten)
+        if m and m.im_speicher:
+            belegt = v.belegung(m.kennung)
+            if belegt:
+                return max(k.messwerk.rest_s(x.anwendung, x.faehigkeit.value, x.fortschritt_s) for x in belegt)
+        if a.zustand == Auftragszustand.WARTET_SPEICHER:
+            # Platz wird frei, wenn ein blockierendes Modell fertig rechnet oder seine Leerlauf-Frist abläuft
+            fristen = []
+            for b in v.modelle_auf(a.wartet_auf_knoten):
+                if not b.im_speicher or b.geschuetzt(k.r.schutzgrenze_mrd):
+                    continue
+                belegt = v.belegung(b.kennung)
+                if belegt:
+                    fristen.append(max(k.messwerk.rest_s(x.anwendung, x.faehigkeit.value, x.fortschritt_s) for x in belegt) + k.messwerk.entladezeit_s)
+                elif b.letzte_nutzung_s is not None:
+                    fristen.append(max(0.0, k.r.bedarfsfrist_s - (v.zeit_s - b.letzte_nutzung_s)) + k.messwerk.entladezeit_s + k.messwerk.ladezeit_schaetzung(m.gb if m else 0.0))
+            if fristen:
+                return min(fristen)
+            return 3600.0
+    return k.messwerk.laufzeit(a.anwendung, a.faehigkeit.value).sekunden
+
+
+# ── Auslöser ─────────────────────────────────────────────────────────────
+
+@baustein("auftrag_wartet_speicher", "ausloeser", "Auftrag wartet auf Speicher", "Je Auftrag, der auf Speicher wartet, ein Lauf.", mindestens_s=0.0)
+def auftrag_wartet_speicher(k: Kontext, mindestens_s: float = 0.0) -> list[Kontext]:
+    aus = []
+    for a in k.verbund.wartende_auftraege():
+        if a.zustand == Auftragszustand.WARTET_SPEICHER and k.verbund.zeit_s - a.eingang_s >= mindestens_s:
+            aus.append(Kontext(verbund=k.verbund, messwerk=k.messwerk, instanz=a.kennung, auftrag=a, knoten_quelle=a.wartet_auf_knoten))
+    return aus
+
+
+@baustein("auftrag_wartet_auf_platz", "ausloeser", "Auftrag wartet auf ein belegtes Modell", "Je Auftrag, dessen Modell geladen, aber belegt ist, ein Lauf.", mindestens_s=0.0)
+def auftrag_wartet_auf_platz(k: Kontext, mindestens_s: float = 0.0) -> list[Kontext]:
+    aus = []
+    for a in k.verbund.wartende_auftraege():
+        if a.zustand == Auftragszustand.EINGEREIHT and a.wartet_auf_familie and k.verbund.zeit_s - a.eingang_s >= mindestens_s:
+            aus.append(Kontext(verbund=k.verbund, messwerk=k.messwerk, instanz=a.kennung, auftrag=a, knoten_quelle=a.wartet_auf_knoten))
+    return aus
+
+
+@baustein("auftrag_wartet", "ausloeser", "Auftrag wartet", "Je wartendem Auftrag (Speicher oder Platz) ein Lauf.", mindestens_s=0.0)
+def auftrag_wartet(k: Kontext, mindestens_s: float = 0.0) -> list[Kontext]:
+    return auftrag_wartet_speicher(k, mindestens_s) + auftrag_wartet_auf_platz(k, mindestens_s)
+
+
+@baustein("auftrag_eingereiht_ohne_modell", "ausloeser", "Eingereihter Auftrag, Modell nirgends geladen", "Aufträge, die aus anderen Gründen warten (Kontingent, Hintergrund) und deren Modell nicht geladen ist.")
+def auftrag_eingereiht_ohne_modell(k: Kontext) -> list[Kontext]:
+    aus = []
+    for a in k.verbund.wartende_auftraege():
+        if a.zustand != Auftragszustand.EINGEREIHT or a.wartet_auf_familie:
+            continue
+        fam = k.verbund.erste_familie(a)
+        if not fam:
+            continue
+        if any(m.familie == fam and m.im_speicher for m in k.verbund.modelle.values()):
+            continue
+        aus.append(Kontext(verbund=k.verbund, messwerk=k.messwerk, instanz=a.kennung, auftrag=a))
+    return aus
+
+
+@baustein("knoten_ausgefallen", "ausloeser", "Knoten fällt aus", "Je nicht erreichbarem Knoten mit offenen Aufträgen ein Lauf.")
+def knoten_ausgefallen(k: Kontext) -> list[Kontext]:
+    aus = []
+    for kn in k.verbund.knoten.values():
+        if not kn.erreichbar and any(a.knoten == kn.kennung and a.offen for a in k.verbund.auftraege.values()):
+            aus.append(Kontext(verbund=k.verbund, messwerk=k.messwerk, instanz=kn.kennung, knoten_quelle=kn.kennung))
+    return aus
+
+
+@baustein("zeitfenster_beginnt", "ausloeser", "Zeitfenster beginnt", "Ein Knoten hat ein Zeitfenster für Hintergrundarbeit, das jetzt gilt.")
+def zeitfenster_beginnt(k: Kontext) -> list[Kontext]:
+    aus = []
+    for kn in k.verbund.knoten.values():
+        f = kn.hintergrund_fenster
+        if not f or not kn.erreichbar:
+            continue
+        von, bis = f
+        drin = von <= k.verbund.stunde < bis if von < bis else (k.verbund.stunde >= von or k.verbund.stunde < bis)
+        if drin and k.verbund.hintergrund_knoten_bevorzugt != kn.kennung:
+            aus.append(Kontext(verbund=k.verbund, messwerk=k.messwerk, instanz=kn.kennung, knoten_ziel=kn.kennung))
+        if not drin and k.verbund.hintergrund_knoten_bevorzugt == kn.kennung:
+            aus.append(Kontext(verbund=k.verbund, messwerk=k.messwerk, instanz=kn.kennung + ":ende", knoten_ziel=None, werte={"fenster_ende": True}))
+    return aus
+
+
+@baustein("modell_doppelt_geladen", "ausloeser", "Modell doppelt im Speicher", "Dieselbe Modellfamilie liegt auf zwei Knoten im Speicher.")
+def modell_doppelt_geladen(k: Kontext) -> list[Kontext]:
+    aus = []
+    familien: dict[str, list[Modell]] = {}
+    for m in k.verbund.modelle.values():
+        if m.im_speicher and not k.verbund.dienste[m.dienst].extern:
+            familien.setdefault(m.familie, []).append(m)
+    for fam, liste in familien.items():
+        knoten = {k.verbund.dienste[m.dienst].knoten for m in liste}
+        if len(knoten) >= 2:
+            aus.append(Kontext(verbund=k.verbund, messwerk=k.messwerk, instanz=fam, werte={"familie": fam, "instanzen": [m.kennung for m in liste]}))
+    return aus
+
+
+@baustein("lage_wechsel", "ausloeser", "Lage wechselt", "Ein Lauf je Takt mit der aktuellen Lage; die Aktionen prüfen selbst, ob etwas zu tun ist.")
+def lage_wechsel(k: Kontext) -> list[Kontext]:
+    lage, grund = lagebeurteilung.beurteilen(k.verbund)
+    return [Kontext(verbund=k.verbund, messwerk=k.messwerk, instanz=lage.value, lage=lage, werte={"grund": grund})]
+
+
+# ── Prüfungen ────────────────────────────────────────────────────────────
+
+@baustein("anderer_knoten_mit_platz", "pruefung", "Anderer Knoten mit Platz?", "Gibt es einen anderen erlaubten Knoten, auf dem das Modell ohne Entladen passt (Dienst darf auch installiert, aber aus sein)?", reserve_gb=2.0)
+def anderer_knoten_mit_platz(k: Kontext, reserve_gb: float = 2.0) -> bool:
+    a = k.auftrag
+    assert a is not None
+    fam = a.wartet_auf_familie or k.verbund.erste_familie(a)
+    if not fam:
+        return False
+    beste: tuple[float, Modell, str] | None = None
+    for m in k.verbund.modelle.values():
+        if m.familie != fam or a.faehigkeit not in m.faehigkeiten:
+            continue
+        d = k.verbund.dienste[m.dienst]
+        if d.extern or d.knoten is None or d.knoten == k.knoten_quelle:
+            continue
+        if d.zustand not in (Dienstzustand.BEREIT, Dienstzustand.AUS) or (d.zustand == Dienstzustand.AUS and not d.installiert):
+            continue
+        if not erlaubte_zone(k.verbund, a, d.knoten):
+            continue
+        if m.im_speicher or not m.ladbar(k.verbund.zeit_s):
+            continue
+        plan = planen(k.verbund, d.knoten, m.gb + reserve_gb, k.messwerk, familie=fam)
+        if not plan.passt or plan.entladen:
+            continue
+        aufwand = k.messwerk.ladezeit(fam, d.knoten, m.gb).sekunden
+        if d.zustand == Dienstzustand.AUS:
+            aufwand += k.messwerk.startzeit(d.kennung, d.startzeit_s).sekunden
+        if beste is None or aufwand < beste[0]:
+            beste = (aufwand, m, d.kennung)
+    if beste is None:
+        k.werte["platz"] = "kein anderer Knoten mit Platz in einer erlaubten Zone"
+        return False
+    aufwand, m, dienst = beste
+    k.knoten_ziel = k.verbund.dienste[dienst].knoten
+    k.dienst_ziel = dienst
+    k.modell_ziel = m.kennung
+    k.aufwand_s = aufwand
+    k.werte["platz"] = f"{k.verbund.knoten[k.knoten_ziel].name}: {komma(k.verbund.frei_gb(k.knoten_ziel))} GB frei"
+    return True
+
+
+@baustein("dienst_dort_laeuft", "pruefung", "Dienst dort läuft?", "Ist der Dienst auf dem Zielknoten bereit?")
+def dienst_dort_laeuft(k: Kontext) -> bool:
+    return bool(k.dienst_ziel) and k.verbund.dienste[k.dienst_ziel].zustand == Dienstzustand.BEREIT
+
+
+@baustein("dienst_installiert", "pruefung", "Dienst installiert?", "Ist der Dienst auf dem Zielknoten installiert und nur nicht gestartet?")
+def dienst_installiert(k: Kontext) -> bool:
+    return bool(k.dienst_ziel) and k.verbund.dienste[k.dienst_ziel].installiert and k.verbund.dienste[k.dienst_ziel].zustand == Dienstzustand.AUS
+
+
+@baustein("gewinn_gegen_aufwand", "pruefung", "Gewinn gegen Aufwand?", "Spart die Maßnahme mindestens das Faktor-fache ihres gemessenen Aufwands an Wartezeit?", faktor=None)
+def gewinn_gegen_aufwand(k: Kontext, faktor: float | None = None) -> bool:
+    f = k.r.gewinnfaktor if faktor is None else faktor
+    if k.auftrag is not None and k.gewinn_s == 0.0:
+        k.gewinn_s = erwartete_wartezeit(k, k.auftrag)
+    k.werte["gewinn"] = f"{k.gewinn_s:.0f} s"
+    k.werte["aufwand"] = f"{k.aufwand_s:.0f} s"
+    k.werte["faktor"] = f"{f:g}"
+    return k.gewinn_s >= f * k.aufwand_s and k.gewinn_s > 0
+
+
+@baustein("leerlaufmodell_vorhanden", "pruefung", "Leerlaufmodell auf dem Knoten?", "Belegt auf dem Knoten des wartenden Auftrags ein ungenutztes, nicht geschütztes Modell den Platz, und reicht der Platz nach dem Entladen?")
+def leerlaufmodell_vorhanden(k: Kontext) -> bool:
+    a = k.auftrag
+    assert a is not None and k.knoten_quelle
+    fam = a.wartet_auf_familie or k.verbund.erste_familie(a)
+    m = instanz_der_familie(k.verbund, fam, a.faehigkeit, k.knoten_quelle) if fam else None
+    if m is None or m.im_speicher:
+        return False
+    if not m.ladbar(k.verbund.zeit_s):
+        k.werte["leerlauf"] = f"Laden von {m.name} ist gesperrt: {m.ladesperre_grund}"
+        return False
+    plan = planen(k.verbund, k.knoten_quelle, m.gb, k.messwerk, familie=fam, nur_leerlauf=True, leerlauf_grenze_s=k.r.bedarfsfrist_s)
+    if not plan.passt or not plan.entladen:
+        k.werte["leerlauf"] = plan.begruendung
+        return False
+    k.modelle_entladen = plan.entladen
+    k.modell_ziel = m.kennung
+    k.knoten_ziel = k.knoten_quelle
+    k.dienst_ziel = m.dienst
+    k.aufwand_s = plan.aufwand_s
+    # Gewinn: so lange würde der Auftrag ohne das Räumen warten (bis ein rechnendes Modell fertig ist; sonst unbestimmt lange)
+    fristen = [max(k.messwerk.rest_s(x.anwendung, x.faehigkeit.value, x.fortschritt_s) for x in k.verbund.belegung(b.kennung))
+               for b in k.verbund.modelle_auf(k.knoten_quelle) if b.im_speicher and k.verbund.belegung(b.kennung) and not b.geschuetzt(k.r.schutzgrenze_mrd)]
+    k.gewinn_s = min(fristen) if fristen else 3600.0
+    k.werte["leerlauf"] = plan.begruendung
+    return True
+
+
+@baustein("platz_ohne_entladen", "pruefung", "Platz ohne Entladen?", "Gibt es einen erlaubten Knoten, auf dem das Modell jetzt ohne Entladen passt und danach noch Reserve bleibt?", reserve_anteil=0.05)
+def platz_ohne_entladen(k: Kontext, reserve_anteil: float = 0.05) -> bool:
+    a = k.auftrag
+    assert a is not None
+    fam = k.verbund.erste_familie(a)
+    if not fam:
+        return False
+    for m in k.verbund.modelle.values():
+        if m.familie != fam or a.faehigkeit not in m.faehigkeiten or m.im_speicher:
+            continue
+        d = k.verbund.dienste[m.dienst]
+        if d.extern or d.knoten is None or not d.nutzbar or not erlaubte_zone(k.verbund, a, d.knoten) or not m.ladbar(k.verbund.zeit_s):
+            continue
+        budget = k.verbund.knoten[d.knoten].budget_gb(k.r.budget_reserve_gb)
+        plan = planen(k.verbund, d.knoten, m.gb + budget * reserve_anteil, k.messwerk, familie=fam)
+        if plan.passt and not plan.entladen:
+            k.knoten_ziel, k.dienst_ziel, k.modell_ziel = d.knoten, d.kennung, m.kennung
+            k.aufwand_s = k.messwerk.ladezeit(fam, d.knoten, m.gb).sekunden
+            k.gewinn_s = k.aufwand_s
+            k.werte["platz"] = f"{k.verbund.knoten[d.knoten].name}: {komma(k.verbund.frei_gb(d.knoten))} GB frei"
+            return True
+    return False
+
+
+@baustein("kette_hat_alternative", "pruefung", "Kette hat geladene Alternative?", "Ist ein anderes Modell der Kette des Auftrags auf einem erlaubten Knoten geladen und frei?")
+def kette_hat_alternative(k: Kontext) -> bool:
+    a = k.auftrag
+    assert a is not None
+    if a.festes_modell:
+        return False
+    kette = k.verbund.kette(a)
+    for fam in kette:
+        if fam == a.wartet_auf_familie:
+            continue
+        for m in k.verbund.modelle.values():
+            if m.familie != fam or a.faehigkeit not in m.faehigkeiten or m.zustand not in (Modellzustand.GELADEN, Modellzustand.RECHNET):
+                continue
+            d = k.verbund.dienste[m.dienst]
+            if d.extern or d.knoten is None or not d.nutzbar or not erlaubte_zone(k.verbund, a, d.knoten):
+                continue
+            if len(k.verbund.belegung(m.kennung)) >= d.plaetze:
+                continue
+            k.knoten_ziel, k.dienst_ziel, k.modell_ziel = d.knoten, d.kennung, m.kennung
+            k.aufwand_s = 0.0
+            k.gewinn_s = erwartete_wartezeit(k, a)
+            k.werte["alternative"] = m.name
+            return True
+    return False
+
+
+@baustein("anwendung_darf_extern", "pruefung", "Anwendung darf extern?", "Erlaubt die Anwendung die Zone extern?")
+def anwendung_darf_extern(k: Kontext) -> bool:
+    a = k.auftrag
+    assert a is not None
+    app = k.verbund.anwendungen[a.anwendung]
+    return app.extern_erlaubt and Zone.EXTERN in app.zonen
+
+
+@baustein("wartezeit_ueber_schwelle", "pruefung", "Wartezeit über der Schwelle?", "Liegt die erwartete Wartezeit über der eingestellten Grenze für das Ausweichen?", schwelle_s=None)
+def wartezeit_ueber_schwelle(k: Kontext, schwelle_s: float | None = None) -> bool:
+    a = k.auftrag
+    assert a is not None
+    s = k.r.extern_schwelle_s if schwelle_s is None else schwelle_s
+    k.gewinn_s = erwartete_wartezeit(k, a)
+    k.werte["wartezeit"] = f"{k.gewinn_s:.0f} s"
+    return k.gewinn_s >= s
+
+
+@baustein("extern_dienst_vorhanden", "pruefung", "Externer Dienst mit dieser Fähigkeit?", "Gibt es einen externen Anbieter, der die Fähigkeit und möglichst die Kette bedient?")
+def extern_dienst_vorhanden(k: Kontext) -> bool:
+    a = k.auftrag
+    assert a is not None
+    kette = k.verbund.kette(a)
+    treffer = []
+    for m in k.verbund.modelle.values():
+        d = k.verbund.dienste[m.dienst]
+        if d.extern and d.nutzbar and a.faehigkeit in m.faehigkeiten and a.faehigkeit in d.faehigkeiten:
+            rang = kette.index(m.familie) if m.familie in kette else len(kette)
+            treffer.append((rang, m, d))
+    if not treffer:
+        return False
+    _, m, d = sorted(treffer, key=lambda t: t[0])[0]
+    k.dienst_ziel, k.modell_ziel, k.knoten_ziel = d.kennung, m.kennung, None
+    k.aufwand_s = 0.0
+    return True
+
+
+@baustein("eine_kopie_ungenutzt", "pruefung", "Eine Kopie ungenutzt?", "Ist eine der Kopien ohne Auftrag, ohne wartenden Bedarf und über die Mindestverweildauer hinaus?")
+def eine_kopie_ungenutzt(k: Kontext) -> bool:
+    """Sammelt alle Kopien, die weichen dürfen (geladen, ungeschützt, ohne Aufträge, ohne Wartende derselben Familie, Verweildauer um).
+    Die erste wird vorgemerkt; die Prüfung "Bedarf auf diesem Knoten?" wählt danach die Kopie, auf deren Knoten jemand wartet."""
+    frei: list[str] = []
+    for kennung in k.werte.get("instanzen", []):
+        m = k.verbund.modelle[kennung]
+        if m.zustand != Modellzustand.GELADEN or m.geschuetzt(k.r.schutzgrenze_mrd) or k.verbund.belegung(m.kennung):
+            continue
+        knoten = k.verbund.dienste[m.dienst].knoten
+        if any(a.wartet_auf_knoten == knoten and (a.wartet_auf_familie == m.familie) for a in k.verbund.wartende_auftraege()):
+            continue
+        if m.geladen_seit_s is not None and k.verbund.zeit_s - m.geladen_seit_s < k.r.mindestverweildauer_s:
+            continue
+        frei.append(m.kennung)
+    if not frei:
+        return False
+    k.werte["ungenutzt"] = frei
+    _kopie_waehlen(k, frei[0])
+    return True
+
+
+def _kopie_waehlen(k: Kontext, kennung: str) -> None:
+    m = k.verbund.modelle[kennung]
+    k.modelle_entladen = [m.kennung]
+    k.knoten_quelle = k.knoten_ziel = k.verbund.dienste[m.dienst].knoten
+    k.aufwand_s = k.messwerk.entladezeit_s
+
+
+@baustein("bedarf_anderswo", "pruefung", "Bedarf auf diesem Knoten?", "Wartet auf dem Knoten einer ungenutzten Kopie ein Auftrag auf Speicher? Dann weicht genau diese Kopie.")
+def bedarf_anderswo(k: Kontext) -> bool:
+    for kennung in k.werte.get("ungenutzt", [k.modelle_entladen[0]] if k.modelle_entladen else []):
+        knoten = k.verbund.dienste[k.verbund.modelle[kennung].dienst].knoten
+        wartende = [a for a in k.verbund.wartende_auftraege() if a.zustand == Auftragszustand.WARTET_SPEICHER and a.wartet_auf_knoten == knoten]
+        if wartende:
+            _kopie_waehlen(k, kennung)
+            k.gewinn_s = max(erwartete_wartezeit(k, a) for a in wartende)
+            k.werte["bedarf"] = ", ".join(a.kennung for a in wartende)
+            return True
+    return False
+
+
+@baustein("hintergrund_auftraege_vorhanden", "pruefung", "Hintergrundaufträge vorhanden?", "Gibt es offene Aufträge der Stufe Hintergrund?")
+def hintergrund_auftraege_vorhanden(k: Kontext) -> bool:
+    return any(a.prioritaet == Prioritaet.HINTERGRUND for a in k.verbund.offene_auftraege())
+
+
+@baustein("lage_ist", "pruefung", "Lage ist?", "Entspricht die Lage dem Parameter?", lage="angespannt")
+def lage_ist(k: Kontext, lage: str = "angespannt") -> bool:
+    return k.lage is not None and k.lage.value == lage
+
+
+@baustein("hintergrund_angehalten", "pruefung", "Hintergrund angehalten?", "Ist der Hintergrund gerade angehalten?")
+def hintergrund_angehalten(k: Kontext) -> bool:
+    return not k.verbund.hintergrund_an
+
+
+@baustein("immer", "pruefung", "Immer", "Prüfung, die immer ja sagt (für Vorlagen ohne Bedingung).")
+def immer(k: Kontext) -> bool:
+    return True
+
+
+# ── Aktionen: beschreiben nur, ausgeführt wird im Vollzug ─────────────────
+
+@baustein("dienst_starten", "aktion", "Dienst starten", "Startet den Dienst auf dem Zielknoten über den Knoten-Agenten.")
+def dienst_starten(k: Kontext) -> dict[str, Any]:
+    return {"dienst": k.dienst_ziel}
+
+
+@baustein("modell_laden", "aktion", "Modell laden", "Lädt das Zielmodell auf dem Zielknoten.")
+def modell_laden(k: Kontext) -> dict[str, Any]:
+    return {"modell": k.modell_ziel}
+
+
+@baustein("modell_entladen", "aktion", "Modell entladen", "Entlädt die geplanten Modelle.")
+def modell_entladen(k: Kontext) -> dict[str, Any]:
+    return {"modelle": list(k.modelle_entladen)}
+
+
+@baustein("auftrag_umleiten", "aktion", "Auftrag umleiten", "Teilt den Auftrag dem Zieldienst und Zielmodell zu.")
+def auftrag_umleiten(k: Kontext) -> dict[str, Any]:
+    return {"auftrag": k.auftrag.kennung if k.auftrag else None, "dienst": k.dienst_ziel, "modell": k.modell_ziel, "knoten": k.knoten_ziel}
+
+
+@baustein("auftrag_extern", "aktion", "Extern rechnen", "Gibt den Auftrag an den externen Anbieter.")
+def auftrag_extern(k: Kontext) -> dict[str, Any]:
+    return {"auftrag": k.auftrag.kennung if k.auftrag else None, "dienst": k.dienst_ziel, "modell": k.modell_ziel}
+
+
+@baustein("melden", "aktion", "Melden", "Schreibt die Maßnahme mit Begründung in Meldungen und Protokoll.", text="")
+def melden(k: Kontext, text: str = "") -> dict[str, Any]:
+    return {"text": text}
+
+
+@baustein("signal_senden", "aktion", "Signal senden", "Schickt der Anwendung des Auftrags ein Signal.", signalart="signal.modell")
+def signal_senden(k: Kontext, signalart: str = "signal.modell") -> dict[str, Any]:
+    return {"anwendung": k.auftrag.anwendung if k.auftrag else None, "art": signalart}
+
+
+@baustein("laufende_abbrechen_mit_teilergebnis", "aktion", "Laufende abbrechen, Teilergebnis melden", "Bricht laufende Aufträge auf dem ausgefallenen Knoten ab und liefert das bisher Erzeugte.")
+def laufende_abbrechen_mit_teilergebnis(k: Kontext) -> dict[str, Any]:
+    return {"knoten": k.knoten_quelle}
+
+
+@baustein("wartende_neu_einreihen", "aktion", "Wartende neu einreihen", "Nimmt wartenden Aufträgen des ausgefallenen Knotens die Zuteilung, damit der Zuteiler neu entscheidet.")
+def wartende_neu_einreihen(k: Kontext) -> dict[str, Any]:
+    return {"knoten": k.knoten_quelle}
+
+
+@baustein("bevorzugten_knoten_setzen", "aktion", "Bevorzugten Knoten für Hintergrund setzen", "Hintergrundarbeit läuft bevorzugt auf dem Zielknoten (leer: keine Bevorzugung).")
+def bevorzugten_knoten_setzen(k: Kontext) -> dict[str, Any]:
+    return {"knoten": k.knoten_ziel}
+
+
+@baustein("hintergrund_anhalten", "aktion", "Hintergrund anhalten", "Hält Hintergrundaufträge an, interaktive laufen weiter.")
+def hintergrund_anhalten(k: Kontext) -> dict[str, Any]:
+    return {"an": False}
+
+
+@baustein("hintergrund_fortsetzen", "aktion", "Hintergrund fortsetzen", "Lässt Hintergrundaufträge wieder laufen.")
+def hintergrund_fortsetzen(k: Kontext) -> dict[str, Any]:
+    return {"an": True}

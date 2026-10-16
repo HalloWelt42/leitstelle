@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leitstelle - Entwurf: Regelwerk als Graph</title>
+<link rel="icon" href="symbol.svg">
+<link rel="stylesheet" href="../frontend/node_modules/@fortawesome/fontawesome-free/css/all.min.css">
+<link rel="stylesheet" href="stil.css">
+<style>
+  /* Regelwerk als Graph: jede Regel ist ein Fluss aus Auslöser, Prüfungen und Aktionen. Mitgelieferte
+     Regeln sind Vorlagen und lassen sich kopieren und ändern. Zeichenweise wie der Techbaum in Orbit:
+     Spalten als Ebenen, Knoten als Kacheln, Kanten rechtwinklig wie in einem Schaltplan, Fläche
+     verschieb- und zoombar. In der App übernimmt das eine Graph-Bibliothek; die Anordnung der
+     Vorlagen folgt der Techbaum-Verdrahtung. */
+  .vorlagen { display: flex; align-items: center; gap: var(--ls-a2); flex-wrap: wrap; margin-top: var(--ls-a3); }
+  .vorlagen .etikett { margin-right: var(--ls-a1); }
+  .werkbank { flex: 1; min-height: 0; overflow-y: auto; padding: 0 var(--ls-a6) var(--ls-a5); display: flex; flex-direction: column; gap: var(--ls-a4); }
+  .oben { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: var(--ls-a4); height: 560px; flex: none; }
+  .palette { overflow-y: auto; display: flex; flex-direction: column; gap: var(--ls-a3); min-height: 0; }
+  .palette .gruppe { background: var(--ls-flaeche); border-radius: var(--ls-ecke); padding: var(--ls-a3); }
+  .palette .gruppe .etikett { margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .palette .gruppe .etikett i { font-size: 11px; }
+  .baustein { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: var(--ls-ecke); background: var(--ls-karte); font-size: var(--ls-gr-klein);
+              cursor: grab; border: 1px solid var(--ls-rand); }
+  .baustein + .baustein { margin-top: 5px; }
+  .baustein i { width: 18px; text-align: center; color: var(--k); font-size: 14px; }
+  .palette .gruppe.ausloeser { --k: var(--ls-himmel); }
+  .palette .gruppe.pruefung { --k: var(--ls-honig); }
+  .palette .gruppe.aktion { --k: var(--ls-akzent-schrift); }
+  .palette .gruppe.fluss { --k: var(--ls-stahl); }
+
+  /* Fläche */
+  .flaeche { position: relative; overflow: hidden; background: var(--ls-mulde); border-radius: var(--ls-ecke); outline: 1px solid var(--ls-rand);
+             background-image: radial-gradient(var(--ls-diagrammlinie) 1px, transparent 1px); background-size: 24px 24px; }
+  .buehne { position: absolute; left: 0; top: 0; width: 1560px; height: 760px; transform-origin: 0 0; transform: translate(12px, 8px) scale(0.64); }
+  .buehne svg { position: absolute; left: 0; top: 0; width: 1560px; height: 760px; pointer-events: none; overflow: visible; }
+  .kante { fill: none; stroke: var(--ls-rand-stark); stroke-width: 2; }
+  .kante.ja { stroke: var(--ls-erfolg); opacity: 0.7; }
+  .kante.nein { stroke: var(--ls-text-3); stroke-dasharray: 4 5; }
+  .kante.weg { stroke: var(--ls-akzent); stroke-width: 3; stroke-dasharray: 7 9; stroke-linecap: round; animation: fliessen 1.4s linear infinite; opacity: 1; }
+  .kantentext { font-family: var(--ls-schrift); font-size: 13px; font-weight: 700; fill: var(--ls-text-2); letter-spacing: 0.06em; }
+  .kantentext.ja { fill: var(--ls-erfolg); }
+  .ebene { position: absolute; top: 8px; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ls-text-3); }
+  .kn { position: absolute; width: 262px; border-radius: var(--ls-ecke); background: var(--ls-karte); border: 1px solid var(--ls-rand-stark); padding: 10px 12px 10px; cursor: pointer;
+        box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22); }
+  .kn .kopf { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+  .kn .kopf i { width: 22px; height: 22px; display: grid; place-items: center; border-radius: var(--ls-ecke-klein); background: rgba(var(--k-rgb), var(--ls-tint)); color: var(--k); font-size: 12px; }
+  .kn .kopf .art { margin-left: auto; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--k); }
+  .kn .para { font-size: 14px; color: var(--ls-text-2); margin-top: 6px; line-height: 1.4; }
+  .kn .para b { color: var(--ls-text); font-weight: 600; }
+  .kn .live { margin-top: 7px; display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px; border-radius: var(--ls-ecke-klein); font-size: 13px; font-weight: 700;
+              background: rgba(var(--ls-akzent-rgb), var(--ls-tint)); color: var(--ls-akzent-schrift); }
+  .kn .live.ja { background: rgba(var(--ls-erfolg-rgb), var(--ls-tint)); color: var(--ls-erfolg); }
+  .kn.ausloeser { --k: var(--ls-himmel); --k-rgb: var(--ls-himmel-rgb); }
+  .kn.pruefung { --k: var(--ls-honig); --k-rgb: var(--ls-honig-rgb); }
+  .kn.aktion { --k: var(--ls-akzent-schrift); --k-rgb: var(--ls-akzent-rgb); }
+  .kn.ende { --k: var(--ls-stahl); --k-rgb: var(--ls-stahl-rgb); width: 210px; }
+  .kn.weg { border-color: rgba(var(--ls-akzent-rgb), 0.8); }
+  .kn.gewaehlt { outline: 2px solid var(--ls-akzent); outline-offset: 2px; }
+  .kn .anschluss { position: absolute; width: 12px; height: 12px; border-radius: 50%; background: var(--ls-karte-3); border: 2px solid var(--ls-rand-stark); top: 50%; margin-top: -6px; }
+  .kn .anschluss.ein { left: -7px; }
+  .kn .anschluss.aus { right: -7px; }
+  .kn .anschluss.ja { right: -7px; top: 36%; border-color: var(--ls-erfolg); }
+  .kn .anschluss.nein { right: -7px; top: 68%; border-color: var(--ls-text-3); }
+  .werkzeuge { position: absolute; right: 12px; bottom: 12px; display: flex; gap: 4px; }
+  .werkzeuge .knopf { background: var(--ls-karte); }
+  .zoomwert { position: absolute; left: 12px; bottom: 14px; font-size: var(--ls-gr-marke); color: var(--ls-text-3); font-weight: 700; }
+  .legende-g { position: absolute; left: 12px; top: 8px; display: flex; gap: var(--ls-a3); font-size: 13px; color: var(--ls-text-3); font-weight: 600; }
+  .legende-g span i { margin-right: 4px; }
+
+  /* Inspektor rechts */
+  .inspektor { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: var(--ls-a4); align-items: start; }
+  .inspektor .karte + .karte { margin-top: 0; }
+  .inspektor .karte h3 .zustand { margin-left: auto; }
+  .inspektor .einstellung { grid-template-columns: minmax(0, 1fr) 150px; padding: 10px 0; }
+  .inspektor .einstellung .wert .eingabe { width: 100%; }
+  .textfeld { width: 100%; min-height: 72px; font-family: var(--ls-schrift); font-size: var(--ls-gr-klein); }
+  .platzhalter { display: inline-block; padding: 0 6px; border-radius: var(--ls-ecke-klein); background: var(--ls-karte-2); font-family: var(--ls-schrift-code); font-size: 13px; color: var(--ls-text-2); }
+  .trocken .schritt-t { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; padding: 6px 0; border-top: 1px solid var(--ls-rand); font-size: var(--ls-gr-klein); align-items: baseline; }
+  .trocken .schritt-t:first-of-type { border-top: 0; }
+  .trocken .schritt-t i { color: var(--ls-erfolg); text-align: center; }
+  .trocken .schritt-t .zahl { color: var(--ls-text-3); }
+  .versionen .v { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: 8px; padding: 6px 0; border-top: 1px solid var(--ls-rand); font-size: var(--ls-gr-klein); align-items: baseline; }
+  .versionen .v:first-of-type { border-top: 0; }
+  .versionen .v .zahl { color: var(--ls-text-3); }
+  .status-z { display: flex; gap: var(--ls-a4); font-size: var(--ls-gr-klein); color: var(--ls-text-2); flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<div class="schale">
+  <div data-block="kopf"></div>
+  <div data-block="seite"></div>
+  <main class="haupt rahmen" id="haupt"></main>
+  <div data-block="fuss"></div>
+</div>
+
+<script type="module">
+  import { seite, hilfepunkt, zustand } from './gemeinsam.js';
+  seite('regeln');
+
+  const VORLAGEN = ['Umleiten bei Speichermangel', 'Leerlauf räumen', 'Vorwärmen nach Warteschlange', 'Kette ausweichen', 'Extern ausweichen', 'Umverteilen bei Ausfall', 'Verlagern im Zeitfenster', 'Doppel auflösen', 'Hintergrund bei Lage anhalten'];
+  const KOPF = `
+    <div class="rahmen-kopf">
+      <div class="seitenkopf">
+        <h1>Regelwerk</h1><span class="zahl">9 Vorlagen · 2 eigene</span>
+        <div class="aktionen">
+          <button class="knopf" title="Spielt die Regel gegen den jetzigen Zustand des Verbunds durch, ohne etwas zu tun; der genommene Weg leuchtet im Graph"><i class="fa-solid fa-flask"></i> Trockenlauf</button>
+          <button class="knopf" title="Diese Fassung als eigene Vorlage sichern, zum Beispiel für einen zweiten Verbund"><i class="fa-solid fa-copy"></i> Als Vorlage sichern</button>
+          <span class="stufen" title="Regel aktiv oder aus; aus heißt: wird nicht ausgewertet, bleibt aber erhalten"><button class="an">Aktiv</button><button>Aus</button></span>
+          <button class="knopf haupt" title="Speichert die Regel als neue Fassung; die alte bleibt in den Fassungen"><i class="fa-solid fa-floppy-disk"></i> Speichern</button>
+        </div>
+        <div class="unterzeile">Jede Regel ist ein Graph aus Auslöser, Prüfungen und Aktionen. Die mitgelieferten Regeln sind Vorlagen: kopieren, ändern, abschalten. Bausteine links hineinziehen, Knoten anklicken und rechts einstellen.</div>
+      </div>
+      <div class="vorlagen">
+        <span class="etikett">Regeln</span>
+        ${VORLAGEN.map((v, i) => `<span class="chip${i === 0 ? ' aktiv' : ''}" title="${v}">${v}${i === 0 ? '<span class="zaehler pille erfolg" title="heute 3 mal ausgelöst">3</span>' : i === 2 ? '<span class="zaehler pille info" title="eine Maßnahme geplant">1</span>' : ''}</span>`).join('')}
+        <span class="chip" title="Eigene Regel: Vorlage des Nutzers"><i class="fa-solid fa-user"></i> Nachts alles auf das MacBook</span>
+        <span class="chip" title="Eigene Regel: Vorlage des Nutzers"><i class="fa-solid fa-user"></i> Rufzeichen immer zuerst</span>
+        <button class="knopf klein ohne" title="Leere Regel beginnen"><i class="fa-solid fa-plus"></i> Neue Regel</button>
+      </div>
+    </div>`;
+
+  const PALETTE = `
+    <div class="palette">
+      <div class="gruppe ausloeser"><div class="etikett"><i class="fa-solid fa-circle"></i>Auslöser</div>
+        ${[['fa-memory', 'Auftrag wartet auf Speicher'], ['fa-bed', 'Modell im Leerlauf'], ['fa-tower-observation', 'Lage wechselt'], ['fa-moon', 'Zeitfenster beginnt'], ['fa-server', 'Knoten fällt aus'], ['fa-list-ol', 'Warteschlange enthält'], ['fa-clock', 'Wartezeit überschreitet']].map(([i, n]) => `<div class="baustein" title="In die Fläche ziehen"><i class="fa-solid ${i}"></i>${n}</div>`).join('')}
+      </div>
+      <div class="gruppe pruefung"><div class="etikett"><i class="fa-solid fa-circle"></i>Prüfungen</div>
+        ${[['fa-microchip', 'Anderer Knoten mit Platz'], ['fa-shield-halved', 'Anwendung darf Zone'], ['fa-scale-balanced', 'Gewinn gegen Kosten'], ['fa-lock', 'Modell geschützt'], ['fa-hourglass', 'Mindestverweildauer vorbei'], ['fa-plug', 'Dienst installiert'], ['fa-coins', 'Tagesgrenze reicht'], ['fa-link', 'Kette hat Ausweich']].map(([i, n]) => `<div class="baustein" title="In die Fläche ziehen"><i class="fa-solid ${i}"></i>${n}</div>`).join('')}
+      </div>
+      <div class="gruppe aktion"><div class="etikett"><i class="fa-solid fa-circle"></i>Aktionen</div>
+        ${[['fa-power-off', 'Dienst starten'], ['fa-download', 'Modell laden'], ['fa-eject', 'Modell entladen'], ['fa-shuffle', 'Auftrag umleiten'], ['fa-arrow-up-wide-short', 'Priorität ändern'], ['fa-paper-plane', 'Signal senden'], ['fa-bell', 'Melden'], ['fa-cloud', 'Extern rechnen'], ['fa-pause', 'Aufträge anhalten']].map(([i, n]) => `<div class="baustein" title="In die Fläche ziehen"><i class="fa-solid ${i}"></i>${n}</div>`).join('')}
+      </div>
+      <div class="gruppe fluss"><div class="etikett"><i class="fa-solid fa-circle"></i>Fluss</div>
+        ${[['fa-code-branch', 'Ja oder Nein'], ['fa-layer-group', 'Alle erfüllt'], ['fa-dice-one', 'Eine erfüllt'], ['fa-stopwatch', 'Warten bis'], ['fa-flag-checkered', 'Ende']].map(([i, n]) => `<div class="baustein" title="In die Fläche ziehen"><i class="fa-solid ${i}"></i>${n}</div>`).join('')}
+      </div>
+    </div>`;
+
+  // Knoten des Graphen (Spalten wie Ebenen im Techbaum)
+  const X = [40, 350, 660, 970, 1280];
+  const KNOTEN = [
+    { id: 'a1', art: 'ausloeser', x: X[0], y: 160, i: 'fa-memory', titel: 'Auftrag wartet auf Speicher', para: 'Fähigkeit <b>beliebig</b> · mindestens <b>5 s</b> gewartet', live: 'a-e77a Kiste, 11,8 GB', weg: true },
+    { id: 'p1', art: 'pruefung', x: X[1], y: 120, i: 'fa-microchip', titel: 'Anderer Knoten mit Platz?', para: 'Zone der Anwendung beachten <b>ja</b> · Reserve <b>2 GB</b>', live: 'MacBook: 19,8 GB frei', livej: true, weg: true, jn: true },
+    { id: 'p2', art: 'pruefung', x: X[2], y: 60, i: 'fa-plug', titel: 'Dienst dort läuft?', para: 'Fähigkeit des Auftrags · sonst Agent fragen', live: 'Nein, installiert', weg: true, jn: true },
+    { id: 'k1', art: 'aktion', x: X[3], y: 60, i: 'fa-power-off', titel: 'Dienst starten', para: 'über den Knoten-Agenten · warten bis <b>bereit</b>', live: 'Modell-Läufer, 3 s', weg: true },
+    { id: 'p3', art: 'pruefung', x: X[2], y: 270, i: 'fa-scale-balanced', titel: 'Gewinn gegen Kosten?', para: 'Faktor <b>doppelt</b> · Kosten aus <b>Messung</b>', live: '25 s gegen 14 s', livej: true, weg: true, jn: true, gewaehlt: true },
+    { id: 'k2', art: 'aktion', x: X[3], y: 230, i: 'fa-download', titel: 'Modell laden', para: 'auf dem gefundenen Knoten · Kontext <b>wie Vorgabe</b>', live: 'GLM 4.6V Flash, 11 s', weg: true },
+    { id: 'k3', art: 'aktion', x: X[3], y: 400, i: 'fa-shuffle', titel: 'Auftrag umleiten', para: 'Platz <b>behalten</b>, bis das Modell bereit ist', live: 'a-e77a nach MacBook', weg: true },
+    { id: 'k4', art: 'aktion', x: X[4], y: 310, i: 'fa-bell', titel: 'Melden und Signal', para: 'Meldung mit Grund · <b>signal.modell</b> an die Anwendung', live: 'Kiste (Fassade: Hinweis)', weg: true },
+    { id: 'e1', art: 'ende', x: X[2], y: 500, i: 'fa-hourglass-half', titel: 'Weiter warten', para: 'nichts tun, Prüfung in <b>5 s</b> wieder' },
+    { id: 'e2', art: 'ende', x: X[3], y: 580, i: 'fa-flag-checkered', titel: 'Warten lohnt mehr', para: 'Grund in die Meldungen' },
+  ];
+  const H = (k) => k.art === 'ende' ? 78 : 112;
+  const mitte = (k) => k.y + H(k) / 2;
+  // Rechtwinklige Verdrahtung wie im Techbaum: waagerecht, senkrecht, waagerecht
+  const pfad = (a, b, dy = 0) => { const x1 = a.x + (a.art === 'ende' ? 210 : 262), y1 = mitte(a) + dy, x2 = b.x, y2 = mitte(b); const xm = x1 + (x2 - x1) / 2;
+    return `M${x1},${y1} H${xm} V${y2} H${x2}`; };
+  const K = Object.fromEntries(KNOTEN.map(k => [k.id, k]));
+  const KANTEN = [
+    ['a1', 'p1', '', true], ['p1', 'p2', 'ja', true, -14], ['p1', 'e1', 'nein', false, 14], ['p2', 'k1', 'nein', true, 14], ['p2', 'p3', 'ja', false, -14],
+    ['k1', 'p3', '', true], ['p3', 'k2', 'ja', true, -14], ['p3', 'e2', 'nein', false, 14], ['k2', 'k3', '', true], ['k3', 'k4', '', true],
+  ];
+  const svg = `<svg>${KANTEN.map(([a, b, art, weg, dy]) => { const d = pfad(K[a], K[b], dy || 0);
+      const ende = `${K[b].x - 6},${mitte(K[b]) - 6}`;
+      return `<path class="kante ${art}" d="${d}"></path>${weg ? `<path class="kante weg" d="${d}"></path>` : ''}${art ? `<text class="kantentext ${art}" x="${K[a].x + 274}" y="${mitte(K[a]) + (dy || 0) - 6}">${art.toUpperCase()}</text>` : ''}`; }).join('')}</svg>`;
+  const knotenHtml = KNOTEN.map(k => `<div class="kn ${k.art}${k.weg ? ' weg' : ''}${k.gewaehlt ? ' gewaehlt' : ''}" style="left:${k.x}px;top:${k.y}px" title="${k.titel}: anklicken, um rechts einzustellen">
+      <div class="kopf"><i class="fa-solid ${k.i}"></i>${k.titel}<span class="art">${{ ausloeser: 'Auslöser', pruefung: 'Prüfung', aktion: 'Aktion', ende: 'Ende' }[k.art]}</span></div>
+      <div class="para">${k.para}</div>
+      ${k.live ? `<span class="live${k.livej ? ' ja' : ''}" title="Wert aus dem Trockenlauf gegen den jetzigen Zustand">${k.live}</span>` : ''}
+      ${k.art !== 'ausloeser' ? '<span class="anschluss ein"></span>' : ''}
+      ${k.jn ? '<span class="anschluss ja" title="Ja"></span><span class="anschluss nein" title="Nein"></span>' : k.art !== 'ende' ? '<span class="anschluss aus"></span>' : ''}
+    </div>`).join('');
+  const ebenen = ['Auslöser', 'Prüfung', 'Prüfung oder Aktion', 'Aktion', 'Abschluss'].map((n, i) => `<div class="ebene" style="left:${X[i]}px">${n}</div>`).join('');
+
+  const FLAECHE = `
+    <div class="flaeche" title="Ziehen verschiebt, Mausrad zoomt">
+      <div class="buehne">${svg}${ebenen}${knotenHtml}</div>
+      <div class="legende-g"></div>
+      <span class="zoomwert zahl">64 %</span>
+      <div class="werkzeuge">
+        <button class="knopf symbol klein" title="Verkleinern"><i class="fa-solid fa-minus"></i></button>
+        <button class="knopf symbol klein" title="Vergrößern"><i class="fa-solid fa-plus"></i></button>
+        <button class="knopf symbol klein" title="Alles einpassen"><i class="fa-solid fa-expand"></i></button>
+        <button class="knopf symbol klein" title="Automatisch anordnen (Verdrahtung wie im Techbaum)"><i class="fa-solid fa-diagram-project"></i></button>
+      </div>
+    </div>`;
+
+  const INSPEKTOR = `
+    <div class="inspektor">
+      <div class="karte">
+        <h3><i class="fa-solid fa-scale-balanced"></i>Gewinn gegen Kosten ${zustand('fertig')}</h3>
+        <div class="klein leise">Prüfung. Führt nur dann weiter, wenn die gesparte Wartezeit die Kosten der Maßnahme um den Faktor übersteigt. Kosten sind gemessen, nicht geraten.</div>
+        <div class="einstellung"><div><div class="name">Faktor ${hilfepunkt('Gewinnschwelle')}</div><div class="erklaerung">Vorgabe doppelt</div></div>
+          <div class="wert"><span class="stufen"><button>1</button><button class="an">2</button><button>3</button></span></div></div>
+        <div class="einstellung"><div><div class="name">Kosten aus Messung</div><div class="erklaerung">Ladezeit je Modell und Knoten, Startzeit je Dienst; ohne Messung Schätzwert</div></div>
+          <div class="wert"><button class="schalter an"></button></div></div>
+        <div class="einstellung"><div><div class="name">Gewinn</div><div class="erklaerung">Erwartete Wartezeit am bisherigen Knoten</div></div>
+          <div class="wert"><select class="eingabe" style="height:36px"><option>Erwartete Wartezeit</option><option>Rest des blockierenden Auftrags</option><option>Fester Wert</option></select></div></div>
+        <div class="einstellung"><div><div class="name">Begründung</div><div class="erklaerung">So erscheint es in Meldungen und Protokoll</div></div>
+          <div class="wert" style="grid-column: 1 / -1; justify-content: stretch"><textarea class="eingabe textfeld">Gespart etwa {gewinn} Wartezeit, Kosten {kosten} für Start und Laden, Schwelle {faktor} erfüllt.</textarea></div></div>
+        <div class="klein leise" style="margin-top: 6px">Platzhalter: <span class="platzhalter">{gewinn}</span> <span class="platzhalter">{kosten}</span> <span class="platzhalter">{faktor}</span> <span class="platzhalter">{knoten}</span> <span class="platzhalter">{modell}</span> <span class="platzhalter">{anwendung}</span></div>
+      </div>
+      <div class="karte trocken">
+        <h3><i class="fa-solid fa-flask"></i>Trockenlauf <span class="rechts">jetziger Zustand</span></h3>
+        <div class="schritt-t"><i class="fa-solid fa-check"></i><span>Auslöser: a-e77a (Kiste) wartet seit 8 s auf 11,8 GB</span><span class="zahl">14:56:20</span></div>
+        <div class="schritt-t"><i class="fa-solid fa-check"></i><span>MacBook hat 19,8 GB frei, Zone Heimnetz erlaubt</span><span class="zahl">ja</span></div>
+        <div class="schritt-t"><i class="fa-solid fa-check"></i><span>Dienst dort installiert, nicht gestartet: Agent startet ihn</span><span class="zahl">3 s</span></div>
+        <div class="schritt-t"><i class="fa-solid fa-check"></i><span>Gewinn 25 s gegen Kosten 14 s (3 s Start, 11 s Laden gemessen)</span><span class="zahl">doppelt</span></div>
+        <div class="schritt-t"><i class="fa-solid fa-check"></i><span>Modell laden, Auftrag umleiten, melden</span><span class="zahl">Ergebnis</span></div>
+        <div class="hinweis erfolg" style="margin-top: var(--ls-a3)"><i class="fa-solid fa-circle-check"></i><div>Mit dem jetzigen Zustand würde die Regel genau das tun, was um 14:56:20 geschah. Nichts wurde verändert.</div></div>
+      </div>
+      <div class="karte versionen">
+        <h3><i class="fa-solid fa-clock-rotate-left"></i>Fassungen <span class="rechts"><a title="Setzt die Regel auf die mitgelieferte Vorlage zurück; deine Fassungen bleiben erhalten">Zurück zur Vorlage</a></span></h3>
+        <div class="v"><span class="zahl">v3</span><span>Faktor von dreifach auf doppelt, Reserve 2 GB</span><span class="zahl">heute 09:40</span></div>
+        <div class="v"><span class="zahl">v2</span><span>Prüfung Dienst läuft eingefügt, Aktion Dienst starten</span><span class="zahl">Di</span></div>
+        <div class="v"><span class="zahl">v1</span><span>Mitgelieferte Vorlage</span><span class="zahl">Mo</span></div>
+        <div class="status-z" style="margin-top: var(--ls-a3)"><span><i class="fa-solid fa-bolt"></i> heute 3 mal ausgelöst</span><span><i class="fa-solid fa-rotate-left"></i> 0 mal rückgängig</span></div>
+      </div>
+    </div>`;
+
+  document.getElementById('haupt').innerHTML = KOPF + `<div class="werkbank"><div class="oben">${PALETTE}${FLAECHE}</div>${INSPEKTOR}</div>`;
+</script>
+</body>
+</html>

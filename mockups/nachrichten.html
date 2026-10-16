@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leitstelle - Entwurf: Nachrichtenverkehr</title>
+<link rel="icon" href="symbol.svg">
+<link rel="stylesheet" href="../frontend/node_modules/@fortawesome/fontawesome-free/css/all.min.css">
+<link rel="stylesheet" href="stil.css">
+<style>
+  /* Kopf: Zahl mit Wort, Live-Marke neben dem Knopf */
+  .seitenkopf .kopfwort { font-family: var(--ls-schrift); color: var(--ls-text-3); font-size: var(--ls-gr-text); font-weight: 500; align-self: flex-end; padding-bottom: 4px; margin-left: calc(-1 * var(--ls-a2)); }
+  .live-marke { display: inline-flex; align-items: center; height: 42px; padding: 0 var(--ls-a3); border-radius: var(--ls-ecke);
+                background: var(--ls-flaeche); font-size: var(--ls-gr-klein); font-weight: 600; color: var(--ls-erfolg); }
+  .filterzeile { display: flex; align-items: center; gap: var(--ls-a2); flex-wrap: wrap; margin-top: var(--ls-a3); }
+  .filterzeile .reiter { margin: 0; }
+  .filterzeile .rechts { margin-left: auto; display: flex; gap: var(--ls-a2); align-items: center; }
+  .filterzeile.gruppen { margin-top: var(--ls-a2); }
+  .filterzeile .etikett { margin-right: var(--ls-a1); }
+  .suche-feld { display: flex; align-items: center; gap: var(--ls-a2); height: 42px; padding: 0 var(--ls-a3); background: var(--ls-karte);
+                border: 1px solid var(--ls-rand); border-radius: var(--ls-ecke); color: var(--ls-text-3); width: 300px; }
+  .suche-feld input { flex: 1; min-width: 0; background: none; border: 0; outline: 0; color: var(--ls-text); }
+  .suche-feld:focus-within { border-color: rgba(var(--ls-akzent-rgb), 0.6); }
+  /* Gruppen-Chip: Farbpunkt plus Wort, nie Farbe allein */
+  .chip .gruppenpunkt { width: 10px; height: 10px; border-radius: 2px; background: var(--g); flex: none; }
+  .chip.aktiv.gruppe { background: rgba(var(--g-rgb), 0.14); border-color: rgba(var(--g-rgb), 0.55); color: var(--g); }
+  .chip.gedaempft { opacity: 0.55; }
+
+  /* Strom: eine Nachricht je Zeile, Inhalt in Worten darunter */
+  .strom-kopf, .nachricht { display: grid; grid-template-columns: 92px 24px 116px 116px minmax(0, 1fr); gap: 2px var(--ls-a3); align-items: center; }
+  /* Der Spaltenkopf klebt oben; das Rollfeld hat deshalb oben keinen Abstand, der Kopf bringt ihn mit */
+  #strom { padding-top: 0; }
+  .strom-kopf { position: sticky; top: 0; z-index: 2; padding: var(--ls-a3) var(--ls-a3) var(--ls-a2); background: var(--ls-grund); }
+  .strom-kopf .etikett { font-size: var(--ls-gr-marke); }
+  .nachricht { padding: var(--ls-a2) var(--ls-a3); border-radius: var(--ls-ecke); cursor: pointer; }
+  .nachricht + .nachricht { margin-top: 2px; }
+  .nachricht:hover { background: var(--ls-flaeche); }
+  .nachricht.gewaehlt { background: var(--ls-karte); outline: 1px solid rgba(var(--ls-akzent-rgb), 0.55); }
+  .nachricht .zeit { font-size: var(--ls-gr-klein); color: var(--ls-text-3); font-weight: 500; min-width: 0; }
+  .nachricht .richtung { text-align: center; font-size: 15px; }
+  .nachricht .richtung.von { color: var(--ls-akzent-schrift); }
+  .nachricht .richtung.an { color: var(--ls-info); }
+  .nachricht .teilnehmer { font-size: var(--ls-gr-klein); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nachricht .teilnehmer.leitstelle { color: var(--ls-text-2); font-weight: 500; }
+  .nachricht .art { display: flex; align-items: center; gap: var(--ls-a2); min-width: 0; }
+  .nachricht .art code { font-size: var(--ls-gr-marke); font-weight: 600; padding: 2px 8px; background: rgba(var(--g-rgb), 0.14); color: var(--g); white-space: nowrap; }
+  .nachricht .art .zaehler { height: 22px; }
+  .nachricht .inhalt { grid-column: 3 / -1; font-size: var(--ls-gr-klein); color: var(--ls-text-2); line-height: 1.4; }
+  .nachricht.gewaehlt .inhalt { color: var(--ls-text); }
+  .strom-fuss { display: flex; align-items: center; gap: var(--ls-a2); padding: var(--ls-a3); color: var(--ls-text-3); font-size: var(--ls-gr-klein); }
+
+  /* Rechts: Umschlag als eingefärbtes JSON */
+  .umschlag pre { margin: 0; padding: var(--ls-a3) var(--ls-a4); background: var(--ls-mulde); border-radius: var(--ls-ecke);
+                  font-family: var(--ls-schrift-code); font-size: var(--ls-gr-klein); line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ls-text-3); }
+  .umschlag pre .k { color: var(--ls-text-2); }
+  .umschlag pre .s { color: var(--ls-minze); }
+  .umschlag pre .n { font-family: var(--ls-schrift-zahl); color: var(--ls-akzent-schrift); font-weight: 600; }
+  .umschlag pre .w { color: var(--ls-text); }
+  .umschlag .kopfzeile { display: flex; gap: var(--ls-a2); align-items: center; flex-wrap: wrap; margin-bottom: var(--ls-a3); font-size: var(--ls-gr-klein); color: var(--ls-text-2); }
+  .umschlag .kopfzeile code { font-size: var(--ls-gr-marke); font-weight: 600; background: rgba(var(--ls-akzent-rgb), 0.14); color: var(--ls-akzent-schrift); }
+  .umschlag .kopfzeile .rechts { margin-left: auto; display: flex; gap: 2px; }
+
+  .bedeutung p { font-size: var(--ls-gr-klein); color: var(--ls-text-2); line-height: 1.5; }
+  .bedeutung p + p { margin-top: var(--ls-a2); }
+  .bedeutung p b { color: var(--ls-text); font-weight: 600; }
+  .bedeutung code { font-size: var(--ls-gr-marke); }
+
+  .bezug { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: var(--ls-a2) var(--ls-a2); align-items: baseline; font-size: var(--ls-gr-klein); }
+  .bezug i { text-align: center; color: var(--ls-text-3); }
+  .bezug .leise { color: var(--ls-text-3); }
+  .bezug a { font-weight: 600; }
+
+  .statistik .unterschrift { display: flex; justify-content: space-between; font-size: var(--ls-gr-marke); color: var(--ls-text-3); margin-top: 4px; }
+  .statistik .verlauf { height: 56px; }
+  .verteilung { display: grid; grid-template-columns: 124px minmax(0, 1fr) 52px; gap: 7px var(--ls-a3); align-items: center; font-size: var(--ls-gr-klein); margin-top: var(--ls-a2); }
+  .verteilung .balken { height: 10px; }
+  .verteilung .balken b { background: var(--g); }
+  .verteilung .n { text-align: right; color: var(--ls-text-2); }
+  .verteilung .leise { color: var(--ls-text-3); }
+</style>
+</head>
+<body>
+<div class="schale">
+  <div data-block="kopf"></div>
+  <div data-block="seite"></div>
+  <main class="haupt rahmen" id="haupt"></main>
+  <div data-block="fuss"></div>
+</div>
+
+<script type="module">
+  import { seite, KNOTEN, DIENSTE, ANWENDUNGEN, AUFTRAEGE, MODELLE, WORT, zustand, zone, anwendung, knoten, dienst, modell, zahl, verlauf, reihe, hilfepunkt } from './gemeinsam.js';
+  seite('nachrichten');
+
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+
+  // Gruppen des Protokolls: Wort, Farbe, Farbe als RGB (für Flächen)
+  const GRUPPE = {
+    auftrag:      ['Auftrag',      'var(--ls-himmel)',         'var(--ls-himmel-rgb)'],
+    signal:       ['Signal',       'var(--ls-akzent-schrift)', 'var(--ls-akzent-rgb)'],
+    steuerung:    ['Steuerung',    'var(--ls-warnung)',        'var(--ls-warnung-rgb)'],
+    frage:        ['Frage',        'var(--ls-petrol)',         'var(--ls-petrol-rgb)'],
+    knoten:       ['Knoten',       'var(--ls-stahl)',          'var(--ls-stahl-rgb)'],
+    dienst:       ['Dienst',       'var(--ls-flieder)',        'var(--ls-flieder-rgb)'],
+    reservierung: ['Reservierung', 'var(--ls-sand)',           'var(--ls-sand-rgb)'],
+    herzschlag:   ['Herzschlag',   'var(--ls-text-3)',         'var(--ls-stahl-rgb)'],
+  };
+  const STEUERUNG = ['auftrag.anhalten', 'auftrag.fortsetzen', 'auftrag.stoppen', 'auftrag.prioritaet'];
+  const gruppeVon = (art) => STEUERUNG.includes(art) ? 'steuerung' : art.startsWith('antwort.') ? 'frage'
+    : art === 'herzschlag' || art.startsWith('anwendung.') ? 'herzschlag' : art.split('.')[0];
+
+  // Teilnehmer: Adresse im Protokoll -> Name in Worten
+  const mitSignalkanal = ANWENDUNGEN.filter(a => a.signale && a.zustand === 'verbunden');
+  const name = (adresse) => {
+    if (adresse === 'leitstelle') return ['Leitstelle', 'Die Leitstelle selbst'];
+    if (adresse === 'signalkanal') return [`${mitSignalkanal.length} Anwendungen`, 'Alle Anwendungen mit offenem Signalkanal: ' + mitSignalkanal.map(a => a.name).join(', ')];
+    const [rolle, kennung] = adresse.split(':');
+    const o = rolle === 'anwendung' ? anwendung(kennung) : rolle === 'knoten' ? knoten(kennung) : dienst(kennung);
+    return [o.name, `Adresse im Protokoll: ${adresse}`];
+  };
+
+  // Der Strom: 14:54 bis 14:56 aus der Beispielwelt, in zeitlicher Folge
+  const NACHRICHTEN = [
+    { zeit: '14:54:02', von: 'knoten:mac-128', an: 'leitstelle', art: 'knoten.messwerte',
+      text: 'Speicher 96 Prozent belegt (122,9 von 128 GB), Grafik 78 Prozent, 71 Grad; die Stufe wechselt von Warnung auf Gefahr' },
+    { zeit: '14:54:02', von: 'leitstelle', an: 'signalkanal', art: 'signal.lage',
+      text: 'Lage angespannt: Speicher auf Mac Studio über 95 Prozent; neue Aufträge können warten' },
+    { zeit: '14:54:03', von: 'leitstelle', an: 'anwendung:fundus', art: 'signal.speicher',
+      text: 'Speicher knapp auf Mac Studio, 5,1 GB frei; die laufende Einbettung ist nicht betroffen' },
+    { zeit: '14:54:05', von: 'anwendung:kiste', an: 'leitstelle', art: 'auftrag.anlegen',
+      text: 'Bild: Foto beschreiben: Werkzeugkiste; Modell GLM 4.6V Flash; Priorität normal; ein Bild mit 2,4 MB' },
+    { zeit: '14:54:05', von: 'leitstelle', an: 'anwendung:kiste', art: 'auftrag.angenommen',
+      text: 'Auftrag a-e77a angenommen, wartet auf Speicher: das Bildmodell (11,8 GB) passt erst, wenn das Textmodell frei ist, voraussichtlich 25 s' },
+    { zeit: '14:54:40', von: 'anwendung:fundus', an: 'leitstelle', art: 'frage.kapazitaet',
+      text: 'Kann ich jetzt eine Tiefenrecherche starten? Fähigkeit Text mit Werkzeugen, extern erlaubt' },
+    { zeit: '14:54:40', von: 'leitstelle', an: 'anwendung:fundus', art: 'antwort.kapazitaet',
+      text: 'Ja, 1 Platz: lokal auf Mac Studio nach dem laufenden Textauftrag oder sofort extern über Externer Anbieter (Tagesgrenze 5,00 Euro, bisher 0,42 Euro)' },
+    { zeit: '14:54:41', von: 'anwendung:fundus', an: 'leitstelle', art: 'reservierung.anfragen',
+      text: '1 Platz Text für 10 Minuten ab 15:00, Modell Qwen3 Next 80B' },
+    { zeit: '14:54:41', von: 'leitstelle', an: 'anwendung:fundus', art: 'reservierung.bestaetigt',
+      text: 'Reservierung r-31ab bestätigt: 1 Platz Text von 15:00 bis 15:10; verfällt, wenn bis 15:02 kein Auftrag kommt' },
+    { zeit: '14:55:06', von: 'anwendung:rufzeichen', an: 'leitstelle', art: 'auftrag.anlegen',
+      text: 'Stimme: Antwort sprechen \'Die Haustür ist zu.\'; Stimmklon; Priorität dringend; Streaming erwünscht' },
+    { zeit: '14:55:08', von: 'leitstelle', an: 'anwendung:rufzeichen', art: 'auftrag.ergebnis',
+      text: 'Auftrag a-51f9 fertig in 2,1 s: Ton 1,8 s mit Stimmklon auf Mac Studio; vorgezogen, weil dringend' },
+    { zeit: '14:55:30', von: 'leitstelle', an: 'knoten:mac-32', art: 'knoten.befehl',
+      text: 'Messtakt auf 5 s stellen, solange die Lage angespannt ist; zurück auf 10 s bei ruhiger Lage' },
+    { zeit: '14:55:52', von: 'dienst:bildschmiede', an: 'leitstelle', art: 'dienst.zustand',
+      text: 'Pausiert seit 13:52; kein Modell im Speicher, 1 Auftrag angehalten (a-4a12 bei 25 Prozent)' },
+    { zeit: '14:56:12', von: 'anwendung:zusage', an: 'leitstelle', art: 'auftrag.anlegen',
+      text: 'Text: Anschreiben entwerfen; Modell Qwen3 Next 80B; Priorität hoch; Streaming erwünscht' },
+    { zeit: '14:56:12', von: 'leitstelle', an: 'anwendung:zusage', art: 'auftrag.angenommen',
+      text: 'Auftrag a-7f3c angenommen, Platz 1; Modell schon geladen, Start sofort' },
+    { zeit: '14:56:12', von: 'leitstelle', an: 'anwendung:zusage', art: 'signal.modell',
+      text: 'Bereit: Qwen3 Next 80B auf Mac Studio ist geladen, kein Laden nötig' },
+    { zeit: '14:56:13', von: 'leitstelle', an: 'anwendung:zusage', art: 'auftrag.laeuft',
+      text: 'Rechnet auf Mac Studio über den Modell-Läufer; die Stücke folgen als Strom' },
+    { zeit: '14:56:13', von: 'leitstelle', an: 'anwendung:kiste', art: 'signal.speicher', gewaehlt: true,
+      text: 'Weiterhin knapp: 5,1 GB frei; Auftrag a-e77a wartet voraussichtlich noch 25 s, weil a-7f3c Vorrang hat' },
+    { zeit: '14:56:14', von: 'leitstelle', an: 'anwendung:zusage', art: 'auftrag.stueck', anzahl: 38,
+      anzahl_text: 'Jedes Stück ist eine eigene Nachricht auftrag.stueck mit einem Teil des Textes; die Ansicht fasst Stücke desselben Auftrags innerhalb einer Sekunde zu einer Zeile zusammen',
+      text: '38 Stücke in 1 s, zusammengefasst; jedes Stück trägt einen Teil des Anschreibens' },
+    { zeit: '14:56:20', von: 'leitstelle', an: 'anwendung:tubevault', art: 'auftrag.fortschritt',
+      text: 'Auftrag a-2b91: 41 Prozent, 58 von 141 Abschnitten, Rest etwa 22 Minuten' },
+  ];
+
+  const zeile = (n) => {
+    const vonLs = n.von === 'leitstelle';
+    const g = GRUPPE[gruppeVon(n.art)];
+    const [von, vonTitel] = name(n.von);
+    const [an, anTitel] = name(n.an);
+    return `<div class="nachricht${n.gewaehlt ? ' gewaehlt' : ''}" style="--g:${g[1]};--g-rgb:${g[2]}" title="${g[0]}: ${n.art}, ${vonLs ? 'von der Leitstelle' : 'an die Leitstelle'}">
+      <span class="zeit zahl">${n.zeit}</span>
+      <span class="richtung ${vonLs ? 'von' : 'an'}" title="${vonLs ? 'Von der Leitstelle' : 'An die Leitstelle'}"><i class="fa-solid ${vonLs ? 'fa-arrow-right' : 'fa-arrow-left'}"></i></span>
+      <span class="teilnehmer${vonLs ? ' leitstelle' : ''}" title="${esc(vonTitel)}">${von}</span>
+      <span class="teilnehmer${vonLs ? '' : ' leitstelle'}" title="${esc(anTitel)}">${an}</span>
+      <span class="art"><code>${n.art}</code>${n.anzahl ? `<span class="zaehler" title="${esc(n.anzahl_text)}">× ${n.anzahl}</span>` : ''}</span>
+      <span class="inhalt">${n.text}</span>
+    </div>`;
+  };
+
+  // Verteilung der letzten Stunde (412 ohne Herzschläge)
+  const VERTEILUNG = [['auftrag', 236], ['signal', 58], ['knoten', 52], ['frage', 31], ['reservierung', 19], ['dienst', 12], ['steuerung', 4]];
+  const SUMME = VERTEILUNG.reduce((s, [, n]) => s + n, 0);
+  const HERZSCHLAEGE = mitSignalkanal.length * 6 * 60;
+
+  // Der gewählte Umschlag, vollständig
+  const UMSCHLAG = {
+    protokoll: 'leitstelle/1',
+    art: 'signal.speicher',
+    id: 'c41e9b2a7d3f4e0a9b6c1d8e2f5a7b93',
+    zeit: '2026-10-16T14:56:13.208+02:00',
+    von: 'leitstelle',
+    an: 'anwendung:kiste',
+    bezug: 'a-e77a',
+    nutzlast: {
+      knoten: 'mac-128',
+      zustand: 'knapp',
+      frei_gb: 5.1,
+      gesamt_gb: 128,
+      grund: 'Textmodell Qwen3 Next 80B (84,7 GB) rechnet für Auftrag a-7f3c mit Priorität hoch',
+      voraussichtlich_frei_in_s: 25,
+      betroffene_auftraege: ['a-e77a'],
+    },
+  };
+  function json(wert, tiefe = 0) {
+    const ein = '  '.repeat(tiefe + 1), aus = '  '.repeat(tiefe);
+    if (Array.isArray(wert)) return `[${wert.map(w => json(w, tiefe)).join(', ')}]`;
+    if (wert && typeof wert === 'object') {
+      const zeilen = Object.entries(wert).map(([k, v]) => `${ein}<span class="k">"${k}"</span>: ${json(v, tiefe + 1)}`);
+      return `{\n${zeilen.join(',\n')}\n${aus}}`;
+    }
+    if (typeof wert === 'number') return `<span class="n">${wert}</span>`;
+    if (typeof wert === 'string') return `<span class="s">"${esc(wert)}"</span>`;
+    return `<span class="w">${wert}</span>`;
+  }
+
+  const a = AUFTRAEGE.find(x => x.kennung === 'a-e77a');
+  const kiste = anwendung('kiste');
+  const mac = knoten('mac-128');
+  const glm = modell('glm-vision');
+
+  const KOPF = `
+    <div class="rahmen-kopf">
+      <div class="seitenkopf">
+        <h1>Nachrichtenverkehr</h1>
+        <span class="zahl" title="Nachrichten in der letzten Stunde, ohne Herzschläge">${zahl(SUMME)}</span><span class="kopfwort">in der letzten Stunde</span>
+        <div class="aktionen">
+          <span class="live-marke" title="Der Strom läuft; neue Nachrichten erscheinen unten"><span class="punkt lebt"></span>Live</span>
+          <button class="knopf" title="Hält die Anzeige an; neue Nachrichten werden gezählt und nach dem Fortsetzen nachgetragen"><i class="fa-solid fa-pause"></i> Strom anhalten</button>
+        </div>
+      </div>
+      <div class="filterzeile">
+        <div class="reiter">
+          <button class="aktiv" title="Beide Richtungen"><i class="fa-solid fa-right-left"></i> Alle</button>
+          <button title="Nur Nachrichten, die bei der Leitstelle eingehen: von Anwendungen, Diensten und Knoten"><i class="fa-solid fa-arrow-left" style="color: var(--ls-info)"></i> An die Leitstelle</button>
+          <button title="Nur Nachrichten, die die Leitstelle verschickt: Antworten, Signale, Befehle"><i class="fa-solid fa-arrow-right" style="color: var(--ls-akzent-schrift)"></i> Von der Leitstelle</button>
+        </div>
+        <div class="rechts">
+          <select class="eingabe" title="Nur Nachrichten eines Teilnehmers zeigen: einer Anwendung, eines Dienstes oder eines Knotens">
+            <option>Alle Teilnehmer</option>
+            <optgroup label="Anwendungen">${ANWENDUNGEN.map(x => `<option>${x.name}</option>`).join('')}</optgroup>
+            <optgroup label="Dienste">${DIENSTE.map(x => `<option>${x.name}</option>`).join('')}</optgroup>
+            <optgroup label="Knoten">${KNOTEN.map(x => `<option>${x.name}</option>`).join('')}</optgroup>
+          </select>
+          <label class="suche-feld" title="Sucht in Art, Kennungen und Inhalt der Nachrichten"><i class="fa-solid fa-magnifying-glass"></i><input placeholder="Art, Kennung oder Inhalt"></label>
+        </div>
+      </div>
+      <div class="filterzeile gruppen">
+        <span class="etikett">Gruppe</span>
+        ${VERTEILUNG.map(([k, n]) => `<button class="chip aktiv gruppe" style="--g:${GRUPPE[k][1]};--g-rgb:${GRUPPE[k][2]}" title="${GRUPPE[k][0]}: ${zahl(n)} Nachrichten in der letzten Stunde${k === 'knoten' ? '; Messwerte erscheinen hier nur, wenn sich eine Stufe ändert, der volle Takt steht im Verlauf' : ''}"><span class="gruppenpunkt"></span>${GRUPPE[k][0]}</button>`).join('')}
+        <button class="chip gedaempft" style="--g:${GRUPPE.herzschlag[1]}" title="Herzschläge kommen alle 10 Sekunden von jeder Anwendung und würden alles zudecken"><span class="gruppenpunkt"></span>Herzschlag</button>
+      </div>
+    </div>`;
+
+  const LINKS = `
+    <div class="strom-kopf">
+      <span class="etikett">Zeit</span><span></span><span class="etikett">Von</span><span class="etikett">An</span><span class="etikett">Art und Inhalt</span>
+    </div>
+    ${NACHRICHTEN.map(zeile).join('')}
+    <div class="strom-fuss"><span class="punkt lebt"></span>Live, ${zahl(NACHRICHTEN.length)} Nachrichten im Fenster 14:54 bis 14:56; ältere über den Verlauf</div>`;
+
+  const RECHTS = `
+    <div class="karte umschlag">
+      <h3><i class="fa-solid fa-envelope-open-text"></i>Umschlag
+        <span class="rechts" style="display:flex; gap:2px">
+          <button class="knopf ohne symbol klein" title="Kopiert den Umschlag als JSON in die Zwischenablage"><i class="fa-regular fa-copy"></i></button>
+          <button class="knopf ohne symbol klein" title="Öffnet die Nachricht als eigene Seite mit allen Bezügen"><i class="fa-solid fa-up-right-from-square"></i></button>
+        </span></h3>
+      <div class="kopfzeile"><code>signal.speicher</code><span>von <b>Leitstelle</b> an <b>Kiste</b></span><span class="zahl">14:56:13</span><span class="rechts">${hilfepunkt('Umschlag des Protokolls Leitstelle/1')}</span></div>
+      <pre>${json(UMSCHLAG)}</pre>
+    </div>
+    <div class="karte bedeutung">
+      <h3><i class="fa-solid fa-comment-dots"></i>Bedeutung</h3>
+      <p><b>Was die Leitstelle Kiste sagt:</b> Auf dem Mac Studio sind nur 5,1 von 128 GB frei, weil das Textmodell gerade für Zusage rechnet; der Auftrag a-e77a (Foto beschreiben) wartet deshalb voraussichtlich noch 25 Sekunden.</p>
+      <p><b>Was Kiste damit tun kann:</b> die Wartezeit anzeigen, einfach weiterwarten, den Auftrag mit <code>auftrag.stoppen</code> zurückziehen oder mit <code>auftrag.prioritaet</code> nach vorn holen; extern rechnen darf Kiste nicht selbst, das stößt nur du in der Übersicht an.</p>
+      <p><b>Was als Nächstes kommt:</b> sobald Zusage fertig ist, meldet die Leitstelle <code>signal.speicher</code> mit Zustand frei, lädt das Bildmodell (<code>signal.modell</code> wird_geladen, dann bereit) und schickt <code>auftrag.laeuft</code>, später <code>auftrag.ergebnis</code>.</p>
+    </div>
+    <div class="karte">
+      <h3><i class="fa-solid fa-diagram-project"></i>Zusammenhang</h3>
+      <div class="bezug">
+        <i class="fa-solid fa-list-check"></i><span>Auftrag <a href="auftraege.html" class="zahl" title="Öffnet den Auftrag in der Auftragsliste">a-e77a</a> <span class="leise">${a.titel} · </span>${zustand(a.zustand)}</span>
+        <i class="fa-solid fa-cubes"></i><span>Anwendung <a href="anwendungen.html" title="Öffnet die Anwendung Kiste">${kiste.name}</a> <span class="leise">auf ${knoten(kiste.knoten).name}, ohne Signalkanal</span></span>
+        <i class="fa-solid fa-server"></i><span>Knoten <a href="knoten.html" title="Öffnet den Knoten Mac Studio">${mac.name}</a> <span class="leise">${zone(mac.zone)} <span class="zahl">${mac.ram} %</span> Speicher belegt</span></span>
+        <i class="fa-solid fa-brain"></i><span>Modell <a href="modelle.html" title="Öffnet das Modell GLM 4.6V Flash">${glm.name}</a> <span class="leise"><span class="zahl">${glm.gb.toLocaleString('de-DE')} GB</span>, ${WORT.zustand[glm.zustand].toLowerCase()}</span></span>
+        <i class="fa-solid fa-reply"></i><span>Antwort darauf: <b>keine nötig</b> <span class="leise">(Signal)</span></span>
+        <i class="fa-solid fa-inbox"></i><span>Zustellung: <span class="leise">Kiste hält keinen Signalkanal offen (nur Fassade); das Signal geht als Hinweis in die wartende Antwort (Kopf <code>X-Leitstelle-Wartet-S</code>, Kommentarzeile im Strom) und steht hier im Verkehr</span></span>
+      </div>
+    </div>
+    <div class="karte statistik">
+      <h3><i class="fa-solid fa-chart-simple"></i>Statistik <span class="rechts">letzte Stunde</span></h3>
+      <div class="etikett" style="margin-bottom: 6px">Nachrichten je Minute</div>
+      ${verlauf(reihe('nachrichten-minute', 60, 42, 38), 'var(--ls-himmel)', 480, 56)}
+      <div class="unterschrift"><span>vor 60 Minuten</span><span>Spitze <span class="zahl">31</span> um <span class="zahl">14:12</span></span><span>jetzt</span></div>
+      <div class="etikett" style="margin: var(--ls-a4) 0 2px">Verteilung nach Gruppe</div>
+      <div class="verteilung">
+        ${VERTEILUNG.map(([k, n]) => `<span style="--g:${GRUPPE[k][1]}">${GRUPPE[k][0]}</span><div class="balken" title="${GRUPPE[k][0]}: ${zahl(n)} von ${zahl(SUMME)}"><b style="width:${(n / SUMME * 100).toFixed(1)}%; --g:${GRUPPE[k][1]}"></b></div><span class="n zahl">${zahl(n)}</span>`).join('')}
+        <span class="leise">Herzschlag</span><div class="balken" title="Herzschläge: ${zahl(HERZSCHLAEGE)}, nicht in der Summe, nicht im Strom"><b style="width:100%; --g:var(--ls-text-3); opacity: 0.35"></b></div><span class="n zahl leise">${zahl(HERZSCHLAEGE)}</span>
+      </div>
+      <div class="klein schwach" style="margin-top: var(--ls-a3)">Summe <span class="zahl">${zahl(SUMME)}</span> ohne Herzschläge; Herzschläge zählt der Verlauf getrennt.</div>
+    </div>`;
+
+  const haupt = document.getElementById('haupt');
+  haupt.innerHTML = KOPF + `<div class="spalten breit-rechts"><div class="rollfeld" id="strom">${LINKS}</div><div class="rollfeld">${RECHTS}</div></div>`;
+  // Der Strom steht wie ein Protokoll unten, beim Neuesten
+  const strom = document.getElementById('strom');
+  strom.scrollTop = strom.scrollHeight;
+</script>
+</body>
+</html>

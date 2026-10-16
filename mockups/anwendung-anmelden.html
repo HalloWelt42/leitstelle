@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leitstelle - Entwurf: Anwendung anmelden</title>
+<link rel="icon" href="symbol.svg">
+<link rel="stylesheet" href="../frontend/node_modules/@fortawesome/fontawesome-free/css/all.min.css">
+<link rel="stylesheet" href="stil.css">
+<style>
+  /* Kopf: Zurück, Titel, Unterzeile, Schrittleiste */
+  .detail-kopf { display: flex; align-items: center; gap: var(--ls-a3); flex-wrap: wrap; }
+  .detail-kopf h1 { margin: 0; }
+  .detail-kopf .unterzeile { width: 100%; color: var(--ls-text-2); margin-top: calc(-1 * var(--ls-a1)); max-width: 900px; }
+  .schrittleiste { margin-top: var(--ls-a4); }
+  .schrittleiste .schritt .nr { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; font-family: var(--ls-schrift-zahl); font-size: var(--ls-gr-marke); font-weight: 700;
+                                background: var(--ls-karte-3); color: var(--ls-text-2); }
+  .schrittleiste .schritt.jetzt .nr { background: var(--ls-akzent); color: var(--ls-akzent-text); }
+  .schrittleiste .schritt.erledigt .nr { background: rgba(var(--ls-erfolg-rgb), 0.18); color: var(--ls-erfolg); }
+
+  /* Schrittkarten: erledigt zusammengeklappt, jetzt offen, offen gedämpft */
+  .schrittkarte h3 .nr { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: var(--ls-ecke); font-family: var(--ls-schrift-zahl); font-weight: 700;
+                         background: var(--ls-karte-2); color: var(--ls-text-2); }
+  .schrittkarte.erledigt h3 .nr { background: rgba(var(--ls-erfolg-rgb), 0.16); color: var(--ls-erfolg); }
+  .schrittkarte.jetzt h3 .nr { background: var(--ls-akzent); color: var(--ls-akzent-text); }
+  .schrittkarte.jetzt { outline: 1px solid rgba(var(--ls-akzent-rgb), 0.55); }
+  .schrittkarte.offen { opacity: 0.6; }
+  .schrittkarte.offen h3 { margin-bottom: 4px; }
+  .schrittkarte h3 .rechts .knopf { margin-top: -6px; margin-bottom: -6px; }
+  .zusammenfassung { display: flex; align-items: center; gap: var(--ls-a2) var(--ls-a3); flex-wrap: wrap; color: var(--ls-text-2); font-size: var(--ls-gr-klein); }
+  .zusammenfassung b { color: var(--ls-text); font-weight: 600; font-size: var(--ls-gr-text); }
+  .zusammenfassung .trenner { color: var(--ls-text-3); }
+  .schrittkarte .etikett { display: block; margin: var(--ls-a4) 0 var(--ls-a2); }
+  .schrittkarte .etikett:first-of-type { margin-top: 0; }
+  .wahl label.gedaempft .eingabezeile { opacity: 0.5; }
+  .wahl .eingabezeile { display: flex; align-items: center; gap: var(--ls-a2); margin-top: var(--ls-a2); font-size: var(--ls-gr-klein); color: var(--ls-text-2); }
+  .wahl .eingabezeile .eingabe { width: 110px; text-align: right; font-family: var(--ls-schrift-zahl); height: 36px; }
+  .wahl label .zone { display: inline-flex; margin: 0 0 0 var(--ls-a2); vertical-align: middle; font-size: var(--ls-gr-marke); }
+  .prio-erklaerung { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--ls-a2); margin-top: var(--ls-a3); }
+  .prio-erklaerung div { padding: var(--ls-a2) var(--ls-a3); border-radius: var(--ls-ecke); background: var(--ls-flaeche); font-size: var(--ls-gr-klein); color: var(--ls-text-2); }
+  .prio-erklaerung div.an { outline: 1px solid rgba(var(--ls-akzent-rgb), 0.5); color: var(--ls-text); }
+  .prio-erklaerung b { display: block; color: var(--ls-text); }
+  .prio-erklaerung .dringend b { color: var(--ls-gefahr); }
+  .prio-erklaerung .hoch b { color: var(--ls-akzent-schrift); }
+  .prio-erklaerung .hintergrund b { color: var(--ls-text-2); }
+  .schrittkarte .einstellung { padding-left: 0; padding-right: 0; }
+  .weiter { display: flex; justify-content: flex-end; margin-top: var(--ls-a4); padding-top: var(--ls-a4); border-top: 1px solid var(--ls-rand); }
+
+  /* Vorschau der Zeile aus der Anwendungsliste */
+  .vorschau { padding: var(--ls-a3); border-radius: var(--ls-ecke); background: var(--ls-flaeche); }
+  .vorschau .oben { display: flex; align-items: center; gap: var(--ls-a3); }
+  .vorschau .name { font-weight: 600; font-size: var(--ls-gr-text); }
+  .vorschau .wo { display: flex; align-items: center; gap: var(--ls-a2); margin-top: 4px; color: var(--ls-text-2); font-size: var(--ls-gr-klein); }
+  .vorschau .oben .zustand { margin-left: auto; }
+  .vorschau .marken { display: flex; flex-wrap: wrap; gap: 4px; margin-top: var(--ls-a3); }
+  .vorschau dl { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 6px var(--ls-a3); font-size: var(--ls-gr-klein); margin: var(--ls-a3) 0 0; }
+  .vorschau dt { color: var(--ls-text-3); }
+  .vorschau dd { margin: 0; }
+  .vorschau dd.prio { font-weight: 600; }
+  .vorschau-satz { font-size: var(--ls-gr-klein); color: var(--ls-text-3); margin-top: var(--ls-a3); }
+
+  /* Code-Blöcke: dunkle Mulde, mindestens 15 px */
+  .cb { margin: 0; padding: var(--ls-a3) var(--ls-a4); background: var(--ls-mulde); border-radius: var(--ls-ecke); font-family: var(--ls-schrift-code); font-size: 15px; line-height: 1.55;
+        color: var(--ls-text); white-space: pre; overflow-x: auto; tab-size: 4; }
+  .cb .k { color: var(--ls-himmel); }
+  .cb .s { color: var(--ls-minze); }
+  .cb .c { color: var(--ls-text-3); }
+  .cb .n { color: var(--ls-honig); }
+  .code-kopf { display: flex; align-items: center; gap: var(--ls-a2); margin: var(--ls-a4) 0 var(--ls-a2); }
+  .code-kopf:first-of-type { margin-top: 0; }
+  .code-kopf .etikett { flex: 1; }
+  .code-satz { font-size: var(--ls-gr-klein); color: var(--ls-text-3); margin-top: var(--ls-a3); }
+
+  /* Hilfe mit Mini-i */
+  .hilfezeile { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: var(--ls-a3); padding: 8px 0; border-top: 1px solid var(--ls-rand); font-size: var(--ls-gr-klein); align-items: start; }
+  .hilfezeile:first-of-type { border-top: 0; padding-top: 0; }
+  .hilfezeile .hilfepunkt { margin-top: 2px; }
+  .hilfezeile b { display: block; color: var(--ls-text); }
+  .hilfezeile span { color: var(--ls-text-2); }
+</style>
+</head>
+<body>
+<div class="schale">
+  <div data-block="kopf"></div>
+  <div data-block="seite"></div>
+  <main class="haupt rahmen" id="haupt"></main>
+  <div data-block="fuss"></div>
+</div>
+
+<script type="module">
+  import { seite, WORT, faehigkeit, zustand, zone, knoten, hilfepunkt } from './gemeinsam.js';
+  seite('anwendungen');
+
+  // Bisher gewählte Werte des Ablaufs (Mitschrift ist in der Beispielwelt noch getrennt)
+  const WAHL = { name: 'Mitschrift', beschreibung: 'Besprechungen transkribieren', knoten: knoten('mac-32'), faehigkeiten: ['hoeren', 'text'], zone: 'heim', prioritaet: 'normal', gleichzeitig: 2 };
+
+  const SCHRITTE = [
+    ['Name und Herkunft', 'erledigt'], ['Fähigkeiten', 'erledigt'], ['Zone, Kosten und Priorität', 'jetzt'], ['Schlüssel', 'offen'], ['Einbau', 'offen'],
+  ];
+  const schrittleiste = SCHRITTE.map(([name, kl], i) => {
+    const pfeil = i < SCHRITTE.length - 1 ? `<span class="pfeil ${kl === 'erledigt' ? (SCHRITTE[i + 1][1] === 'jetzt' ? 'laeuft' : 'erledigt') : ''}"></span>` : '';
+    return `<span class="schritt ${kl}" title="Schritt ${i + 1}: ${name}"><span class="nr">${kl === 'erledigt' ? '<i class="fa-solid fa-check"></i>' : i + 1}</span>${name}</span>${pfeil}`;
+  }).join('');
+
+  const KOPF = `
+    <div class="rahmen-kopf">
+      <div class="detail-kopf">
+        <a class="knopf ohne symbol" href="anwendungen.html" title="Zurück zur Liste; der bisherige Stand des Ablaufs bleibt auf diesem Gerät gemerkt"><i class="fa-solid fa-arrow-left"></i></a>
+        <h1>Anwendung anmelden</h1>
+        <div class="unterzeile">Fünf Schritte bis zum Einbau-Schnipsel; angelegt wird die Anwendung erst, wenn der Schlüssel erzeugt ist.</div>
+      </div>
+      <div class="kette schrittleiste">${schrittleiste}</div>
+    </div>`;
+
+  // ── Links: Schritte als Karten ───────────────────────────────────────
+  const aendern = (nr) => `<span class="rechts"><button class="knopf ohne klein" title="Schritt ${nr} wieder öffnen; spätere Schritte bleiben erhalten"><i class="fa-solid fa-pen"></i> Ändern</button></span>`;
+  const SCHRITT1 = `
+    <div class="karte schrittkarte erledigt">
+      <h3><span class="nr"><i class="fa-solid fa-check"></i></span>Name und Herkunft ${aendern(1)}</h3>
+      <div class="zusammenfassung"><b>${WAHL.name}</b><span class="trenner">·</span><span>${WAHL.beschreibung}</span><span class="trenner">·</span><span>${WAHL.knoten.name}</span>${zone(WAHL.knoten.zone)}</div>
+    </div>`;
+  const SCHRITT2 = `
+    <div class="karte schrittkarte erledigt">
+      <h3><span class="nr"><i class="fa-solid fa-check"></i></span>Fähigkeiten ${aendern(2)}</h3>
+      <div class="zusammenfassung">${WAHL.faehigkeiten.map(faehigkeit).join('')}<span class="leise">Alles Weitere bleibt gesperrt und lässt sich später in den Rechten freigeben.</span></div>
+    </div>`;
+
+  const PRIO = [
+    ['hintergrund', 'Hintergrund', 'Läuft, wenn nichts anderes wartet; darf angehalten werden.'],
+    ['normal', 'Normal', 'Reiht sich ein; typisch für Aufträge ohne wartende Person.'],
+    ['hoch', 'Hoch', 'Kommt vor Normal dran; für Anfragen, auf die jemand wartet.'],
+    ['dringend', 'Dringend', 'Sofort, verdrängt Hintergrundaufträge; nur für Sprache und Antworten im Gespräch.'],
+  ];
+  const SCHRITT3 = `
+    <div class="karte schrittkarte jetzt">
+      <h3><span class="nr">3</span>Zone, Kosten und Priorität <span class="rechts">Wo darf gerechnet werden, was darf es kosten, wie eilig ist es</span></h3>
+      <span class="etikett">Zone</span>
+      <div class="wahl">
+        <label class="an" title="Aufträge laufen nur auf Rechnern im Heimnetz"><span class="kreis"></span><div><b>Nur Heimnetz</b><span>Daten bleiben zu Hause: Mac Studio, MacBook und die Pis rechnen.</span></div></label>
+        <label title="Zusätzlich darf der Server Helsinki über den VPN-Tunnel rechnen"><span class="kreis"></span><div><b>Auch über VPN ${zone('fern')}</b><span>Server Helsinki darf rechnen; Daten laufen verschlüsselt durch den Tunnel.</span></div></label>
+        <label class="gedaempft" title="Zusätzlich dürfen externe Anbieter rechnen, bis die Tagesgrenze erreicht ist"><span class="kreis"></span><div><b>Auch extern ${zone('extern')}</b><span>Externe Anbieter mit Tagesgrenze; danach wartet oder scheitert der Auftrag.</span>
+          <div class="eingabezeile">Tagesgrenze <input class="eingabe" value="2,00" title="Höchstbetrag je Tag für externe Anbieter; nur wirksam, wenn extern gewählt ist"><span class="einheit">Euro</span></div></div></label>
+      </div>
+      <span class="etikett">Priorität ${hilfepunkt('Priorität')}</span>
+      <span class="stufen" title="Vorgabe-Priorität; einzelne Aufträge können abweichen">${PRIO.map(([k, n]) => `<button class="${k === WAHL.prioritaet ? 'an' : ''}">${n}</button>`).join('')}</span>
+      <div class="prio-erklaerung">${PRIO.map(([k, n, t]) => `<div class="${k}${k === WAHL.prioritaet ? ' an' : ''}"><b>${n}</b>${t}</div>`).join('')}</div>
+      <span class="etikett">Ablauf</span>
+      <div class="einstellung">
+        <div><div class="name">Gleichzeitig höchstens</div><div class="erklaerung">Mehr Aufträge werden eingereiht statt gestartet. Für Transkription reichen zwei.</div></div>
+        <div class="wert"><input class="eingabe" value="${WAHL.gleichzeitig}" title="Höchstzahl gleichzeitig laufender Aufträge dieser Anwendung"><span class="einheit">Aufträge</span></div>
+      </div>
+      <div class="weiter">
+        <button class="knopf haupt" title="Speichert Zone, Kosten und Priorität für diesen Ablauf und öffnet Schritt 4"><i class="fa-solid fa-arrow-right"></i> Weiter zu Schritt 4</button>
+      </div>
+    </div>`;
+
+  const SCHRITT4 = `
+    <div class="karte schrittkarte offen">
+      <h3><span class="nr">4</span>Schlüssel</h3>
+      <p class="klein leise">Der Schlüssel wird einmal erzeugt und gezeigt; das Auge deckt ihn auf, er bleibt stabil, bis du ihn bewusst neu erzeugst.</p>
+    </div>`;
+  const SCHRITT5 = `
+    <div class="karte schrittkarte offen">
+      <h3><span class="nr">5</span>Einbau</h3>
+      <p class="klein leise">Einbau-Schnipsel für Python, TypeScript und nur-Adresse; danach wartet "Verbindung prüfen" auf die erste Nachricht von ${WAHL.name}.</p>
+    </div>`;
+
+  // ── Rechts: Vorschau, Einbau-Vorschau, Hilfe ─────────────────────────
+  const VORSCHAU = `
+    <div class="karte">
+      <h3><i class="fa-solid fa-eye"></i>So erscheint die Anwendung <span class="rechts">Zeile in der Liste</span></h3>
+      <div class="vorschau">
+        <div class="oben">
+          <div><div class="name">${WAHL.name}</div><div class="wo">${WAHL.knoten.name} ${zone(WAHL.knoten.zone)}</div></div>
+          <span title="Verbindet sich erst nach dem Einbau in Schritt 5">${zustand('getrennt')}</span>
+        </div>
+        <div class="marken">${WAHL.faehigkeiten.map(faehigkeit).join('')}</div>
+        <dl>
+          <dt>Priorität</dt><dd class="prio">${WORT.prioritaet[WAHL.prioritaet]}</dd>
+          <dt>Zone</dt><dd>Nur ${WORT.zone[WAHL.zone]}</dd>
+          <dt>Extern</dt><dd><i class="fa-solid fa-house schwach"></i> Nein</dd>
+          <dt>Gleichzeitig</dt><dd>höchstens <span class="zahl">${WAHL.gleichzeitig}</span> Aufträge</dd>
+          <dt>Heute</dt><dd><span class="zahl">0</span> Aufträge · <span class="zahl">0</span> Token</dd>
+        </dl>
+      </div>
+      <p class="vorschau-satz">Zustand und Weg der Anbindung ergeben sich aus dem Einbau in Schritt 5.</p>
+    </div>`;
+
+  const PYTHON = `<span class="k">from</span> leitstelle <span class="k">import</span> Leitstelle
+
+ls = Leitstelle(
+    <span class="s">"http://leitstelle.local:8530"</span>,
+    schluessel=SCHLUESSEL,  <span class="c"># kommt aus Schritt 4</span>
+)
+
+auftrag = ls.auftrag(
+    faehigkeit=<span class="s">"hoeren"</span>,
+    datei=<span class="s">"besprechung.wav"</span>,
+    prioritaet=<span class="s">"${WAHL.prioritaet}"</span>,
+)
+
+ls.signale(
+    auf_speicher=<span class="k">lambda</span> s: auftrag.anhalten(),
+    auf_pause=<span class="k">lambda</span>: aufnahme.pausieren(),
+)`;
+  const ADRESSE = `OPENAI_BASE_URL=<span class="s">http://leitstelle.local:8530/v1</span>
+OPENAI_API_KEY=<span class="n">ls_</span>...  <span class="c"># Schlüssel aus Schritt 4</span>`;
+  const EINBAU = `
+    <div class="karte">
+      <h3><i class="fa-solid fa-code"></i>Einbau-Vorschau <span class="rechts">mit den bisher gewählten Werten</span></h3>
+      <div class="code-kopf"><span class="etikett">Python mit leitstelle-client</span><button class="knopf ohne symbol klein" title="Schnipsel kopieren; der Schlüssel wird nach Schritt 4 eingesetzt"><i class="fa-solid fa-copy"></i></button></div>
+      <pre class="cb">${PYTHON}</pre>
+      <div class="code-kopf"><span class="etikett">Nur Adresse umstellen</span><button class="knopf ohne symbol klein" title="Schnipsel kopieren; bringt Stufe 1 ohne Signale, Umbau später möglich"><i class="fa-solid fa-copy"></i></button></div>
+      <pre class="cb">${ADRESSE}</pre>
+      <p class="code-satz">Nur-Adresse ist Stufe 1 der Anbindung: keine Signale, aber sofort einsatzbereit. Der TypeScript-Schnipsel folgt in Schritt 5.</p>
+    </div>`;
+
+  const HILFE = `
+    <div class="karte">
+      <h3><i class="fa-solid fa-circle-question"></i>Hilfe</h3>
+      <div class="hilfezeile">${hilfepunkt('Zonen')}<div><b>Zonen</b><span>Heimnetz, über VPN, extern: wo Daten hindürfen und was es kostet.</span></div></div>
+      <div class="hilfezeile">${hilfepunkt('Priorität')}<div><b>Priorität</b><span>Wie die Leitstelle Aufträge einreiht und wann sie Hintergrundarbeit verdrängt.</span></div></div>
+      <div class="hilfezeile">${hilfepunkt('Signalkanal')}<div><b>Signalkanal</b><span>Welche Signale eine Anwendung bekommt und wie sie darauf reagieren sollte.</span></div></div>
+    </div>`;
+
+  document.getElementById('haupt').innerHTML = KOPF + `<div class="spalten breit-rechts"><div class="rollfeld">${SCHRITT1}${SCHRITT2}${SCHRITT3}${SCHRITT4}${SCHRITT5}</div><div class="rollfeld">${VORSCHAU}${EINBAU}${HILFE}</div></div>`;
+</script>
+</body>
+</html>

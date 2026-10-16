@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leitstelle - Entwurf: Erster Start</title>
+<link rel="icon" href="symbol.svg">
+<link rel="stylesheet" href="../frontend/node_modules/@fortawesome/fontawesome-free/css/all.min.css">
+<link rel="stylesheet" href="stil.css">
+<style>
+  .ueber-kopf { display: flex; align-items: center; gap: var(--ls-a4); flex-wrap: wrap; }
+  .ueber-kopf h1 { margin: 0; }
+  .ueber-kopf .lagezeile { color: var(--ls-text-2); }
+  .ueber-kopf .lagezeile b { color: var(--ls-erfolg); font-weight: 600; }
+  .kennzahlen { margin-top: var(--ls-a3); }
+  .kennzahl.still b { color: var(--ls-text-3); }
+
+  /* Einrichtung in Schritten */
+  .einrichtung-kopf { display: flex; align-items: baseline; gap: var(--ls-a3); margin-bottom: var(--ls-a3); }
+  .einrichtung-kopf h2 { margin: 0; }
+  .einrichtung-kopf .stand { margin-left: auto; font-size: var(--ls-gr-klein); color: var(--ls-text-3); }
+  .schritte { margin-top: var(--ls-a4); display: grid; gap: var(--ls-a3); }
+  .schritte .karte + .karte { margin-top: 0; }
+  .schritt-karte { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: var(--ls-a3) var(--ls-a4); }
+  .schritt-karte .nummer { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; background: var(--ls-karte-2);
+                           font-family: var(--ls-schrift-zahl); font-size: var(--ls-gr-titel); font-weight: 700; color: var(--ls-text-3); }
+  .schritt-karte.erledigt .nummer { background: rgba(var(--ls-erfolg-rgb), 0.14); color: var(--ls-erfolg); }
+  .schritt-karte.jetzt .nummer { background: var(--ls-akzent); color: var(--ls-akzent-text); }
+  .schritt-karte.jetzt { outline: 1px solid rgba(var(--ls-akzent-rgb), 0.55); }
+  .schritt-karte.offen { color: var(--ls-text-2); }
+  .schritt-karte.offen h3 { color: var(--ls-text); }
+  .schritt-karte h3 { display: flex; align-items: center; gap: var(--ls-a2); margin: 0; min-height: 44px; }
+  .schritt-karte h3 .zustand { margin-left: auto; }
+  .schritt-karte .inhalt { grid-column: 2; }
+  .angaben { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 6px var(--ls-a3); font-size: var(--ls-gr-klein); margin: 0; }
+  .angaben dt { color: var(--ls-text-3); }
+  .angaben dd { margin: 0; }
+
+  /* Befehl mit Reitern */
+  .befehl-reiter { margin-top: var(--ls-a3); }
+  .befehl-reiter .reiter { margin-bottom: var(--ls-a2); }
+  .codeblock { margin: 0; padding: var(--ls-a3) var(--ls-a4); background: var(--ls-mulde); border-radius: var(--ls-ecke);
+               font-family: var(--ls-schrift-code); font-size: var(--ls-gr-klein); line-height: 1.55; color: var(--ls-text);
+               white-space: pre-wrap; overflow-wrap: anywhere; }
+  .codeblock .wort { white-space: nowrap; }
+  .codeblock .schluessel { color: var(--ls-akzent-schrift); }
+  .befehl-fuss { display: flex; align-items: center; gap: var(--ls-a3); margin-top: var(--ls-a3); flex-wrap: wrap; }
+  .befehl-fuss .erklaert { font-size: var(--ls-gr-klein); color: var(--ls-text-2); }
+  .befehl-fuss .knopf { margin-left: auto; }
+  .befehl-feld[hidden] { display: none; }
+  .hinweis.agent { margin-top: var(--ls-a3); display: grid; grid-template-columns: 24px minmax(0, 1fr); }
+  .hinweis.agent .zeile-h + .zeile-h { margin-top: 4px; }
+  .hinweis.agent .zeile-h b { font-weight: 600; }
+
+  /* Erkennung */
+  .erkennung .balken { margin-top: var(--ls-a2); }
+  .erkennung .warten { display: flex; align-items: center; gap: var(--ls-a2); margin-top: var(--ls-a2); font-size: var(--ls-gr-klein); color: var(--ls-text-2); }
+  .dienstarten { margin-top: var(--ls-a3); display: grid; gap: 2px; }
+  .dienstarten .d { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: var(--ls-a2); align-items: center; padding: 6px var(--ls-a2);
+                    border-radius: var(--ls-ecke); font-size: var(--ls-gr-klein); color: var(--ls-text); }
+  .dienstarten .d:hover { background: var(--ls-flaeche); }
+  .dienstarten .d i { text-align: center; color: var(--ls-text-3); }
+  .dienstarten .d .wie { color: var(--ls-text-3); }
+  .dienstarten .d .marken { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+
+  /* Rechte Spalte */
+  .tut .punkt-z { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: var(--ls-a3); padding: var(--ls-a2) 0; border-top: 1px solid var(--ls-rand); }
+  .tut .punkt-z:first-of-type { border-top: 0; padding-top: 0; }
+  .tut .punkt-z .symbol { width: 38px; height: 38px; display: grid; place-items: center; border-radius: var(--ls-ecke); background: rgba(var(--f-rgb), var(--ls-tint)); color: var(--f); }
+  .tut .punkt-z b { display: block; }
+  .tut .punkt-z p { font-size: var(--ls-gr-klein); color: var(--ls-text-2); margin-top: 2px; }
+  .netzleer { background: var(--ls-mulde); border-radius: var(--ls-ecke); }
+  .netzleer .leer { padding: var(--ls-a6) var(--ls-a5); }
+  .versteckt { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+<div class="schale">
+  <div data-block="kopf"></div>
+  <div data-block="seite"></div>
+  <main class="haupt rahmen" id="haupt"></main>
+  <div data-block="fuss"></div>
+</div>
+
+<script type="module">
+  import { seite, APP, FARBE, faehigkeit } from './gemeinsam.js';
+  seite('uebersicht', { lage: 'ruhig' });
+
+  // Fußleiste und Navi-Zähler an das Szenario angleichen. Gehört als Option in seite() von gemeinsam.js.
+  function schaleAngleichen({ laufen, warten, speicher, extern, knotenText, knotenKlasse, zaehler }) {
+    const fuss = document.querySelector('.fuss');
+    const felder = fuss.querySelectorAll(':scope > span');
+    felder[0].innerHTML = `<i class="fa-solid fa-circle-play"></i>&nbsp; <span class="zahl">${laufen}</span> Aufträge laufen · <span class="zahl">${warten}</span> warten`;
+    felder[1].innerHTML = `<i class="fa-solid fa-memory"></i>&nbsp; ${speicher}`;
+    felder[2].innerHTML = `<i class="fa-solid fa-cloud"></i>&nbsp; Extern heute <span class="zahl">${extern}</span>`;
+    fuss.querySelector('.rechts span[title]').innerHTML = `<span class="punkt ${knotenKlasse}"></span>${knotenText}`;
+    for (const [schluessel, wert] of Object.entries(zaehler)) {
+      const z = document.querySelector(`.navi[href="${schluessel}.html"] .zaehler`);
+      if (!z) continue;
+      if (wert == null) z.remove(); else z.textContent = wert;
+    }
+  }
+  schaleAngleichen({ laufen: 0, warten: 0, speicher: 'Noch kein Knoten gemeldet', extern: '0,00 Euro', knotenText: '<span class="zahl">0</span> Knoten', knotenKlasse: 'aus',
+                     zaehler: { auftraege: null, knoten: null, dienste: null, modelle: null, anwendungen: null } });
+  // Die Lage im Kopf erklärt, warum sie ruhig ist
+  document.querySelector('.kopf .lage').title = 'Noch kein Knoten angemeldet, deshalb keine Aufträge und keine Wartezeiten.';
+
+  const ADRESSE = 'http://leitstelle.local:8530';
+  const SCHLUESSEL = 'ls-knoten-7f3c9a21';
+  const BEFEHLE = {
+    mac: { name: 'Mac', symbol: 'fa-laptop', zeile: `curl -fsSL ${ADRESSE}/agent/installieren.sh | sh -s -- --schluessel ${SCHLUESSEL}`,
+           erklaert: 'Richtet den Agenten als Anmeldeobjekt ein; er startet mit dem System und meldet sich selbst bei der Leitstelle an.' },
+    pi: { name: 'Raspberry Pi', symbol: 'fa-microchip', zeile: `curl -fsSL ${ADRESSE}/agent/installieren.sh | sudo sh -s -- --schluessel ${SCHLUESSEL}`,
+          erklaert: 'Richtet einen Systemdienst ein, dafür wird sudo gebraucht; der Agent meldet sich selbst bei der Leitstelle an.' },
+    linux: { name: 'Linux-Server', symbol: 'fa-server', zeile: `curl -fsSL ${ADRESSE}/agent/installieren.sh | sudo sh -s -- --schluessel ${SCHLUESSEL} --zone fern`,
+             erklaert: 'Für Rechner außerhalb des Heimnetzes (über VPN): Zone fern. Die Adresse der Leitstelle gegebenenfalls anpassen.' },
+  };
+  const befehlHtml = (b) => b.zeile.split(' ').map(w => `<span class="wort${w === SCHLUESSEL ? ' schluessel' : ''}">${w}</span>`).join(' ');
+
+  const KOPF = `
+    <div class="rahmen-kopf">
+      <div class="ueber-kopf">
+        <h1>Übersicht</h1>
+        <span class="lagezeile"><b>Lage ruhig:</b> Die Leitstelle läuft, aber noch kein Knoten hat sich angemeldet. Richte jetzt den ersten Rechner ein.</span>
+      </div>
+      <div class="kennzahlen">
+        <div class="kennzahl still"><b>0</b><span>Läuft</span></div>
+        <div class="kennzahl still"><b>0</b><span>Wartet</span></div>
+        <div class="kennzahl still"><b>0</b><span>Pausiert</span></div>
+        <div class="kennzahl still"><b>0</b><span>Heute fertig</span></div>
+        <div class="kennzahl still"><b>0</b><span>Fehler</span></div>
+        <div class="kennzahl still"><b>0</b><span>Knoten</span><small>noch keiner angemeldet</small></div>
+      </div>
+    </div>`;
+
+  const KETTE = `
+    <div class="kette" aria-label="Fortschritt der Einrichtung">
+      <span class="schritt erledigt" title="Schritt 1: Leitstelle läuft"><i class="fa-solid fa-check"></i>Leitstelle läuft</span><span class="pfeil laeuft"></span>
+      <span class="schritt jetzt" title="Schritt 2: Knoten-Agent auf dem ersten Rechner installieren"><i class="fa-solid fa-download"></i>Agent installieren</span><span class="pfeil"></span>
+      <span class="schritt offen" title="Schritt 3: Dienste werden erkannt"><i class="fa-regular fa-circle"></i>Dienste erkennen</span><span class="pfeil"></span>
+      <span class="schritt offen" title="Schritt 4: Erste Anwendung anmelden"><i class="fa-regular fa-circle"></i>Erste Anwendung</span>
+    </div>`;
+
+  const SCHRITT_1 = `
+    <div class="karte schritt-karte erledigt">
+      <div class="nummer">1</div>
+      <h3>Leitstelle läuft <span class="zustand fertig"><i class="fa-solid fa-check"></i>Erledigt</span></h3>
+      <div class="inhalt">
+        <dl class="angaben">
+          <dt>Adresse</dt><dd><code>${ADRESSE}</code> <span class="leise">im Heimnetz, Oberfläche und Nachrichtenkanal</span></dd>
+          <dt>Version</dt><dd><span class="zahl">${APP.version}</span></dd>
+          <dt>Schnittstellen</dt><dd>Nachrichtenkanal <code>/api/kanal</code>, Nachrichten <code>/api/nachrichten</code>, OpenAI-Fassade <code>/v1</code> bereit</dd>
+        </dl>
+      </div>
+    </div>`;
+
+  const SCHRITT_2 = `
+    <div class="karte schritt-karte jetzt">
+      <div class="nummer">2</div>
+      <h3>Knoten-Agent auf dem ersten Rechner installieren <span class="zustand laeuft"><i class="fa-solid fa-location-arrow"></i>Jetzt</span></h3>
+      <div class="inhalt">
+        <p>Ein Befehl je Rechnerart. Der Agent meldet sich danach selbst bei der Leitstelle an; der Rechner erscheint hier als Knoten.</p>
+        <div class="befehl-reiter">
+          <div class="reiter" id="reiter" role="tablist">
+            ${Object.entries(BEFEHLE).map(([k, b], i) => `<button role="tab" class="${i === 0 ? 'aktiv' : ''}" data-ziel="${k}" title="Befehl für ${b.name} anzeigen"><i class="fa-solid ${b.symbol}"></i> ${b.name}</button>`).join('')}
+          </div>
+          ${Object.entries(BEFEHLE).map(([k, b], i) => `<div class="befehl-feld" data-feld="${k}" ${i === 0 ? '' : 'hidden'}>
+            <pre class="codeblock" title="Im Terminal des Rechners ausführen; lädt das Installationsskript von der Leitstelle und übergibt den Einmal-Schlüssel">${befehlHtml(b)}</pre>
+            <div class="befehl-fuss">
+              <span class="erklaert">${b.erklaert}</span>
+              <button class="knopf haupt" data-kopieren="${k}" title="Kopiert den Befehl in die Zwischenablage; danach im Terminal des Rechners einfügen"><i class="fa-solid fa-copy"></i> Befehl kopieren</button>
+            </div>
+          </div>`).join('')}
+        </div>
+        <div class="klein leise" style="margin-top: var(--ls-a3)">Einmal-Schlüssel <code>${SCHLUESSEL}</code>, gilt 24 Stunden; beim ersten Kontakt tauscht ihn der Agent gegen ein dauerhaftes Geheimnis.</div>
+        <div class="hinweis agent" title="Der Agent liefert alle fünf Sekunden Messwerte und die Liste der Dienste und geladenen Modelle. Er führt nur Befehle der Leitstelle aus, zum Beispiel ein Modell entladen. Dateien, Eingaben oder Ergebnisse liest er nie.">
+          <i class="fa-solid fa-shield-halved"></i>
+          <div>
+            <div class="zeile-h"><b>Liefert:</b> CPU, Grafik, Arbeitsspeicher, Platte, Temperatur, Netz, laufende Dienste und geladene Modelle.</div>
+            <div class="zeile-h"><b>Tut sonst nichts:</b> meldet nur und entlädt auf Befehl Modelle. Dateien, Eingaben oder Ergebnisse liest er nie.</div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  const DIENSTARTEN = [
+    ['fa-brain', 'OpenAI-kompatibler Modell-Läufer', 'an Port 1234', ['text', 'einbettung', 'bild']],
+    ['fa-microphone-lines', 'txt2voice', 'eigene Schnittstelle', ['stimme', 'hoeren']],
+    ['fa-ear-listen', 'Whisper-Dienst', 'Transkription', ['hoeren']],
+    ['fa-image', 'Bild-Werkbank', 'Bilder erzeugen und freistellen', ['bild']],
+    ['fa-plug', 'Eigener Adapter', 'meldet seine Fähigkeiten selbst über dienst.anmelden', ['werkzeug', 'musik']],
+  ];
+  const SCHRITT_3 = `
+    <div class="karte schritt-karte offen erkennung">
+      <div class="nummer">3</div>
+      <h3>Dienste werden erkannt <span class="zustand aus"><i class="fa-regular fa-circle"></i>Offen</span></h3>
+      <div class="inhalt">
+        <div class="balken unbestimmt" title="Läuft, sobald der erste Knoten meldet; der Agent sucht dann auf dem Rechner nach bekannten Diensten"><b></b></div>
+        <div class="warten"><i class="fa-solid fa-satellite-dish"></i>Wartet auf die erste Meldung eines Knotens ...</div>
+        <div class="etikett" style="margin-top: var(--ls-a3)">Erkannt werden</div>
+        <div class="dienstarten">
+          ${DIENSTARTEN.map(([s, n, w, f]) => `<div class="d"><i class="fa-solid ${s}"></i><span>${n} <span class="wie">· ${w}</span></span><span class="marken">${f.map(faehigkeit).join('')}</span></div>`).join('')}
+        </div>
+      </div>
+    </div>`;
+
+  const SCHRITT_4 = `
+    <div class="karte schritt-karte offen">
+      <div class="nummer">4</div>
+      <h3>Erste Anwendung anmelden <span class="zustand aus"><i class="fa-regular fa-circle"></i>Offen</span></h3>
+      <div class="inhalt">
+        <p class="klein">Jede Anwendung bekommt einen eigenen Zugang mit Fähigkeiten, Priorität und Regeln. Danach schickt sie Aufträge über den Nachrichtenkanal oder die OpenAI-Fassade. Das geht schon jetzt; Aufträge laufen, sobald ein Knoten Dienste meldet.</p>
+        <div style="margin-top: var(--ls-a3)"><a class="knopf" href="anwendung-anmelden.html" title="Führt in Schritten zum Zugang und zum Einbau-Schnipsel für die Anwendung"><i class="fa-solid fa-plus"></i> Anwendung anmelden</a></div>
+      </div>
+    </div>`;
+
+  const LINKS = `
+    <div class="einrichtung-kopf"><h2>Einrichtung in Schritten</h2><span class="stand">Schritt <span class="zahl">2</span> von <span class="zahl">4</span></span></div>
+    ${KETTE}
+    <div class="schritte">${SCHRITT_1}${SCHRITT_2}${SCHRITT_3}${SCHRITT_4}</div>`;
+
+  const TUT = [
+    ['fa-server', 'text', 'Kennt Rechner und Dienste', 'Jeder Knoten meldet Messwerte, Dienste und Modelle. Die Leitstelle weiß immer, wo welche Fähigkeit gerade verfügbar ist.'],
+    ['fa-list-check', 'hoeren', 'Vermittelt Aufträge nach Priorität', 'Anwendungen legen Aufträge an; die Leitstelle wählt Knoten und Modell, reiht ein, pausiert und zieht vor.'],
+    ['fa-memory', 'bild', 'Verwaltet Speicher und Modelle', 'Lädt und entlädt Modelle nach Bedarf, schützt kleine Dauerläufer und hält ein Speicherbudget je Knoten ein.'],
+    ['fa-paper-plane', 'stimme', 'Gibt Anwendungen Signale zurück', 'Wartet auf Speicher, pausiert, Lage, Kosten: Anwendungen erfahren, was mit ihrem Auftrag passiert, und können reagieren.'],
+  ];
+  const RECHTS = `
+    <div class="karte tut">
+      <h3><i class="fa-solid fa-tower-observation"></i>Was die Leitstelle tut</h3>
+      ${TUT.map(([s, f, t, p]) => `<div class="punkt-z" style="--f:${FARBE[f][0]};--f-rgb:${FARBE[f][1]}"><div class="symbol"><i class="fa-solid ${s}"></i></div><div><b>${t}</b><p>${p}</p></div></div>`).join('')}
+    </div>
+    <div class="karte">
+      <h3><i class="fa-solid fa-diagram-project"></i>Netzbild</h3>
+      <div class="netzleer"><div class="leer"><i class="fa-solid fa-diagram-project"></i><p>Hier erscheinen Anwendungen, Leitstelle und Knoten, sobald der erste Rechner meldet.</p></div></div>
+    </div>`;
+
+  document.getElementById('haupt').innerHTML = KOPF + `<div class="spalten"><div class="rollfeld">${LINKS}</div><div class="rollfeld">${RECHTS}</div></div>`;
+
+  // Reiter umschalten
+  document.getElementById('reiter').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-ziel]'); if (!b) return;
+    document.querySelectorAll('#reiter button').forEach(x => x.classList.toggle('aktiv', x === b));
+    document.querySelectorAll('.befehl-feld').forEach(f => { f.hidden = f.dataset.feld !== b.dataset.ziel; });
+  });
+  // Befehl kopieren, Rückmeldung als schwebende Meldung (kein Browser-Dialog)
+  document.querySelectorAll('[data-kopieren]').forEach(k => k.addEventListener('click', async () => {
+    const text = BEFEHLE[k.dataset.kopieren].zeile;
+    try { await navigator.clipboard.writeText(text); } catch {}
+    const m = document.createElement('div'); m.className = 'meldung'; m.innerHTML = '<i class="fa-solid fa-check"></i>Befehl kopiert. Im Terminal des Rechners einfügen.';
+    document.body.append(m); setTimeout(() => m.remove(), 2600);
+  }));
+</script>
+</body>
+</html>

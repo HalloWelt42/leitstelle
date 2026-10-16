@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leitstelle - Entwurf: Auftrag stoppen</title>
+<link rel="icon" href="symbol.svg">
+<link rel="stylesheet" href="../frontend/node_modules/@fortawesome/fontawesome-free/css/all.min.css">
+<link rel="stylesheet" href="stil.css">
+<style>
+  .reiterleiste { display: flex; align-items: center; gap: var(--ls-a2); margin-top: var(--ls-a3); flex-wrap: wrap; }
+  .reiterleiste .reiter { margin: 0; }
+  .reiterleiste .rechts { margin-left: auto; display: flex; gap: var(--ls-a2); align-items: center; }
+
+  /* Eine Zeile je Auftrag */
+  .gruppe { margin: var(--ls-a4) 0 var(--ls-a2); display: flex; align-items: baseline; gap: var(--ls-a2); }
+  .gruppe .zaehler { margin-left: 2px; }
+  .auftrag { display: grid; grid-template-columns: 34px minmax(0, 1fr) 128px 118px auto; gap: var(--ls-a3); align-items: center;
+             padding: var(--ls-a3); border-radius: var(--ls-ecke); cursor: pointer; }
+  .auftrag + .auftrag { margin-top: 2px; }
+  .auftrag:hover { background: var(--ls-flaeche); }
+  .auftrag.gewaehlt { background: var(--ls-karte); outline: 1px solid rgba(var(--ls-akzent-rgb), 0.55); }
+  .auftrag .symbol { display: grid; place-items: center; width: 34px; height: 34px; border-radius: var(--ls-ecke); background: rgba(var(--f-rgb), var(--ls-tint)); color: var(--f); }
+  .auftrag .titel { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .auftrag .zweit { display: flex; gap: var(--ls-a3); align-items: center; font-size: var(--ls-gr-klein); color: var(--ls-text-2); margin-top: 3px; flex-wrap: wrap; }
+  .auftrag .zweit .app { color: var(--ls-text); font-weight: 500; }
+  .auftrag .balken { margin-top: 8px; }
+  .auftrag .grund { font-size: var(--ls-gr-klein); color: var(--ls-text-3); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .auftrag .rest { font-size: var(--ls-gr-klein); color: var(--ls-text-2); text-align: right; }
+  .auftrag .rest b { display: block; color: var(--ls-text); font-family: var(--ls-schrift-zahl); }
+  .auftrag .prio { font-size: var(--ls-gr-klein); text-align: right; }
+  .auftrag .prio.dringend { color: var(--ls-gefahr); font-weight: 700; }
+  .auftrag .prio.hoch { color: var(--ls-akzent-schrift); font-weight: 600; }
+  .auftrag .prio.hintergrund { color: var(--ls-text-3); }
+  .auftrag .knoepfe { display: flex; gap: 2px; }
+
+  /* Rechts: Einzelheiten */
+  .einzel h2 { display: flex; align-items: center; gap: var(--ls-a2); flex-wrap: wrap; }
+  .einzel h2 .zustand { margin-left: auto; }
+  .einzel .unter { color: var(--ls-text-2); margin-top: 4px; font-size: var(--ls-gr-klein); }
+  .angaben { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 6px var(--ls-a3); font-size: var(--ls-gr-klein); margin-top: var(--ls-a3); }
+  .angaben dt { color: var(--ls-text-3); }
+  .angaben dd { margin: 0; }
+  .ausgabe { margin-top: var(--ls-a3); padding: var(--ls-a3) var(--ls-a4); background: var(--ls-mulde); border-radius: var(--ls-ecke); font-size: var(--ls-gr-klein);
+             line-height: 1.55; color: var(--ls-text-2); max-height: 170px; overflow: hidden; position: relative; }
+  .ausgabe::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 48px; background: linear-gradient(transparent, var(--ls-mulde)); }
+  .ausgabe .cursor { display: inline-block; width: 9px; height: 1.1em; background: var(--ls-akzent); vertical-align: text-bottom; animation: blinken 1s steps(2) infinite; }
+  .zeitleiste { margin-top: var(--ls-a3); display: grid; gap: 0; }
+  .zeitleiste .e { display: grid; grid-template-columns: 62px 18px minmax(0, 1fr); gap: var(--ls-a2); font-size: var(--ls-gr-klein); padding: 4px 0; align-items: baseline; }
+  .zeitleiste .e .zeit { color: var(--ls-text-3); min-width: 0; }
+  .zeitleiste .e i { font-size: 10px; color: var(--ls-text-3); text-align: center; }
+  .zeitleiste .e.signal i { color: var(--ls-akzent-schrift); font-size: 13px; }
+  .zeitleiste .e.jetzt i { color: var(--ls-akzent-schrift); animation: blinken 1.6s ease-in-out infinite; }
+  .tun { display: flex; gap: var(--ls-a2); flex-wrap: wrap; margin-top: var(--ls-a3); }
+  .signalkarte .s { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: var(--ls-a2); padding: 8px 0; border-top: 1px solid var(--ls-rand); font-size: var(--ls-gr-klein); align-items: baseline; }
+  .signalkarte .s:first-of-type { border-top: 0; }
+  .signalkarte .s i { text-align: center; color: var(--ls-akzent-schrift); }
+  .signalkarte .s.zurueck i { color: var(--ls-info); }
+  .signalkarte .s code { font-size: 13px; }
+
+  /* Dialog: Auftrag stoppen */
+  .dialog.stoppen { width: min(1180px, calc(100vw - 48px)); max-height: calc(100vh - 48px); overflow-y: auto; }
+  .dialog-spalten { display: grid; grid-template-columns: minmax(0, 1fr) 560px; gap: var(--ls-a5); margin-top: var(--ls-a4); align-items: start; }
+  .dialog.stoppen h2 i { color: var(--ls-gefahr); }
+  .dialog .lage-satz { color: var(--ls-text-2); font-size: var(--ls-gr-klein); }
+  .dialog .lage-satz .zahl { color: var(--ls-text); font-weight: 600; }
+  .dialog .lage-balken { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--ls-a3); align-items: center; margin-top: var(--ls-a2); font-size: var(--ls-gr-klein); color: var(--ls-text-2); }
+  .dialog .wahl { margin-top: 0; }
+  .dialog .wahl strong { font-weight: 600; }
+  .dialog .wahl .folge { margin-top: 4px; }
+  .empfohlen { display: inline-block; margin-left: var(--ls-a2); padding: 1px 8px; vertical-align: 2px; border-radius: var(--ls-ecke-klein);
+               font-size: var(--ls-gr-marke); font-weight: 700; font-style: normal; letter-spacing: 0.04em; color: var(--ls-erfolg); background: rgba(var(--ls-erfolg-rgb), 0.14); }
+  .dialog .feld { margin-top: var(--ls-a4); display: grid; gap: 6px; }
+  .dialog .feld label { font-size: var(--ls-gr-klein); font-weight: 600; color: var(--ls-text-2); }
+  .dialog .feld textarea { width: 100%; }
+  .aufklapp { margin-top: 0; padding: 0; }
+  .aufklapp summary { list-style: none; display: flex; align-items: center; gap: var(--ls-a2); padding: var(--ls-a3) var(--ls-a4); cursor: pointer; font-weight: 600; }
+  .aufklapp summary::-webkit-details-marker { display: none; }
+  .aufklapp summary .pfeil-auf { color: var(--ls-text-3); transition: transform var(--ls-schnell); }
+  .aufklapp[open] summary .pfeil-auf { transform: rotate(90deg); }
+  .aufklapp summary .rechts { margin-left: auto; font-weight: 500; font-size: var(--ls-gr-klein); color: var(--ls-text-3); }
+  .aufklapp .inhalt { padding: 0 var(--ls-a4) var(--ls-a4); }
+  .aufklapp .inhalt .erklaert { font-size: var(--ls-gr-klein); color: var(--ls-text-2); margin-bottom: var(--ls-a2); }
+  .codeblock { margin: 0; padding: var(--ls-a3) var(--ls-a4); background: var(--ls-mulde); border-radius: var(--ls-ecke);
+               font-family: var(--ls-schrift-code); font-size: var(--ls-gr-klein); line-height: 1.5; color: var(--ls-text-2);
+               white-space: pre-wrap; overflow-wrap: anywhere; }
+  .codeblock .k { color: var(--ls-text); }
+  .codeblock .s { color: var(--ls-himmel); }
+  .codeblock .n { color: var(--ls-akzent-schrift); font-family: var(--ls-schrift-zahl); }
+  .versteckt { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+<div class="schale">
+  <div data-block="kopf"></div>
+  <div data-block="seite"></div>
+  <main class="haupt rahmen" id="haupt"></main>
+  <div data-block="fuss"></div>
+</div>
+
+<script type="module">
+  import { seite, AUFTRAEGE, WORT, FARBE, faehigkeit, zustand, zone, anwendung, modell, knoten, dienst, zahl, hilfepunkt } from './gemeinsam.js';
+  seite('auftraege');
+
+  const gewaehlt = 'a-7f3c';
+  const gruppen = [
+    ['Läuft', AUFTRAEGE.filter(a => a.zustand === 'laeuft')],
+    ['Wartet', AUFTRAEGE.filter(a => a.zustand === 'wartet' || a.zustand === 'wartet_speicher')],
+    ['Pausiert', AUFTRAEGE.filter(a => a.zustand === 'pausiert')],
+    ['Zuletzt', AUFTRAEGE.filter(a => a.zustand === 'fertig' || a.zustand === 'fehler')],
+  ];
+
+  const zeile = (a) => {
+    const laeuft = a.zustand === 'laeuft';
+    return `<div class="auftrag${a.kennung === gewaehlt ? ' gewaehlt' : ''}" style="--f:${FARBE[a.faehigkeit][0]};--f-rgb:${FARBE[a.faehigkeit][1]}">
+      <div class="symbol" title="${WORT.faehigkeit[a.faehigkeit]}"><i class="fa-solid ${WORT.faehigkeit_symbol[a.faehigkeit]}"></i></div>
+      <div style="min-width:0">
+        <div class="titel">${a.titel}</div>
+        <div class="zweit"><span class="app">${anwendung(a.anwendung).name}</span><span>${modell(a.modell).name} · ${knoten(a.knoten).name}</span>${zustand(a.zustand, true)}</div>
+        ${laeuft ? `<div class="balken lebt"><b style="width:${a.fortschritt}%"></b></div>` : a.zustand === 'pausiert' ? `<div class="balken"><b style="width:${a.fortschritt}%; background: var(--ls-honig)"></b></div>` : a.zustand === 'fertig' ? `<div class="balken fertig"><b style="width:100%"></b></div>` : a.zustand === 'fehler' ? `<div class="balken fehler"><b style="width:100%"></b></div>` : ''}
+        ${a.grund && !laeuft ? `<div class="grund" title="${a.grund}">${a.grund}</div>` : ''}
+      </div>
+      <div class="rest">${laeuft ? 'Rest' : a.zustand === 'fertig' || a.zustand === 'fehler' ? 'Dauer' : 'Seit'}<b>${laeuft ? a.rest : a.seit}</b></div>
+      <div class="prio ${a.prioritaet}" title="Priorität ${WORT.prioritaet[a.prioritaet]}">${WORT.prioritaet[a.prioritaet]}</div>
+      <div class="knoepfe">
+        ${a.zustand === 'pausiert' ? `<button class="knopf ohne symbol klein" title="Fortsetzen"><i class="fa-solid fa-play"></i></button>` : laeuft && a.pausierbar ? `<button class="knopf ohne symbol klein" title="Anhalten: bleibt stehen und läuft später weiter"><i class="fa-solid fa-pause"></i></button>` : a.zustand === 'fehler' ? `<button class="knopf ohne symbol klein" title="Erneut einreihen"><i class="fa-solid fa-rotate-right"></i></button>` : `<span style="width:36px;display:inline-block"></span>`}
+        ${laeuft ? `<button class="knopf ohne symbol klein gefahr" title="Stoppen: Auslaufen lassen oder sofort stoppen"><i class="fa-solid fa-stop"></i></button>` : a.zustand === 'wartet' || a.zustand === 'wartet_speicher' || a.zustand === 'pausiert' ? `<button class="knopf ohne symbol klein gefahr" title="Verwerfen"><i class="fa-solid fa-xmark"></i></button>` : `<span style="width:36px;display:inline-block"></span>`}
+      </div>
+    </div>`;
+  };
+
+  const a = AUFTRAEGE.find(x => x.kennung === gewaehlt);
+  const NAME = { angenommen: 'Angenommen', eingereiht: 'Eingereiht', 'modell bereit': 'Modell bereit', rechnet: 'Rechnet', streamt: 'Streamt', fertig: 'Fertig', ergebnis: 'Ergebnis', 'wartet auf Speicher': 'Wartet auf Speicher', 'modell laden': 'Modell laden', fehler: 'Fehler' };
+  const SYMBOL = { angenommen: 'fa-inbox', eingereiht: 'fa-list-ol', 'modell bereit': 'fa-brain', rechnet: 'fa-gear', streamt: 'fa-wave-square', fertig: 'fa-flag-checkered', ergebnis: 'fa-box-open' };
+  const kette = a.schritte.map((s, i) => {
+    const kl = i < a.schritt ? 'erledigt' : i === a.schritt ? 'jetzt' : 'offen';
+    const ic = kl === 'erledigt' ? 'fa-solid fa-check' : kl === 'jetzt' ? `fa-solid ${SYMBOL[s]} fa-spin` : 'fa-regular fa-circle';
+    const pfeil = i < a.schritte.length - 1 ? `<span class="pfeil ${i < a.schritt - 1 ? 'erledigt' : i === a.schritt - 1 ? 'laeuft' : ''}"></span>` : '';
+    return `<span class="schritt ${kl}"><i class="${ic}"></i>${NAME[s]}</span>${pfeil}`;
+  }).join('');
+
+  const KOPF = `
+    <div class="rahmen-kopf">
+      <div class="seitenkopf">
+        <h1>Aufträge</h1><span class="zahl">${AUFTRAEGE.length}</span>
+        <div class="aktionen">
+          <button class="knopf" title="Alle Aufträge der Priorität Hintergrund anhalten; interaktive laufen weiter"><i class="fa-solid fa-pause"></i> Hintergrund anhalten</button>
+          <button class="knopf" title="Neue Aufträge annehmen, aber nichts mehr starten; laufende enden normal"><i class="fa-solid fa-person-walking-arrow-right"></i> Alles auslaufen lassen</button>
+        </div>
+      </div>
+      <div class="kennzahlen">
+        <div class="kennzahl laeuft"><b>3</b><span>Läuft</span></div>
+        <div class="kennzahl wartet"><b>2</b><span>Wartet</span></div>
+        <div class="kennzahl"><b>1</b><span>Pausiert</span></div>
+        <div class="kennzahl erfolg"><b>67</b><span>Heute fertig</span></div>
+        <div class="kennzahl fehler"><b>1</b><span>Fehler</span></div>
+      </div>
+      <div class="reiterleiste">
+        <div class="reiter">
+          <button class="aktiv"><i class="fa-solid fa-layer-group"></i> Alle <span class="zaehler">9</span></button>
+          <button><i class="fa-solid fa-circle-play"></i> Läuft <span class="zaehler">3</span></button>
+          <button><i class="fa-solid fa-hourglass-half"></i> Wartet <span class="zaehler">2</span></button>
+          <button><i class="fa-solid fa-circle-pause"></i> Pausiert <span class="zaehler">1</span></button>
+          <button><i class="fa-solid fa-check"></i> Fertig <span class="zaehler">2</span></button>
+          <button><i class="fa-solid fa-triangle-exclamation"></i> Fehler <span class="zaehler">1</span></button>
+        </div>
+        <div class="rechts">
+          <select class="eingabe" title="Nach Anwendung filtern" style="height: 36px"><option>Alle Anwendungen</option><option>Zusage</option><option>TubeVault</option><option>Fundus</option></select>
+          <select class="eingabe" title="Nach Fähigkeit filtern" style="height: 36px"><option>Alle Fähigkeiten</option><option>Text</option><option>Hören</option><option>Bild</option></select>
+          <button class="knopf ohne klein">Fertige ausblenden</button>
+        </div>
+      </div>
+    </div>`;
+
+  const LINKS = gruppen.map(([name, liste]) => liste.length ? `<div class="gruppe"><span class="etikett">${name}</span><span class="zaehler">${liste.length}</span></div>${liste.map(zeile).join('')}` : '').join('');
+
+  const RECHTS = `
+    <div class="karte einzel">
+      <h2>${a.titel}${zustand(a.zustand, true)}</h2>
+      <div class="unter">${anwendung(a.anwendung).name} · Auftrag <span class="zahl">${a.kennung}</span> · angenommen 14:56:12 · ${WORT.prioritaet[a.prioritaet]}, weil die Nutzerin wartet</div>
+      <div class="kette" style="margin-top: var(--ls-a4)">${kette}</div>
+      <div class="balken lebt dick" style="margin-top: var(--ls-a4)"><b style="width:${a.fortschritt}%"></b></div>
+      <div class="klein leise" style="margin-top: 6px; display: flex; gap: var(--ls-a4)"><span><span class="zahl">${a.fortschritt} %</span> geschätzt aus Zieltext-Länge</span><span>Rest <span class="zahl">${a.rest}</span></span><span><span class="zahl">${zahl(a.token)}</span> Token · <span class="zahl">${a.token_s}</span> Token/s</span></div>
+      <dl class="angaben">
+        <dt>Fähigkeit</dt><dd>${faehigkeit(a.faehigkeit)}</dd>
+        <dt>Modell</dt><dd>${modell(a.modell).name} <span class="leise">(${modell(a.modell).parameter}, ${modell(a.modell).gb.toLocaleString('de-DE')} GB)</span></dd>
+        <dt>Dienst</dt><dd>${dienst(a.dienst).name} auf ${knoten(a.knoten).name} ${zone(knoten(a.knoten).zone)}</dd>
+        <dt>Weg der Anfrage</dt><dd>OpenAI-Fassade <code>/v1/chat/completions</code>, Streaming, Signale über den Nachrichtenkanal</dd>
+        <dt>Zeitgrenzen</dt><dd>Arbeit ohne Lese-Zeitgrenze; Verbindung 30 s; Stillstand ohne neues Stück 10 min ${hilfepunkt('Zeitgrenzen')}</dd>
+      </dl>
+      <div class="etikett" style="margin-top: var(--ls-a4)">Live-Ausgabe</div>
+      <div class="ausgabe">Sehr geehrte Frau Albrecht,<br><br>mit großem Interesse habe ich Ihre Ausschreibung für die Stelle als Teamleitung Softwareentwicklung gelesen. Seit zwölf Jahren baue ich Systeme, die lange laufen müssen: Fahrzeugdaten-Schnittstellen, Übersetzungsdienste, Werkstattanwendungen. Was mich an Ihrer Ausschreibung anspricht, ist der ausdrückliche Wunsch nach Verlässlichkeit vor Geschwindigkeit<span class="cursor"></span></div>
+      <div class="tun">
+        <button class="knopf warnung" title="Auslaufen lassen: dieser Auftrag rechnet fertig; von Zusage wird bis auf Widerruf nichts Neues angenommen"><i class="fa-solid fa-person-walking-arrow-right"></i> Auslaufen lassen</button>
+        <button class="knopf gefahr" title="Sofort stoppen: Rechnung abbrechen, Zusage bekommt das Signal abgebrochen und den bisherigen Text"><i class="fa-solid fa-stop"></i> Sofort stoppen</button>
+        <span class="stufen" title="Priorität ändern: wirkt auf die Reihenfolge in der Warteschlange, nicht auf die laufende Rechnung">
+          <button>Hintergrund</button><button>Normal</button><button class="an">Hoch</button><button>Dringend</button></span>
+      </div>
+    </div>
+    <div class="karte signalkarte">
+      <h3><i class="fa-solid fa-right-left"></i>Signale zu diesem Auftrag <span class="rechts"><a href="nachrichten.html">Nachrichtenverkehr</a></span></h3>
+      <div class="s zurueck"><i class="fa-solid fa-arrow-right-to-bracket"></i><span><b>Zusage</b> schickt <code>auftrag.anlegen</code>: Fähigkeit Text, Priorität hoch, Streaming erwünscht, Kette qwen-80b</span></div>
+      <div class="s"><i class="fa-solid fa-paper-plane"></i><span><b>Leitstelle</b> antwortet <code>auftrag.angenommen</code>: Platz 1, Modell schon geladen, Start sofort</span></div>
+      <div class="s"><i class="fa-solid fa-paper-plane"></i><span><b>Leitstelle</b> sendet <code>auftrag.laeuft</code> mit Knoten und Modell; danach Stücke des Textes als Strom</span></div>
+      <div class="s"><i class="fa-solid fa-paper-plane"></i><span>Bei Stopp erhielte Zusage <code>auftrag.abgebrochen</code> mit Grund und dem bisherigen Text</span></div>
+    </div>
+    <div class="karte">
+      <h3><i class="fa-solid fa-clock"></i>Zeitleiste</h3>
+      <div class="zeitleiste">
+        <div class="e"><span class="zeit zahl">14:56:12</span><i class="fa-solid fa-circle"></i><span>Angenommen von Zusage (Mac Studio, Heimnetz)</span></div>
+        <div class="e"><span class="zeit zahl">14:56:12</span><i class="fa-solid fa-circle"></i><span>Eingereiht auf Platz 1: Priorität hoch, Modell frei</span></div>
+        <div class="e"><span class="zeit zahl">14:56:12</span><i class="fa-solid fa-circle"></i><span>Modell Qwen3 Next 80B bereits geladen, kein Laden nötig</span></div>
+        <div class="e signal"><span class="zeit zahl">14:56:13</span><i class="fa-solid fa-paper-plane"></i><span>Signal an Medienpool: Übersetzung wartet, Modell belegt</span></div>
+        <div class="e jetzt"><span class="zeit zahl">14:56:13</span><i class="fa-solid fa-circle"></i><span>Rechnet und streamt, erstes Stück nach 0,8 s</span></div>
+      </div>
+    </div>`;
+
+  document.getElementById('haupt').innerHTML = KOPF + `<div class="spalten breit-rechts"><div class="rollfeld">${LINKS}</div><div class="rollfeld">${RECHTS}</div></div>`;
+
+  // ── Dialog: Auftrag stoppen (über der unveränderten Seite) ───────────
+  // Auslaufen: der Auftrag endet normal mit auftrag.ergebnis, danach kommt signal.gesperrt.
+  // Sofort: auftrag.abgebrochen mit dem bisherigen Text.
+  const UMSCHLAG = (modus) => modus === 'sofort' ? ({
+    protokoll: 'leitstelle/1', art: 'auftrag.abgebrochen', id: '4c2e9b7d0a1f4e6b9c3d2a8f7e5b1c40', zeit: '2026-10-16T14:56:53.418+02:00',
+    von: 'leitstelle', an: 'anwendung:zusage', bezug: a.kennung,
+    nutzlast: { grund: document.getElementById('grund')?.value ?? 'Speicher wird für einen Bildauftrag gebraucht', teilergebnis_token: a.token, speicher_frei_in_s: 2 },
+  }) : ({
+    protokoll: 'leitstelle/1', art: 'signal.gesperrt', id: '4c2e9b7d0a1f4e6b9c3d2a8f7e5b1c40', zeit: '2026-10-16T14:57:18.002+02:00',
+    von: 'leitstelle', an: 'anwendung:zusage', bezug: a.kennung,
+    nutzlast: { was: 'anwendung', grund: document.getElementById('grund')?.value ?? 'Speicher wird für einen Bildauftrag gebraucht', bis: 'auf Widerruf', letzter_auftrag: a.kennung, speicher_frei_in_s: 25 },
+  });
+  const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const jsonHtml = (o, tiefe = 0) => {
+    const ein = '  '.repeat(tiefe + 1);
+    const zeilen = Object.entries(o).map(([k, v]) => {
+      const wert = typeof v === 'object' ? jsonHtml(v, tiefe + 1) : typeof v === 'number' ? `<span class="n">${zahl(v)}</span>` : `<span class="s">"${esc(v)}"</span>`;
+      return `${ein}<span class="k">"${k}"</span>: ${wert}`;
+    });
+    return `{\n${zeilen.join(',\n')}\n${'  '.repeat(tiefe)}}`;
+  };
+
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="schleier"></div>
+    <div class="dialog stoppen" role="dialog" aria-modal="true" aria-labelledby="dialog-titel">
+      <h2 id="dialog-titel"><i class="fa-solid fa-hand"></i>Auftrag stoppen: ${a.titel}</h2>
+      <div class="lage-satz">Läuft seit <span class="zahl">41 s</span>, <span class="zahl">${a.fortschritt} Prozent</span>, Rest etwa <span class="zahl">25 s</span>; Zusage wartet auf das Ergebnis.</div>
+      <div class="lage-balken"><div class="balken lebt"><b style="width:${a.fortschritt}%"></b></div><span><span class="zahl">${zahl(a.token)}</span> Token bisher</span></div>
+
+      <div class="dialog-spalten">
+      <div>
+      <div class="wahl" id="modus">
+        <label class="an" title="Empfohlen, weil der Auftrag fast fertig ist: er rechnet zu Ende, Zusage bekommt das Ergebnis normal, danach wird von Zusage bis auf Widerruf nichts Neues angenommen.">
+          <input class="versteckt" type="radio" name="modus" value="auslaufen" checked>
+          <span class="kreis"></span>
+          <div>
+            <b>Auslaufen lassen<em class="empfohlen">Empfohlen, fast fertig</em></b>
+            <span class="folge">Der Auftrag rechnet fertig, Zusage bekommt das Ergebnis normal. Von Zusage wird bis auf Widerruf nichts Neues angenommen. Speicher wird nach etwa <strong class="zahl">25 s</strong> frei.</span>
+          </div>
+        </label>
+        <label title="Die Rechnung bricht sofort ab. Zusage erhält das Signal abgebrochen mit dem bisherigen Text; der Speicher ist in etwa zwei Sekunden frei.">
+          <input class="versteckt" type="radio" name="modus" value="sofort">
+          <span class="kreis"></span>
+          <div>
+            <b>Sofort stoppen</b>
+            <span class="folge">Die Rechnung bricht ab. Zusage erhält das Signal <code>abgebrochen</code> mit dem bisherigen Text (<strong class="zahl">${zahl(a.token)}</strong> Token). Speicher ist in etwa <strong class="zahl">2 s</strong> frei; der wartende Bildauftrag von Kiste könnte sofort laden.</span>
+          </div>
+        </label>
+      </div>
+
+      <div class="feld">
+        <label for="grund">Grund für die Anwendung (wird mitgeschickt)</label>
+        <textarea class="eingabe" id="grund" rows="2" title="Steht im Umschlag an die Anwendung im Feld grund; die Anwendung kann ihn der Nutzerin zeigen">Speicher wird für einen Bildauftrag gebraucht</textarea>
+      </div>
+      </div>
+
+      <details class="bereich aufklapp" open>
+        <summary title="Zeigt den Umschlag, den Zusage über den Nachrichtenkanal erhält"><i class="fa-solid fa-chevron-right pfeil-auf"></i>Was die Anwendung bekommt <span class="rechts"><code id="umschlag-art">signal.gesperrt</code></span></summary>
+        <div class="inhalt">
+          <div class="erklaert" id="umschlag-erklaert"></div>
+          <pre class="codeblock" id="umschlag"></pre>
+        </div>
+      </details>
+      </div>
+
+      <div class="knoepfe">
+        <button class="knopf ohne links" title="Dialog schließen, der Auftrag läuft unverändert weiter">Abbrechen</button>
+        <button class="knopf haupt" title="Auftrag fertig rechnen lassen; von Zusage wird bis auf Widerruf nichts Neues angenommen"><i class="fa-solid fa-person-walking-arrow-right"></i> Auslaufen lassen</button>
+        <button class="knopf gefahr-voll" title="Rechnung sofort abbrechen; Zusage bekommt das Signal abgebrochen mit dem bisherigen Text"><i class="fa-solid fa-stop"></i> Sofort stoppen</button>
+      </div>
+    </div>`);
+
+  const ERKLAERT = { auslaufen: 'Bei Auslaufen bekommt Zusage zuerst das fertige Ergebnis (auftrag.ergebnis); danach folgt dieser Umschlag und sagt, dass bis auf Widerruf nichts Neues angenommen wird.',
+                     sofort: 'Bei Sofort stoppen bekommt Zusage diesen Umschlag statt eines Ergebnisses; der bisherige Text steht in der Nutzlast.' };
+  const ART = { auslaufen: 'signal.gesperrt', sofort: 'auftrag.abgebrochen' };
+  const umschlagZeigen = () => {
+    const modus = document.querySelector('input[name="modus"]:checked').value;
+    document.getElementById('umschlag').innerHTML = jsonHtml(UMSCHLAG(modus));
+    document.getElementById('umschlag-erklaert').textContent = ERKLAERT[modus];
+    document.getElementById('umschlag-art').textContent = ART[modus];
+  };
+  document.getElementById('modus').addEventListener('change', () => {
+    document.querySelectorAll('#modus label').forEach(l => l.classList.toggle('an', l.querySelector('input').checked));
+    umschlagZeigen();
+  });
+  document.getElementById('grund').addEventListener('input', umschlagZeigen);
+  umschlagZeigen();
+</script>
+</body>
+</html>

@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leitstelle - Entwurf: Anschluss hinzufügen</title>
+<link rel="icon" href="symbol.svg">
+<link rel="stylesheet" href="../frontend/node_modules/@fortawesome/fontawesome-free/css/all.min.css">
+<link rel="stylesheet" href="stil.css">
+<style>
+  /* Anschluss hinzufügen: jede Anschlussstelle (Rechner, Dienst, externer Anbieter, Anwendung) wird mit
+     den wenigsten nötigen Angaben eingerichtet. Adresse, bei Bedarf Zugang oder Schlüssel; alles andere
+     erkennt die Leitstelle selbst. Außerhalb des Heimnetzes nur verschlüsselt. */
+  .dialog.anschluss { width: min(1180px, calc(100vw - 48px)); max-height: calc(100vh - 96px); overflow-y: auto; }
+  .arten { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--ls-a3); margin-top: var(--ls-a3); }
+  .art-karte { display: flex; flex-direction: column; gap: 6px; padding: var(--ls-a3) var(--ls-a4); border: 1px solid var(--ls-rand); border-radius: var(--ls-ecke);
+               background: var(--ls-flaeche); cursor: pointer; text-align: left; color: var(--ls-text); }
+  .art-karte i { font-size: 22px; color: var(--ls-text-3); }
+  .art-karte b { font-size: var(--ls-gr-text); }
+  .art-karte span { font-size: var(--ls-gr-klein); color: var(--ls-text-2); }
+  .art-karte.an { border-color: rgba(var(--ls-akzent-rgb), 0.7); background: rgba(var(--ls-akzent-rgb), 0.08); }
+  .art-karte.an i { color: var(--ls-akzent-schrift); }
+  .zwei { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: var(--ls-a5); margin-top: var(--ls-a5); }
+  .feld { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: var(--ls-a3); align-items: center; padding: 10px 0; border-top: 1px solid var(--ls-rand); }
+  .feld:first-of-type { border-top: 0; }
+  .feld .n { font-weight: 600; }
+  .feld .n small { display: block; font-weight: 500; color: var(--ls-text-3); font-size: var(--ls-gr-marke); }
+  .feld .w { display: flex; gap: var(--ls-a2); align-items: center; }
+  .feld .w .eingabe { flex: 1; font-family: var(--ls-schrift-zahl); }
+  .feld .optional { font-size: var(--ls-gr-marke); color: var(--ls-text-3); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+  .pruefung { margin-top: var(--ls-a3); padding: var(--ls-a3) var(--ls-a4); background: var(--ls-flaeche); border-radius: var(--ls-ecke); }
+  .pruefung h3 { display: flex; align-items: center; gap: var(--ls-a2); margin-bottom: var(--ls-a2); }
+  .pruefung h3 i { color: var(--ls-erfolg); }
+  .pruef { display: grid; grid-template-columns: 26px 170px minmax(0, 1fr); gap: var(--ls-a2); padding: 6px 0; align-items: baseline; font-size: var(--ls-gr-klein); }
+  .pruef i { text-align: center; color: var(--ls-erfolg); }
+  .pruef.hinweis-z i { color: var(--ls-info); }
+  .pruef .k { color: var(--ls-text-3); }
+  .pruef .v { color: var(--ls-text); }
+  .pruef .v .leise { margin-left: 6px; }
+  .wege .weg { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: var(--ls-a3); padding: 10px 0; border-top: 1px solid var(--ls-rand); font-size: var(--ls-gr-klein); }
+  .wege .weg:first-of-type { border-top: 0; padding-top: 0; }
+  .wege .weg i { font-size: 18px; text-align: center; margin-top: 2px; }
+  .wege .weg b { display: block; font-size: var(--ls-gr-text); margin-bottom: 2px; }
+  .wege .weg.heim i { color: var(--ls-stahl); }
+  .wege .weg.fern i { color: var(--ls-petrol); }
+  .wege .weg.extern i { color: var(--ls-koralle); }
+  .wege .weg.agent i { color: var(--ls-akzent-schrift); }
+  .andere { margin-top: var(--ls-a4); }
+  .andere .zeile-a { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: var(--ls-a3); padding: 8px 0; border-top: 1px solid var(--ls-rand); font-size: var(--ls-gr-klein); }
+  .andere .zeile-a:first-of-type { border-top: 0; }
+  .andere .zeile-a b { color: var(--ls-text); }
+  .andere .zeile-a span { color: var(--ls-text-2); }
+</style>
+</head>
+<body>
+<div class="schale">
+  <div data-block="kopf"></div>
+  <div data-block="seite"></div>
+  <main class="haupt rahmen" id="haupt"></main>
+  <div data-block="fuss"></div>
+</div>
+
+<script type="module">
+  import { seite, DIENSTE, WORT, faehigkeit, zustand, zone, knoten, dienst, hilfepunkt } from './gemeinsam.js';
+  seite('dienste');
+
+  // Untergrund: Dienste knapp
+  const KOPF = `<div class="rahmen-kopf"><div class="seitenkopf"><h1>Dienste</h1><span class="zahl">${DIENSTE.length}</span>
+      <div class="aktionen"><button class="knopf haupt aktiv"><i class="fa-solid fa-plus"></i> Anschluss hinzufügen</button></div></div>
+      <div class="kennzahlen"><div class="kennzahl"><b>7</b><span>Dienste</span></div><div class="kennzahl erfolg"><b>5</b><span>Laufen oder bereit</span></div>
+      <div class="kennzahl"><b>1</b><span>Pausiert</span></div><div class="kennzahl"><b>1</b><span>Extern</span></div></div></div>`;
+  const LISTE = DIENSTE.map(d => `<div class="zeile" style="padding: 12px"><b style="min-width: 160px">${d.name}</b><span class="leise klein" style="min-width: 220px">${d.art}</span>
+      ${zustand(d.zustand)}<span class="leise klein zahl">${d.adresse}</span><span style="margin-left:auto">${d.faehigkeiten.map(faehigkeit).join(' ')}</span></div>`).join('');
+  document.getElementById('haupt').innerHTML = KOPF + `<div class="rollfeld">${LISTE}</div>`;
+
+  // Dialog: Anschluss hinzufügen, Zustand: Art gewählt (Dienst), Adresse eingegeben, Erkennung fertig
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="schleier"></div>
+    <div class="dialog anschluss" role="dialog" aria-modal="true" aria-labelledby="dt">
+      <h2 id="dt"><i class="fa-solid fa-plug-circle-plus"></i>Anschluss hinzufügen</h2>
+      <p class="leise">Nur das Nötigste eingeben: Adresse, bei Bedarf Zugang oder Schlüssel. Art, Fähigkeiten, Modelle und Zone erkennt die Leitstelle selbst. Alles außerhalb des Heimnetzes läuft nur verschlüsselt.</p>
+
+      <div class="etikett" style="margin-top: var(--ls-a4)">Was wird angeschlossen?</div>
+      <div class="arten">
+        <button class="art-karte" title="Ein weiterer Rechner: Agent installieren, er meldet sich selbst an"><i class="fa-solid fa-server"></i><b>Rechner</b><span>Agent misst und entdeckt Dienste. Nur ein Befehl, kein Formular.</span></button>
+        <button class="art-karte an" title="Ein KI-Dienst, der schon läuft: Modell-Läufer, Hörer, Sprecher, Bild-Werkbank"><i class="fa-solid fa-plug"></i><b>Dienst</b><span>Läuft schon irgendwo. Adresse genügt, die Art wird erkannt.</span></button>
+        <button class="art-karte" title="Fremder Anbieter im Internet, OpenAI-kompatibel, mit Schlüssel"><i class="fa-solid fa-cloud"></i><b>Externer Anbieter</b><span>Adresse und Schlüssel. Nur verschlüsselt, Schlüssel bleibt hier.</span></button>
+        <button class="art-karte" title="Ein Programm, das Aufträge abgeben will"><i class="fa-solid fa-cubes"></i><b>Anwendung</b><span>Führt zum Anmelde-Ablauf in fünf Schritten.</span></button>
+      </div>
+
+      <div class="zwei">
+        <div>
+          <div class="etikett">Angaben <span class="leise" style="letter-spacing: 0; text-transform: none; font-weight: 500">(zwei Felder, eines davon optional)</span></div>
+          <div class="feld"><div class="n">Adresse<small>Name oder Adresse, Port optional</small></div><div class="w"><input class="eingabe" value="192.168.1.31:8790"><button class="knopf" title="Prüft die Adresse und erkennt Art, Fähigkeiten und Modelle; verändert nichts"><i class="fa-solid fa-magnifying-glass"></i> Erkennen</button></div></div>
+          <div class="feld"><div class="n">Zugang<small>Schlüssel oder Token, falls der Dienst einen verlangt</small></div><div class="w"><input class="eingabe" type="password" placeholder="leer lassen, wenn nicht nötig"><button class="knopf symbol" title="Aufdecken"><i class="fa-solid fa-eye"></i></button><span class="optional">optional</span></div></div>
+
+          <div class="pruefung">
+            <h3><i class="fa-solid fa-circle-check"></i>Erkannt <span class="leise klein" style="margin-left:auto; font-weight: 500">vor 2 s, 12 ms Antwortzeit</span></h3>
+            <div class="pruef"><i class="fa-solid fa-check"></i><span class="k">Erreichbar</span><span class="v">ja, antwortet auf <code>/health</code> und <code>/transcribe</code></span></div>
+            <div class="pruef"><i class="fa-solid fa-check"></i><span class="k">Art</span><span class="v">Whisper-Dienst (Adapter hoeren_http) <span class="leise">automatisch erkannt, änderbar</span></span></div>
+            <div class="pruef"><i class="fa-solid fa-check"></i><span class="k">Fähigkeiten</span><span class="v">${faehigkeit('hoeren')}</span></div>
+            <div class="pruef"><i class="fa-solid fa-check"></i><span class="k">Modelle</span><span class="v">Whisper mittel (1,5 GB, geladen)</span></div>
+            <div class="pruef"><i class="fa-solid fa-check"></i><span class="k">Knoten</span><span class="v">MacBook <span class="leise">(dort meldet ein Agent, Adresse stimmt überein)</span></span></div>
+            <div class="pruef"><i class="fa-solid fa-check"></i><span class="k">Zone</span><span class="v">${zone('heim')} <span class="leise">aus der Adresse abgeleitet</span></span></div>
+            <div class="pruef hinweis-z"><i class="fa-solid fa-circle-info"></i><span class="k">Verschlüsselung</span><span class="v">Klartext im Heimnetz, erlaubt. <span class="leise">Hätte der Dienst HTTPS, würde es bevorzugt.</span></span></div>
+            <div class="pruef"><i class="fa-solid fa-check"></i><span class="k">Zugang</span><span class="v">kein Schlüssel nötig</span></div>
+            <div class="pruef"><i class="fa-solid fa-check"></i><span class="k">Vorschlag Name</span><span class="v"><input class="eingabe" style="height:34px; width: 240px; font-family: var(--ls-schrift)" value="Hörer MacBook"></span></div>
+          </div>
+        </div>
+
+        <div>
+          <div class="karte wege">
+            <h3><i class="fa-solid fa-lock"></i>Verschlüsselter Weg</h3>
+            <div class="weg heim"><i class="fa-solid fa-house"></i><div><b>Heimnetz</b>Klartext erlaubt, HTTPS wird bevorzugt, wenn der Dienst es anbietet. Fremde Adressen außerhalb des Heimnetzes zählen nie als Heimnetz.</div></div>
+            <div class="weg fern"><i class="fa-solid fa-shield-halved"></i><div><b>Über VPN</b>Der Tunnel verschlüsselt alles; Dienste dort gelten wie im Heimnetz. Ohne Tunnel kein Anschluss im Klartext.</div></div>
+            <div class="weg extern"><i class="fa-solid fa-cloud"></i><div><b>Extern</b>Nur HTTPS mit geprüftem Zertifikat. Der Schlüssel liegt verschlüsselt in der Leitstelle, keine Anwendung sieht ihn. Tagesgrenze Pflicht.</div></div>
+            <div class="weg agent"><i class="fa-solid fa-tower-observation"></i><div><b>Knoten-Agenten</b>Verbinden sich immer verschlüsselt zur Leitstelle (Zertifikat der Leitstelle fest hinterlegt), auch im Heimnetz. Eigene Dienste auf fremden Servern werden so angebunden, nie offen ins Internet.</div></div>
+          </div>
+          <div class="karte andere">
+            <h3><i class="fa-solid fa-list"></i>So wenig ist nötig</h3>
+            <div class="zeile-a"><b>Rechner</b><span>ein Installationsbefehl mit Einmal-Schlüssel; der Agent meldet sich und findet die Dienste darauf</span></div>
+            <div class="zeile-a"><b>Dienst</b><span>Adresse, optional Schlüssel; Art, Fähigkeiten, Modelle, Knoten und Zone werden erkannt</span></div>
+            <div class="zeile-a"><b>Externer Anbieter</b><span>Adresse, Schlüssel, Tagesgrenze in Euro; Modelle und Rate werden abgefragt, Kosten je Modell optional</span></div>
+            <div class="zeile-a"><b>Anwendung</b><span>Name und Fähigkeiten; Schlüssel wird erzeugt, Einbau-Schnipsel liegt bereit</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="knoepfe">
+        <button class="knopf ohne links">Abbrechen</button>
+        <button class="knopf" title="Erkennung wiederholen, zum Beispiel nach Änderung der Adresse"><i class="fa-solid fa-rotate"></i> Erneut erkennen</button>
+        <button class="knopf haupt" title="Dienst anlegen; er erscheint sofort in der Liste und bekommt Aufträge nach den Regeln"><i class="fa-solid fa-plug-circle-check"></i> Anschließen</button>
+      </div>
+    </div>`);
+  document.querySelectorAll('.art-karte').forEach(b => b.onclick = () => { document.querySelectorAll('.art-karte').forEach(x => x.classList.remove('an')); b.classList.add('an'); });
+</script>
+</body>
+</html>

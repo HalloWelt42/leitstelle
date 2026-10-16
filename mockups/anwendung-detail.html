@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leitstelle - Entwurf: Anwendung Fundus</title>
+<link rel="icon" href="symbol.svg">
+<link rel="stylesheet" href="../frontend/node_modules/@fortawesome/fontawesome-free/css/all.min.css">
+<link rel="stylesheet" href="stil.css">
+<style>
+  /* Kopf einer Einzelansicht: Zurück, Titel, Zustand, Aktionen */
+  .detail-kopf { display: flex; align-items: center; gap: var(--ls-a3); flex-wrap: wrap; }
+  .detail-kopf h1 { margin: 0; }
+  .detail-kopf .aktionen { margin-left: auto; display: flex; gap: var(--ls-a2); flex-wrap: wrap; }
+  .detail-kopf .unterzeile { width: 100%; color: var(--ls-text-2); margin-top: calc(-1 * var(--ls-a1)); }
+  .kennzahlen { margin-top: var(--ls-a4); }
+  .kennzahl.extern b { color: var(--ls-koralle); }
+
+  /* Zugang: Schlüssel mit Auge */
+  .schluessel { display: flex; align-items: center; gap: var(--ls-a2); flex-wrap: wrap; }
+  .schluessel .wert { display: inline-flex; align-items: center; height: 42px; padding: 0 var(--ls-a3); background: var(--ls-mulde); border-radius: var(--ls-ecke);
+                      font-family: var(--ls-schrift-zahl); font-size: var(--ls-gr-text); letter-spacing: 0.06em; color: var(--ls-text); }
+  .zugang-zeile { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: var(--ls-a3); align-items: center; padding: var(--ls-a3) 0; border-top: 1px solid var(--ls-rand); }
+  .zugang-zeile:first-of-type { border-top: 0; padding-top: 0; }
+  .zugang-zeile .bez { font-weight: 600; }
+  .zugang-zeile .bez small { display: block; font-size: var(--ls-gr-klein); color: var(--ls-text-3); font-weight: 500; }
+  .herkunft { display: flex; gap: var(--ls-a2); flex-wrap: wrap; align-items: center; }
+  .herkunft .adresse { display: inline-flex; align-items: center; gap: var(--ls-a2); height: 36px; padding: 0 var(--ls-a3); background: var(--ls-karte-2); border-radius: var(--ls-ecke); font-size: var(--ls-gr-klein); }
+  .herkunft .adresse b { font-family: var(--ls-schrift-zahl); font-weight: 600; }
+  .herkunft .adresse span { color: var(--ls-text-3); }
+  .bestaetigen .text { flex: 1; min-width: 360px; }
+  .bestaetigen .text b { display: block; }
+  .bestaetigen .text span { font-size: var(--ls-gr-klein); color: var(--ls-text-2); }
+
+  /* Rechte: Gruppen mit Etikett */
+  .gruppe { margin-top: var(--ls-a3); }
+  .gruppe > .etikett { display: block; padding: 0 var(--ls-a4) var(--ls-a2); }
+  .gruppe + .gruppe { margin-top: var(--ls-a4); border-top: 1px solid var(--ls-rand); padding-top: var(--ls-a4); }
+  .schalter.gesperrt { opacity: 0.55; cursor: not-allowed; }
+  .einstellung.breit { grid-template-columns: minmax(0, 1fr) auto; }
+  .einstellung .name i.fa-lock { color: var(--ls-text-3); font-size: 14px; }
+  .einstellung .name .faehigkeit { margin-right: var(--ls-a1); }
+
+  /* Bevorzugte Modelle: eine Kette je Fähigkeit */
+  .modellkette { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: var(--ls-a3); align-items: center; padding: var(--ls-a3) var(--ls-a4); border-top: 1px solid var(--ls-rand); }
+  .modellkette:first-of-type { border-top: 0; }
+  .modellkette .kette .schritt { height: 38px; color: var(--ls-text); }
+  .modellkette .kette .schritt .zone { height: 22px; margin-left: 2px; }
+  .modellkette .kette .schritt.fest { color: var(--ls-text-2); }
+  .modellkette .kette .schritt.fest i { color: var(--ls-text-3); }
+  .modellkette .kette .mehr { display: inline-flex; align-items: center; height: 38px; }
+  .modellkette .hinweis-fest { font-size: var(--ls-gr-klein); color: var(--ls-text-3); margin-top: 6px; display: flex; gap: var(--ls-a2); align-items: flex-start; }
+  .modellkette .hinweis-fest i { margin-top: 4px; font-size: 13px; }
+
+  /* Signale und Nachrichten */
+  .signalkarte .satz { font-size: var(--ls-gr-klein); color: var(--ls-text-2); margin-bottom: var(--ls-a3); }
+  .signal { display: grid; grid-template-columns: 22px minmax(0, 1fr) 56px; gap: var(--ls-a2) var(--ls-a3); padding: 8px 0; border-top: 1px solid var(--ls-rand); font-size: var(--ls-gr-klein); align-items: baseline; }
+  .signal:first-of-type { border-top: 0; }
+  .signal > i { text-align: center; color: var(--ls-akzent-schrift); }
+  .signal.zurueck { grid-template-columns: 22px minmax(0, 1fr) 112px; }
+  .signal.zurueck > i { color: var(--ls-info); }
+  .signal .art { display: block; }
+  .signal .art code { font-size: 14px; }
+  .signal .worte { color: var(--ls-text-2); display: block; margin-top: 2px; }
+  .signal .zeit { text-align: right; min-width: 0; font-size: var(--ls-gr-klein); }
+  .signal .zaehl { text-align: right; font-family: var(--ls-schrift-zahl); font-weight: 600; color: var(--ls-text); }
+  .karte .fussverweis { margin-top: var(--ls-a3); font-size: var(--ls-gr-klein); font-weight: 600; display: flex; gap: var(--ls-a2); align-items: center; }
+
+  /* Aufträge in der Zeilenform von auftraege.html */
+  .auftrag { display: grid; grid-template-columns: 34px minmax(0, 1fr) 96px; gap: var(--ls-a3); align-items: center; padding: var(--ls-a3); border-radius: var(--ls-ecke); cursor: pointer; }
+  .auftrag + .auftrag { margin-top: 2px; }
+  .auftrag:hover { background: var(--ls-flaeche); }
+  .auftrag .symbol { display: grid; place-items: center; width: 34px; height: 34px; border-radius: var(--ls-ecke); background: rgba(var(--f-rgb), var(--ls-tint)); color: var(--f); }
+  .auftrag .titel { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .auftrag .zweit { display: flex; gap: var(--ls-a2) var(--ls-a3); align-items: center; font-size: var(--ls-gr-klein); color: var(--ls-text-2); margin-top: 3px; flex-wrap: wrap; }
+  .auftrag .balken { margin-top: 8px; }
+  .auftrag .rest { font-size: var(--ls-gr-klein); color: var(--ls-text-2); text-align: right; }
+  .auftrag .rest b { display: block; color: var(--ls-text); font-family: var(--ls-schrift-zahl); }
+
+  .umbau-satz { font-size: var(--ls-gr-klein); color: var(--ls-text-2); margin-top: var(--ls-a3); display: flex; gap: var(--ls-a2); align-items: flex-start; }
+  .umbau-satz i { color: var(--ls-akzent-schrift); margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="schale">
+  <div data-block="kopf"></div>
+  <div data-block="seite"></div>
+  <main class="haupt rahmen" id="haupt"></main>
+  <div data-block="fuss"></div>
+</div>
+
+<script type="module">
+  import { seite, AUFTRAEGE, WORT, faehigkeit, zustand, zone, anwendung, modell, knoten, dienst, zahl, hilfepunkt } from './gemeinsam.js';
+  seite('anwendungen');
+
+  const app = anwendung('fundus');
+  const wo = knoten(app.knoten);
+  const FARBE = { text: ['var(--ls-himmel)', 'var(--ls-himmel-rgb)'], einbettung: ['var(--ls-petrol)', 'var(--ls-petrol-rgb)'], uebersetzen: ['var(--ls-tuerkis)', 'var(--ls-tuerkis-rgb)'],
+                  hoeren: ['var(--ls-minze)', 'var(--ls-minze-rgb)'], bild: ['var(--ls-flieder)', 'var(--ls-flieder-rgb)'], musik: ['var(--ls-violett)', 'var(--ls-violett-rgb)'],
+                  stimme: ['var(--ls-rose)', 'var(--ls-rose-rgb)'], werkzeug: ['var(--ls-sand)', 'var(--ls-sand-rgb)'] };
+
+  const KOPF = `
+    <div class="rahmen-kopf">
+      <div class="detail-kopf">
+        <a class="knopf ohne symbol" href="anwendungen.html" title="Zurück zur Liste der Anwendungen"><i class="fa-solid fa-arrow-left"></i></a>
+        <h1>${app.name}</h1>
+        ${zustand(app.zustand)}
+        <div class="aktionen">
+          <button class="knopf" title="Pausieren: alle Aufträge von ${app.name} anhalten; die Anwendung bekommt das Signal pausiert"><i class="fa-solid fa-pause"></i> Pausieren</button>
+          <button class="knopf gefahr" title="Sperren: nimmt nichts mehr von ${app.name} an, laufende Aufträge enden; die Anwendung bekommt das Signal gesperrt"><i class="fa-solid fa-ban"></i> Sperren</button>
+          <button class="knopf haupt" title="Speichert Rechte, Zonen, Priorität und Modellketten; ${app.name} bekommt die neuen Grenzen als Signal"><i class="fa-solid fa-floppy-disk"></i> Einstellungen speichern</button>
+        </div>
+        <div class="unterzeile">auf ${wo.name}, ${WORT.zone[wo.zone]}, verbunden seit <span class="zahl">09:12</span>, Bibliothek leitstelle-client <span class="zahl">1.0</span> (Python)</div>
+      </div>
+      <div class="kennzahlen">
+        <div class="kennzahl"><b>${zahl(app.heute)}</b><span>Aufträge heute</span></div>
+        <div class="kennzahl"><b>1.830.000</b><span>Token</span></div>
+        <div class="kennzahl extern"><b>0,42 Euro</b><span>Extern</span><small>Tagesgrenze 2,00 Euro</small></div>
+        <div class="kennzahl"><b>3 s</b><span>Mittlere Wartezeit</span></div>
+        <div class="kennzahl erfolg"><b>0</b><span>Fehler</span></div>
+      </div>
+    </div>`;
+
+  // ── Links: Zugang, Rechte, Modelle ───────────────────────────────────
+  const ZUGANG = `
+    <div class="karte">
+      <h3><i class="fa-solid fa-key"></i>Zugang <span class="rechts">Schlüssel und erlaubte Herkunft</span></h3>
+      <div class="zugang-zeile">
+        <div class="bez">Schlüssel<small>gilt für alle Verbindungen</small></div>
+        <div class="schluessel">
+          <span class="wert" title="Schlüssel verdeckt; die letzten vier Zeichen helfen beim Wiedererkennen">••••••••••••••••••••7f2a</span>
+          <button class="knopf symbol" title="Deckt den Schlüssel auf; er bleibt stabil und ändert sich nur, wenn du ihn bewusst neu erzeugst"><i class="fa-solid fa-eye"></i></button>
+          <button class="knopf" title="Kopiert den vollen Schlüssel, auch wenn er verdeckt ist"><i class="fa-solid fa-copy"></i> Kopieren</button>
+          <button class="knopf warnung aktiv" title="Bestätigen nötig; alle Verbindungen von ${app.name} müssen den neuen Schlüssel bekommen"><i class="fa-solid fa-rotate"></i> Neu erzeugen</button>
+        </div>
+      </div>
+      <div class="bestaetigen">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <div class="text"><b>Neu erzeugen?</b><span>Der alte Schlüssel gilt sofort nicht mehr. Beide Herkünfte müssen den neuen eintragen; laufende Aufträge enden normal, neue werden bis dahin abgelehnt.</span></div>
+        <div class="rechts">
+          <button class="knopf" title="Nichts ändern; der bisherige Schlüssel bleibt gültig">Abbrechen</button>
+          <button class="knopf gefahr-voll" title="Erzeugt sofort einen neuen Schlüssel und zeigt ihn einmal aufgedeckt an"><i class="fa-solid fa-rotate"></i> Ja, neu erzeugen</button>
+        </div>
+      </div>
+      <div class="zugang-zeile" style="margin-top: var(--ls-a3)">
+        <div class="bez">Erlaubte Herkunft<small>Anfragen von anderen Adressen werden abgelehnt</small></div>
+        <div class="herkunft">
+          <span class="adresse" title="Mac Studio, Heimnetz"><i class="fa-solid fa-house"></i><b>192.168.1.20</b><span>Mac Studio</span></span>
+          <span class="adresse" title="Pi Archiv, Heimnetz"><i class="fa-solid fa-house"></i><b>192.168.1.49</b><span>Pi Archiv</span></span>
+          <button class="knopf ohne klein" title="Weitere Adresse oder ein Netz wie 192.168.1.0/24 erlauben"><i class="fa-solid fa-plus"></i> Adresse</button>
+        </div>
+      </div>
+    </div>`;
+
+  const FAEHIGKEITEN = [
+    ['text', true, 'Texte erzeugen, zusammenfassen, Fragen beantworten.'],
+    ['einbettung', true, 'Abschnitte in Vektoren verwandeln für Suche und Ähnlichkeit.'],
+    ['werkzeug', true, 'Modelle dürfen Werkzeuge aufrufen, etwa Zeit, Suche oder Rechner.'],
+    ['bild', false, 'Bilder beschreiben oder erzeugen; braucht viel Speicher.'],
+    ['hoeren', false, 'Sprache in Text verwandeln.'],
+    ['stimme', false, 'Text sprechen lassen, auch mit geklonter Stimme.'],
+    ['uebersetzen', false, 'Texte zwischen Sprachen übertragen.'],
+    ['musik', false, 'Musik aus Beschreibungen erzeugen.'],
+  ];
+  const schalter = (an, titel, gesperrt = false) => `<button class="schalter${an ? ' an' : ''}${gesperrt ? ' gesperrt' : ''}" title="${titel}" ${gesperrt ? 'disabled' : ''} aria-pressed="${an}"></button>`;
+  const einstellung = (name, erklaerung, wert, klasse = '') => `<div class="einstellung${klasse ? ' ' + klasse : ''}"><div><div class="name">${name}</div><div class="erklaerung">${erklaerung}</div></div><div class="wert">${wert}</div></div>`;
+
+  const RECHTE = `
+    <div class="karte" style="padding-left: 0; padding-right: 0">
+      <h3 style="padding: 0 var(--ls-a4)"><i class="fa-solid fa-user-shield"></i>Rechte <span class="rechts">Was ${app.name} darf</span></h3>
+      <div class="gruppe">
+        <span class="etikett">Fähigkeiten</span>
+        ${FAEHIGKEITEN.map(([f, an, text]) => einstellung(faehigkeit(f), text, schalter(an, `${WORT.faehigkeit[f]} ${an ? 'erlaubt; ausschalten lehnt neue Aufträge dieser Art ab' : 'nicht erlaubt; einschalten gibt die Fähigkeit frei'}`))).join('')}
+      </div>
+      <div class="gruppe">
+        <span class="etikett">Zonen</span>
+        ${einstellung(`${zone('heim')} <i class="fa-solid fa-lock" title="Immer erlaubt: ohne Heimnetz gäbe es keinen Weg zur Leitstelle"></i>`, 'Immer erlaubt; Daten bleiben zu Hause.', schalter(true, 'Heimnetz ist immer erlaubt und lässt sich nicht abschalten', true))}
+        ${einstellung(zone('fern'), 'Server Helsinki darf rechnen; Daten laufen durch den VPN-Tunnel.', schalter(true, 'Über VPN erlaubt; ausschalten hält Aufträge im Heimnetz'))}
+        ${einstellung(zone('extern'), 'Externe Anbieter dürfen rechnen, bis die Tagesgrenze erreicht ist; danach wartet oder scheitert der Auftrag.', `<input class="eingabe" value="2,00" title="Tagesgrenze für externe Kosten; heute 0,42 Euro verbraucht"><span class="einheit">Euro</span>${schalter(true, 'Extern erlaubt; ausschalten hält alle Aufträge im eigenen Netz')}`)}
+      </div>
+      <div class="gruppe">
+        <span class="etikett">Ablauf</span>
+        ${einstellung(`Priorität Vorgabe ${hilfepunkt('Priorität')}`, 'Gilt für Aufträge ohne eigene Angabe. Dringend und Hoch dürfen Hintergrundaufträge anderer verdrängen.',
+          `<span class="stufen" title="Vorgabe-Priorität; einzelne Aufträge können abweichen"><button>Hintergrund</button><button class="an">Normal</button><button>Hoch</button><button>Dringend</button></span>`, 'breit')}
+        ${einstellung('Gleichzeitig höchstens', 'Mehr Aufträge werden eingereiht statt gestartet.', `<input class="eingabe" value="4" title="Höchstzahl gleichzeitig laufender Aufträge von ${app.name}"><span class="einheit">Aufträge</span>`)}
+        ${einstellung('Hintergrundaufträge dürfen angehalten werden', 'Die Leitstelle darf sie pausieren, wenn Speicher knapp wird oder Dringendes wartet.', schalter(true, 'Erlaubt der Leitstelle, Hintergrundaufträge anzuhalten; die Anwendung bekommt das Signal pausiert'))}
+      </div>
+    </div>`;
+
+  const chip = (m, extra = '') => `<span class="schritt${extra ? ' ' + extra : ''}"><i class="fa-solid fa-brain"></i>${m.name}${m.zustand === 'extern' ? zone('extern') : ''}</span>`;
+  const kette = (modelle) => `<div class="kette">${modelle.map((m, i) => `${chip(m)}${i < modelle.length - 1 ? '<span class="pfeil"></span>' : ''}`).join('')}
+    <span class="mehr"><button class="knopf ohne klein" title="Weiteres Modell ans Ende der Kette setzen"><i class="fa-solid fa-plus"></i></button></span></div>`;
+  const MODELLE = `
+    <div class="karte" style="padding-left: 0; padding-right: 0">
+      <h3 style="padding: 0 var(--ls-a4)"><i class="fa-solid fa-brain"></i>Bevorzugte Modelle (Kette) <span class="rechts">Reihenfolge: erstes verfügbares gewinnt</span></h3>
+      <div class="modellkette">
+        <div>${faehigkeit('text')}</div>
+        ${kette([modell('qwen-80b'), modell('qwen-35b-extern')])}
+      </div>
+      <div class="modellkette">
+        <div>${faehigkeit('einbettung')}</div>
+        <div>
+          <div class="kette"><span class="schritt fest" title="Fest: dieses Modell kann nicht getauscht werden"><i class="fa-solid fa-lock"></i>${modell('bge-m3').name}</span></div>
+          <div class="hinweis-fest"><i class="fa-solid fa-lock"></i><span>Ein Wechsel macht alle <span class="zahl">392.821</span> Einbettungen von ${app.name} ungültig; deshalb gesperrt.</span></div>
+        </div>
+      </div>
+      <div class="modellkette">
+        <div>${faehigkeit('werkzeug')}</div>
+        ${kette([modell('qwen-80b'), modell('qwen-35b-extern')])}
+      </div>
+      <div class="gruppe" style="margin-top: 0">
+        ${einstellung('Schon geladene Modelle der Kette gehen vor', 'Spart Ladezeit: ist das zweite Modell geladen und das erste nicht, nimmt die Leitstelle das zweite.', schalter(true, 'Geladene Modelle der Kette gehen vor; ausschalten erzwingt die Reihenfolge und lädt bei Bedarf'))}
+      </div>
+    </div>`;
+
+  // ── Rechts: Signale, Nachrichten, Aufträge, Umbau ────────────────────
+  const SIGNALE = [
+    ['signal.lage', 'Lage angespannt: Speicher auf Mac Studio zu 96 Prozent belegt', '14:54'],
+    ['signal.speicher', 'Speicher knapp auf Mac Studio, 5,1 GB frei', '14:54'],
+    ['signal.modell', 'Modell bereit: bge-m3 Einbettung', '13:10'],
+    ['signal.kosten', 'Extern heute 0,42 von 2,00 Euro verbraucht', '12:40'],
+    ['signal.fortgesetzt', 'Aufträge laufen wieder, Pause von 09:12 beendet', '09:13'],
+  ];
+  const SIGNALKARTE = `
+    <div class="karte signalkarte">
+      <h3><i class="fa-solid fa-paper-plane"></i>Signale an ${app.name} <span class="rechts">empfangen</span></h3>
+      <p class="satz">${app.name} hört auf dem Nachrichtenkanal und reagiert: bei knappem Speicher pausiert es die Masseneinbettung von selbst.</p>
+      ${SIGNALE.map(([art, worte, zeit]) => `<div class="signal"><i class="fa-solid fa-paper-plane"></i><div><span class="art"><code>${art}</code></span><span class="worte">${worte}</span></div><span class="zeit zahl">${zeit}</span></div>`).join('')}
+    </div>`;
+
+  const NACHRICHTEN = [
+    ['auftrag.anlegen', 'Neue Aufträge angelegt', `<span class="zahl">${zahl(app.heute)}</span> heute`],
+    ['herzschlag', 'Lebenszeichen alle 10 Sekunden', 'zuletzt vor <span class="zahl">4</span> s'],
+    ['frage.kapazitaet', 'Kann ich jetzt? Letzte Antwort: ja', `<span class="zahl">3</span> heute`],
+    ['reservierung.anfragen', 'Einbettung für 1.240 Abschnitte, bestätigt', `<span class="zahl">1</span> heute`],
+  ];
+  const NACHRICHTENKARTE = `
+    <div class="karte signalkarte">
+      <h3><i class="fa-solid fa-arrow-right-to-bracket"></i>Nachrichten von ${app.name} <span class="rechts">gesendet</span></h3>
+      ${NACHRICHTEN.map(([art, worte, zaehl]) => `<div class="signal zurueck"><i class="fa-solid fa-arrow-right-to-bracket"></i><div><span class="art"><code>${art}</code></span><span class="worte">${worte}</span></div><span class="zaehl klein">${zaehl}</span></div>`).join('')}
+      <a class="fussverweis" href="nachrichten.html" title="Nachrichtenverkehr, gefiltert auf ${app.name}">Alle Nachrichten im Nachrichtenverkehr <i class="fa-solid fa-arrow-right"></i></a>
+    </div>`;
+
+  const laufend = AUFTRAEGE.find(a => a.kennung === 'a-9d04');
+  const auftraege = [
+    { ...laufend, modellname: modell(laufend.modell).name, ort: knoten(laufend.knoten).name },
+    { titel: 'Tiefenrecherche: Batteriespeicher', faehigkeit: 'text', zustand: 'fertig', fortschritt: 100, modellname: modell('qwen-35b-extern').name, ort: dienst('extern-anbieter').name, rest: 'fertig 14:20', prioritaet: 'normal' },
+    { titel: 'Werkzeugaufruf: Zeit', faehigkeit: 'werkzeug', zustand: 'fertig', fortschritt: 100, modellname: modell('qwen-80b').name, ort: knoten('mac-128').name, rest: 'fertig 14:19', prioritaet: 'normal' },
+  ];
+  const auftrag = (a) => {
+    const laeuft = a.zustand === 'laeuft';
+    return `<div class="auftrag" style="--f:${FARBE[a.faehigkeit][0]};--f-rgb:${FARBE[a.faehigkeit][1]}" title="${a.titel}">
+      <div class="symbol" title="${WORT.faehigkeit[a.faehigkeit]}"><i class="fa-solid ${WORT.faehigkeit_symbol[a.faehigkeit]}"></i></div>
+      <div style="min-width:0">
+        <div class="titel">${a.titel}</div>
+        <div class="zweit"><span>${a.modellname} · ${a.ort}</span>${zustand(a.zustand, true)}</div>
+        ${laeuft ? `<div class="balken lebt"><b style="width:${a.fortschritt}%"></b></div>` : `<div class="balken fertig"><b style="width:100%"></b></div>`}
+      </div>
+      <div class="rest">${laeuft ? 'Rest' : 'Ende'}<b>${laeuft ? a.rest : a.rest.replace('fertig ', '')}</b></div>
+    </div>`;
+  };
+  const AUFTRAGSKARTE = `
+    <div class="karte">
+      <h3><i class="fa-solid fa-list-check"></i>Aufträge von ${app.name} <span class="rechts">letzte drei</span></h3>
+      ${auftraege.map(auftrag).join('')}
+      <a class="fussverweis" href="auftraege.html" title="Alle Aufträge, gefiltert auf ${app.name}">Alle Aufträge von ${app.name} <i class="fa-solid fa-arrow-right"></i></a>
+    </div>`;
+
+  const UMBAU = `
+    <div class="karte">
+      <h3><i class="fa-solid fa-stairs"></i><span>Umbau-Stand: Stufe <span class="zahl">3</span> von <span class="zahl">4</span></span></h3>
+      <div class="kette">
+        <span class="schritt erledigt" title="Stufe 1: Adresse umgestellt, Leitstelle statt Modell-Läufer"><i class="fa-solid fa-check"></i>Fassade</span><span class="pfeil erledigt"></span>
+        <span class="schritt erledigt" title="Stufe 2: mit Schlüssel und Priorität angemeldet"><i class="fa-solid fa-check"></i>Anmeldung</span><span class="pfeil erledigt"></span>
+        <span class="schritt erledigt" title="Stufe 3: empfängt Signale wie Speicher knapp, pausiert oder Modell bereit"><i class="fa-solid fa-check"></i>Signalkanal</span><span class="pfeil"></span>
+        <span class="schritt offen" title="Stufe 4: Aufträge mit Fortschritt, die die Leitstelle anhalten und fortsetzen kann"><i class="fa-regular fa-circle"></i>Eigene Aufträge mit Fortschritt</span>
+      </div>
+      <div class="umbau-satz"><i class="fa-solid fa-lightbulb"></i><span>Stufe 4 bringt: Anhalten und Fortsetzen der Masseneinbettung durch die Leitstelle statt nur durch ${app.name} selbst.</span></div>
+    </div>`;
+
+  document.getElementById('haupt').innerHTML = KOPF + `<div class="spalten breit-rechts"><div class="rollfeld">${ZUGANG}${RECHTE}${MODELLE}</div><div class="rollfeld">${SIGNALKARTE}${NACHRICHTENKARTE}${AUFTRAGSKARTE}${UMBAU}</div></div>`;
+</script>
+</body>
+</html>

@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leitstelle - Entwurf: Übersicht mit Selbststeuerung</title>
+<link rel="icon" href="symbol.svg">
+<link rel="stylesheet" href="../frontend/node_modules/@fortawesome/fontawesome-free/css/all.min.css">
+<link rel="stylesheet" href="stil.css">
+<style>
+  /* Zustand: die Leitstelle hat von selbst umgeschichtet. Der Bildauftrag von Kiste wartete auf
+     Speicher am Mac Studio; auf dem MacBook waren 19,8 GB frei, der Modell-Läufer dort installiert,
+     aber nicht gestartet. Die Leitstelle hat ihn über den Agenten gestartet, das Bildmodell dort
+     geladen und den Auftrag umgeleitet. Jede Maßnahme steht mit Grund, Gewinn und Rückgängig da. */
+  .ueber-kopf { display: flex; align-items: center; gap: var(--ls-a4); flex-wrap: wrap; }
+  .ueber-kopf h1 { margin: 0; }
+  .ueber-kopf .lagezeile { color: var(--ls-text-2); }
+  .ueber-kopf .lagezeile b { color: var(--ls-erfolg); font-weight: 600; }
+  .ueber-kopf .aktionen { margin-left: auto; display: flex; gap: var(--ls-a2); }
+  .kennzahlen { margin-top: var(--ls-a3); }
+  .laufend { display: grid; gap: 2px; }
+  .lauf { display: grid; grid-template-columns: 34px minmax(0, 1fr) 150px 130px auto; gap: var(--ls-a3); align-items: center;
+          padding: var(--ls-a3); border-radius: var(--ls-ecke); background: var(--ls-karte); }
+  .lauf .symbol { display: grid; place-items: center; width: 34px; height: 34px; border-radius: var(--ls-ecke); background: rgba(var(--f-rgb), var(--ls-tint)); color: var(--f); }
+  .lauf .titel { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lauf .zweit { display: flex; gap: var(--ls-a3); align-items: center; font-size: var(--ls-gr-klein); color: var(--ls-text-2); margin-top: 3px; flex-wrap: wrap; }
+  .lauf .zweit .app { color: var(--ls-text); font-weight: 500; }
+  .lauf .zweit .umgeleitet { color: var(--ls-erfolg); font-weight: 600; }
+  .lauf .balken { margin-top: 8px; }
+  .lauf .rest { font-size: var(--ls-gr-klein); color: var(--ls-text-2); text-align: right; }
+  .lauf .rest b { display: block; color: var(--ls-text); font-family: var(--ls-schrift-zahl); font-size: var(--ls-gr-text); }
+  .lauf .knoepfe { display: flex; gap: 2px; }
+  .abschnitt { margin-top: var(--ls-a5); }
+  .abschnitt-kopf { display: flex; align-items: baseline; gap: var(--ls-a3); margin-bottom: var(--ls-a3); }
+  .abschnitt-kopf h2 { margin: 0; }
+  .abschnitt-kopf .mehr { margin-left: auto; font-weight: 600; font-size: var(--ls-gr-klein); }
+
+  /* Maßnahmen der Selbststeuerung */
+  .massnahmen .m { padding: var(--ls-a3); border-radius: var(--ls-ecke); background: var(--ls-flaeche); }
+  .massnahmen .m + .m { margin-top: var(--ls-a2); }
+  .massnahmen .kopfz { display: flex; align-items: center; gap: var(--ls-a2); flex-wrap: wrap; }
+  .massnahmen .kopfz b { flex: 1; min-width: 0; }
+  .massnahmen .kopfz .zeit { min-width: 0; font-size: var(--ls-gr-klein); }
+  .massnahmen .grund { font-size: var(--ls-gr-klein); color: var(--ls-text-2); margin-top: 6px; }
+  .massnahmen .gewinn { display: flex; gap: var(--ls-a4); font-size: var(--ls-gr-klein); margin-top: 6px; flex-wrap: wrap; }
+  .massnahmen .gewinn span b { color: var(--ls-text); font-family: var(--ls-schrift-zahl); }
+  .massnahmen .gewinn .plus b { color: var(--ls-erfolg); }
+  .massnahmen .tun { display: flex; gap: var(--ls-a2); margin-top: var(--ls-a2); flex-wrap: wrap; }
+  .massnahmen .schritte { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; font-size: var(--ls-gr-klein); color: var(--ls-text-2); }
+  .massnahmen .schritte span i { width: 18px; text-align: center; color: var(--ls-erfolg); margin-right: 4px; }
+  .speicherkarte .zeile-sp { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--ls-a2); align-items: baseline; margin-top: var(--ls-a3); }
+  .speicherkarte .zeile-sp:first-of-type { margin-top: 0; }
+  .speicherkarte .n { font-weight: 600; }
+  .speicherkarte .w { font-size: var(--ls-gr-klein); color: var(--ls-text-3); }
+  .speicherkarte .w.warn { color: var(--ls-warnung); font-weight: 600; }
+  .speicherkarte .speicher { margin-top: 6px; }
+  .meldungen .m { display: grid; grid-template-columns: 62px 24px minmax(0, 1fr); gap: var(--ls-a2); align-items: baseline; padding: 6px 0; border-top: 1px solid var(--ls-rand); font-size: var(--ls-gr-klein); }
+  .meldungen .m:first-of-type { border-top: 0; }
+  .meldungen .m .zeit { color: var(--ls-text-3); min-width: 0; }
+  .meldungen .m i { text-align: center; color: var(--ls-text-3); }
+  .meldungen .m.erfolg i { color: var(--ls-erfolg); }
+  .meldungen .m.warnung i { color: var(--ls-warnung); }
+  .meldungen .m.selbst i { color: var(--ls-akzent-schrift); }
+</style>
+</head>
+<body>
+<div class="schale">
+  <div data-block="kopf"></div>
+  <div data-block="seite"></div>
+  <main class="haupt rahmen" id="haupt"></main>
+  <div data-block="fuss"></div>
+</div>
+
+<script type="module">
+  import { seite, AUFTRAEGE, KNOTEN, DIENSTE, MODELLE, WORT, FARBE, faehigkeit, zustand, anwendung, modell, knoten, gb } from './gemeinsam.js';
+  seite('uebersicht', { lage: 'angespannt' });
+
+  // Beispielwelt für diesen Zustand abwandeln: Modell-Läufer auf dem MacBook gestartet, Bildmodell dort geladen,
+  // Kistes Bildauftrag läuft dort statt am Mac Studio zu warten.
+  const mac32 = knoten('mac-32');
+  Object.assign(mac32, { ram: 75, gpu: 64, dienste: ['whisper-32', 'acestep', 'laeufer-32'], auftraege: 1 });
+  DIENSTE.push({ kennung: 'laeufer-32', name: 'Modell-Läufer MacBook', art: 'OpenAI-kompatibel', knoten: 'mac-32', adresse: 'http://192.168.1.31:1234', zustand: 'laeuft',
+                 faehigkeiten: ['text', 'bild'], modelle: ['glm-vision-32'], auftraege: 1 });
+  MODELLE.push({ kennung: 'glm-vision-32', name: 'GLM 4.6V Flash', dienst: 'laeufer-32', faehigkeit: 'bild', gb: 11.8, kontext: 65536, zustand: 'rechnet', geschuetzt: true, zuletzt: 'jetzt', auftraege: 1, parameter: '9B' });
+  const kiste = AUFTRAEGE.find(a => a.kennung === 'a-e77a');
+  Object.assign(kiste, { zustand: 'laeuft', knoten: 'mac-32', dienst: 'laeufer-32', modell: 'glm-vision-32', fortschritt: 35, rest: '~3 s', seit: '00:04', umgeleitet: true, grund: undefined, vorschlag: undefined,
+                         schritte: ['angenommen', 'umgeleitet', 'modell geladen', 'rechnet', 'ergebnis', 'fertig'], schritt: 3 });
+  const laufend = AUFTRAEGE.filter(a => a.zustand === 'laeuft');
+  const wartend = AUFTRAEGE.filter(a => a.zustand === 'wartet' || a.zustand === 'wartet_speicher');
+
+  const lauf = (a) => `<div class="lauf" style="--f:${FARBE[a.faehigkeit][0]};--f-rgb:${FARBE[a.faehigkeit][1]}" title="${a.titel}: ${a.fortschritt} Prozent, ${a.rest} verbleibend">
+      <div class="symbol"><i class="fa-solid ${WORT.faehigkeit_symbol[a.faehigkeit]}"></i></div>
+      <div style="min-width:0">
+        <div class="titel">${a.titel}</div>
+        <div class="zweit"><span class="app">${anwendung(a.anwendung).name}</span><span>${modell(a.modell).name} auf ${knoten(a.knoten).name}</span>
+          ${a.umgeleitet ? `<span class="umgeleitet" title="Von der Selbststeuerung auf das MacBook umgeleitet, statt am Mac Studio auf Speicher zu warten"><i class="fa-solid fa-shuffle"></i> umgeleitet</span>` : ''}
+          ${a.streamt ? `<span class="zahl">${a.token_s} Token/s</span>` : ''}${a.abschnitte ? `<span class="zahl">${a.abschnitte}</span>` : ''}</div>
+        <div class="balken lebt"><b style="width:${a.fortschritt}%"></b></div>
+      </div>
+      <div class="rest">Rest<b>${a.rest}</b></div>
+      <div class="rest">Priorität<b style="font-family: var(--ls-schrift); font-weight: 600">${WORT.prioritaet[a.prioritaet]}</b></div>
+      <div class="knoepfe">
+        <button class="knopf ohne symbol klein" title="${a.pausierbar ? 'Anhalten' : 'Streamt, lässt sich nur stoppen'}" ${a.pausierbar ? '' : 'disabled'}><i class="fa-solid fa-pause"></i></button>
+        <button class="knopf ohne symbol klein gefahr" title="Stoppen: Auslaufen oder sofort"><i class="fa-solid fa-stop"></i></button>
+      </div>
+    </div>`;
+
+  const speicher = (k, modelle) => {
+    const farbe = { text: 'modell', einbettung: 'modell einbettung', bild: 'modell vision', hoeren: 'modell hoeren', stimme: 'modell stimme' };
+    const geladen = modelle.filter(m => m.zustand === 'geladen' || m.zustand === 'rechnet');
+    const summe = geladen.reduce((s, m) => s + m.gb, 0);
+    const system = Math.max(0, k.ram_gb * k.ram / 100 - summe);
+    const frei = k.ram_gb - summe - system;
+    return `<div class="zeile-sp"><span class="n">${k.name} <span class="leise klein">${k.ram_gb} GB</span></span><span class="w${k.ram >= 90 ? ' warn' : ''}">${k.ram} % belegt · ${gb(frei)} frei</span></div>
+      <div class="speicher">${geladen.map(m => `<span class="${farbe[m.faehigkeit] || 'modell'}" style="width:${(m.gb / k.ram_gb * 100).toFixed(1)}%" title="${m.name}: ${gb(m.gb)}${m.zustand === 'rechnet' ? ', rechnet gerade' : ''}"></span>`).join('')}
+        <span class="system" style="width:${(system / k.ram_gb * 100).toFixed(1)}%" title="System und andere Programme: ${gb(system)}"></span></div>`;
+  };
+  const modelleVon = (kennungen) => MODELLE.filter(m => kennungen.includes(m.dienst));
+
+  const KOPF = `
+    <div class="rahmen-kopf">
+      <div class="ueber-kopf">
+        <h1>Übersicht</h1>
+        <span class="lagezeile"><b>Lage angespannt, selbst umgeschichtet:</b> Mac Studio zu 96 Prozent belegt; der wartende Bildauftrag läuft jetzt auf dem MacBook.</span>
+        <div class="aktionen">
+          <button class="knopf" title="Alle Hintergrund-Aufträge anhalten"><i class="fa-solid fa-pause"></i> Hintergrund anhalten</button>
+          <button class="knopf" title="Zeigt zuerst, welche Modelle entladen würden"><i class="fa-solid fa-broom"></i> Speicher freigeben</button>
+        </div>
+      </div>
+      <div class="kennzahlen">
+        <div class="kennzahl laeuft"><b>${laufend.length}</b><span>Läuft</span><small>1 davon umgeleitet</small></div>
+        <div class="kennzahl wartet"><b>${wartend.length}</b><span>Wartet</span><small>auf das Textmodell</small></div>
+        <div class="kennzahl"><b>1</b><span>Pausiert</span></div>
+        <div class="kennzahl erfolg"><b>67</b><span>Heute fertig</span><small>mittlere Wartezeit 4 s</small></div>
+        <div class="kennzahl erfolg"><b>3</b><span>Maßnahmen heute</span><small>gespart 2 min 40 s</small></div>
+        <div class="kennzahl"><b>5<span style="font-size: 18px; color: var(--ls-text-3)"> / 6</span></b><span>Knoten</span><small>Pi Werkstatt nicht erreichbar</small></div>
+      </div>
+    </div>`;
+
+  const LINKS = `
+    <div id="netz"></div>
+    <div class="abschnitt">
+      <div class="abschnitt-kopf"><h2>Läuft gerade</h2><span class="zahl leise">${laufend.length}</span><a class="mehr" href="auftraege.html">Alle Aufträge</a></div>
+      <div class="laufend">${laufend.map(lauf).join('')}</div>
+    </div>`;
+
+  const RECHTS = `
+    <div class="karte massnahmen">
+      <h3><i class="fa-solid fa-wand-magic-sparkles"></i>Selbststeuerung <span class="rechts"><a href="regeln.html" title="Regeln der Selbststeuerung: Automatik, Umleiten, Leerlauf, Vorwärmen, Gewinnschwelle">Regeln</a></span></h3>
+      <div class="m">
+        <div class="kopfz">${zustand('fertig')}<b>Bildauftrag auf das MacBook umgeleitet</b><span class="zeit zahl">14:56:20</span></div>
+        <div class="grund">Kiste wartete am Mac Studio auf 11,8 GB, dort rechnet das Textmodell noch etwa 25 s. Auf dem MacBook waren 19,8 GB frei und der Modell-Läufer installiert, aber nicht gestartet.</div>
+        <div class="schritte">
+          <span><i class="fa-solid fa-check"></i>Agent MacBook: Modell-Läufer gestartet (3 s)</span>
+          <span><i class="fa-solid fa-check"></i>GLM 4.6V Flash dort geladen (gemessen 11 s, Vorhersage 14 s)</span>
+          <span><i class="fa-solid fa-check"></i>Auftrag a-e77a umgeleitet, Kiste hat <code>auftrag.laeuft</code> mit neuem Knoten bekommen</span>
+        </div>
+        <div class="gewinn"><span class="plus">Gespart <b>~25 s</b> Wartezeit</span><span>Kosten <b>14 s</b> Start und Laden</span><span>Schwelle <b>doppelt</b> erfüllt</span></div>
+        <div class="tun">
+          <button class="knopf klein" title="Macht die Maßnahme rückgängig: Auftrag zurück in die Warteschlange des Mac Studio, Bildmodell auf dem MacBook bleibt bis zur Mindestverweildauer"><i class="fa-solid fa-rotate-left"></i> Rückgängig</button>
+          <button class="knopf klein ohne" title="Schaltet die Regel Umleiten aus; künftig nur noch Vorschlag"><i class="fa-solid fa-ban"></i> So nicht mehr</button>
+        </div>
+      </div>
+      <div class="m">
+        <div class="kopfz">${zustand('wartet')}<b>Coder-Modell vorwärmen</b><span class="zeit zahl">geplant 14:56:45</span></div>
+        <div class="grund">Codehilfe hat die Code-Durchsicht neu eingereiht; Qwen3 Coder Next (46,3 GB) passt erst, wenn das Textmodell frei ist. Sobald der Zusage-Auftrag endet, wird es geladen, bevor Codehilfe an der Reihe ist.</div>
+        <div class="gewinn"><span class="plus">Spart <b>~30 s</b> Ladezeit im Auftrag</span><span>Voraussetzung <b>a-7f3c fertig</b></span></div>
+        <div class="tun"><button class="knopf klein ohne" title="Vorwärmen für diesen Fall auslassen"><i class="fa-solid fa-xmark"></i> Diesmal nicht</button></div>
+      </div>
+      <div class="m">
+        <div class="kopfz">${zustand('fertig')}<b>Leerlauf geprüft, keine Aktion</b><span class="zeit zahl">14:56:20</span></div>
+        <div class="grund">Whisper mittel auf dem MacBook ist seit 40 Minuten ohne Auftrag. Es bleibt: geschützt (unter 10 Milliarden) und der Platz reichte auch so. Entladen wird nur, wenn ein Auftrag den Platz braucht.</div>
+      </div>
+      <div class="m">
+        <div class="kopfz">${zustand('aus')}<b>Extern ausweichen nicht ausgelöst</b><span class="zeit zahl">14:56:21</span></div>
+        <div class="grund">Codehilfe dürfte extern rechnen, die erwartete Wartezeit (25 s) liegt aber unter der Schwelle von 2 Minuten. Bleibt im Heimnetz.</div>
+      </div>
+    </div>
+    <div class="karte speicherkarte">
+      <h3><i class="fa-solid fa-memory"></i>Speicherlage <span class="rechts">Modelle im Speicher</span></h3>
+      ${speicher(knoten('mac-128'), modelleVon(['laeufer', 'txt2voice', 'bildschmiede']))}
+      ${speicher(mac32, modelleVon(['whisper-32', 'acestep', 'laeufer-32']))}
+      ${speicher(knoten('pi-archiv'), modelleVon(['piper-pi']))}
+      <div class="speicher-legende">
+        <span><i class="fa-solid fa-square" style="color: var(--ls-himmel)"></i>Text</span>
+        <span><i class="fa-solid fa-square" style="color: var(--ls-flieder)"></i>Bild</span>
+        <span><i class="fa-solid fa-square" style="color: var(--ls-petrol)"></i>Einbettung</span>
+        <span><i class="fa-solid fa-square" style="color: var(--ls-minze)"></i>Hören</span>
+        <span><i class="fa-solid fa-square" style="color: var(--ls-rose)"></i>Stimme</span>
+        <span><i class="fa-solid fa-square" style="color: var(--ls-stahl)"></i>System</span>
+      </div>
+    </div>
+    <div class="karte meldungen">
+      <h3><i class="fa-solid fa-bell"></i>Meldungen <span class="rechts"><a href="protokoll.html">Protokoll</a></span></h3>
+      <div class="m selbst"><span class="zeit zahl">14:56</span><i class="fa-solid fa-wand-magic-sparkles"></i><span>Selbststeuerung: Kiste-Bildauftrag auf MacBook umgeleitet, Modell-Läufer dort gestartet, GLM 4.6V geladen</span></div>
+      <div class="m selbst"><span class="zeit zahl">14:56</span><i class="fa-solid fa-paper-plane"></i><span>Signal an <b>Kiste</b> (Fassade): Auftrag läuft jetzt auf MacBook, Rest etwa 3 s</span></div>
+      <div class="m erfolg"><span class="zeit zahl">14:55</span><i class="fa-solid fa-check"></i><span>Rufzeichen: Antwort gesprochen in 2,1 s (dringend, vorgezogen)</span></div>
+      <div class="m warnung"><span class="zeit zahl">14:54</span><i class="fa-solid fa-memory"></i><span>Mac Studio: Speicher über 95 Prozent, Lage angespannt</span></div>
+      <div class="m selbst"><span class="zeit zahl">13:10</span><i class="fa-solid fa-wand-magic-sparkles"></i><span>Selbststeuerung: Einbettungsmodell am Mac Studio vorgewärmt, bevor Fundus 1.240 Abschnitte einreihte</span></div>
+      <div class="m selbst"><span class="zeit zahl">09:12</span><i class="fa-solid fa-wand-magic-sparkles"></i><span>Selbststeuerung: Gemma 4 26B nach 2 Stunden Leerlauf entladen, weil Qwen3 Next 80B für Zusage den Platz brauchte</span></div>
+    </div>`;
+
+  const haupt = document.getElementById('haupt');
+  haupt.innerHTML = KOPF + `<div class="spalten"><div class="rollfeld">${LINKS}</div><div class="rollfeld">${RECHTS}</div></div>`;
+  const { netzbild } = await import('./netzbild.js');
+  netzbild(document.getElementById('netz'), { anwendungen: ['zusage', 'tubevault', 'fundus', 'medienpool', 'kiste', 'Codehilfe', 'rufzeichen', 'bildschmiede-app'], auftraege: AUFTRAEGE });
+</script>
+</body>
+</html>

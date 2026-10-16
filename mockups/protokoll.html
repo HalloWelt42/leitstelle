@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leitstelle - Entwurf: Protokoll</title>
+<link rel="icon" href="symbol.svg">
+<link rel="stylesheet" href="../frontend/node_modules/@fortawesome/fontawesome-free/css/all.min.css">
+<link rel="stylesheet" href="stil.css">
+<style>
+  /* Übersicht dahinter (knapp, wie uebersicht.html) */
+  .ueber-kopf { display: flex; align-items: center; gap: var(--ls-a4); flex-wrap: wrap; }
+  .ueber-kopf .lagezeile { color: var(--ls-text-2); }
+  .ueber-kopf .lagezeile b { color: var(--ls-warnung); font-weight: 600; }
+  .ueber-kopf .aktionen { margin-left: auto; display: flex; gap: var(--ls-a2); }
+  .kennzahlen { margin-top: var(--ls-a3); }
+  .laufend { display: grid; gap: 2px; }
+  .lauf { display: grid; grid-template-columns: 34px minmax(0, 1fr) 150px 130px; gap: var(--ls-a3); align-items: center;
+          padding: var(--ls-a3); border-radius: var(--ls-ecke); background: var(--ls-karte); }
+  .lauf .symbol { display: grid; place-items: center; width: 34px; height: 34px; border-radius: var(--ls-ecke); background: rgba(var(--f-rgb), var(--ls-tint)); color: var(--f); }
+  .lauf .titel { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lauf .zweit { display: flex; gap: var(--ls-a3); font-size: var(--ls-gr-klein); color: var(--ls-text-2); margin-top: 3px; flex-wrap: wrap; }
+  .lauf .zweit .app { color: var(--ls-text); font-weight: 500; }
+  .lauf .balken { margin-top: 8px; }
+  .lauf .rest { font-size: var(--ls-gr-klein); color: var(--ls-text-2); text-align: right; }
+  .lauf .rest b { display: block; color: var(--ls-text); font-family: var(--ls-schrift-zahl); font-size: var(--ls-gr-text); }
+  .abschnitt { margin-top: var(--ls-a5); }
+  .abschnitt-kopf { display: flex; align-items: baseline; gap: var(--ls-a3); margin-bottom: var(--ls-a3); }
+  .abschnitt-kopf .mehr { margin-left: auto; font-weight: 600; font-size: var(--ls-gr-klein); }
+  .speicherkarte .zeile-sp { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--ls-a2); align-items: baseline; margin-top: var(--ls-a3); }
+  .speicherkarte .zeile-sp:first-of-type { margin-top: 0; }
+  .speicherkarte .n { font-weight: 600; }
+  .speicherkarte .w { font-size: var(--ls-gr-klein); color: var(--ls-text-3); }
+  .speicherkarte .w.warn { color: var(--ls-warnung); font-weight: 600; }
+  .speicherkarte .speicher { margin-top: 6px; }
+  .meldungen .m { display: grid; grid-template-columns: 62px 24px minmax(0, 1fr); gap: var(--ls-a2); align-items: baseline; padding: 6px 0; border-top: 1px solid var(--ls-rand); font-size: var(--ls-gr-klein); }
+  .meldungen .m:first-of-type { border-top: 0; }
+  .meldungen .m .zeit { color: var(--ls-text-3); min-width: 0; }
+  .meldungen .m i { text-align: center; color: var(--ls-text-3); }
+  .meldungen .m.warnung i { color: var(--ls-warnung); }
+  .meldungen .m.gefahr i { color: var(--ls-gefahr); }
+  .meldungen .m.erfolg i { color: var(--ls-erfolg); }
+  .meldungen .m.signal i { color: var(--ls-akzent-schrift); }
+
+  /* Das schwebende Protokollfenster */
+  .fenster.protokoll { left: 300px; top: 92px; width: min(1000px, calc(100vw - 340px)); height: 600px; }
+  .fenster.protokoll .fenster-kopf .titel { font-size: var(--ls-gr-text); }
+  .marke-live { display: inline-flex; align-items: center; height: 28px; padding: 0 10px 0 8px; border-radius: var(--ls-ecke-klein);
+                background: rgba(var(--ls-erfolg-rgb), 0.14); color: var(--ls-erfolg); font-size: var(--ls-gr-marke); font-weight: 700; letter-spacing: 0.04em; }
+  .marke-live .punkt { margin-right: 7px; }
+  .fenster-kopf .zeilenzahl { font-size: var(--ls-gr-klein); color: var(--ls-text-3); }
+  /* Leiste unter dem Kopf: Reiter, Bereiche, Suche */
+  .fenster-leiste { display: flex; align-items: center; gap: var(--ls-a2); flex-wrap: wrap; padding: 6px var(--ls-a3); border-bottom: 1px solid var(--ls-rand); flex: none; }
+  .fenster-leiste .reiter { margin: 0; }
+  .fenster-leiste .reiter button { height: 38px; }
+  .fenster-leiste .reiter button i.warnung { color: var(--ls-warnung); }
+  .fenster-leiste .reiter button i.gefahr { color: var(--ls-gefahr); }
+  .fenster-leiste .rechts { margin-left: auto; display: flex; align-items: center; gap: var(--ls-a2); }
+  .fenster-leiste .etikett { margin-right: var(--ls-a1); }
+  .fenster-leiste .chip { height: 32px; padding: 0 10px; }
+  .fenster-leiste .chip .bereichspunkt { width: 10px; height: 10px; border-radius: 2px; background: var(--farbe); flex: none; }
+  .fenster-leiste .chip.aktiv { background: rgba(var(--farbe-rgb), 0.14); border-color: rgba(var(--farbe-rgb), 0.55); color: var(--farbe); }
+  .suche-feld { display: flex; align-items: center; gap: var(--ls-a2); height: 38px; padding: 0 var(--ls-a3); background: var(--ls-karte);
+                border: 1px solid var(--ls-rand); border-radius: var(--ls-ecke); color: var(--ls-text-3); width: 260px; }
+  .suche-feld input { flex: 1; min-width: 0; background: none; border: 0; outline: 0; color: var(--ls-text); font-size: var(--ls-gr-klein); }
+  .suche-feld:focus-within { border-color: rgba(var(--ls-akzent-rgb), 0.6); }
+  /* Zeilen: Bereich in Bereichsfarbe, alles mindestens in der kleinen Schrift */
+  .fenster .zeile-log { grid-template-columns: 84px 132px 24px minmax(0, 1fr); }
+  .fenster .zeile-log .gebiet { font-size: var(--ls-gr-klein); }
+  .fenster .zeile-log .stufe { font-size: 15px; }
+  .fenster .zeile-log .text .quelle { font-family: var(--ls-schrift-zahl); font-weight: 600; }
+  .fenster .zeile-log .text .quelle.wort { font-family: var(--ls-schrift); }
+  .fenster .zeile-log .text code { font-size: var(--ls-gr-marke); }
+  /* Tagwechsel: klebt oben, damit immer klar ist, welcher Tag gerade läuft */
+  .tagwechsel { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: var(--ls-a3); padding: 4px var(--ls-a4);
+                background: var(--ls-leiste); font-size: var(--ls-gr-klein); font-weight: 600; color: var(--ls-text-2); }
+  .tagwechsel::before, .tagwechsel::after { content: ""; flex: 1; height: 1px; background: var(--ls-rand-stark); }
+  .tagwechsel i { color: var(--ls-text-3); }
+  /* Ausgeklappte Einzelheiten unter einer Fehlerzeile */
+  .log-trace { margin: 0 var(--ls-a4) var(--ls-a1) 112px; padding: 6px var(--ls-a3); background: var(--ls-mulde); border-radius: var(--ls-ecke);
+               font-size: var(--ls-gr-klein); line-height: 1.5; }
+  .log-trace div + div { margin-top: 4px; }
+  .log-trace .k { color: var(--ls-text-3); margin-right: var(--ls-a2); }
+  .log-trace .roh { font-family: var(--ls-schrift-code); color: var(--ls-gefahr); overflow-wrap: anywhere; }
+  .log-trace .w { color: var(--ls-text); }
+  .fenster-fuss .zahl { color: var(--ls-text); }
+</style>
+</head>
+<body>
+<div class="schale">
+  <div data-block="kopf"></div>
+  <div data-block="seite"></div>
+  <main class="haupt rahmen" id="haupt"></main>
+  <div data-block="fuss"></div>
+</div>
+
+<script type="module">
+  import { seite, AUFTRAEGE, MODELLE, WORT, FARBE, anwendung, modell, knoten, gb, zahl } from './gemeinsam.js';
+  import { netzbild } from './netzbild.js';
+  seite('protokoll', { lage: 'angespannt' });
+
+  // ── Übersicht dahinter ──────────────────────────────────────────────
+  const laufend = AUFTRAEGE.filter(a => a.zustand === 'laeuft');
+  const wartend = AUFTRAEGE.filter(a => a.zustand === 'wartet' || a.zustand === 'wartet_speicher');
+  const lauf = (a) => `<div class="lauf" style="--f:${FARBE[a.faehigkeit][0]};--f-rgb:${FARBE[a.faehigkeit][1]}" title="${a.titel}: ${a.fortschritt} Prozent, ${a.rest} verbleibend">
+      <div class="symbol"><i class="fa-solid ${WORT.faehigkeit_symbol[a.faehigkeit]}"></i></div>
+      <div style="min-width:0">
+        <div class="titel">${a.titel}</div>
+        <div class="zweit"><span class="app">${anwendung(a.anwendung).name}</span><span>${modell(a.modell).name} auf ${knoten(a.knoten).name}</span></div>
+        <div class="balken lebt"><b style="width:${a.fortschritt}%"></b></div>
+      </div>
+      <div class="rest">Rest<b>${a.rest}</b></div>
+      <div class="rest">Priorität<b style="font-family: var(--ls-schrift); font-weight: 600">${WORT.prioritaet[a.prioritaet]}</b></div>
+    </div>`;
+  const speicher = (k, modelle) => {
+    const farbe = { text: 'modell', einbettung: 'modell einbettung', bild: 'modell vision', hoeren: 'modell hoeren', stimme: 'modell stimme' };
+    const geladen = modelle.filter(m => m.zustand === 'geladen' || m.zustand === 'rechnet');
+    const summe = geladen.reduce((s, m) => s + m.gb, 0);
+    const system = Math.max(0, k.ram_gb * k.ram / 100 - summe);
+    const frei = k.ram_gb - summe - system;
+    return `<div class="zeile-sp"><span class="n">${k.name} <span class="leise klein">${k.ram_gb} GB</span></span><span class="w${k.ram >= 90 ? ' warn' : ''}">${k.ram} % belegt · ${gb(frei)} frei</span></div>
+      <div class="speicher">${geladen.map(m => `<span class="${farbe[m.faehigkeit] || 'modell'}" style="width:${(m.gb / k.ram_gb * 100).toFixed(1)}%" title="${m.name}: ${gb(m.gb)}"></span>`).join('')}
+        <span class="system" style="width:${(system / k.ram_gb * 100).toFixed(1)}%" title="System und andere Programme: ${gb(system)}"></span></div>`;
+  };
+  const modelleVon = (kennungen) => MODELLE.filter(m => kennungen.includes(m.dienst));
+
+  const KOPF = `
+    <div class="rahmen-kopf">
+      <div class="ueber-kopf">
+        <h1>Übersicht</h1>
+        <span class="lagezeile"><b>Lage angespannt:</b> Speicher auf Mac Studio zu 96 Prozent belegt, ein Bildauftrag wartet auf Speicher.</span>
+        <div class="aktionen">
+          <button class="knopf" title="Alle Hintergrund-Aufträge anhalten, damit interaktive Anwendungen Vorrang bekommen"><i class="fa-solid fa-pause"></i> Hintergrund anhalten</button>
+          <button class="knopf" title="Speicher freigeben: zeigt zuerst, welche Modelle entladen würden, nichts passiert ohne Bestätigung"><i class="fa-solid fa-broom"></i> Speicher freigeben</button>
+        </div>
+      </div>
+      <div class="kennzahlen">
+        <div class="kennzahl laeuft"><b>${laufend.length}</b><span>Läuft</span></div>
+        <div class="kennzahl wartet"><b>${wartend.length}</b><span>Wartet</span><small>1 davon auf Speicher</small></div>
+        <div class="kennzahl"><b>1</b><span>Pausiert</span></div>
+        <div class="kennzahl erfolg"><b>67</b><span>Heute fertig</span><small>mittlere Wartezeit 4 s</small></div>
+        <div class="kennzahl fehler"><b>1</b><span>Fehler</span></div>
+        <div class="kennzahl"><b>5<span style="font-size: 18px; color: var(--ls-text-3)"> / 6</span></b><span>Knoten</span><small>Pi Werkstatt nicht erreichbar</small></div>
+      </div>
+    </div>`;
+  const LINKS = `
+    <div id="netz"></div>
+    <div class="abschnitt">
+      <div class="abschnitt-kopf"><h2>Läuft gerade</h2><span class="zahl leise">${laufend.length}</span><a class="mehr" href="auftraege.html">Alle Aufträge</a></div>
+      <div class="laufend">${laufend.map(lauf).join('')}</div>
+    </div>`;
+  const RECHTS = `
+    <div class="karte speicherkarte">
+      <h3><i class="fa-solid fa-memory"></i>Speicherlage <span class="rechts">Modelle im Speicher</span></h3>
+      ${speicher(knoten('mac-128'), modelleVon(['laeufer', 'txt2voice', 'bildschmiede']))}
+      ${speicher(knoten('mac-32'), modelleVon(['whisper-32', 'acestep']))}
+      ${speicher(knoten('pi-archiv'), modelleVon(['piper-pi']))}
+    </div>
+    <div class="karte meldungen">
+      <h3><i class="fa-solid fa-bell"></i>Meldungen <span class="rechts">Protokoll geöffnet</span></h3>
+      <div class="m signal"><span class="zeit zahl">14:56</span><i class="fa-solid fa-paper-plane"></i><span>Signal an <b>Kiste</b>: wartet auf Speicher, voraussichtlich 25 s</span></div>
+      <div class="m erfolg"><span class="zeit zahl">14:55</span><i class="fa-solid fa-check"></i><span>Rufzeichen: Antwort gesprochen in 2,1 s (dringend, vorgezogen)</span></div>
+      <div class="m warnung"><span class="zeit zahl">14:54</span><i class="fa-solid fa-memory"></i><span>Mac Studio: Speicher über 95 Prozent, Lage angespannt</span></div>
+      <div class="m gefahr"><span class="zeit zahl">14:41</span><i class="fa-solid fa-triangle-exclamation"></i><span>Codehilfe: Modell Qwen3 Coder Next konnte nicht geladen werden (Speicher)</span></div>
+      <div class="m"><span class="zeit zahl">14:12</span><i class="fa-solid fa-ear-listen"></i><span>TubeVault: Transkript gestartet, Hintergrund, 3:21 h Material</span></div>
+    </div>`;
+
+  // ── Das Protokollfenster ────────────────────────────────────────────
+  const BEREICH = {
+    zuteilung:   ['Zuteilung',   'var(--ls-himmel)',  'var(--ls-himmel-rgb)'],
+    speicher:    ['Speicher',    'var(--ls-petrol)',  'var(--ls-petrol-rgb)'],
+    knoten:      ['Knoten',      'var(--ls-stahl)',   'var(--ls-stahl-rgb)'],
+    anwendungen: ['Anwendungen', 'var(--ls-flieder)', 'var(--ls-flieder-rgb)'],
+    nachrichten: ['Nachrichten', 'var(--ls-tuerkis)', 'var(--ls-tuerkis-rgb)'],
+    oberflaeche: ['Oberfläche',  'var(--ls-sand)',    'var(--ls-sand-rgb)'],
+  };
+  const STUFE = { info: ['fa-circle-info', 'Hinweis'], warnung: ['fa-triangle-exclamation', 'Warnung'], fehler: ['fa-circle-xmark', 'Fehler'], erfolg: ['fa-check', 'Erledigt'] };
+
+  // quelle: Auftrags-Kennung (Zahlenschrift) oder ein Wort (Knoten, Anwendung, du)
+  const GESTERN = [
+    { zeit: '23:41:50', bereich: 'knoten', stufe: 'warnung', quelle: 'Pi Werkstatt', text: 'weiterhin ohne Herzschlag; Erinnerung alle 12 Stunden' },
+    { zeit: '23:59:00', bereich: 'zuteilung', stufe: 'info', quelle: 'Tagesbericht', text: '71 Aufträge fertig, 2 Fehler, extern 1,12 Euro; das Protokoll wird um Mitternacht gedreht' },
+  ];
+  const HEUTE = [
+    { zeit: '06:30:04', bereich: 'knoten', stufe: 'info', quelle: 'Mac Studio', text: 'Agent angemeldet nach Neustart, Version 0.1.0, Messtakt 10 s' },
+    { zeit: '06:30:05', bereich: 'knoten', stufe: 'info', quelle: 'Mac Studio', text: 'meldet 3 Dienste: Modell-Läufer, txt2voice, Bildschmiede' },
+    { zeit: '06:31:10', bereich: 'anwendungen', stufe: 'info', quelle: 'Fundus', text: 'angemeldet von 192.168.1.20, Signalkanal offen' },
+    { zeit: '06:31:12', bereich: 'anwendungen', stufe: 'info', quelle: 'Zusage', text: 'angemeldet von 192.168.1.20, Signalkanal offen' },
+    { zeit: '07:02:48', bereich: 'anwendungen', stufe: 'info', quelle: 'Kiste', text: 'angemeldet von 192.168.1.49, ohne Signalkanal' },
+    { zeit: '08:15:22', bereich: 'nachrichten', stufe: 'info', quelle: 'Fundus', text: 'fragt <code>frage.modelle</code>; Antwort mit 6 Modellen des Modell-Läufers' },
+    { zeit: '09:10:31', bereich: 'knoten', stufe: 'warnung', quelle: 'Pi Werkstatt', text: 'weiterhin ohne Herzschlag, seit 2 Tagen; der Knoten gilt als nicht erreichbar' },
+    { zeit: '09:40:00', bereich: 'speicher', stufe: 'info', quelle: 'Mac Studio', text: 'Qwen3 Next 80B geladen, 84,7 GB in 41 s; 36,2 GB frei' },
+    { zeit: '11:05:17', bereich: 'oberflaeche', stufe: 'info', quelle: 'du', text: 'angemeldet mit Passkey von 192.168.1.31 (Heimnetz)' },
+    { zeit: '11:06:02', bereich: 'oberflaeche', stufe: 'info', quelle: 'du', text: 'Regel geändert: Tagesgrenze extern 3,00 auf 5,00 Euro' },
+    { zeit: '12:20:44', bereich: 'zuteilung', stufe: 'info', quelle: 'a-61d0', text: 'Fundus Tiefenrecherche extern gerechnet über Externer Anbieter, 0,14 Euro; heute 0,42 Euro' },
+    { zeit: '13:52:09', bereich: 'oberflaeche', stufe: 'warnung', quelle: 'du', text: 'Auftrag a-4a12 angehalten (Bildschmiede, 4 Bilder), damit Zusage Vorrang hat' },
+    { zeit: '13:52:09', bereich: 'anwendungen', stufe: 'info', quelle: 'Bildschmiede', text: 'Signal pausiert mit Grund gesendet; der Dienst gibt den Grafikspeicher frei' },
+    { zeit: '14:12:03', bereich: 'zuteilung', stufe: 'info', quelle: 'a-2b91', text: 'angenommen: TubeVault, Hören, Hintergrund, 3:21 h Material, Whisper groß v3' },
+    { zeit: '14:12:04', bereich: 'speicher', stufe: 'info', quelle: 'Mac Studio', text: 'Whisper groß v3 geladen, 3,1 GB in 6 s' },
+    { zeit: '14:40:58', bereich: 'zuteilung', stufe: 'info', quelle: 'a-88c3', text: 'angenommen über die Fassade: Codehilfe, Text, hoch, Modell Qwen3 Coder Next' },
+    { zeit: '14:41:00', bereich: 'speicher', stufe: 'warnung', quelle: 'Mac Studio', text: 'Qwen3 Coder Next braucht 46,3 GB, frei sind 12,0 GB; kein Modell entladbar, solange das Textmodell rechnet' },
+    { zeit: '14:41:07', bereich: 'speicher', stufe: 'fehler', quelle: 'Mac Studio', text: 'Qwen3 Coder Next konnte nicht geladen werden',
+      detail: { laeufer: 'Model loading was stopped due to insufficient system resources', entscheidung: 'Auftrag a-88c3 abgebrochen; <code>auftrag.fehler</code> an Codehilfe mit Vorschlag: erneut einreihen, sobald Speicher frei ist, oder extern rechnen lassen (etwa 0,03 Euro). Kein Neuversuch von selbst: Codehilfe nutzt nur die Fassade.' } },
+    { zeit: '14:54:02', bereich: 'speicher', stufe: 'warnung', quelle: 'Mac Studio', text: 'über 95 Prozent: 96 Prozent belegt, 5,1 GB frei; Lage auf angespannt gesetzt' },
+    { zeit: '14:54:02', bereich: 'nachrichten', stufe: 'info', quelle: 'Leitstelle', text: '<code>signal.lage</code> angespannt an 5 Anwendungen mit Signalkanal' },
+    { zeit: '14:54:05', bereich: 'zuteilung', stufe: 'info', quelle: 'a-e77a', text: 'angenommen: Kiste, Bild, normal; wartet auf Speicher für das Bildmodell (11,8 GB)' },
+    { zeit: '14:55:08', bereich: 'zuteilung', stufe: 'erfolg', quelle: 'a-51f9', text: 'fertig in 2,1 s, vorgezogen weil dringend; Ton 1,8 s an Rufzeichen gestreamt' },
+    { zeit: '14:56:12', bereich: 'zuteilung', stufe: 'info', quelle: 'a-7f3c', text: 'angenommen, Platz 1: Zusage, Text, hoch; Qwen3 Next 80B schon geladen, Start sofort' },
+    { zeit: '14:56:13', bereich: 'anwendungen', stufe: 'info', quelle: 'Kiste', text: 'Signal Speicher knapp mit Bezug a-e77a: voraussichtlich noch 25 s, weil a-7f3c Vorrang hat' },
+  ];
+  const istKennung = (q) => /^a-[0-9a-f]{4}$/.test(q);
+  const zeileLog = (z) => {
+    const b = BEREICH[z.bereich]; const s = STUFE[z.stufe];
+    return `<div class="zeile-log${z.stufe !== 'info' ? ' ' + z.stufe : ''}" title="${b[0]}, ${s[1]}">
+      <span class="zeit zahl">${z.zeit}</span>
+      <span class="gebiet" style="--farbe:${b[1]}">${b[0]}</span>
+      <span class="stufe"><i class="fa-solid ${s[0]}"></i></span>
+      <span class="text"><span class="quelle${istKennung(z.quelle) ? '' : ' wort'}">${z.quelle}</span>${z.text}</span>
+    </div>${z.detail ? `<div class="log-trace" title="Einzelheiten zur Fehlerzeile: Meldung des Dienstes im Wortlaut und die Entscheidung der Leitstelle">
+      <div><span class="k">Meldung des Läufers:</span><span class="roh">${z.detail.laeufer}</span></div>
+      <div><span class="k">Entscheidung der Leitstelle:</span><span class="w">${z.detail.entscheidung}</span></div>
+    </div>` : ''}`;
+  };
+
+  const FENSTER = `
+    <div class="fenster protokoll" role="dialog" aria-label="Protokoll">
+      <div class="fenster-kopf" title="Ziehen verschiebt das Fenster">
+        <span class="titel"><i class="fa-solid fa-terminal"></i>Protokoll</span>
+        <span class="marke-live" title="Neue Zeilen erscheinen sofort unten"><span class="punkt lebt"></span>Live</span>
+        <span class="zeilenzahl"><span class="zahl">${zahl(1284)}</span> Zeilen heute</span>
+        <div class="rechts">
+          <button class="knopf ohne symbol klein" title="Minimieren: legt das Fenster in die Fußleiste, das Protokoll läuft weiter"><i class="fa-solid fa-window-minimize"></i></button>
+          <button class="knopf ohne symbol klein" title="Maximieren: vergrößert das Fenster auf den ganzen Hauptbereich"><i class="fa-regular fa-window-maximize"></i></button>
+          <button class="knopf ohne symbol klein" title="Schließen: wieder öffnen über das Terminal-Symbol oben rechts oder unter System, Protokoll"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+      </div>
+      <div class="fenster-leiste">
+        <div class="reiter">
+          <button class="aktiv" title="Alle Zeilen von heute"><i class="fa-solid fa-layer-group"></i> Alle <span class="zaehler">${zahl(1284)}</span></button>
+          <button title="Nur Warnungen: Dinge, die noch gut gegangen sind, aber Aufmerksamkeit brauchen"><i class="fa-solid fa-triangle-exclamation warnung"></i> Warnungen <span class="zaehler">6</span></button>
+          <button title="Nur Fehler: etwas ist fehlgeschlagen, eine Anwendung hat es erfahren"><i class="fa-solid fa-circle-xmark gefahr"></i> Fehler <span class="zaehler">1</span></button>
+        </div>
+        <div class="rechts">
+          <label class="suche-feld" title="Sucht in Quelle und Text; Auftrags-Kennungen wie a-7f3c finden alle Zeilen dieses Auftrags"><i class="fa-solid fa-magnifying-glass"></i><input placeholder="Im Protokoll suchen"></label>
+        </div>
+      </div>
+      <div class="fenster-leiste">
+        <span class="etikett">Bereich</span>
+        ${Object.entries(BEREICH).map(([k, b]) => `<button class="chip aktiv" style="--farbe:${b[1]};--farbe-rgb:${b[2]}" title="${b[0]} ein- oder ausblenden"><span class="bereichspunkt"></span>${b[0]}</button>`).join('')}
+      </div>
+      <div class="fenster-inhalt" id="protokoll-inhalt">
+        ${GESTERN.map(zeileLog).join('')}
+        <div class="tagwechsel"><i class="fa-regular fa-calendar"></i>Heute, 16. Oktober</div>
+        ${HEUTE.map(zeileLog).join('')}
+      </div>
+      <div class="fenster-fuss">
+        <span><span class="zahl">${zahl(1284)}</span> Zeilen, letzte vor <span class="zahl">2 s</span></span>
+        <div class="rechts">
+          <button class="knopf ohne klein" title="Anhalten: die Anzeige bleibt stehen, neue Zeilen werden gezählt und nach dem Fortsetzen nachgetragen"><i class="fa-solid fa-pause"></i> Anhalten</button>
+          <button class="knopf ohne klein" title="Springt zur neuesten Zeile und folgt dem Strom wieder"><i class="fa-solid fa-arrow-down"></i> Nach unten</button>
+          <button class="knopf ohne klein" title="Lädt das Protokoll von heute als Textdatei herunter, mit allen Bereichen und Stufen"><i class="fa-solid fa-download"></i> Herunterladen</button>
+        </div>
+      </div>
+      <div class="griff" title="Ziehen ändert die Größe des Fensters"></div>
+    </div>`;
+
+  const haupt = document.getElementById('haupt');
+  haupt.innerHTML = KOPF + `<div class="spalten"><div class="rollfeld">${LINKS}</div><div class="rollfeld">${RECHTS}</div></div>`;
+  netzbild(document.getElementById('netz'), { anwendungen: ['zusage', 'tubevault', 'fundus', 'medienpool', 'kiste', 'Codehilfe', 'rufzeichen', 'bildschmiede-app'] });
+  document.body.insertAdjacentHTML('beforeend', FENSTER);
+  // Ein Live-Protokoll steht unten, beim Neuesten
+  const inhalt = document.getElementById('protokoll-inhalt');
+  inhalt.scrollTop = inhalt.scrollHeight;
+</script>
+</body>
+</html>

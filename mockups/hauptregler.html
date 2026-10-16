@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leitstelle - Entwurf: Hauptregler</title>
+<link rel="icon" href="symbol.svg">
+<link rel="stylesheet" href="../frontend/node_modules/@fortawesome/fontawesome-free/css/all.min.css">
+<link rel="stylesheet" href="stil.css">
+<style>
+  .ueber-kopf { display: flex; align-items: center; gap: var(--ls-a4); flex-wrap: wrap; }
+  .ueber-kopf h1 { margin: 0; }
+  .ueber-kopf .lagezeile { color: var(--ls-text-2); }
+  .ueber-kopf .lagezeile b { color: var(--ls-warnung); font-weight: 600; }
+  .ueber-kopf .aktionen { margin-left: auto; display: flex; gap: var(--ls-a2); }
+  .kennzahlen { margin-top: var(--ls-a3); }
+
+  /* Laufende Aufträge unter dem Netzbild */
+  .laufend { display: grid; gap: 2px; }
+  .lauf { display: grid; grid-template-columns: 34px minmax(0, 1fr) 150px 130px auto; gap: var(--ls-a3); align-items: center;
+          padding: var(--ls-a3); border-radius: var(--ls-ecke); background: var(--ls-karte); }
+  .lauf:hover { background: var(--ls-karte-2); }
+  .lauf .symbol { display: grid; place-items: center; width: 34px; height: 34px; border-radius: var(--ls-ecke); background: rgba(var(--f-rgb), var(--ls-tint)); color: var(--f); }
+  .lauf .titel { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lauf .zweit { display: flex; gap: var(--ls-a3); align-items: center; font-size: var(--ls-gr-klein); color: var(--ls-text-2); margin-top: 3px; flex-wrap: wrap; }
+  .lauf .zweit .app { color: var(--ls-text); font-weight: 500; }
+  .lauf .balken { margin-top: 8px; }
+  .lauf .rest { font-size: var(--ls-gr-klein); color: var(--ls-text-2); text-align: right; }
+  .lauf .rest b { display: block; color: var(--ls-text); font-family: var(--ls-schrift-zahl); font-size: var(--ls-gr-text); }
+  .lauf .knoepfe { display: flex; gap: 2px; }
+  .abschnitt { margin-top: var(--ls-a5); }
+  .abschnitt-kopf { display: flex; align-items: baseline; gap: var(--ls-a3); margin-bottom: var(--ls-a3); }
+  .abschnitt-kopf h2 { margin: 0; }
+  .abschnitt-kopf .mehr { margin-left: auto; font-weight: 600; font-size: var(--ls-gr-klein); }
+
+  /* Rechte Spalte */
+  .speicherkarte .zeile-sp { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--ls-a2); align-items: baseline; margin-top: var(--ls-a3); }
+  .speicherkarte .zeile-sp:first-of-type { margin-top: 0; }
+  .speicherkarte .n { font-weight: 600; }
+  .speicherkarte .w { font-size: var(--ls-gr-klein); color: var(--ls-text-3); }
+  .speicherkarte .w.warn { color: var(--ls-warnung); font-weight: 600; }
+  .speicherkarte .speicher { margin-top: 6px; }
+  .wartet-k .eintrag { padding: var(--ls-a3); border-radius: var(--ls-ecke); background: var(--ls-flaeche); }
+  .wartet-k .eintrag + .eintrag { margin-top: var(--ls-a2); }
+  .wartet-k .eintrag .t { font-weight: 600; display: flex; gap: var(--ls-a2); align-items: center; }
+  .wartet-k .eintrag .t .faehigkeit { margin-left: auto; }
+  .wartet-k .eintrag .g { font-size: var(--ls-gr-klein); color: var(--ls-text-2); margin-top: 4px; }
+  .wartet-k .eintrag .v { font-size: var(--ls-gr-klein); color: var(--ls-text); margin-top: 6px; display: flex; gap: var(--ls-a2); align-items: flex-start; }
+  .wartet-k .eintrag .v i { color: var(--ls-akzent-schrift); margin-top: 4px; }
+  .wartet-k .eintrag .tun { display: flex; gap: var(--ls-a2); margin-top: var(--ls-a2); flex-wrap: wrap; }
+  .meldungen .m { display: grid; grid-template-columns: 62px 24px minmax(0, 1fr); gap: var(--ls-a2); align-items: baseline; padding: 6px 0; border-top: 1px solid var(--ls-rand); font-size: var(--ls-gr-klein); }
+  .meldungen .m:first-of-type { border-top: 0; }
+  .meldungen .m .zeit { color: var(--ls-text-3); min-width: 0; }
+  .meldungen .m i { text-align: center; color: var(--ls-text-3); }
+  .meldungen .m.warnung i { color: var(--ls-warnung); }
+  .meldungen .m.gefahr i { color: var(--ls-gefahr); }
+  .meldungen .m.erfolg i { color: var(--ls-erfolg); }
+  .meldungen .m.signal i { color: var(--ls-akzent-schrift); }
+  .kosten { display: flex; align-items: baseline; gap: var(--ls-a3); }
+  .kosten b { font-family: var(--ls-schrift-zahl); font-size: var(--ls-gr-kennzahl); font-weight: 600; color: var(--ls-koralle); }
+  .kosten .balken { flex: 1; }
+  .kosten .balken b { background: var(--ls-koralle); font-size: 0; }
+</style>
+</head>
+<body>
+<div class="schale">
+  <div data-block="kopf"></div>
+  <div data-block="seite"></div>
+  <main class="haupt rahmen" id="haupt"></main>
+  <div data-block="fuss"></div>
+</div>
+
+<script type="module">
+  import { seite, AUFTRAEGE, KNOTEN, MODELLE, WORT, faehigkeit, zustand, anwendung, modell, knoten, gb } from './gemeinsam.js';
+  import { netzbild } from './netzbild.js';
+  seite('uebersicht', { lage: 'angespannt', modus: 'auslaufen', leiste: 'halt' });
+
+  const FARBE = { text: ['var(--ls-himmel)', 'var(--ls-himmel-rgb)'], einbettung: ['var(--ls-petrol)', 'var(--ls-petrol-rgb)'], uebersetzen: ['var(--ls-tuerkis)', 'var(--ls-tuerkis-rgb)'],
+                  hoeren: ['var(--ls-minze)', 'var(--ls-minze-rgb)'], bild: ['var(--ls-flieder)', 'var(--ls-flieder-rgb)'], musik: ['var(--ls-violett)', 'var(--ls-violett-rgb)'],
+                  stimme: ['var(--ls-rose)', 'var(--ls-rose-rgb)'], werkzeug: ['var(--ls-sand)', 'var(--ls-sand-rgb)'] };
+  const laufend = AUFTRAEGE.filter(a => a.zustand === 'laeuft');
+  const wartend = AUFTRAEGE.filter(a => a.zustand === 'wartet' || a.zustand === 'wartet_speicher');
+
+  const lauf = (a) => `<div class="lauf" style="--f:${FARBE[a.faehigkeit][0]};--f-rgb:${FARBE[a.faehigkeit][1]}" title="${a.titel}: ${a.fortschritt} Prozent, ${a.rest} verbleibend">
+      <div class="symbol"><i class="fa-solid ${WORT.faehigkeit_symbol[a.faehigkeit]}"></i></div>
+      <div style="min-width:0">
+        <div class="titel">${a.titel}</div>
+        <div class="zweit"><span class="app">${anwendung(a.anwendung).name}</span><span>${modell(a.modell).name} auf ${knoten(a.knoten).name}</span>
+          ${a.streamt ? `<span class="zahl">${a.token_s} Token/s</span>` : ''}${a.abschnitte ? `<span class="zahl">${a.abschnitte}</span>` : ''}</div>
+        <div class="balken lebt"><b style="width:${a.fortschritt}%"></b></div>
+      </div>
+      <div class="rest">Rest<b>${a.rest}</b></div>
+      <div class="rest">Priorität<b style="font-family: var(--ls-schrift); font-weight: 600">${WORT.prioritaet[a.prioritaet]}</b></div>
+      <div class="knoepfe">
+        <button class="knopf ohne symbol klein" title="${a.pausierbar ? 'Anhalten: der Auftrag bleibt stehen und läuft später weiter' : 'Dieser Auftrag streamt und lässt sich nicht anhalten, nur stoppen'}" ${a.pausierbar ? '' : 'disabled'}><i class="fa-solid fa-pause"></i></button>
+        <button class="knopf ohne symbol klein" title="Auslaufen lassen: fertig rechnen, aber nichts Neues dieser Anwendung annehmen"><i class="fa-solid fa-person-walking-arrow-right"></i></button>
+        <button class="knopf ohne symbol klein gefahr" title="Sofort stoppen: Rechnung abbrechen, die Anwendung bekommt das Signal abgebrochen"><i class="fa-solid fa-stop"></i></button>
+      </div>
+    </div>`;
+
+  const mac = knoten('mac-128');
+  const speicher = (k, modelle) => {
+    const farbe = { text: 'modell', einbettung: 'modell einbettung', bild: 'modell vision', hoeren: 'modell hoeren', stimme: 'modell stimme' };
+    const geladen = modelle.filter(m => m.zustand === 'geladen' || m.zustand === 'rechnet');
+    const summe = geladen.reduce((s, m) => s + m.gb, 0);
+    const system = Math.max(0, k.ram_gb * k.ram / 100 - summe);
+    const frei = k.ram_gb - summe - system;
+    return `<div class="zeile-sp"><span class="n">${k.name} <span class="leise klein">${k.ram_gb} GB</span></span><span class="w${k.ram >= 90 ? ' warn' : ''}">${k.ram} % belegt · ${gb(frei)} frei</span></div>
+      <div class="speicher">${geladen.map(m => `<span class="${farbe[m.faehigkeit] || 'modell'}" style="width:${(m.gb / k.ram_gb * 100).toFixed(1)}%" title="${m.name}: ${gb(m.gb)}${m.zustand === 'rechnet' ? ', rechnet gerade' : ''}"></span>`).join('')}
+        <span class="system" style="width:${(system / k.ram_gb * 100).toFixed(1)}%" title="System und andere Programme: ${gb(system)}"></span></div>`;
+  };
+  const modelleVon = (kennungen) => MODELLE.filter(m => kennungen.includes(m.dienst));
+
+  const KOPF = `
+    <div class="rahmen-kopf">
+      <div class="ueber-kopf">
+        <h1>Übersicht</h1>
+        <span class="lagezeile"><b style="color: var(--ls-warnung)">Läuft aus seit 14:58:</b> 3 Aufträge rechnen zu Ende, nichts Neues wird angenommen; 2 Anfragen abgelehnt (Medienpool, Kiste bekamen das Signal gesperrt).</span>
+        <div class="aktionen">
+          <button class="knopf" title="Alle Hintergrund-Aufträge anhalten, damit interaktive Anwendungen Vorrang bekommen"><i class="fa-solid fa-pause"></i> Hintergrund anhalten</button>
+          <button class="knopf" title="Speicher freigeben: zeigt zuerst, welche Modelle entladen würden, nichts passiert ohne Bestätigung"><i class="fa-solid fa-broom"></i> Speicher freigeben</button>
+        </div>
+      </div>
+      <div class="hinweis warnung" style="margin-bottom: var(--ls-a3)"><i class="fa-solid fa-person-walking-arrow-right"></i>
+        <div><b>Hauptregler steht auf Auslaufen.</b> Sanft: laufende Aufträge enden normal, die Warteschlange ruht, Anwendungen erhalten <code>signal.gesperrt</code> mit deinem Grund.
+          Oben in der Kopfleiste ist zusätzlich <b>Halt</b> angefragt: die Leiste darunter zeigt die Folgen, bevor etwas passiert. Zurück zu Normal nimmt alles wieder auf.</div>
+        <div class="rechts"><button class="knopf klein" title="Setzt den Hauptregler zurück auf Normal; wartende Aufträge laufen wieder an"><i class="fa-solid fa-play"></i> Zurück zu Normal</button></div>
+      </div>
+      <div class="kennzahlen">
+        <div class="kennzahl laeuft"><b>${laufend.length}</b><span>Läuft aus</span><small>enden normal, längster 22 min</small></div>
+        <div class="kennzahl wartet"><b>${wartend.length}</b><span>Ruht</span><small>startet erst bei Normal</small></div>
+        <div class="kennzahl fehler"><b>2</b><span>Abgelehnt</span><small>seit Auslaufen, mit Signal</small></div>
+        <div class="kennzahl"><b>1</b><span>Pausiert</span></div>
+        <div class="kennzahl erfolg"><b>67</b><span>Heute fertig</span><small>mittlere Wartezeit 4 s</small></div>
+        <div class="kennzahl fehler"><b>1</b><span>Fehler</span></div>
+        <div class="kennzahl"><b>5<span style="font-size: 18px; color: var(--ls-text-3)"> / 6</span></b><span>Knoten</span><small>Pi Werkstatt nicht erreichbar</small></div>
+      </div>
+    </div>`;
+
+  const LINKS = `
+    <div id="netz"></div>
+    <div class="abschnitt">
+      <div class="abschnitt-kopf"><h2>Läuft gerade</h2><span class="zahl leise">${laufend.length}</span><a class="mehr" href="auftraege.html">Alle Aufträge</a></div>
+      <div class="laufend">${laufend.map(lauf).join('')}</div>
+    </div>`;
+
+  const RECHTS = `
+    <div class="karte speicherkarte">
+      <h3><i class="fa-solid fa-memory"></i>Speicherlage <span class="rechts">Modelle im Speicher</span></h3>
+      ${speicher(mac, modelleVon(['laeufer', 'txt2voice', 'bildschmiede']))}
+      ${speicher(knoten('mac-32'), modelleVon(['whisper-32', 'acestep']))}
+      ${speicher(knoten('pi-archiv'), modelleVon(['piper-pi']))}
+      <div class="speicher-legende">
+        <span><i class="fa-solid fa-square" style="color: var(--ls-himmel)"></i>Text</span>
+        <span><i class="fa-solid fa-square" style="color: var(--ls-petrol)"></i>Einbettung</span>
+        <span><i class="fa-solid fa-square" style="color: var(--ls-minze)"></i>Hören</span>
+        <span><i class="fa-solid fa-square" style="color: var(--ls-rose)"></i>Stimme</span>
+        <span><i class="fa-solid fa-square" style="color: var(--ls-stahl)"></i>System</span>
+      </div>
+    </div>
+    <div class="karte wartet-k">
+      <h3><i class="fa-solid fa-hourglass-half"></i>Wartet <span class="rechts">${wartend.length} Aufträge</span></h3>
+      ${wartend.map(a => `<div class="eintrag">
+          <div class="t">${a.titel}${faehigkeit(a.faehigkeit)}</div>
+          <div class="g">${anwendung(a.anwendung).name} · ${a.grund}</div>
+          ${a.vorschlag ? `<div class="v"><i class="fa-solid fa-lightbulb"></i><span>${a.vorschlag}</span></div>` : ''}
+          <div class="tun">
+            ${a.zustand === 'wartet_speicher' ? `<button class="knopf klein" title="Rechnet den Auftrag extern (Externer Anbieter, Bildmodell Qwen3.8 27B). Kostet etwa 0,01 Euro, Daten verlassen das Heimnetz."><i class="fa-solid fa-cloud"></i> Extern rechnen</button>` : ''}
+            <button class="knopf klein ohne" title="Priorität anheben: der Auftrag kommt in der Warteschlange nach vorn"><i class="fa-solid fa-arrow-up"></i> Vorziehen</button>
+            <button class="knopf klein ohne gefahr" title="Auftrag verwerfen: die Anwendung bekommt das Signal abgebrochen"><i class="fa-solid fa-xmark"></i> Verwerfen</button>
+          </div>
+        </div>`).join('')}
+    </div>
+    <div class="karte">
+      <h3><i class="fa-solid fa-cloud"></i>Extern heute <span class="rechts">Grenze 5,00 Euro</span></h3>
+      <div class="kosten"><b>0,42 Euro</b><div class="balken"><b style="width: 8.4%"></b></div><span class="klein leise zahl">8 %</span></div>
+      <div class="klein leise" style="margin-top: 8px">3 Aufträge über Externer Anbieter, alle von Fundus (Tiefenrecherche). Schlüssel liegt nur in der Leitstelle.</div>
+    </div>
+    <div class="karte meldungen">
+      <h3><i class="fa-solid fa-bell"></i>Meldungen <span class="rechts"><a href="protokoll.html">Protokoll</a></span></h3>
+      <div class="m signal"><span class="zeit zahl">14:56</span><i class="fa-solid fa-paper-plane"></i><span>Hinweis an <b>Kiste</b> (Fassade): wartet auf Speicher, voraussichtlich 25 s</span></div>
+      <div class="m erfolg"><span class="zeit zahl">14:55</span><i class="fa-solid fa-check"></i><span>Rufzeichen: Antwort gesprochen in 2,1 s (dringend, vorgezogen)</span></div>
+      <div class="m warnung"><span class="zeit zahl">14:54</span><i class="fa-solid fa-memory"></i><span>Mac Studio: Speicher über 95 Prozent, Lage angespannt</span></div>
+      <div class="m gefahr"><span class="zeit zahl">14:41</span><i class="fa-solid fa-triangle-exclamation"></i><span>Codehilfe: Modell Qwen3 Coder Next konnte nicht geladen werden (Speicher)</span></div>
+      <div class="m"><span class="zeit zahl">14:12</span><i class="fa-solid fa-ear-listen"></i><span>TubeVault: Transkript gestartet, Hintergrund, 3:21 h Material</span></div>
+      <div class="m warnung"><span class="zeit zahl">13:52</span><i class="fa-solid fa-circle-pause"></i><span>Bildschmiede von dir angehalten, damit Zusage Vorrang hat</span></div>
+      <div class="m gefahr"><span class="zeit zahl">Di 09:10</span><i class="fa-solid fa-server"></i><span>Pi Werkstatt meldet sich nicht mehr</span></div>
+    </div>`;
+
+  const haupt = document.getElementById('haupt');
+  haupt.innerHTML = KOPF + `<div class="spalten"><div class="rollfeld">${LINKS}</div><div class="rollfeld">${RECHTS}</div></div>`;
+  netzbild(document.getElementById('netz'), { anwendungen: ['zusage', 'tubevault', 'fundus', 'medienpool', 'kiste', 'Codehilfe', 'rufzeichen', 'bildschmiede-app'] });
+</script>
+</body>
+</html>

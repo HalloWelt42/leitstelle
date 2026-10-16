@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leitstelle - Entwurf: Hilfe</title>
+<link rel="icon" href="symbol.svg">
+<link rel="stylesheet" href="../frontend/node_modules/@fortawesome/fontawesome-free/css/all.min.css">
+<link rel="stylesheet" href="stil.css">
+<style>
+  /* Untergrund: Modelle in knapper Form */
+  .rahmen-kopf .filter { margin: var(--ls-a3) 0 0; }
+  .tabelle td b { font-weight: 600; }
+  .tabelle .schutz { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--ls-erfolg); white-space: nowrap; }
+  .tabelle th .hilfepunkt { margin-left: 6px; vertical-align: middle; text-transform: none; letter-spacing: 0; }
+  .tabelle-fuss { margin-top: var(--ls-a3); font-size: var(--ls-gr-klein); color: var(--ls-text-3); }
+
+  /* Hilfe-Fenster: Suchleiste, zwei Spalten, Thema in größerer Leseschrift */
+  .hilfe-suche { display: flex; align-items: center; gap: var(--ls-a2); padding: var(--ls-a2) var(--ls-a3); border-bottom: 1px solid var(--ls-rand); flex: none; }
+  .hilfe-suche .suche { height: 38px; max-width: none; }
+  .hilfe-suche .treffer { white-space: nowrap; color: var(--ls-text-2); font-size: var(--ls-gr-klein); padding: 0 var(--ls-a1); }
+  .hilfe-koerper { flex: 1; min-height: 0; display: grid; grid-template-columns: 236px minmax(0, 1fr); overflow: hidden; }
+  .hilfe-verzeichnis { position: relative; overflow-y: auto; padding: var(--ls-a2); border-right: 1px solid var(--ls-rand); }
+  .hilfe-verzeichnis .etikett { padding: var(--ls-a3) var(--ls-a2) var(--ls-a1); }
+  .hilfe-verzeichnis .etikett:first-child { padding-top: var(--ls-a1); }
+  .hilfe-verzeichnis .navi { padding: 6px 10px; font-size: var(--ls-gr-klein); }
+  .hilfe-thema { --hilfe-gr: calc(var(--ls-gr-text) + 1px); overflow-y: auto; padding: var(--ls-a5) var(--ls-a6) var(--ls-a6); background: var(--ls-grund);
+                 font-size: var(--hilfe-gr); line-height: 1.6; }
+  .hilfe-thema h2 { font-size: var(--ls-gr-seite); line-height: 1.15; }
+  .hilfe-thema .untertitel { color: var(--ls-text-2); margin-top: var(--ls-a2); }
+  .hilfe-thema h3 { font-size: var(--ls-gr-titel); font-weight: 700; margin-top: var(--ls-a5); margin-bottom: var(--ls-a2); }
+  .hilfe-thema p { margin-top: var(--ls-a3); }
+  .hilfe-thema .schritte { margin: var(--ls-a3) 0 0; padding: 0; list-style: none; counter-reset: schritt; display: grid; gap: var(--ls-a2); }
+  .hilfe-thema .schritte li { counter-increment: schritt; display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: var(--ls-a3); align-items: start; }
+  .hilfe-thema .schritte li::before { content: counter(schritt); display: grid; place-items: center; width: 36px; height: 36px; margin-top: 1px;
+                                      font-family: var(--ls-schrift-zahl); font-weight: 700; background: var(--ls-karte-2); color: var(--ls-akzent-schrift); border-radius: var(--ls-ecke); }
+  .hilfe-thema .schritte b { font-weight: 600; }
+  .hilfe-thema .hinweis { margin-top: var(--ls-a4); font-size: inherit; }
+  .hilfe-thema .hinweis b { font-weight: 600; }
+  .hilfe-thema mark { background: rgba(var(--ls-akzent-rgb), 0.26); color: inherit; padding: 0 3px; border-radius: var(--ls-ecke-klein); }
+  .hilfe-thema mark.aktiv { background: var(--ls-akzent); color: var(--ls-akzent-text); }
+  .siehe-auch { margin-top: var(--ls-a5); padding-top: var(--ls-a4); border-top: 1px solid var(--ls-rand); }
+  .siehe-auch .etikett { margin-bottom: var(--ls-a2); }
+  .siehe-auch .verweise { display: flex; flex-wrap: wrap; gap: var(--ls-a2) var(--ls-a4); }
+  .siehe-auch a { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+  .siehe-auch a i { font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="schale">
+  <div data-block="kopf"></div>
+  <div data-block="seite"></div>
+  <main class="haupt rahmen" id="haupt"></main>
+  <div data-block="fuss"></div>
+</div>
+
+<script type="module">
+  import { seite, MODELLE, faehigkeit, zustand, dienst, knoten, gb, zahl, hilfepunkt } from './gemeinsam.js';
+  seite('hilfe');
+
+  // ── Untergrund: Modelle in knapper Form ──
+  const imSpeicher = MODELLE.filter(m => m.zustand === 'geladen' || m.zustand === 'rechnet');
+  const rechnet = MODELLE.filter(m => m.zustand === 'rechnet').length;
+  const frei = MODELLE.filter(m => m.zustand === 'frei').length;
+  const extern = MODELLE.filter(m => m.zustand === 'extern').length;
+  const geschuetzt = MODELLE.filter(m => m.geschuetzt).length;
+  const belegt = imSpeicher.reduce((s, m) => s + m.gb, 0);
+  const ausgeschrieben = (t) => t.replace('Std.', 'Stunden').replace('Min.', 'Minuten');
+
+  const KOPF = `
+    <div class="rahmen-kopf">
+      <div class="seitenkopf">
+        <h1>Modelle</h1><span class="zahl">${MODELLE.length}</span>
+      </div>
+      <div class="kennzahlen">
+        <div class="kennzahl laeuft"><b>${rechnet}</b><span>Rechnet</span></div>
+        <div class="kennzahl erfolg"><b>${imSpeicher.length}</b><span>Im Speicher</span><small>${gb(belegt)} auf 3 Knoten</small></div>
+        <div class="kennzahl"><b>${frei}</b><span>Nicht geladen</span></div>
+        <div class="kennzahl"><b>${geschuetzt}</b><span>Geschützt</span><small>werden nie entladen</small></div>
+        <div class="kennzahl"><b>${extern}</b><span>Extern</span></div>
+      </div>
+      <div class="filter">
+        <button class="knopf" title="Zeigt zuerst, welche Modelle entladen würden und wie viel Speicher frei wird; nichts passiert ohne Bestätigung"><i class="fa-solid fa-broom"></i> Speicher freigeben</button>${hilfepunkt('Speicher freigeben')}
+        <span class="trenner"></span>
+        <span class="leise klein">Mac Studio: <span class="zahl">96 %</span> belegt, <span class="zahl">5,1 GB</span> frei; ein Bildauftrag wartet auf Speicher.</span>
+      </div>
+    </div>`;
+
+  const auswahl = ['qwen-80b', 'bge-m3', 'glm-vision', 'qwen-coder', 'whisper-gross'].map(k => MODELLE.find(m => m.kennung === k));
+  const zeile = (m) => {
+    const d = dienst(m.dienst);
+    return `<tr>
+      <td><b>${m.name}</b><div class="klein schwach">${m.parameter} Parameter${m.kontext ? ` · Kontext ${zahl(m.kontext)}` : ''}</div></td>
+      <td>${m.geschuetzt ? '<span class="schutz"><i class="fa-solid fa-shield-halved"></i>Geschützt</span>' : '<span class="schwach">Entladbar</span>'}</td>
+      <td>${faehigkeit(m.faehigkeit)}</td>
+      <td class="zahl">${gb(m.gb)}</td>
+      <td>${d.name}<div class="klein schwach">${knoten(d.knoten)?.name || ''}</div></td>
+      <td>${zustand(m.zustand)}</td>
+      <td class="schwach">${ausgeschrieben(m.zuletzt)}</td>
+    </tr>`;
+  };
+  const TABELLE = `
+    <div class="bereich">
+      <table class="tabelle">
+        <thead><tr><th>Modell</th><th>Schutz${hilfepunkt('Modelle schützen')}</th><th>Fähigkeit</th><th class="zahl">Größe</th><th>Dienst</th><th>Zustand</th><th>Zuletzt genutzt</th></tr></thead>
+        <tbody>${auswahl.map(zeile).join('')}</tbody>
+      </table>
+      <div class="tabelle-fuss">Zeigt ${auswahl.length} von ${MODELLE.length} Modellen; die vollständige Liste steht auf der Seite <a href="modelle.html">Modelle</a>.</div>
+    </div>`;
+
+  // ── Hilfe-Fenster ──
+  const KATEGORIEN = [
+    ['Erste Schritte', ['Was die Leitstelle tut', 'Ersten Knoten anbinden', 'Erste Anwendung anmelden']],
+    ['Begriffe', ['Knoten, Dienst, Modell', 'Fähigkeit', 'Budget', 'Lage: ruhig, angespannt, Engpass']],
+    ['Aufträge', ['Priorität und Reihenfolge', 'Anhalten, auslaufen lassen, stoppen', 'Wenn ein Auftrag wartet']],
+    ['Knoten', ['Agent einrichten', 'Wartungsmodus', 'Nicht erreichbar: was tun']],
+    ['Modelle und Speicher', ['Speicherbudget je Knoten', 'Modelle schützen', 'Speicher freigeben', 'Laden dauert: Richtwerte']],
+    ['Anwendungen anbinden', ['Anmelden in fünf Schritten', 'Schlüssel und Rechte', 'Nur Fassade: ohne Umbau']],
+    ['Nachrichtenverkehr', ['Der Umschlag', 'Signale verstehen', 'Kanal und Fassade']],
+    ['Regeln', ['Prioritäten', 'Zeitfenster', 'Externe Kosten']],
+    ['Sicherheit', ['Zonen', 'Geheimnisse', 'Prüfprotokoll']],
+  ];
+  const AKTIV = 'Speicher freigeben';
+  const VERZEICHNIS = KATEGORIEN.map(([name, themen]) =>
+    `<div class="etikett">${name}</div>` + themen.map(t => `<a class="navi${t === AKTIV ? ' aktiv' : ''}" href="#" title="Thema öffnen: ${t}">${t}</a>`).join('')).join('');
+
+  const THEMA = `
+    <h2>Speicher freigeben</h2>
+    <p class="untertitel">Räumt den Speicher eines Knotens auf, ohne laufende Arbeit zu stören. Zuerst siehst du eine Vorschau, dann entscheidest du.</p>
+    <p>Der Knopf <mark class="aktiv">Speicher freigeben</mark> steht auf der Übersicht, bei jedem Knoten und bei den Modellen. Er entlädt Modelle, die
+      gerade niemand braucht, damit ein wartender Auftrag sein Modell laden kann. Typischer Fall: Auf dem Mac Studio liegt das große Textmodell
+      mit <span class="zahl">84,7</span> GB im Speicher, und ein Bildauftrag von Kiste wartet auf <span class="zahl">11,8</span> GB.</p>
+
+    <h3 id="was-die-leitstelle-prueft">Was die Leitstelle prüft</h3>
+    <ol class="schritte">
+      <li><span><b>Rechnende Modelle bleiben.</b> Ein Modell, das gerade einen Auftrag bearbeitet, wird nie entladen.</span></li>
+      <li><span><b>Geschützte Modelle bleiben.</b> Was unter Modelle mit Schutz markiert ist, zum Beispiel die Einbettung für Fundus oder der Stimmklon für Rufzeichen, bleibt im Speicher.</span></li>
+      <li><span><b>Größte zuerst.</b> Von den übrigen Modellen schlägt die Leitstelle das größte vor, das am längsten nicht benutzt wurde.</span></li>
+      <li><span><b>Vorschau vor dem Tun.</b> Du siehst die Modelle, die frei würden, und wie viel Speicher das bringt. Erst dein Klick auf Entladen führt es aus.</span></li>
+    </ol>
+
+    <div class="hinweis erfolg"><i class="fa-solid fa-lightbulb"></i><span><b>Wenn du es eilig hast: Auftrag auslaufen lassen statt stoppen.</b> Das Textmodell wird nach dem letzten Stück frei,
+      der Bildauftrag startet von selbst, und die Anwendung bekommt ein sauberes Ergebnis.</span></div>
+
+    <h3 id="was-danach-passiert">Was danach passiert</h3>
+    <p>Nach dem Entladen sendet die Leitstelle das Signal <code>signal.speicher</code> mit dem Stand frei an alle Anwendungen, die Signale wünschen.
+      Wartende Aufträge werden sofort neu geprüft. Wer das Modell später wieder braucht, bekommt es automatisch geladen;
+      <mark>Speicher freigeben</mark> löscht nichts von der Platte.</p>
+
+    <div class="hinweis warnung"><i class="fa-solid fa-triangle-exclamation"></i><span><b>Entladen bricht keine Aufträge ab, aber ein Modell neu zu laden dauert bei <span class="zahl">85</span> GB etwa <span class="zahl">30</span> Sekunden.</b>
+      In dieser Zeit warten neue Aufträge dieses Modells.</span></div>
+
+    <h3 id="wann-der-knopf-nichts-tut">Wann der Knopf nichts tut</h3>
+    <p>Wenn alle geladenen Modelle rechnen oder geschützt sind, zeigt <mark>Speicher freigeben</mark> eine leere Vorschau und bleibt ohne Wirkung.
+      Dann hilft Warten, Auslaufen lassen oder Rechnen extern.</p>
+
+    <div class="siehe-auch" id="siehe-auch">
+      <div class="etikett">Siehe auch</div>
+      <div class="verweise">
+        <a href="regeln.html" title="Öffnet das Thema Regeln: Speicherbudget je Knoten"><i class="fa-solid fa-scale-balanced"></i>Regeln</a>
+        <a href="knoten-detail.html" title="Öffnet das Thema Knoten: Mac Studio"><i class="fa-solid fa-server"></i>Knoten: Mac Studio</a>
+        <a href="#" title="Öffnet den Begriff Budget"><i class="fa-solid fa-book"></i>Begriffe: Budget</a>
+      </div>
+    </div>`;
+
+  const FENSTER = `
+    <aside class="fenster" id="hilfe" role="dialog" aria-label="Hilfe" style="right: 40px; top: 92px; width: 760px; height: 680px">
+      <div class="fenster-kopf" title="Ziehen verschiebt das Fenster">
+        <div class="titel"><i class="fa-solid fa-circle-question"></i>Hilfe</div>
+        <div class="rechts">
+          <button class="knopf ohne symbol klein" title="Minimieren: nur die Kopfzeile bleibt unten rechts stehen"><i class="fa-solid fa-window-minimize"></i></button>
+          <button class="knopf ohne symbol klein" title="Maximieren: füllt den Hauptbereich"><i class="fa-solid fa-window-maximize"></i></button>
+          <button class="knopf ohne symbol klein" title="Schließen (Escape)"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+      </div>
+      <div class="hilfe-suche">
+        <label class="suche"><i class="fa-solid fa-magnifying-glass"></i><input value="Speicher freigeben" title="Suchbegriff; Eingabe springt zum nächsten Treffer" aria-label="Hilfe durchsuchen"></label>
+        <span class="stufen" title="Suchbereich: alle Themen oder nur das geöffnete"><button>Alle Themen</button><button class="an">Dieses Thema</button></span>
+        <span class="treffer" title="3 Treffer in diesem Thema, 12 in allen Themen"><span class="zahl">3</span> von <span class="zahl">12</span></span>
+        <button class="knopf ohne symbol klein" title="Voriger Treffer (Umschalt+Eingabe)"><i class="fa-solid fa-chevron-up"></i></button>
+        <button class="knopf ohne symbol klein" title="Nächster Treffer (Eingabe)"><i class="fa-solid fa-chevron-down"></i></button>
+      </div>
+      <div class="hilfe-koerper">
+        <nav class="hilfe-verzeichnis" id="verzeichnis">${VERZEICHNIS}</nav>
+        <article class="hilfe-thema">${THEMA}</article>
+      </div>
+      <div class="fenster-fuss">
+        <span><i class="fa-solid fa-thumbtack"></i>&nbsp; Position und Größe gemerkt</span>
+        <div class="rechts"><button class="knopf ohne klein" title="Kopiert einen Verweis, der die Hilfe genau bei diesem Thema öffnet"><i class="fa-solid fa-link"></i> Thema als Verweis kopieren</button></div>
+      </div>
+      <div class="griff" title="Ziehen ändert die Größe"></div>
+    </aside>`;
+
+  document.getElementById('haupt').innerHTML = KOPF + `<div class="rollfeld">${TABELLE}</div>`;
+  document.body.insertAdjacentHTML('beforeend', FENSTER);
+
+  // Hilfepunkte auf der Untergrundseite: Tiefenlink genau an diese Stelle
+  document.querySelectorAll('#haupt .hilfepunkt').forEach(b => { b.title = `Öffnet die Hilfe genau an dieser Stelle: ${b.dataset.hilfe}`; });
+
+  // Inhaltsverzeichnis auf das offene Thema rollen
+  const verzeichnis = document.getElementById('verzeichnis');
+  const aktiv = verzeichnis.querySelector('.navi.aktiv');
+  verzeichnis.scrollTop = aktiv.offsetTop - verzeichnis.clientHeight / 2 + aktiv.offsetHeight / 2;
+
+  // Verschieben am Kopf, Größe am Griff (Entwurf: zeigt das Verhalten, merkt nichts)
+  const fenster = document.getElementById('hilfe');
+  const ziehen = (start, bewege) => (e) => {
+    if (e.target.closest('button')) return;
+    const r = fenster.getBoundingClientRect();
+    const beginn = start(e, r);
+    const move = (ev) => bewege(ev, r, beginn);
+    const up = () => { removeEventListener('pointermove', move); removeEventListener('pointerup', up); };
+    addEventListener('pointermove', move); addEventListener('pointerup', up);
+    e.preventDefault();
+  };
+  fenster.querySelector('.fenster-kopf').addEventListener('pointerdown', ziehen(
+    (e, r) => ({ dx: e.clientX - r.left, dy: e.clientY - r.top }),
+    (ev, r, b) => { fenster.style.left = `${Math.max(0, ev.clientX - b.dx)}px`; fenster.style.top = `${Math.max(0, ev.clientY - b.dy)}px`; fenster.style.right = 'auto'; }));
+  fenster.querySelector('.griff').addEventListener('pointerdown', ziehen(
+    () => ({}),
+    (ev, r) => { fenster.style.left = `${r.left}px`; fenster.style.right = 'auto';
+                 fenster.style.width = `${Math.max(520, ev.clientX - r.left)}px`; fenster.style.height = `${Math.max(360, ev.clientY - r.top)}px`; }));
+</script>
+</body>
+</html>

@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leitstelle - Entwurf: Knoten Mac Studio</title>
+<link rel="icon" href="symbol.svg">
+<link rel="stylesheet" href="../frontend/node_modules/@fortawesome/fontawesome-free/css/all.min.css">
+<link rel="stylesheet" href="stil.css">
+<style>
+  /* Kopf mit Zurück-Knopf, Titelzeile und Unterzeile */
+  .detailkopf { align-items: center; }
+  .detailkopf .zurueck { flex: none; }
+  .detailkopf .titel { flex: 1 1 320px; min-width: 0; }
+  .detailkopf .titelzeile { display: flex; align-items: center; gap: var(--ls-a3); flex-wrap: wrap; }
+  .detailkopf .unter { margin-top: 4px; color: var(--ls-text-2); display: flex; gap: var(--ls-a3); flex-wrap: wrap; font-size: var(--ls-gr-klein); }
+  .detailkopf .unter .zahl { font-size: inherit; color: inherit; font-weight: 500; }   /* nicht die Zählergröße von .seitenkopf .zahl */
+  .detailkopf .aktionen { margin-left: 0; }
+  .kennzahl.warnung b { color: var(--ls-warnung); }
+
+  /* Vier Verlaufsdiagramme in zwei Reihen */
+  .diagramme { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: var(--ls-a3) var(--ls-a4); }
+  .feld-kopf { display: flex; align-items: baseline; justify-content: space-between; gap: var(--ls-a2); margin-bottom: 4px; }
+  .feld-kopf span { font-weight: 600; }
+  .feld-kopf b { font-family: var(--ls-schrift-zahl); font-weight: 600; color: var(--d-farbe); }
+  .diagramm { display: block; width: 100%; height: auto; overflow: visible; }
+  .diagramm .grund { fill: var(--ls-mulde); }
+  .diagramm .hilfe { stroke: var(--ls-diagrammlinie); stroke-width: 1; }
+  .diagramm .achse { font-family: var(--ls-schrift-zahl); font-size: 16px; fill: var(--ls-text-3); }
+  .diagramm .linie { fill: none; stroke: var(--d-farbe); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+  .diagramm .flaeche { fill: var(--d-farbe); opacity: 0.14; }
+  .diagramm .budget { stroke: var(--ls-warnung); stroke-width: 1.5; stroke-dasharray: 6 6; }
+  .diagramm .budget-text { font-family: var(--ls-schrift); font-size: 16px; font-weight: 600; fill: var(--ls-warnung); }
+  .diagramm .jetzt { fill: var(--d-farbe); }
+
+  /* Speicher nach Modellen: Balken mit Budgetmarke, Legende, Tabelle */
+  .speicher-rahmen { position: relative; padding-top: 26px; }
+  .speicher-rahmen .budget-marke { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--ls-warnung); }
+  .speicher-rahmen .budget-marke span { position: absolute; top: 0; right: 0; transform: translateX(0); white-space: nowrap; font-size: var(--ls-gr-marke); font-weight: 700; color: var(--ls-warnung); padding-right: 6px; }
+  .speicher-legende .gb { font-family: var(--ls-schrift-zahl); color: var(--ls-text); margin-left: 4px; }
+  .modelltabelle { margin-top: var(--ls-a4); }
+  .modelltabelle th { background: var(--ls-karte); }
+  .modelltabelle td, .modelltabelle th { padding-left: 8px; padding-right: 8px; }
+  .modelltabelle .name { font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .modelltabelle .name .schild { color: var(--ls-erfolg); font-size: 14px; cursor: help; }
+  .modelltabelle .unterzeile { margin-top: 3px; }
+  .modelltabelle .zuletzt { display: block; margin-top: 3px; font-size: var(--ls-gr-marke); color: var(--ls-text-3); }
+  .modelltabelle .knopf.klein { height: 32px; }
+
+  /* Dienste auf dem Knoten: eine Zeile je Dienst */
+  .dienstzeile { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--ls-a3); align-items: center; padding: var(--ls-a3); border-radius: var(--ls-ecke); background: var(--ls-flaeche); }
+  .dienstzeile + .dienstzeile { margin-top: var(--ls-a2); }
+  .dz-name { display: flex; align-items: center; gap: var(--ls-a2); flex-wrap: wrap; }
+  .dz-name b { font-size: var(--ls-gr-text); }
+  .dz-meta { display: flex; gap: var(--ls-a3); flex-wrap: wrap; font-size: var(--ls-gr-klein); color: var(--ls-text-2); margin-top: 4px; }
+  .dz-faehig { display: flex; gap: var(--ls-a1); flex-wrap: wrap; margin-top: var(--ls-a2); }
+  .dz-knoepfe { display: flex; gap: 2px; }
+
+  /* Zeilenform der Aufträge wie in auftraege.html */
+  .auftrag { display: grid; grid-template-columns: 34px minmax(0, 1fr) 128px 118px auto; gap: var(--ls-a3); align-items: center;
+             padding: var(--ls-a3); border-radius: var(--ls-ecke); cursor: pointer; }
+  .auftrag + .auftrag { margin-top: 2px; }
+  .auftrag:hover { background: var(--ls-flaeche); }
+  .auftrag .symbol { display: grid; place-items: center; width: 34px; height: 34px; border-radius: var(--ls-ecke); background: rgba(var(--f-rgb), var(--ls-tint)); color: var(--f); }
+  .auftrag .titel { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .auftrag .zweit { display: flex; gap: var(--ls-a3); align-items: center; font-size: var(--ls-gr-klein); color: var(--ls-text-2); margin-top: 3px; flex-wrap: wrap; }
+  .auftrag .zweit .app { color: var(--ls-text); font-weight: 500; }
+  .auftrag .balken { margin-top: 8px; }
+  .auftrag .grund { font-size: var(--ls-gr-klein); color: var(--ls-text-3); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .auftrag .rest { font-size: var(--ls-gr-klein); color: var(--ls-text-2); text-align: right; }
+  .auftrag .rest b { display: block; color: var(--ls-text); font-family: var(--ls-schrift-zahl); }
+  .auftrag .prio { font-size: var(--ls-gr-klein); text-align: right; }
+  .auftrag .prio.dringend { color: var(--ls-gefahr); font-weight: 700; }
+  .auftrag .prio.hoch { color: var(--ls-akzent-schrift); font-weight: 600; }
+  .auftrag .prio.hintergrund { color: var(--ls-text-3); }
+  .auftrag .knoepfe { display: flex; gap: 2px; }
+
+  /* Rechte Spalte */
+  .angaben { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 6px var(--ls-a3); font-size: var(--ls-gr-klein); }
+  .angaben dt { color: var(--ls-text-3); }
+  .angaben dd { margin: 0; }
+  .messwege { display: flex; flex-wrap: wrap; gap: var(--ls-a1); margin: var(--ls-a2) 0 var(--ls-a3); }
+  .messweg { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: var(--ls-ecke-klein); background: var(--ls-flaeche); font-size: var(--ls-gr-marke); font-weight: 600; color: var(--ls-text-2); }
+  .messweg i { color: var(--ls-erfolg); font-size: 12px; }
+  .regeln .einstellung { grid-template-columns: minmax(0, 1fr) 172px; padding-left: 0; padding-right: 0; }
+  .regeln .einstellung .wert .eingabe { width: 76px; }
+  .regeln .einstellung .wert .eingabe.zeit { width: 64px; padding: 0 4px; text-align: center; }
+  .regeln .einstellung .einheit { min-width: 0; }
+  .regeln .tun { display: flex; gap: var(--ls-a2); align-items: center; margin-top: var(--ls-a3); flex-wrap: wrap; }
+  .regeln .tun .klein { color: var(--ls-text-3); }
+  .zeitleiste { display: grid; gap: 0; }
+  .zeitleiste .e { display: grid; grid-template-columns: 62px 18px minmax(0, 1fr); gap: var(--ls-a2); font-size: var(--ls-gr-klein); padding: 5px 0; align-items: baseline; }
+  .zeitleiste .e .zeit { color: var(--ls-text-3); min-width: 0; }
+  .zeitleiste .e i { font-size: 10px; color: var(--ls-text-3); text-align: center; }
+  .zeitleiste .e.warnung i { color: var(--ls-warnung); font-size: 13px; }
+  .zeitleiste .e.gefahr i { color: var(--ls-gefahr); font-size: 13px; }
+  .zeitleiste .e.erfolg i { color: var(--ls-erfolg); font-size: 13px; }
+  .zeitleiste .e.signal i { color: var(--ls-akzent-schrift); font-size: 13px; }
+  .zeitleiste .e.jetzt i { color: var(--ls-akzent-schrift); animation: blinken 1.6s ease-in-out infinite; }
+</style>
+</head>
+<body>
+<div class="schale">
+  <div data-block="kopf"></div>
+  <div data-block="seite"></div>
+  <main class="haupt rahmen" id="haupt"></main>
+  <div data-block="fuss"></div>
+</div>
+
+<script type="module">
+  import { seite, MODELLE, AUFTRAEGE, WORT, FARBE, faehigkeit, zustand, zone, dienst, anwendung, modell, knoten, gb, zahl, reihe, hilfepunkt } from './gemeinsam.js';
+  seite('knoten');
+
+  const SEGMENT = { text: 'modell', einbettung: 'modell einbettung', bild: 'modell vision', hoeren: 'modell hoeren', stimme: 'modell stimme' };
+
+  const k = knoten('mac-128');
+  const dienste = k.dienste.map(dienst);
+  const modelle = MODELLE.filter(m => k.dienste.includes(m.dienst));
+  const geladen = modelle.filter(m => m.zustand === 'geladen' || m.zustand === 'rechnet');
+  const summe = geladen.reduce((s, m) => s + m.gb, 0);
+  const system = k.ram_gb * k.ram / 100 - summe;        // wie auf der Übersicht: System ist der Rest der Belegung
+  const frei = k.ram_gb - summe - system;
+  const BUDGET_GB = 110;
+  const auftraege = AUFTRAEGE.filter(a => a.knoten === k.kennung && (a.zustand === 'laeuft' || a.zustand === 'pausiert'));
+  // Beispielwelt schreibt "Std." und "Min."; sichtbare Texte ohne Abkürzungen
+  const lang = (s) => s.replace('Std.', 'Stunden').replace('Min.', 'Minuten');
+
+  // ── Verlaufsdiagramm: 24 Stunden, Achsen mindestens 16 px im gezeichneten Maßstab ──
+  const anpassen = (werte, ziel) => { const d = ziel - werte[werte.length - 1]; return werte.map(w => Math.max(0, Math.min(100, w + d))); };
+  function diagramm(werte, o) {
+    const B = 380, H = 190, L = 66, R = 14, O = 14, U = 30;
+    const iB = B - L - R, iH = H - O - U, max = o.max || 100;
+    const x = (i) => L + i * iB / (werte.length - 1);
+    const y = (v) => O + iH - (Math.min(v, max) / max) * iH;
+    const f = (n) => n.toFixed(1);
+    const linie = werte.map((w, i) => `${i ? 'L' : 'M'}${f(x(i))},${f(y(w))}`).join(' ');
+    const achse = [0, max / 2, max].map(s => `<line class="hilfe" x1="${L}" x2="${B - R}" y1="${f(y(s))}" y2="${f(y(s))}"></line>
+        <text class="achse" x="${L - 10}" y="${f(y(s) + 5)}" text-anchor="end">${o.beschriftung(s)}</text>`).join('');
+    // Zeitachse mit Uhrzeiten: Beginn vor 24 Stunden, Mitte mit Hilfslinie, rechts jetzt (14:56)
+    const mitte = L + iB / 2;
+    const zeit = `<text class="achse" x="${L}" y="${H - 8}" text-anchor="start">gestern 15:00</text>
+        <line class="hilfe" x1="${f(mitte)}" x2="${f(mitte)}" y1="${O}" y2="${O + iH}"></line>
+        <text class="achse" x="${f(mitte)}" y="${H - 8}" text-anchor="middle">03:00</text>
+        <text class="achse" x="${B - R}" y="${H - 8}" text-anchor="end">jetzt</text>`;
+    const budget = o.budget == null ? '' : `<line class="budget" x1="${L}" x2="${B - R}" y1="${f(y(o.budget))}" y2="${f(y(o.budget))}"></line>
+        <text class="budget-text" x="${B - R - 6}" y="${f(y(o.budget) + 19)}" text-anchor="end">${o.budgetText}</text>`;
+    const n = werte.length - 1;
+    return `<svg class="diagramm" viewBox="0 0 ${B} ${H}" role="img" aria-label="${o.name}, letzte 24 Stunden" style="--d-farbe:${o.farbe}">
+      <rect class="grund" x="${L}" y="${O}" width="${iB}" height="${iH}"></rect>
+      ${achse}
+      <path class="flaeche" d="${linie} L${f(x(n))},${f(y(0))} L${L},${f(y(0))} Z"></path>
+      <path class="linie" d="${linie}"></path>
+      ${budget}
+      <circle class="jetzt" cx="${f(x(n))}" cy="${f(y(werte[n]))}" r="4"></circle>
+      ${zeit}
+    </svg>`;
+  }
+  const prozent = (v) => `${Math.round(v)} %`;
+  const feld = (name, wert, svg, farbe) => `<div class="feld" style="--d-farbe:${farbe}"><div class="feld-kopf"><span>${name}</span><b>${wert}</b></div>${svg}</div>`;
+  const DIAGRAMME = [
+    feld('Prozessor', prozent(k.cpu), diagramm(anpassen(reihe(k.kennung + 'cpu', 48, 40, 30), k.cpu), { name: 'Prozessor', farbe: 'var(--ls-himmel)', beschriftung: prozent }), 'var(--ls-himmel)'),
+    feld('Grafik', prozent(k.gpu), diagramm(anpassen(reihe(k.kennung + 'gpu', 48, 60, 40), k.gpu), { name: 'Grafik', farbe: 'var(--ls-flieder)', beschriftung: prozent }), 'var(--ls-flieder)'),
+    feld('Speicher', `${k.ram} % von ${k.ram_gb} GB`, diagramm(anpassen(reihe(k.kennung + 'ram', 48, 88, 12), k.ram),
+      { name: 'Speicher', farbe: 'var(--ls-gefahr)', beschriftung: (v) => `${Math.round(v / 100 * k.ram_gb)} GB`, budget: BUDGET_GB / k.ram_gb * 100, budgetText: `Budget ${BUDGET_GB} GB` }), 'var(--ls-gefahr)'),
+    feld('Temperatur', `${k.temp} °C`, diagramm(anpassen(reihe(k.kennung + 'temp', 48, 60, 20), k.temp), { name: 'Temperatur', farbe: 'var(--ls-koralle)', beschriftung: (v) => `${Math.round(v)} °C` }), 'var(--ls-koralle)'),
+  ].join('');
+
+  // ── Speicher nach Modellen ──
+  const anteil = (g) => `${(g / k.ram_gb * 100).toFixed(1)}%`;
+  const SPEICHER = `<div class="speicher-rahmen">
+      <div class="speicher">
+        ${geladen.map(m => `<span class="${SEGMENT[m.faehigkeit] || 'modell'}" style="width:${anteil(m.gb)}" title="${m.name}: ${gb(m.gb)}${m.zustand === 'rechnet' ? ', rechnet gerade' : ''}"></span>`).join('')}
+        <span class="system" style="width:${anteil(system)}" title="System und andere Programme: ${gb(system)}"></span>
+      </div>
+      <div class="budget-marke" style="left:${anteil(BUDGET_GB)}" title="Speicherbudget ${BUDGET_GB} GB: oberhalb entlädt die Leitstelle zuerst, bevor sie Neues lädt"><span>Budget ${BUDGET_GB} GB</span></div>
+    </div>
+    <div class="speicher-legende">
+      ${geladen.map(m => `<span><i class="fa-solid fa-square" style="color: ${FARBE[m.faehigkeit][0]}"></i>${m.name}<b class="gb">${gb(m.gb)}</b></span>`).join('')}
+      <span><i class="fa-solid fa-square" style="color: var(--ls-stahl)"></i>System<b class="gb">${gb(system)}</b></span>
+      <span><i class="fa-regular fa-square" style="color: var(--ls-text-3)"></i>Frei<b class="gb">${gb(frei)}</b></span>
+    </div>`;
+
+  const schild = `<i class="fa-solid fa-shield-halved schild" title="Geschützt: unter 10 Milliarden Parametern oder Einbettung, wird nie entladen"></i>`;
+  const aktion = (m) => m.zustand === 'rechnet'
+    ? `<button class="knopf ohne klein gesperrt" disabled title="Rechnet gerade, erst wenn der Auftrag fertig ist">Entladen</button>`
+    : m.zustand === 'geladen'
+      ? `<button class="knopf ohne klein" title="Entladen: gibt ${gb(m.gb)} frei; beim nächsten Auftrag wird neu geladen">Entladen</button>`
+      : `<button class="knopf ohne klein" title="Laden: belegt ${gb(m.gb)}; nur möglich, wenn genug Speicher frei ist">Laden</button>`;
+  const TABELLE = `<table class="tabelle modelltabelle">
+      <thead><tr><th>Modell</th><th class="zahl">Größe</th><th class="zahl">Kontext</th><th>Zustand</th><th class="zahl">Aufträge</th><th>Aktion</th></tr></thead>
+      <tbody>${modelle.map(m => `<tr>
+        <td><div class="name">${m.name}${m.geschuetzt ? schild : ''}</div><div class="unterzeile">${faehigkeit(m.faehigkeit)}</div></td>
+        <td class="zahl">${gb(m.gb)}</td>
+        <td class="zahl">${m.kontext ? zahl(m.kontext) : '<span class="schwach">keiner</span>'}</td>
+        <td>${zustand(m.zustand)}<span class="zuletzt">zuletzt ${lang(m.zuletzt)}</span></td>
+        <td class="zahl">${m.auftraege}${m.wartet ? `<span class="zuletzt" title="Ein Auftrag wartet darauf, dass dieses Modell geladen werden kann">${m.wartet} wartet</span>` : ''}</td>
+        <td>${aktion(m)}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+
+  // ── Dienste auf diesem Knoten ──
+  const DIENSTE_ZEILEN = dienste.map(d => {
+    const ms = MODELLE.filter(m => m.dienst === d.kennung);
+    const gel = ms.filter(m => m.zustand === 'geladen' || m.zustand === 'rechnet').length;
+    const anhalten = d.zustand === 'pausiert'
+      ? `<button class="knopf ohne klein" title="Fortsetzen: nimmt wieder Aufträge an; der pausierte Auftrag läuft weiter"><i class="fa-solid fa-play"></i> Fortsetzen</button>`
+      : `<button class="knopf ohne klein" title="Anhalten: nimmt keine neuen Aufträge an; laufende rechnen fertig"><i class="fa-solid fa-pause"></i> Anhalten</button>`;
+    return `<div class="dienstzeile">
+      <div>
+        <div class="dz-name"><b>${d.name}</b><span class="leise klein">${d.art}</span>${zustand(d.zustand)}</div>
+        <div class="dz-meta"><span class="zahl" title="Adresse des Dienstes">${d.adresse}</span><span>Modelle: <b class="zahl">${gel}</b> geladen von <b class="zahl">${ms.length}</b></span><span><b class="zahl">${d.auftraege}</b> ${d.auftraege === 1 ? 'Auftrag' : 'Aufträge'}</span></div>
+        <div class="dz-faehig">${d.faehigkeiten.map(faehigkeit).join('')}</div>
+      </div>
+      <div class="dz-knoepfe">
+        <button class="knopf ohne klein" title="Prüfen: Gesundheitsprüfung jetzt ausführen, lädt kein Modell"><i class="fa-solid fa-stethoscope"></i> Prüfen</button>
+        ${anhalten}
+      </div>
+    </div>`;
+  }).join('');
+
+  // ── Aufträge in der Zeilenform von auftraege.html ──
+  const zeile = (a) => {
+    const laeuft = a.zustand === 'laeuft';
+    return `<div class="auftrag" style="--f:${FARBE[a.faehigkeit][0]};--f-rgb:${FARBE[a.faehigkeit][1]}" title="${a.titel}: ${WORT.zustand[a.zustand]}">
+      <div class="symbol" title="${WORT.faehigkeit[a.faehigkeit]}"><i class="fa-solid ${WORT.faehigkeit_symbol[a.faehigkeit]}"></i></div>
+      <div style="min-width:0">
+        <div class="titel">${a.titel}</div>
+        <div class="zweit"><span class="app">${anwendung(a.anwendung).name}</span><span>${modell(a.modell).name} · ${dienst(a.dienst).name}</span>${zustand(a.zustand)}</div>
+        ${laeuft ? `<div class="balken lebt"><b style="width:${a.fortschritt}%"></b></div>` : `<div class="balken"><b style="width:${a.fortschritt}%; background: var(--ls-honig)"></b></div>`}
+        ${a.grund && !laeuft ? `<div class="grund" title="${a.grund}">${a.grund}</div>` : ''}
+      </div>
+      <div class="rest">${laeuft ? 'Rest' : 'Seit'}<b>${laeuft ? a.rest : a.seit}</b></div>
+      <div class="prio ${a.prioritaet}" title="Priorität ${WORT.prioritaet[a.prioritaet]}">${WORT.prioritaet[a.prioritaet]}</div>
+      <div class="knoepfe">
+        ${a.zustand === 'pausiert' ? `<button class="knopf ohne symbol klein" title="Fortsetzen"><i class="fa-solid fa-play"></i></button>` : a.pausierbar ? `<button class="knopf ohne symbol klein" title="Anhalten: bleibt stehen und läuft später weiter"><i class="fa-solid fa-pause"></i></button>` : `<button class="knopf ohne symbol klein" disabled title="Dieser Auftrag streamt und lässt sich nicht anhalten, nur stoppen"><i class="fa-solid fa-pause"></i></button>`}
+        ${laeuft ? `<button class="knopf ohne symbol klein gefahr" title="Stoppen: Auslaufen lassen oder sofort stoppen"><i class="fa-solid fa-stop"></i></button>` : `<button class="knopf ohne symbol klein gefahr" title="Verwerfen: die Anwendung bekommt das Signal abgebrochen"><i class="fa-solid fa-xmark"></i></button>`}
+      </div>
+    </div>`;
+  };
+
+  // ── Kopf ──
+  const KOPF = `
+    <div class="rahmen-kopf">
+      <div class="seitenkopf detailkopf">
+        <a class="knopf ohne symbol zurueck" href="knoten.html" title="Zurück zur Liste aller Knoten"><i class="fa-solid fa-arrow-left"></i></a>
+        <div class="titel">
+          <div class="titelzeile"><h1>${k.name}</h1>${zone(k.zone)}${zustand(k.zustand)}</div>
+          <div class="unter"><span>${k.beschreibung}</span><span class="zahl" title="Adresse im Netz">${k.adresse}</span><span>Agent <span class="zahl">0.1.0</span>, letzte Meldung vor <span class="zahl">3</span> Sekunden</span></div>
+        </div>
+        <div class="aktionen">
+          <button class="knopf" title="Wartungsmodus: lässt laufende Aufträge auslaufen und nimmt nichts Neues an"><i class="fa-solid fa-screwdriver-wrench"></i> Wartungsmodus</button>
+          <button class="knopf" title="Speicher freigeben: zeigt zuerst, welche Modelle entladen würden; nichts passiert ohne Bestätigung"><i class="fa-solid fa-broom"></i> Speicher freigeben</button>
+          <button class="knopf" title="Neu messen: fragt den Knoten-Agenten sofort ab, statt auf den nächsten Takt zu warten"><i class="fa-solid fa-rotate"></i> Neu messen</button>
+        </div>
+      </div>
+      <div class="kennzahlen">
+        <div class="kennzahl"><b>${k.cpu} %</b><span>Prozessor</span></div>
+        <div class="kennzahl warnung"><b>${k.gpu} %</b><span>Grafik</span></div>
+        <div class="kennzahl fehler"><b>${k.ram} %</b><span>Speicher</span><small>${gb(frei)} frei, Budget ${BUDGET_GB} GB</small></div>
+        <div class="kennzahl"><b>${k.temp} °C</b><span>Temperatur</span></div>
+        <div class="kennzahl laeuft"><b>${k.auftraege}</b><span>Aufträge</span><small>1 wartet auf Speicher</small></div>
+        <div class="kennzahl"><b>${geladen.length}</b><span>Modelle geladen</span><small>${gb(summe)} · ${modelle.length} Modelle vorhanden</small></div>
+      </div>
+    </div>`;
+
+  // ── Linke Spalte ──
+  const LINKS = `
+    <div class="karte">
+      <h3><i class="fa-solid fa-chart-line"></i>Verlauf <span class="rechts">letzte 24 Stunden, ein Messwert je halbe Stunde</span></h3>
+      <div class="diagramme">${DIAGRAMME}</div>
+    </div>
+    <div class="karte">
+      <h3><i class="fa-solid fa-memory"></i>Speicher nach Modellen <span class="rechts"><span class="zahl">${k.ram} %</span> belegt · <span class="zahl">${gb(frei)}</span> frei von <span class="zahl">${k.ram_gb} GB</span></span></h3>
+      ${SPEICHER}
+      ${TABELLE}
+    </div>
+    <div class="karte">
+      <h3><i class="fa-solid fa-plug"></i>Dienste auf diesem Knoten <span class="rechts">${dienste.length} Dienste</span></h3>
+      ${DIENSTE_ZEILEN}
+    </div>
+    <div class="karte">
+      <h3><i class="fa-solid fa-list-check"></i>Aufträge auf diesem Knoten <span class="rechts">${auftraege.filter(a => a.zustand === 'laeuft').length} laufen · 1 pausiert · <a href="auftraege.html">Alle Aufträge</a></span></h3>
+      ${auftraege.map(zeile).join('')}
+    </div>`;
+
+  // ── Rechte Spalte ──
+  const MESSWEGE = ['Prozessor', 'Speicher', 'Grafik', 'Leistung', 'Temperatur', 'Lüfter', 'Platte', 'Netz'];
+  const RECHTS = `
+    <div class="karte">
+      <h3><i class="fa-solid fa-satellite-dish"></i>Knoten-Agent <span class="rechts"><span class="punkt lebt"></span>meldet sich</span></h3>
+      <dl class="angaben">
+        <dt>Version</dt><dd class="zahl">0.1.0</dd>
+        <dt>Takt</dt><dd>alle <span class="zahl">5</span> Sekunden ${hilfepunkt('Takt des Knoten-Agenten')}</dd>
+        <dt>Letzte Meldung</dt><dd>vor <span class="zahl">3</span> Sekunden</dd>
+        <dt>Weg</dt><dd>Nachrichtenkanal, Art <code>knoten.messwerte</code></dd>
+      </dl>
+      <div class="etikett" style="margin-top: var(--ls-a3)">Messwege</div>
+      <div class="messwege">${MESSWEGE.map(m => `<span class="messweg" title="${m} wird vom Agenten gemessen"><i class="fa-solid fa-check"></i>${m}</span>`).join('')}</div>
+      <div class="hinweis klein"><i class="fa-solid fa-circle-info"></i><span>Misst nur, liest keine Daten; entlädt Modelle nur auf Befehl der Leitstelle.</span></div>
+    </div>
+    <div class="karte regeln">
+      <h3><i class="fa-solid fa-scale-balanced"></i>Regeln für diesen Knoten <span class="rechts"><a href="regeln.html">Alle Regeln</a></span></h3>
+      <div class="einstellung">
+        <div><div class="name">Speicherbudget ${hilfepunkt('Speicherbudget')}</div><div class="erklaerung">Oberhalb entlädt die Leitstelle zuerst ungeschützte Modelle, bevor sie Neues lädt.</div></div>
+        <div class="wert"><input class="eingabe" value="${BUDGET_GB}" title="Speicherbudget in Gigabyte, höchstens ${k.ram_gb}"><span class="einheit">GB</span></div>
+      </div>
+      <div class="einstellung">
+        <div><div class="name">Schutzgrenze ${hilfepunkt('Schutzgrenze')}</div><div class="erklaerung">Modelle unter dieser Parameterzahl und alle Einbettungen werden nie entladen.</div></div>
+        <div class="wert"><input class="eingabe" value="10" title="Parameterzahl in Milliarden, unterhalb geschützt"><span class="einheit">Milliarden</span></div>
+      </div>
+      <div class="einstellung">
+        <div><div class="name">Leerlauf-Entladen ${hilfepunkt('Leerlauf-Entladen')}</div><div class="erklaerung">Aus: Modelle bleiben geladen, bis Speicher gebraucht wird.</div></div>
+        <div class="wert"><button class="schalter" title="Leerlauf-Entladen ist aus; eingeschaltet werden ungeschützte Modelle nach 30 Minuten ohne Auftrag entladen"></button></div>
+      </div>
+      <div class="einstellung">
+        <div><div class="name">Zeitfenster Hintergrundarbeit ${hilfepunkt('Zeitfenster')}</div><div class="erklaerung">Hintergrund-Aufträge laufen außerhalb nur, wenn nichts anderes wartet.</div></div>
+        <div class="wert"><input class="eingabe zeit" value="22:00" title="Beginn des Zeitfensters"><span class="einheit">bis</span><input class="eingabe zeit" value="06:00" title="Ende des Zeitfensters"></div>
+      </div>
+      <div class="tun">
+        <button class="knopf" title="Übernehmen: gilt ab der nächsten Meldung des Agenten; laufende Aufträge bleiben unberührt"><i class="fa-solid fa-check"></i> Übernehmen</button>
+        <span class="klein">Änderungen wirken ab der nächsten Meldung.</span>
+      </div>
+    </div>
+    <div class="karte">
+      <h3><i class="fa-solid fa-clock"></i>Ereignisse dieses Knotens <span class="rechts"><a href="protokoll.html">Protokoll</a></span></h3>
+      <div class="zeitleiste">
+        <div class="e"><span class="zeit zahl">06:10</span><i class="fa-solid fa-circle"></i><span>Agent <span class="zahl">0.1.0</span> neu gestartet, Takt <span class="zahl">5</span> Sekunden</span></div>
+        <div class="e erfolg"><span class="zeit zahl">08:02</span><i class="fa-solid fa-brain"></i><span>Qwen3 Next 80B geladen (<span class="zahl">84,7 GB</span>) für Fundus</span></div>
+        <div class="e warnung"><span class="zeit zahl">13:52</span><i class="fa-solid fa-circle-pause"></i><span>Bildschmiede von dir angehalten, damit Zusage Vorrang hat</span></div>
+        <div class="e erfolg"><span class="zeit zahl">14:12</span><i class="fa-solid fa-brain"></i><span>Whisper groß v3 geladen (<span class="zahl">3,1 GB</span>) für TubeVault</span></div>
+        <div class="e gefahr"><span class="zeit zahl">14:41</span><i class="fa-solid fa-triangle-exclamation"></i><span>Qwen3 Coder Next konnte nicht geladen werden: Speicher reicht nicht</span></div>
+        <div class="e warnung"><span class="zeit zahl">14:54</span><i class="fa-solid fa-memory"></i><span>Speicher über <span class="zahl">95 %</span>, Lage angespannt</span></div>
+        <div class="e signal"><span class="zeit zahl">14:56</span><i class="fa-solid fa-paper-plane"></i><span>Signal an Kiste: wartet auf Speicher, voraussichtlich <span class="zahl">25</span> Sekunden</span></div>
+        <div class="e jetzt"><span class="zeit zahl">jetzt</span><i class="fa-solid fa-circle"></i><span><span class="zahl">3</span> Aufträge rechnen, <span class="zahl">1</span> wartet auf Speicher</span></div>
+      </div>
+    </div>`;
+
+  document.getElementById('haupt').innerHTML = KOPF + `<div class="spalten"><div class="rollfeld">${LINKS}</div><div class="rollfeld">${RECHTS}</div></div>`;
+</script>
+</body>
+</html>

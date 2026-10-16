@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leitstelle - Entwurf: Regeln</title>
+<link rel="icon" href="symbol.svg">
+<link rel="stylesheet" href="../frontend/node_modules/@fortawesome/fontawesome-free/css/all.min.css">
+<link rel="stylesheet" href="stil.css">
+<style>
+  /* Gruppen von Einstellungen */
+  .bereich + .bereich { margin-top: var(--ls-a4); }
+  .bereich h2 { display: flex; align-items: center; gap: var(--ls-a3); margin-bottom: var(--ls-a2); }
+  .bereich h2 i { color: var(--ls-akzent-schrift); font-size: 20px; width: 24px; text-align: center; }
+  .bereich h2 .rechts { margin-left: auto; font-size: var(--ls-gr-klein); font-weight: 500; color: var(--ls-text-3); }
+  .bereich .vorwort { color: var(--ls-text-2); font-size: var(--ls-gr-klein); margin-bottom: var(--ls-a2); max-width: 760px; }
+  .bereich .einstellung { padding-left: 0; padding-right: 0; }
+  .bereich .einstellung .erklaerung { max-width: 560px; }
+  .bereich .nachwort { font-size: var(--ls-gr-klein); color: var(--ls-text-3); padding-top: var(--ls-a3); border-top: 1px solid var(--ls-rand); }
+
+  /* Kleine Tabelle der vier Prioritätsstufen */
+  .stufentabelle { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 6px var(--ls-a4); padding: var(--ls-a3) var(--ls-a4);
+                   background: var(--ls-karte); border-radius: var(--ls-ecke); font-size: var(--ls-gr-klein); margin: var(--ls-a2) 0 var(--ls-a3); }
+  .stufentabelle b { font-weight: 700; }
+  .stufentabelle b.dringend { color: var(--ls-gefahr); }
+  .stufentabelle b.hoch { color: var(--ls-akzent-schrift); }
+  .stufentabelle b.hintergrund { color: var(--ls-text-3); }
+  .stufentabelle span { color: var(--ls-text-2); }
+
+  /* Bedienelemente: Ergänzungen zu den Bausteinen */
+  .wert .einheit { width: 84px; min-width: 84px; }
+  .wert .eingabe.schmal { width: 72px; }
+  .wert .zwischen { color: var(--ls-text-3); font-size: var(--ls-gr-klein); }
+  .wert.stapel { flex-direction: column; align-items: flex-end; gap: var(--ls-a2); }
+  .wert .fest { display: inline-flex; align-items: center; gap: 6px; font-size: var(--ls-gr-marke); font-weight: 700; letter-spacing: 0.06em;
+                text-transform: uppercase; color: var(--ls-text-3); }
+  .schalter[disabled] { opacity: 0.5; cursor: not-allowed; }
+  .stufen button { min-width: 40px; padding: 0 10px; }
+  .stufen.gedaempft { opacity: 0.45; }
+  .stufen button[disabled] { cursor: not-allowed; }
+  .einstellung.breit { grid-template-columns: minmax(0, 1fr); }
+  .einstellung.breit .wert { display: block; }
+  .erlaubnis { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--ls-a2) var(--ls-a3); margin-top: var(--ls-a3); }
+  .erlaubnis label { display: flex; align-items: center; gap: var(--ls-a3); padding: 6px var(--ls-a3); background: var(--ls-karte); border-radius: var(--ls-ecke);
+                     font-size: var(--ls-gr-klein); font-weight: 500; color: var(--ls-text-2); cursor: pointer; }
+  .erlaubnis label.an { color: var(--ls-text); }
+  .erlaubnis label .schalter { margin-left: auto; }
+  .erlaubnis label .heute { font-size: var(--ls-gr-marke); color: var(--ls-text-3); }
+  .bereich .hinweis { margin-top: var(--ls-a3); }
+
+  /* Rechts: Wirkung und Begriffe */
+  .wirkung .w { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: var(--ls-a3); padding: var(--ls-a3) 0; border-top: 1px solid var(--ls-rand); font-size: var(--ls-gr-klein); }
+  .wirkung .w:first-of-type { border-top: 0; padding-top: 0; }
+  .wirkung .w .symbol { display: grid; place-items: center; width: 34px; height: 34px; border-radius: var(--ls-ecke); background: rgba(var(--f-rgb), var(--ls-tint)); color: var(--f); }
+  .wirkung .w b { display: block; font-weight: 600; color: var(--ls-text); }
+  .wirkung .w .regel { color: var(--ls-text-3); margin-top: 4px; font-size: var(--ls-gr-marke); }
+  .wirkung .w .regel i { margin-right: 4px; }
+  .begriffe dl { margin: 0; }
+  .begriffe dt { font-weight: 600; margin-top: var(--ls-a3); display: flex; align-items: center; gap: var(--ls-a2); }
+  .begriffe dt:first-of-type { margin-top: 0; }
+  .begriffe dt i { color: var(--ls-text-3); width: 18px; text-align: center; font-size: 14px; }
+  .begriffe dd { margin: 2px 0 0; color: var(--ls-text-2); font-size: var(--ls-gr-klein); }
+</style>
+</head>
+<body>
+<div class="schale">
+  <div data-block="kopf"></div>
+  <div data-block="seite"></div>
+  <main class="haupt rahmen" id="haupt"></main>
+  <div data-block="fuss"></div>
+</div>
+
+<script type="module">
+  import { seite, KNOTEN, ANWENDUNGEN, AUFTRAEGE, WORT, anwendung, modell, knoten, euro, gb, hilfepunkt } from './gemeinsam.js';
+  seite('regeln');
+
+  const FARBE = { text: ['var(--ls-himmel)', 'var(--ls-himmel-rgb)'], bild: ['var(--ls-flieder)', 'var(--ls-flieder-rgb)'] };
+  const BUDGET = { 'mac-128': 110, 'mac-32': 24, 'pi-archiv': 5 };
+  const ABZUG_GB = 18;
+
+  // ── Bausteine der Zeilen ─────────────────────────────────────────────
+  const zeile = (name, erklaerung, wert, thema = '', klasse = '') => `
+    <div class="einstellung ${klasse}">
+      <div><div class="name">${name}${thema ? ` ${hilfepunkt(thema)}` : ''}</div><div class="erklaerung">${erklaerung}</div></div>
+      <div class="wert ${wert.stapel ? 'stapel' : ''}">${wert.html || wert}</div>
+    </div>`;
+  const schalter = (an, title, gesperrt = false) =>
+    `<button class="schalter${an ? ' an' : ''}" role="switch" aria-checked="${an}" title="${title}"${gesperrt ? ' disabled' : ''}></button>`;
+  const fest = (title) => `<span class="fest" title="${title}"><i class="fa-solid fa-lock"></i>Fest</span>${schalter(true, title, true)}`;
+  const stufen = (werte, an, title, gedaempft = false) =>
+    `<span class="stufen${gedaempft ? ' gedaempft' : ''}" title="${title}">${werte.map(w => `<button class="${w === an ? 'an' : ''}"${gedaempft ? ' disabled' : ''}>${typeof w === 'number' ? `<span class="zahl">${w}</span>` : w}</button>`).join('')}</span>`;
+  const einheit = (text) => `<span class="einheit">${text}</span>`;
+  const eingabe = (wert, title, schmal = false) => `<input class="eingabe${schmal ? ' schmal' : ''}" value="${wert}" title="${title}">`;
+
+
+  // ── Selbststeuerung ──────────────────────────────────────────────────
+  const SELBST = `
+    <section class="bereich">
+      <h2><i class="fa-solid fa-wand-magic-sparkles"></i>Selbststeuerung <span class="rechts">handelt von selbst, mit Begründung</span></h2>
+      <p class="vorwort">Die Leitstelle beobachtet den ganzen Verbund laufend und schichtet um, ohne dass jemand klickt: leitet Aufträge auf freie Rechner, lädt und entlädt Modelle, wärmt vor. Jede Maßnahme steht mit Grund und Gewinn in den Meldungen und lässt sich rückgängig machen. Die Schalter hier sind Kurzfassungen; jede Regel ist ein Graph aus Auslöser, Prüfungen und Aktionen und lässt sich im <a href="regelwerk.html" title="Regelwerk: Regeln als Graph bearbeiten, Vorlagen kopieren, Trockenlauf">Regelwerk</a> vollständig bearbeiten oder neu bauen.</p>
+      ${zeile('Automatik', 'Vorschlagen: Maßnahmen erscheinen als Vorschlag und warten auf einen Klick. Selbst handeln: die Leitstelle führt sie aus und meldet sie. Vorgabe: Selbst handeln.',
+              stufen(['Aus', 'Vorschlagen', 'Selbst handeln'], 'Selbst handeln', 'Wie weit die Leitstelle von selbst eingreift'), 'Selbststeuerung')}
+      ${zeile('Aufträge auf freie Rechner umleiten', 'Passt das Modell eines wartenden Auftrags auf einen anderen Rechner mit freiem Speicher, läuft er dort statt zu warten. Beispiel: Bildmodell auf das MacBook, während der Mac Studio rechnet.',
+              schalter(true, 'An: wartende Aufträge laufen auf dem nächsten passenden Rechner'), 'Umleiten')}
+      ${zeile('Leerlauf räumen, wenn der Platz gebraucht wird', 'Braucht ein wartender Auftrag den Platz eines Modells, das seit der Bedarfsfrist keinen Auftrag mehr hatte, wird es entladen und das gebrauchte geladen. Geschützte Modelle bleiben, rechnende sowieso. Ohne Bedarf wird nie entladen; die Leerlaufgrenze bestimmt nur, ab wann ein Modell in den Listen als Leerlauf steht.',
+              { stapel: true, html: `<span style="display:flex; gap: var(--ls-a2); align-items:center">${stufen([30, 60, 300], 60, 'Bedarfsfrist: so viele Sekunden ohne Auftrag, bevor ein Modell einem wartenden Auftrag weicht')}${einheit('Sekunden Bedarfsfrist')}</span><span style="display:flex; gap: var(--ls-a2); align-items:center">${stufen([15, 30, 60], 30, 'Ab wie vielen Minuten ohne Auftrag ein Modell in den Listen als Leerlauf gilt', true)}${einheit('Minuten Leerlaufgrenze')}</span>` }, 'Leerlauf')}
+      ${zeile('Vorwärmen nach Warteschlange', 'Steht in der Warteschlange ein Auftrag für ein Modell, das noch nicht geladen ist, wird es auf einem Rechner mit Platz schon geladen, bevor er dran ist.',
+              schalter(true, 'An: Modelle werden geladen, bevor der Auftrag an der Reihe ist'), 'Vorwärmen')}
+      ${zeile('Dienste bei Bedarf starten', 'Ist auf einem Rechner ein Dienst installiert, läuft aber nicht (zum Beispiel ein zweiter Modell-Läufer), startet ihn der Knoten-Agent auf Anweisung der Leitstelle.',
+              schalter(true, 'An: der Agent startet installierte Dienste, wenn ein Auftrag sie braucht'), 'Dienste starten')}
+      ${zeile('Mindestverweildauer eines Modells', 'Ein frisch geladenes Modell bleibt mindestens so lange, damit es kein Hin und Her gibt. Vorgabe 10 Minuten.',
+              { html: `${stufen([5, 10, 30], 10, 'Schutz vor ständigem Laden und Entladen')}${einheit('Minuten')}`, stapel: false }, 'Verweildauer')}
+      ${zeile('Gewinnschwelle', 'Eine Maßnahme wird nur ausgeführt, wenn sie mindestens so viele Sekunden Wartezeit spart, wie sie selbst kostet (Ladezeit gemessen, nicht geraten). Vorgabe: doppelter Gewinn.',
+              stufen(['Gleich', 'Doppelt', 'Dreifach'], 'Doppelt', 'Wie viel größer der Gewinn als die Kosten sein muss'), 'Gewinnschwelle')}
+      ${zeile('Extern ausweichen ab Wartezeit', 'Dürfen Anwendung und Regel es, läuft ein Auftrag extern, sobald die erwartete Wartezeit diese Grenze überschreitet.',
+              { html: `${stufen([1, 2, 5], 2, 'Ab welcher erwarteten Wartezeit extern gerechnet wird')}${einheit('Minuten')}`, stapel: false }, 'Extern ausweichen')}
+      ${zeile('Lernen aus Messungen', 'Ladezeiten je Modell und Rechner sowie Laufzeiten je Auftragsart werden gemessen und für Vorhersagen genutzt. Vorgabe: an.',
+              schalter(true, 'An: Vorhersagen beruhen auf gemessenen Werten dieses Verbunds'), 'Lernen')}
+    </section>`;
+
+  // ── Prioritäten ──────────────────────────────────────────────────────
+  const PRIORITAETEN = `
+    <section class="bereich">
+      <h2><i class="fa-solid fa-layer-group"></i>Prioritäten <span class="rechts">vier Stufen</span></h2>
+      <p class="vorwort">Jede Anwendung meldet sich mit einer Stufe an; ein einzelner Auftrag darf davon abweichen. Die Stufe entscheidet über die Reihenfolge in der Warteschlange, nie über laufende Rechnungen.</p>
+      <div class="stufentabelle">
+        <b class="dringend">Dringend</b><span>Sprachassistent: antwortet sofort, darf vorgezogen werden (Rufzeichen)</span>
+        <b class="hoch">Hoch</b><span>Ein Mensch wartet auf das Ergebnis (Zusage, Codehilfe)</span>
+        <b class="normal">Normal</b><span>Gewöhnliche Arbeit ohne besondere Eile (Fundus, Medienpool, Kiste, Mitschrift, Pinnwand)</span>
+        <b class="hintergrund">Hintergrund</b><span>Stapelarbeit, darf warten und angehalten werden (TubeVault, Bildschmiede)</span>
+      </div>
+      ${zeile('Hintergrund bei angespannter Lage automatisch anhalten',
+              'Sobald die Lage angespannt ist, werden Aufträge der Stufe Hintergrund angehalten; sie laufen weiter, wenn die Lage wieder ruhig ist.',
+              schalter(true, 'An: Hintergrund-Aufträge werden bei angespannter Lage angehalten und laufen bei ruhiger Lage von selbst weiter'), 'Lage')}
+      ${zeile('Höchster Anteil einer Anwendung',
+              'Mehr als diesen Anteil der gleichzeitig laufenden Aufträge bekommt keine einzelne Anwendung; der Rest bleibt für andere frei. Vorgabe <span class="zahl">50</span> Prozent.',
+              stufen([25, 50, 75, 100], 50, 'Anteil der laufenden Aufträge, den eine einzelne Anwendung höchstens belegen darf') + einheit('Prozent'), 'Anteil je Anwendung')}
+      ${zeile('Hintergrund spätestens nach',
+              'Auch bei dauerhaft hoher Last kommt ein wartender Hintergrund-Auftrag spätestens nach dieser Zeit dran. Vorgabe <span class="zahl">15</span> Minuten.',
+              stufen([5, 15, 30, 60], 15, 'Längste Wartezeit eines Hintergrund-Auftrags, bevor er trotz hoher Last drankommt') + einheit('Minuten'), 'Verhungern verhindern')}
+      ${zeile('Dringend darf laufende Hintergrundarbeit unterbrechen',
+              'Ein dringender Auftrag hält einen laufenden Hintergrund-Auftrag an, statt zu warten; der angehaltene läuft danach weiter.',
+              schalter(true, 'An: ein dringender Auftrag unterbricht laufende Hintergrundarbeit, statt zu warten'), 'Unterbrechen')}
+    </section>`;
+
+  // ── Speicher je Knoten ───────────────────────────────────────────────
+  const budgetZeile = (k) => {
+    const vorgabe = k.ram_gb - ABZUG_GB;
+    const wert = BUDGET[k.kennung];
+    const herkunft = vorgabe === wert ? 'entspricht der Vorgabe'
+      : vorgabe <= 0 ? `von Hand gesetzt, die Vorgabe greift bei <span class="zahl">${k.ram_gb} GB</span> nicht`
+      : `von Hand gesetzt, Vorgabe wäre <span class="zahl">${vorgabe} GB</span>`;
+    return zeile(`Budget ${k.name}`,
+      `Gesamtspeicher <span class="zahl">${k.ram_gb} GB</span>. Vorgabe: Gesamtspeicher minus <span class="zahl">${ABZUG_GB} GB</span> für System und Programme; ${herkunft}.`,
+      eingabe(wert, `Höchstens so viel Speicher auf ${k.name} dürfen Modelle zusammen belegen; darüber macht die Leitstelle Platz, bevor sie lädt`) + einheit('GB'));
+  };
+  const SPEICHER = `
+    <section class="bereich">
+      <h2><i class="fa-solid fa-memory"></i>Speicher je Knoten ${hilfepunkt('Budget')}</h2>
+      ${KNOTEN.filter(k => BUDGET[k.kennung] !== undefined).map(budgetZeile).join('')}
+      <div class="nachwort">Pi Stube, Pi Werkstatt und Server Helsinki laden keine Modelle und brauchen kein Budget.</div>
+      ${zeile('Schutzgrenze',
+              'Modelle unter dieser Zahl an Parametern werden nie entladen: sie bringen kaum Platz, sind aber schnell gebraucht (Stimmen, Hörer, Freisteller). Vorgabe <span class="zahl">10</span> Milliarden.',
+              eingabe(10, 'Modelle mit weniger Parametern als diese Zahl in Milliarden werden nie automatisch entladen') + einheit('Milliarden'), 'Schutzgrenze')}
+      ${zeile('Einbettungsmodelle nie entladen',
+              'Fest an: ein Wechsel des Einbettungsmodells macht alle gespeicherten Einbettungen ungültig. Darum bleibt es geladen, solange der Dienst läuft.',
+              schalter(true, 'Fest an: Einbettungsmodelle werden nie entladen, weil ein Wechsel alle gespeicherten Einbettungen ungültig macht', true), 'Einbettung')}
+      ${zeile('Rechnende Modelle nie entladen',
+              'Fest: ein Modell mit laufendem Auftrag wird nie entladen, auch nicht beim Freimachen von Hand. Erst wenn der Auftrag fertig ist, kommt es in Frage.',
+              fest('Fest eingestellt: ein rechnendes Modell zu entladen hieße, den Auftrag abzubrechen'), 'Rechnend')}
+      ${zeile('Leerlauf-Entladen',
+              'Aus: es wird nur entladen, wenn Platz für ein angefordertes Modell fehlt. An: Modelle ohne Auftrag werden nach der gewählten Zeit entladen und bei Bedarf neu geladen.',
+              { stapel: true, html: schalter(false, 'Aus: Modelle bleiben geladen, bis Platz für ein anderes gebraucht wird') + `<span style="display:flex; gap: var(--ls-a2); align-items:center">${stufen([15, 60, 240], 60, 'Nach so vielen Minuten ohne Auftrag wird ein Modell entladen; wirkt nur bei eingeschaltetem Leerlauf-Entladen', true)}${einheit('Minuten')}</span>` }, 'Leerlauf')}
+      ${zeile('Reihenfolge beim Freimachen',
+              'Welches Modell zuerst entladen wird, wenn Platz fehlt. Größte zuerst schafft mit einem Schritt am meisten Platz; Älteste zuerst schont, was gerade gebraucht wurde.',
+              stufen(['Größte zuerst', 'Älteste zuerst'], 'Größte zuerst', 'Reihenfolge, in der die Leitstelle Modelle entlädt, wenn Platz fehlt; geschützte und rechnende bleiben immer'), 'Freimachen')}
+    </section>`;
+
+  // ── Zeitgrenzen ──────────────────────────────────────────────────────
+  const ZEITGRENZEN = `
+    <section class="bereich">
+      <h2><i class="fa-solid fa-stopwatch"></i>Zeitgrenzen</h2>
+      ${zeile('Arbeit bekommt keine Lese-Zeitgrenze',
+              'Fest: lange Läufe (Transkripte, große Bilder, lange Texte) dürfen Stunden dauern. Abgebrochen wird nur bei Stillstand oder getrennter Verbindung.',
+              fest('Fest eingestellt: eine Lese-Zeitgrenze würde lange, gesunde Läufe abbrechen'), 'Zeitgrenzen')}
+      ${zeile('Verbindungsaufbau',
+              'So lange wartet die Leitstelle, bis ein Dienst die Verbindung annimmt. Vorgabe <span class="zahl">30</span> Sekunden.',
+              eingabe(30, 'Zeit in Sekunden, bis ein Dienst die Verbindung angenommen haben muss; danach gilt er als nicht erreichbar') + einheit('Sekunden'))}
+      ${zeile('Stillstand ohne neues Stück',
+              'Kommt so lange kein neues Stück (Text, Abschnitt, Bild), gilt der Auftrag als festgefahren und wird mit Fehler beendet. Vorgabe <span class="zahl">10</span> Minuten.',
+              eingabe(10, 'Minuten ohne Fortschritt, nach denen ein Auftrag als festgefahren gilt') + einheit('Minuten'))}
+      ${zeile('Herzschlag-Frist der Knoten-Agenten',
+              'Meldet sich ein Knoten-Agent so lange nicht, gilt der Knoten als nicht erreichbar und bekommt keine neuen Aufträge. Vorgabe <span class="zahl">15</span> Sekunden.',
+              eingabe(15, 'Sekunden ohne Herzschlag, nach denen ein Knoten als nicht erreichbar gilt') + einheit('Sekunden'), 'Herzschlag')}
+      ${zeile('Lebenszeichen-Frist der Anwendungen',
+              'Meldet sich eine angemeldete Anwendung so lange nicht, gilt sie als getrennt; ihre wartenden Aufträge bleiben erhalten. Vorgabe <span class="zahl">60</span> Sekunden.',
+              eingabe(60, 'Sekunden ohne Lebenszeichen, nach denen eine Anwendung als getrennt gilt') + einheit('Sekunden'))}
+    </section>`;
+
+  // ── Zeitfenster ──────────────────────────────────────────────────────
+  const ZEITFENSTER = `
+    <section class="bereich">
+      <h2><i class="fa-solid fa-moon"></i>Zeitfenster</h2>
+      ${zeile('MacBook nimmt Hintergrundarbeit nur',
+              'Tagsüber bleibt das MacBook für die Arbeit am Gerät frei; Hintergrund-Aufträge für seine Dienste werden erst im Fenster gerechnet. Vorgabe <span class="zahl">23</span> bis <span class="zahl">7</span> Uhr.',
+              `<span class="zwischen">von</span>${eingabe(23, 'Beginn des Zeitfensters (volle Stunde)', true)}<span class="zwischen">bis</span>${eingabe(7, 'Ende des Zeitfensters (volle Stunde)', true)}<span class="zwischen">Uhr</span>`, 'Zeitfenster')}
+      ${zeile('Pi Archiv: Transkripte nur nachts',
+              'Hör-Aufträge der Anwendungen auf dem Pi Archiv (TubeVault) werden tagsüber eingereiht und im Nachtfenster gerechnet.',
+              schalter(true, 'An: Transkript-Aufträge vom Pi Archiv werden gesammelt und erst zwischen 23 und 7 Uhr gerechnet'))}
+    </section>`;
+
+  // ── Externe Anbieter ─────────────────────────────────────────────────
+  const erlaubt = new Set(['fundus', 'Codehilfe']);
+  const ERLAUBNIS = ANWENDUNGEN.map(a => `
+    <label class="${erlaubt.has(a.kennung) ? 'an' : ''}" title="${erlaubt.has(a.kennung) ? `${a.name} darf externe Aufträge rechnen lassen` : `${a.name} rechnet nur im Heimnetz`}">
+      <span>${a.name}${a.zustand === 'getrennt' ? ` <span class="heute">${WORT.zustand[a.zustand]}</span>` : ''}</span>
+      ${schalter(erlaubt.has(a.kennung), erlaubt.has(a.kennung) ? `An: ${a.name} darf extern rechnen lassen, innerhalb der Grenzen` : `Aus: Aufträge von ${a.name} bleiben im Heimnetz`)}
+    </label>`).join('');
+  const EXTERN = `
+    <section class="bereich">
+      <h2><i class="fa-solid fa-cloud"></i>Externe Anbieter <span class="rechts">heute <span class="zahl">${euro(0.42)}</span></span></h2>
+      ${zeile('Tagesgrenze',
+              'Mehr gibt die Leitstelle an einem Tag nicht bei externen Anbietern aus; danach laufen Aufträge nur noch im Heimnetz. Vorgabe <span class="zahl">5,00</span> Euro.',
+              eingabe('5,00', 'Höchstbetrag je Tag für externe Anbieter; wird er erreicht, bleiben alle Aufträge im Heimnetz') + einheit('Euro'), 'Kosten')}
+      ${zeile('Grenze je Auftrag',
+              'Ein einzelner Auftrag, der extern voraussichtlich mehr kostet, wird nicht ausgelagert, sondern wartet im Heimnetz. Vorgabe <span class="zahl">0,50</span> Euro.',
+              eingabe('0,50', 'Höchstbetrag je einzelnem Auftrag bei externen Anbietern') + einheit('Euro'))}
+      ${zeile('Erlaubt für',
+              'Nur diese Anwendungen dürfen Aufträge extern rechnen lassen. Alle anderen bleiben im Heimnetz, auch wenn dort gewartet werden muss.',
+              `<div class="erlaubnis">${ERLAUBNIS}</div>`, 'Externe Anbieter', 'breit')}
+      ${zeile('Vor dem ersten externen Auftrag einer Anwendung fragen',
+              'Beim ersten externen Auftrag einer Anwendung zeigt die Leitstelle eine Nachfrage mit Kosten und Datenweg; danach läuft es ohne Rückfrage.',
+              schalter(true, 'An: der erste externe Auftrag jeder Anwendung wird erst nach Bestätigung losgeschickt'))}
+      <div class="hinweis warnung"><i class="fa-solid fa-triangle-exclamation"></i><span>Daten externer Aufträge verlassen das Heimnetz. Der Schlüssel liegt nur in der Leitstelle; Anwendungen sehen ihn nie.</span></div>
+    </section>`;
+
+  // ── Rechts: Wirkung und Begriffe ─────────────────────────────────────
+  const kiste = AUFTRAEGE.find(a => a.kennung === 'a-e77a'), bild = AUFTRAEGE.find(a => a.kennung === 'a-4a12'), code = AUFTRAEGE.find(a => a.kennung === 'a-88c3');
+  const wirkung = (a, text, regel) => `
+    <div class="w" style="--f:${FARBE[a.faehigkeit][0]};--f-rgb:${FARBE[a.faehigkeit][1]}">
+      <div class="symbol" title="${WORT.faehigkeit[a.faehigkeit]}"><i class="fa-solid ${WORT.faehigkeit_symbol[a.faehigkeit]}"></i></div>
+      <div><b>${anwendung(a.anwendung).name}: ${a.titel}</b>${text}<div class="regel"><i class="fa-solid fa-scale-balanced"></i>${regel}</div></div>
+    </div>`;
+  const RECHTS = `
+    <div class="karte wirkung">
+      <h3><i class="fa-solid fa-wand-magic-sparkles"></i>Wirkung dieser Regeln jetzt <span class="rechts">Beispielwelt</span></h3>
+      ${wirkung(kiste, `Startet nach dem Zusage-Auftrag, in etwa <span class="zahl">25 s</span>: dann wird ${modell('qwen-80b').name} (<span class="zahl">${gb(modell('qwen-80b').gb)}</span>) entladen und ${modell(kiste.modell).name} geladen.`,
+                'Rechnende Modelle nie entladen · Größte zuerst')}
+      ${wirkung(bild, `Bleibt angehalten, bis du sie fortsetzt (von dir um 13:52 angehalten); dann läuft es bei <span class="zahl">${bild.fortschritt} %</span> weiter.`,
+                'Hintergrund bei angespannter Lage anhalten')}
+      ${wirkung(code, `Dürfte extern laufen: etwa <span class="zahl">${euro(0.03)}</span> über Externer Anbieter, heute bisher <span class="zahl">${euro(0.42)}</span> von <span class="zahl">${euro(5)}</span>.`,
+                'Erlaubt für Codehilfe · Grenze je Auftrag 0,50 Euro')}
+    </div>
+    <div class="karte begriffe">
+      <h3><i class="fa-solid fa-book"></i>Begriffe <span class="rechts"><a href="hilfe.html" title="Ausführliche Erklärungen in der Hilfe">Hilfe</a></span></h3>
+      <dl>
+        <dt><i class="fa-solid fa-memory"></i>Budget</dt><dd>Wie viel Speicher eines Knotens Modelle zusammen höchstens belegen dürfen. Der Rest bleibt für System und Programme.</dd>
+        <dt><i class="fa-solid fa-shield-halved"></i>Schutzgrenze</dt><dd>Modelle unter dieser Größe werden nie automatisch entladen: sie bringen kaum Platz, sind aber oft sofort gebraucht.</dd>
+        <dt><i class="fa-solid fa-gauge-high"></i>Lage</dt><dd>Drei Worte für den Zustand des Verbunds. Ruhig: alles erreichbar, keine Wartezeiten. Angespannt: Speicher knapp, ein Auftrag wartet. Engpass: mehrere warten oder ein Knoten fehlt.</dd>
+        <dt><i class="fa-solid fa-heart-pulse"></i>Herzschlag</dt><dd>Kurze Lebenszeichen der Knoten-Agenten und Anwendungen. Bleibt es aus, gilt der Absender nach der Frist als nicht erreichbar.</dd>
+      </dl>
+    </div>`;
+
+  const KOPF = `
+    <div class="rahmen-kopf">
+      <div class="seitenkopf">
+        <h1>Regeln</h1>
+        <div class="aktionen">
+          <button class="knopf haupt" title="Speichert alle Regeln; sie wirken sofort auf wartende Aufträge, laufende werden nicht unterbrochen"><i class="fa-solid fa-floppy-disk"></i> Speichern</button>
+          <button class="knopf ohne" title="Alle Regeln auf die Vorgaben zurücksetzen; wirkt erst nach Speichern">Zurücksetzen</button>
+        </div>
+        <p class="unterzeile">Wie die Leitstelle Aufträge verteilt und Speicher verwaltet. Jede Grenze ist sichtbar, erklärt und einstellbar.</p>
+      </div>
+    </div>`;
+
+  document.getElementById('haupt').innerHTML = KOPF + `<div class="spalten"><div class="rollfeld">${SELBST}${PRIORITAETEN}${SPEICHER}${ZEITGRENZEN}${ZEITFENSTER}${EXTERN}</div><div class="rollfeld">${RECHTS}</div></div>`;
+
+  // Untergruppen: eine Gruppe sichtbar, Reiter im festen Kopf (Nutzerwunsch: kein langes Rollen)
+  const { untergruppen } = await import('./untergruppen.js');
+  untergruppen({ wurzel: '.spalten > .rollfeld', pillen: { 'Selbststeuerung': ['1', 'erfolg', 'Eine Maßnahme heute ausgeführt: Bildauftrag auf das MacBook umgeleitet'], 'Speicher je Knoten': ['1', 'warnung', 'Mac Studio liegt über dem Budget'], 'Externe Anbieter': ['2', 'neutral', '2 Anwendungen dürfen extern rechnen'] } });
+</script>
+</body>
+</html>

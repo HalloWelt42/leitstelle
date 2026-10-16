@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leitstelle - Entwurf: Dienste</title>
+<link rel="icon" href="symbol.svg">
+<link rel="stylesheet" href="../frontend/node_modules/@fortawesome/fontawesome-free/css/all.min.css">
+<link rel="stylesheet" href="stil.css">
+<style>
+  .rahmen-kopf .filter { margin: var(--ls-a3) 0 0; }
+  .chip[disabled] { opacity: 0.45; cursor: not-allowed; }
+  .kennzahl.extern b { color: var(--ls-koralle); }
+  .kennzahl.pausiert b { color: var(--ls-honig); }
+
+  /* Eine Karte je Dienst, Knöpfe rechts gestapelt */
+  .dienstkarte { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--ls-a3) var(--ls-a4); padding: var(--ls-a4); background: var(--ls-karte); border-radius: var(--ls-ecke); cursor: pointer; }
+  .dienstkarte + .dienstkarte { margin-top: var(--ls-a3); }
+  .dienstkarte:hover { background: var(--ls-karte-2); }
+  .dienstkarte.gewaehlt { outline: 1px solid rgba(var(--ls-akzent-rgb), 0.55); }
+  .dienstkarte .inhalt { min-width: 0; display: grid; gap: var(--ls-a2); align-content: start; }
+  .dk-kopf { display: flex; align-items: center; gap: var(--ls-a2); flex-wrap: wrap; }
+  .dk-kopf h2 { font-size: var(--ls-gr-text); margin-right: var(--ls-a1); }
+  .dk-kopf .art { color: var(--ls-text-2); font-size: var(--ls-gr-klein); margin-right: var(--ls-a1); }
+  .dk-meta { display: flex; align-items: center; gap: var(--ls-a2) var(--ls-a3); flex-wrap: wrap; font-size: var(--ls-gr-klein); color: var(--ls-text-2); }
+  .dk-meta .knoten { display: inline-flex; align-items: center; gap: 6px; color: var(--ls-text); font-weight: 500; }
+  .dk-meta .knoten i { color: var(--ls-text-3); }
+  .dk-adresse { display: inline-flex; align-items: center; gap: 2px; }
+  .dk-adresse .knopf.klein { height: 30px; width: 30px; }
+  .dk-faehig { display: flex; align-items: center; gap: var(--ls-a1) var(--ls-a3); flex-wrap: wrap; font-size: var(--ls-gr-klein); color: var(--ls-text-2); }
+  .dk-faehig .marken { display: inline-flex; gap: var(--ls-a1); flex-wrap: wrap; }
+  .dk-faehig b { font-family: var(--ls-schrift-zahl); color: var(--ls-text); font-weight: 600; }
+  .dk-hinweis { display: flex; gap: var(--ls-a2); align-items: baseline; font-size: var(--ls-gr-klein); color: var(--ls-text-3); min-width: 0; }
+  .dk-hinweis i { flex: none; }
+  .dk-hinweis span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }   /* eine Zeile, voller Satz im title */
+  .dk-kosten { display: flex; align-items: center; gap: var(--ls-a3); font-size: var(--ls-gr-klein); color: var(--ls-text-2); }
+  .dk-kosten b { font-family: var(--ls-schrift-zahl); color: var(--ls-koralle); font-weight: 600; }
+  .dk-kosten .balken { flex: 1; max-width: 240px; }
+  .dk-kosten .balken b { background: var(--ls-koralle); }
+  .dk-knoepfe { display: flex; flex-direction: column; gap: 2px; align-self: start; }
+  .dk-knoepfe .knopf { justify-content: flex-start; width: 152px; }
+
+  /* Erkannte Dienstarten */
+  .art-zeile { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: var(--ls-a3); align-items: center; padding: 8px var(--ls-a2); border-radius: var(--ls-ecke); }
+  .art-zeile + .art-zeile { margin-top: 2px; }
+  .art-zeile:hover { background: var(--ls-flaeche); }
+  .art-zeile .symbol { display: grid; place-items: center; width: 34px; height: 34px; border-radius: var(--ls-ecke); background: var(--ls-flaeche); color: var(--ls-akzent-schrift); }
+  .art-zeile .n { font-weight: 600; }
+  .art-zeile .b { font-size: var(--ls-gr-klein); color: var(--ls-text-3); }
+
+  /* Rechts: Einzelheiten des gewählten Dienstes */
+  .einzel h2 { display: flex; align-items: center; gap: var(--ls-a2); flex-wrap: wrap; }
+  .einzel h2 .zustand { margin-left: auto; }
+  .einzel .unter { color: var(--ls-text-2); margin-top: 6px; font-size: var(--ls-gr-klein); display: flex; align-items: center; gap: var(--ls-a3); flex-wrap: wrap; }
+  .einzel .tun { display: flex; gap: var(--ls-a2); flex-wrap: wrap; margin-top: var(--ls-a3); }
+  .anbindung .einstellung { grid-template-columns: minmax(0, 1fr) 214px; padding-left: 0; padding-right: 0; }
+  .anbindung .einstellung .wert .eingabe { width: 76px; }
+  .anbindung .einstellung .wert select.eingabe { width: 214px; }
+  .anbindung .einstellung .einheit { min-width: 0; }
+  .anbindung .einstellung.breit { grid-template-columns: 1fr; gap: var(--ls-a2); }   /* Adresse braucht die ganze Breite */
+  .anbindung .einstellung.breit .wert { justify-content: flex-start; }
+  .anbindung .einstellung.breit .wert .eingabe { flex: 1; width: auto; text-align: left; }
+  .fm-gruppe + .fm-gruppe { margin-top: var(--ls-a3); padding-top: var(--ls-a3); border-top: 1px solid var(--ls-rand); }
+  .fm-kopf { display: flex; align-items: center; gap: var(--ls-a3); margin-bottom: var(--ls-a1); }
+  .fm-kopf .leise { font-size: var(--ls-gr-klein); }
+  .fm-zeile { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: var(--ls-a3); align-items: center; padding: 5px 0; font-size: var(--ls-gr-klein); }
+  .fm-zeile .n { color: var(--ls-text); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fm-zeile .g { color: var(--ls-text-3); }
+
+  /* Zustand der letzten 24 Stunden als Streifen: Farbe immer mit Wort in der Legende */
+  .streifen { display: flex; height: 26px; border-radius: 1px; overflow: hidden; background: var(--ls-mulde); }
+  .streifen span { height: 100%; display: block; }
+  .streifen span + span { box-shadow: inset 1px 0 0 var(--ls-grund); }
+  .streifen .bereit { background: var(--ls-erfolg); opacity: 0.7; }
+  .streifen .rechnet { background: var(--ls-akzent); }
+  .streifen .pausiert { background: var(--ls-honig); }
+  .streifen .aus { background: var(--ls-gefahr); }
+  .streifen-achse { display: flex; justify-content: space-between; margin-top: 4px; font-size: var(--ls-gr-marke); color: var(--ls-text-3); }
+  .streifen-legende { display: flex; flex-wrap: wrap; gap: var(--ls-a2) var(--ls-a4); margin-top: var(--ls-a3); font-size: var(--ls-gr-klein); color: var(--ls-text-2); }
+  .streifen-legende i { font-size: 10px; margin-right: 6px; vertical-align: 1px; }
+  .streifen-legende b { font-family: var(--ls-schrift-zahl); color: var(--ls-text); font-weight: 600; margin-left: 4px; }
+  .fallen { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--ls-a2); }
+  .fallen li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: var(--ls-a2); font-size: var(--ls-gr-klein); align-items: baseline; }
+  .fallen li i { color: var(--ls-warnung); text-align: center; }
+</style>
+</head>
+<body>
+<div class="schale">
+  <div data-block="kopf"></div>
+  <div data-block="seite"></div>
+  <main class="haupt rahmen" id="haupt"></main>
+  <div data-block="fuss"></div>
+</div>
+
+<script type="module">
+  import { seite, DIENSTE, MODELLE, WORT, faehigkeit, zustand, zone, knoten, dienst, euro, gb, hilfepunkt } from './gemeinsam.js';
+  seite('dienste');
+
+  const gewaehlt = 'laeufer';
+  const lokal = DIENSTE.filter(d => d.knoten !== 'extern');
+  const laufenOderBereit = lokal.filter(d => d.zustand === 'laeuft' || d.zustand === 'bereit');
+  const pausiert = DIENSTE.filter(d => d.zustand === 'pausiert');
+  const extern = DIENSTE.filter(d => d.knoten === 'extern');
+  const knotenZahl = new Set(lokal.map(d => d.knoten)).size;
+  const modelleVon = (d) => MODELLE.filter(m => m.dienst === d.kennung);
+  const geladenVon = (d) => modelleVon(d).filter(m => m.zustand === 'geladen' || m.zustand === 'rechnet');
+  const mitFaehigkeit = (f) => DIENSTE.filter(d => d.faehigkeiten.includes(f)).length;
+  const mehrzahl = (n, eins, viele) => `<b class="zahl">${n}</b> ${n === 1 ? eins : viele}`;
+
+  // ── Linke Spalte: eine Karte je Dienst ──
+  const ort = (d) => d.knoten === 'extern'
+    ? `<span class="knoten"><i class="fa-solid fa-cloud"></i>Beim Anbieter</span>${zone('extern')}`
+    : `<span class="knoten"><i class="fa-solid fa-server"></i>${knoten(d.knoten).name}</span>${zone(knoten(d.knoten).zone)}`;
+  const modellzahl = (d) => d.knoten === 'extern'
+    ? `${mehrzahl(modelleVon(d).length, 'Modell', 'Modelle')} beim Anbieter`
+    : `Modelle: <b class="zahl">${geladenVon(d).length}</b> geladen von <b class="zahl">${modelleVon(d).length}</b>`;
+  const schaltknopf = (d) => d.zustand === 'pausiert'
+    ? `<button class="knopf klein" title="Fortsetzen: nimmt wieder Aufträge an; der pausierte Auftrag läuft weiter"><i class="fa-solid fa-play"></i> Fortsetzen</button>`
+    : `<button class="knopf klein ohne" title="Anhalten: nimmt keine neuen Aufträge an; laufende rechnen fertig"><i class="fa-solid fa-pause"></i> Anhalten</button>`;
+  const kosten = (d) => d.kosten_heute == null ? '' : `<div class="dk-kosten" title="Kosten heute über diesen Anbieter; bei ${euro(d.kosten_grenze)} nimmt die Leitstelle nichts mehr an">
+      <span>Kosten heute</span><b>${euro(d.kosten_heute)}</b><div class="balken"><b style="width:${(d.kosten_heute / d.kosten_grenze * 100).toFixed(1)}%"></b></div><span>von ${euro(d.kosten_grenze)}</span></div>`;
+
+  const karte = (d) => `<article class="dienstkarte${d.kennung === gewaehlt ? ' gewaehlt' : ''}" title="${d.name}: ${WORT.zustand[d.zustand]}">
+      <div class="inhalt">
+        <div class="dk-kopf"><h2>${d.name}</h2><span class="art">${d.art}</span>${zustand(d.zustand)}</div>
+        <div class="dk-meta">${ort(d)}<span class="dk-adresse"><span class="zahl" title="Adresse des Dienstes">${d.adresse}</span><button class="knopf ohne symbol klein" title="Adresse in die Zwischenablage kopieren"><i class="fa-regular fa-copy"></i></button></span></div>
+        <div class="dk-faehig"><span class="marken">${d.faehigkeiten.map(faehigkeit).join('')}</span><span>${modellzahl(d)}</span><span>${mehrzahl(d.auftraege, 'Auftrag', 'Aufträge')}</span></div>
+        ${d.hinweis ? `<div class="dk-hinweis" title="${d.hinweis}"><i class="fa-solid fa-circle-info"></i><span>${d.hinweis}</span></div>` : ''}
+        ${kosten(d)}
+      </div>
+      <div class="dk-knoepfe">
+        <button class="knopf klein ohne" title="Prüfen: Gesundheitsprüfung jetzt ausführen, lädt kein Modell"><i class="fa-solid fa-stethoscope"></i> Prüfen</button>
+        ${schaltknopf(d)}
+        <button class="knopf klein ohne" title="Einzelheiten dieses Dienstes rechts anzeigen: Anbindung, Modelle, Verlauf"><i class="fa-solid fa-circle-info"></i> Einzelheiten</button>
+      </div>
+    </article>`;
+
+  // Adapter, die die Leitstelle kennt; Zähler aus der Beispielwelt
+  const ARTEN = [
+    ['fa-brain', 'OpenAI-kompatibler Modell-Läufer', 'Modellliste, Laden und Entladen über die eigene Schnittstelle des Läufers', (d) => d.kennung === 'laeufer'],
+    ['fa-microphone-lines', 'txt2voice', 'Stimme und Hören über die eigene Schnittstelle; lange Läufe ohne Lese-Zeitgrenze', (d) => d.kennung === 'txt2voice'],
+    ['fa-ear-listen', 'Whisper-Dienst', 'Transkription von Dateien und Strömen', (d) => d.kennung === 'whisper-32'],
+    ['fa-image', 'Bild-Werkbank', 'Bilder erzeugen und freistellen; braucht den Grafikspeicher für sich', (d) => d.kennung === 'bildschmiede'],
+    ['fa-volume-high', 'Sprachsynthese klein', 'Kleine Stimmen auf schwachen Rechnern, dauerhaft geladen', (d) => d.kennung === 'piper-pi'],
+    ['fa-music', 'Musik', 'Musikstücke aus Text erzeugen', (d) => d.kennung === 'acestep'],
+    ['fa-cloud', 'Externer OpenAI-kompatibler Anbieter', 'Rechnet außer Haus; Kosten, Anfragegrenze und Schlüssel bleiben in der Leitstelle', (d) => d.knoten === 'extern'],
+    ['fa-right-left', 'Eigener Adapter über das Protokoll', 'Jeder Dienst, der Leitstelle/1 spricht: dienst.anmelden, dienst.zustand, dienst.modell', () => false],
+  ];
+  const ARTEN_KARTE = `<div class="karte">
+      <h3><i class="fa-solid fa-puzzle-piece"></i>Erkannte Dienstarten <span class="rechts">${ARTEN.length} Adapter</span></h3>
+      ${ARTEN.map(([symbol, name, text, passt]) => { const n = DIENSTE.filter(passt).length; return `<div class="art-zeile" title="${text}">
+        <div class="symbol"><i class="fa-solid ${symbol}"></i></div>
+        <div><div class="n">${name}</div><div class="b">${text}</div></div>
+        ${n ? `<span class="zaehler" title="${n === 1 ? 'Ein Dienst nutzt' : n + ' Dienste nutzen'} diesen Adapter">${n}</span>` : `<span class="klein schwach">offen für neue Dienste</span>`}
+      </div>`; }).join('')}
+    </div>`;
+
+  // ── Rechte Spalte: gewählter Dienst ──
+  const d = dienst(gewaehlt);
+  const ms = modelleVon(d);
+  const k = knoten(d.knoten);
+
+  const schalter = (an, titel) => `<button class="schalter${an ? ' an' : ''}" title="${titel}"></button>`;
+  const zeile = (name, erklaerung, wert, extra = '') => `<div class="einstellung${extra}">
+      <div><div class="name">${name}</div><div class="erklaerung">${erklaerung}</div></div>
+      <div class="wert">${wert}</div>
+    </div>`;
+  const ANBINDUNG = `<div class="karte anbindung">
+      <h3><i class="fa-solid fa-plug"></i>Anbindung <span class="rechts">Adapter: ${d.art}</span></h3>
+      ${zeile('Art', 'Bestimmt den Adapter: Pfade, Modellliste und Fehlerbilder.',
+        `<select class="eingabe" title="Dienstart; bestimmt, wie die Leitstelle mit dem Dienst spricht"><option>OpenAI-kompatibel</option><option>Eigene Schnittstelle</option><option>Bild-Werkbank</option><option>Transkription</option></select>`)}
+      ${zeile('Adresse', 'Grundadresse; die Pfade für Modellliste und Anfragen hängt der Adapter an.',
+        `<input class="eingabe zahl" value="${d.adresse}" title="Grundadresse des Dienstes"><button class="knopf ohne symbol" title="Adresse in die Zwischenablage kopieren"><i class="fa-regular fa-copy"></i></button>`, ' breit')}
+      ${zeile(`Modellliste vom Läufer selbst ${hilfepunkt('Modellliste des Läufers')}`, 'Über die eigene Schnittstelle des Läufers; zeigt, welche Modelle geladen oder nicht geladen sind.',
+        schalter(true, 'An: die Leitstelle liest die Modellliste direkt beim Läufer, mit Zustand geladen oder nicht geladen'))}
+      ${zeile('Modell immer mitsenden', 'Sonst antwortet der Läufer mit Fehler 400.',
+        schalter(true, 'An: jede Anfrage trägt den Modellnamen, auch wenn nur ein Modell geladen ist'))}
+      ${zeile('Gesundheitsprüfung lädt nie ein Modell', 'Die Prüfung fragt nur die Modellliste ab; ein Aufruf mit Modell würde es laden.',
+        schalter(true, 'An: die Prüfung bleibt bei der Modellliste und löst kein Laden aus'))}
+      ${zeile(`Lade-Entlade-Steuerung durch die Leitstelle ${hilfepunkt('Lade-Entlade-Steuerung')}`, 'Die Leitstelle lädt und entlädt Modelle nach Budget und Schutzgrenze des Knotens.',
+        schalter(true, 'An: Laden und Entladen gehen über die Leitstelle; der Läufer entlädt nichts von sich aus'))}
+      ${zeile('Verbindungsaufbau', 'Wartezeit, bis der Dienst antwortet; danach gilt er als nicht erreichbar.',
+        `<input class="eingabe" value="30" title="Zeitgrenze für den Verbindungsaufbau in Sekunden"><span class="einheit">Sekunden</span>`)}
+      ${zeile('Arbeit ohne Lese-Zeitgrenze', 'Lange Antworten dürfen beliebig dauern; nur der Verbindungsaufbau ist begrenzt.',
+        schalter(true, 'An: keine Lese-Zeitgrenze; Stillstand ohne neues Stück meldet die Leitstelle nach 10 Minuten'))}
+    </div>`;
+
+  const modellZeile = (m, zusatz = '') => `<div class="fm-zeile"><span class="n">${m.name}${zusatz}</span><span class="g zahl">${m.gb ? gb(m.gb) : 'beim Anbieter'}</span>${zustand(m.zustand)}</div>`;
+  const FAEHIGKEITEN = `<div class="karte">
+      <h3><i class="fa-solid fa-brain"></i>Fähigkeiten und Modelle <span class="rechts"><span class="zahl">${geladenVon(d).length}</span> von <span class="zahl">${ms.length}</span> geladen</span></h3>
+      ${d.faehigkeiten.map(f => {
+        const eigene = ms.filter(m => m.faehigkeit === f);
+        const liste = eigene.length ? eigene : ms.filter(m => m.faehigkeit === 'text' && m.zustand !== 'frei');
+        return `<div class="fm-gruppe">
+          <div class="fm-kopf">${faehigkeit(f)}<span class="leise">${eigene.length ? `${eigene.length} ${eigene.length === 1 ? 'Modell' : 'Modelle'}` : 'über die Textmodelle, kein eigenes Modell'}</span></div>
+          ${liste.map(m => modellZeile(m, eigene.length ? '' : ' <span class="schwach">(Textmodell)</span>')).join('')}
+        </div>`; }).join('')}
+    </div>`;
+
+  // 24 Stunden als Streifen, Summe 24
+  const VERLAUF = [['bereit', 5.5], ['rechnet', 2], ['bereit', 4], ['aus', 0.25], ['bereit', 2.75], ['rechnet', 3.5], ['bereit', 1.5], ['rechnet', 0.9], ['bereit', 2.8], ['rechnet', 0.8]];
+  const WORT_STREIFEN = { bereit: WORT.zustand.bereit, rechnet: WORT.zustand.rechnet, pausiert: WORT.zustand.pausiert, aus: WORT.zustand.aus };
+  const FARBE_STREIFEN = { bereit: 'var(--ls-erfolg)', rechnet: 'var(--ls-akzent)', pausiert: 'var(--ls-honig)', aus: 'var(--ls-gefahr)' };
+  const dauer = (h) => h >= 1 ? `${h.toLocaleString('de-DE', { maximumFractionDigits: 1 })} Stunden` : `${Math.round(h * 60)} Minuten`;
+  const summe = (z) => VERLAUF.filter(([s]) => s === z).reduce((a, [, h]) => a + h, 0);
+  const ZUSTAND = `<div class="karte">
+      <h3><i class="fa-solid fa-heart-pulse"></i>Zustand <span class="rechts">letzte 24 Stunden</span></h3>
+      <div class="streifen">${VERLAUF.map(([z, h]) => `<span class="${z}" style="width:${(h / 24 * 100).toFixed(2)}%" title="${WORT_STREIFEN[z]}, ${dauer(h)}"></span>`).join('')}</div>
+      <div class="streifen-achse"><span>gestern 15:00</span><span>heute 03:00</span><span>jetzt</span></div>
+      <div class="streifen-legende">${Object.keys(WORT_STREIFEN).map(z => `<span><i class="fa-solid fa-square" style="color: ${FARBE_STREIFEN[z]}"></i>${WORT_STREIFEN[z]}<b>${dauer(summe(z))}</b></span>`).join('')}</div>
+      <div class="klein leise" style="margin-top: var(--ls-a3)">Nicht erreichbar heute <span class="zahl">06:10</span> bis <span class="zahl">06:25</span>: Neustart des Läufers nach einer Aktualisierung; drei Anfragen wurden eingereiht und danach ausgeführt.</div>
+    </div>`;
+
+  const BESONDERHEITEN = `<div class="karte">
+      <h3><i class="fa-solid fa-triangle-exclamation"></i>Besonderheiten <span class="rechts">Fallen dieses Adapters</span></h3>
+      <ul class="fallen">
+        <li><i class="fa-solid fa-circle-exclamation"></i><span>${d.hinweis}</span></li>
+        <li><i class="fa-solid fa-circle-exclamation"></i><span>Ohne Modellangabe antwortet der Läufer mit Fehler 400; die Leitstelle ergänzt den Namen aus der Kette.</span></li>
+        <li><i class="fa-solid fa-circle-exclamation"></i><span>Jeder Aufruf mit Modell lädt es; deshalb prüft die Gesundheitsprüfung nur die Modellliste.</span></li>
+        <li><i class="fa-solid fa-circle-exclamation"></i><span>Das große Textmodell (<span class="zahl">84,7 GB</span>) lässt neben dem System nur <span class="zahl">5,1 GB</span> frei; Bildmodelle warten dann auf Speicher.</span></li>
+        <li><i class="fa-solid fa-circle-exclamation"></i><span>Teilt sich den Grafikspeicher mit der Bildschmiede; die startet nie parallel zum großen Textmodell.</span></li>
+      </ul>
+    </div>`;
+
+  const EINZEL = `<div class="karte einzel">
+      <h2>${d.name}${zustand(d.zustand)}</h2>
+      <div class="unter"><span>${d.art}</span><span>auf ${k.name}</span>${zone(k.zone)}<span class="zahl">${d.adresse}</span></div>
+      <div class="unter"><span>${mehrzahl(d.auftraege, 'Auftrag', 'Aufträge')} gerade</span><span>${d.faehigkeiten.length} Fähigkeiten</span><span>${mehrzahl(ms.length, 'Modell', 'Modelle')}, <b class="zahl">${geladenVon(d).length}</b> geladen</span></div>
+      <div class="tun">
+        <button class="knopf" title="Prüfen: Gesundheitsprüfung jetzt ausführen, lädt kein Modell"><i class="fa-solid fa-stethoscope"></i> Prüfen</button>
+        <button class="knopf" title="Anhalten: nimmt keine neuen Aufträge an; laufende rechnen fertig"><i class="fa-solid fa-pause"></i> Anhalten</button>
+        <a class="knopf ohne" href="knoten-detail.html" title="Zum Knoten Mac Studio: Speicher, Modelle, Regeln"><i class="fa-solid fa-server"></i> Zum Knoten</a>
+      </div>
+    </div>`;
+
+  // ── Kopf ──
+  // Chips ohne Symbole, damit alle acht Fähigkeiten in eine Zeile passen; die Symbole stehen auf den Marken der Karten
+  const chip = (f) => { const n = mitFaehigkeit(f); return `<button class="chip"${n ? '' : ' disabled'} title="${n ? `Nur Dienste mit der Fähigkeit ${WORT.faehigkeit[f]}` : `Kein Dienst bietet ${WORT.faehigkeit[f]}`}">${WORT.faehigkeit[f]} <span class="zaehler">${n}</span></button>`; };
+  const KOPF = `
+    <div class="rahmen-kopf">
+      <div class="seitenkopf">
+        <h1>Dienste</h1><span class="zahl">${DIENSTE.length}</span>
+        <div class="aktionen">
+          <button class="knopf haupt" title="Dienst, den kein Agent automatisch erkannt hat, von Hand eintragen"><i class="fa-solid fa-plus"></i> Dienst hinzufügen</button>
+        </div>
+      </div>
+      <div class="kennzahlen">
+        <div class="kennzahl"><b>${DIENSTE.length}</b><span>Dienste</span><small>auf ${knotenZahl} Knoten und extern</small></div>
+        <div class="kennzahl erfolg"><b>${laufenOderBereit.length}</b><span>Laufen oder bereit</span><small>im Heimnetz</small></div>
+        <div class="kennzahl pausiert"><b>${pausiert.length}</b><span>Pausiert</span><small>${pausiert.map(x => x.name).join(', ')}</small></div>
+        <div class="kennzahl extern"><b>${extern.length}</b><span>Extern</span><small>${euro(extern.reduce((s, x) => s + (x.kosten_heute || 0), 0))} heute</small></div>
+      </div>
+      <div class="filter">
+        <span class="etikett">Fähigkeit</span>
+        <button class="chip aktiv" title="Alle Dienste zeigen">Alle <span class="zaehler">${DIENSTE.length}</span></button>
+        ${Object.keys(WORT.faehigkeit).map(chip).join('')}
+      </div>
+    </div>`;
+
+  const LINKS = DIENSTE.map(karte).join('') + `<div style="height: var(--ls-a4)"></div>` + ARTEN_KARTE;
+  const RECHTS = EINZEL + ANBINDUNG + FAEHIGKEITEN + ZUSTAND + BESONDERHEITEN;
+  document.getElementById('haupt').innerHTML = KOPF + `<div class="spalten breit-rechts"><div class="rollfeld">${LINKS}</div><div class="rollfeld">${RECHTS}</div></div>`;
+</script>
+</body>
+</html>

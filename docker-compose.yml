@@ -1,0 +1,29 @@
+# Betrieb auf dem Pi: Kern auf 8530 (Fassade /v1, Verwaltung /api, Oberfläche), Entwürfe auf 8535.
+# Daten (SQLite, Tresorschlüssel) im Ordner LEITSTELLE_DATENORDNER (Vorgabe ./daten); er gehört dem Benutzer 1000.
+services:
+  leitstelle:
+    build: { context: ., target: leitstelle }
+    image: leitstelle
+    container_name: leitstelle
+    user: "1000:1000"
+    ports:
+      - "8530:8530"
+    volumes:
+      - ${LEITSTELLE_DATENORDNER:-./daten}:/daten
+      # Ortszeit des Pi: Zeitfenster für Hintergrundarbeit und "heute" in den Kennzahlen hängen davon ab
+      - /etc/localtime:/etc/localtime:ro
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+  entwuerfe:
+    build: { context: ., target: entwuerfe }
+    image: leitstelle-entwuerfe
+    container_name: leitstelle-entwuerfe
+    ports:
+      - "8535:80"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1/gesundheit"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
