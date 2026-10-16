@@ -30,7 +30,18 @@ export type Dienstzustand = 'bereit' | 'aus' | 'startet' | 'pausiert' | 'nicht_e
  * via the `definition` "Faehigkeit".
  */
 export type Faehigkeit =
-  'text' | 'einbettung' | 'uebersetzen' | 'hoeren' | 'bild_beschreiben' | 'bild_erzeugen' | 'stimme' | 'musik' | 'werkzeug';
+  | 'text'
+  | 'einbettung'
+  | 'uebersetzen'
+  | 'hoeren'
+  | 'bild_beschreiben'
+  | 'bild_erzeugen'
+  | 'stimme'
+  | 'stimme_klonen'
+  | 'sprecher_erkennen'
+  | 'sprecher_trennen'
+  | 'musik'
+  | 'werkzeug';
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "Modellzustand".

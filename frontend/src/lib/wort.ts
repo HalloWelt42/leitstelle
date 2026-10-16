@@ -9,6 +9,9 @@ export const FAEHIGKEIT: Record<Faehigkeit, { wort: string; symbol: string; farb
   bild_beschreiben: { wort: 'Bild beschreiben', symbol: 'fa-image', farbe: 'var(--ls-flieder)', rgb: 'var(--ls-flieder-rgb)', klasse: 'bild' },
   bild_erzeugen: { wort: 'Bild erzeugen', symbol: 'fa-palette', farbe: 'var(--ls-flieder)', rgb: 'var(--ls-flieder-rgb)', klasse: 'bild' },
   stimme: { wort: 'Stimme', symbol: 'fa-microphone-lines', farbe: 'var(--ls-rose)', rgb: 'var(--ls-rose-rgb)', klasse: 'stimme' },
+  stimme_klonen: { wort: 'Stimmklon', symbol: 'fa-clone', farbe: 'var(--ls-rose)', rgb: 'var(--ls-rose-rgb)', klasse: 'stimme' },
+  sprecher_erkennen: { wort: 'Sprecher erkennen', symbol: 'fa-fingerprint', farbe: 'var(--ls-minze)', rgb: 'var(--ls-minze-rgb)', klasse: 'hoeren' },
+  sprecher_trennen: { wort: 'Sprecher trennen', symbol: 'fa-people-arrows', farbe: 'var(--ls-minze)', rgb: 'var(--ls-minze-rgb)', klasse: 'hoeren' },
   musik: { wort: 'Musik', symbol: 'fa-music', farbe: 'var(--ls-violett)', rgb: 'var(--ls-violett-rgb)', klasse: 'musik' },
   werkzeug: { wort: 'Werkzeuge', symbol: 'fa-screwdriver-wrench', farbe: 'var(--ls-sand)', rgb: 'var(--ls-sand-rgb)', klasse: 'werkzeug' },
 };
