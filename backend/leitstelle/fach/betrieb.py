@@ -274,12 +274,13 @@ class Betrieb:
         self.geaendert()
 
     def messwerte_uebernehmen(self, v: AgentVerbindung) -> None:
-        """Gemessener Speicher ersetzt die Schätzung: was nicht die bekannten Modelle belegen, belegt das System."""
+        """Gemessener Speicher ersetzt die Schätzung: was die bekannten Modelle nicht wirklich belegen, belegt das System.
+        Verplant wird für die Modelle trotzdem ihr Bedarf; so bleibt Platz für Dienste, die noch wachsen."""
         k = self.verbund.knoten.get(v.knoten)
         if k is None or v.messwerte is None:
             return
         k.speicher_gb = round(v.messwerte.speicher_gesamt_gb, 2)
-        k.system_gb = round(max(0.0, v.messwerte.speicher_belegt_gb - self.verbund.geladen_gb(v.knoten)), 2)
+        k.system_gb = round(max(0.0, v.messwerte.speicher_belegt_gb - self.verbund.belegt_bekannt_gb(v.knoten)), 2)
         self.geaendert()
 
     async def agent_dienste(self, v: AgentVerbindung) -> None:
@@ -347,6 +348,9 @@ class Betrieb:
         else:
             m.name, m.faehigkeiten, m.gb = mb.name, set(mb.faehigkeiten), mb.gb
             m.parameter_mrd, m.geschuetzt_fest = mb.parameter_mrd or 0.0, mb.einbettung or unbekannte_groesse
+        m.schutz_vorgabe, m.gb_jetzt = mb.schutz, mb.gb_jetzt
+        if mb.aktiv:
+            m.letzte_nutzung_s = jetzt      # arbeitet ohne Auftrag über die Leitstelle: gilt als genutzt, weicht nicht
         ort = self.orte.setdefault(kennung, ModellOrt(schluessel=mb.schluessel))
         ort.kontext = mb.kontext
         if mb.instanzen or not steuerbar:

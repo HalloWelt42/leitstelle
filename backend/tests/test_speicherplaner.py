@@ -1,5 +1,7 @@
 """Speicherplaner: passt, entlädt nur so viel wie nötig, schützt, wartet. Szenarien S12 bis S15, S35."""
 
+import pytest
+
 from leitstelle.kern.messungen import Messwerk
 from leitstelle.kern.speicherplaner import planen
 from leitstelle.kern.werte import Faehigkeit as F
@@ -57,3 +59,27 @@ def test_leerlauf_nur_wenn_lange_ungenutzt(welt):
     welt.verbund.modelle["qwen80@128"].letzte_nutzung_s = welt.verbund.zeit_s - 5000
     plan = planen(welt.verbund, "mac-128", 11.8, Messwerk(), familie="glm-4.6v", nur_leerlauf=True)
     assert plan.passt and plan.entladen == ["qwen80@128"]
+
+
+def test_s48_schutzvorgabe_des_dienstes_geht_der_regel_vor(welt):
+    """Ein Dienst ohne Parameterzahl (Maschinenraum) wäre nach der Regel geschützt; erlaubt sein Dienst das Anhalten,
+    darf er weichen. Verbietet er es, bleibt auch ein großes Modell stehen."""
+    m = welt.verbund.modelle["qwen80@128"]
+    schutz = welt.verbund.regelwerk.schutzgrenze_mrd
+    m.parameter_mrd = 0
+    assert m.geschuetzt(schutz)
+    m.schutz_vorgabe = False
+    assert not m.geschuetzt(schutz)
+    plan = planen(welt.verbund, "mac-128", 11.8, Messwerk(), familie="glm-4.6v")
+    assert plan.passt and "qwen80@128" in plan.entladen
+    m.parameter_mrd, m.schutz_vorgabe = 80, True
+    assert m.geschuetzt(schutz)
+
+
+def test_s49_verplant_wird_der_bedarf_belegt_ist_der_ist_wert(welt):
+    """Ein Dienst, der seine Modelle erst bei Bedarf lädt: verplant wird sein Bedarf, nicht der kleine Ist-Wert."""
+    m = welt.verbund.modelle["qwen80@128"]
+    vorher_geplant, vorher_belegt = welt.verbund.geladen_gb("mac-128"), welt.verbund.belegt_bekannt_gb("mac-128")
+    m.gb_jetzt = 0.5
+    assert welt.verbund.geladen_gb("mac-128") == vorher_geplant
+    assert welt.verbund.belegt_bekannt_gb("mac-128") == pytest.approx(vorher_belegt - m.gb + 0.5)

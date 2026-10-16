@@ -66,10 +66,12 @@ class Modell(BaseModel):
     dienst: str
     familie: str                      # gleiches Modell auf mehreren Diensten trägt dieselbe Familie
     faehigkeiten: set[Faehigkeit]     # ein Textmodell kann auch übersetzen; eine Instanz, ein Speicherblock
-    gb: float
+    gb: float                         # Bedarf: damit wird geplant
     parameter_mrd: float
     zustand: Modellzustand = Modellzustand.FREI
     geschuetzt_fest: bool = False     # Einbettungsmodelle und ausdrücklich geschützte
+    schutz_vorgabe: bool | None = None  # vom Dienst vorgegeben (zum Beispiel Maschinenraum); geht der Regel vor
+    gb_jetzt: float | None = None     # tatsächlich belegt, wenn gemessen; sonst gilt gb
     geladen_seit_s: float | None = None
     letzte_nutzung_s: float | None = None
     auftraege_aktiv: int = 0
@@ -78,7 +80,14 @@ class Modell(BaseModel):
     ladesperre_grund: str = ""
 
     def geschuetzt(self, schutzgrenze_mrd: float) -> bool:
+        if self.schutz_vorgabe is not None:
+            return self.schutz_vorgabe
         return self.geschuetzt_fest or self.parameter_mrd < schutzgrenze_mrd
+
+    @property
+    def belegt_gb(self) -> float:
+        """Was das Modell gerade wirklich belegt: gemessen, sonst seine Größe."""
+        return self.gb_jetzt if self.gb_jetzt is not None else self.gb
 
     def ladbar(self, jetzt_s: float) -> bool:
         """Darf jetzt ein Ladeversuch geplant werden? Nein, solange die Ladesperre läuft."""
@@ -210,7 +219,12 @@ class Verbund(BaseModel):
         return self.knoten[k] if k else None
 
     def geladen_gb(self, knoten: str) -> float:
+        """Verplanter Speicher der Modelle im Speicher (Bedarf)."""
         return sum(m.gb for m in self.modelle_auf(knoten) if m.im_speicher)
+
+    def belegt_bekannt_gb(self, knoten: str) -> float:
+        """Was die bekannten Modelle gerade wirklich belegen; Grundlage, um den Rest dem System zuzurechnen."""
+        return sum(m.belegt_gb for m in self.modelle_auf(knoten) if m.im_speicher)
 
     def frei_gb(self, knoten: str) -> float:
         k = self.knoten[knoten]

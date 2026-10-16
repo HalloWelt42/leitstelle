@@ -205,6 +205,8 @@ Budget = Speicher minus dem Größeren aus Reserve (18 GB) und System, oder ein 
 | S45 | Zwei Stunden mit 480 Aufträgen | Verlauf, Bewegungen und Sperren des Umschichters bleiben auf das Fenster begrenzt |
 | S46 | Ablehnungen und externe Wunschmodelle | Grundwörter `zone_nicht_erlaubt`, `kein_modell`, `faehigkeit_nicht_erlaubt`, `dienst_nicht_erreichbar`; Fundus bekommt das verlangte externe Modell |
 | S47 | Hintergrund am Hauptregler angehalten, Fairness-Frist 20 s | der Hintergrundauftrag bleibt eingereiht, auch nach der Frist; die Regel Hintergrund bei Lage schaltet ihn nicht ein |
+| S48 | Schutzvorgabe eines Dienstes | geht der Regel nach Parameterzahl vor: erlaubt der Dienst das Anhalten, darf auch ein Modell ohne Parameterzahl weichen; verbietet er es, bleibt auch ein großes stehen |
+| S49 | Bedarf und Ist-Wert | verplant (Budget) wird der Bedarf, als belegt gilt der gemessene Ist-Wert |
 
 ## 3. Ende zu Ende (`test_ende_zu_ende.py`)
 
@@ -237,8 +239,10 @@ Prozessdienst.
 |---|---|---|
 | A01 | Agent verbindet sich mit Schlüssel | Lagebild zeigt ihn verbunden mit Fassung; Speicher des Rechners ist der gemessene, System = belegt minus bekannte Modelle |
 | A02 | Falscher Schlüssel | Verbindung wird mit 4401 `unbekannter_schluessel` geschlossen |
-| A03 | Dienstliste des Agenten | Dienst "Dienste auf <Rechner>" (Art `agent`) entsteht; der Prozessdienst erscheint als geschütztes Modell; Laden startet ihn bis erreichbar, Entladen hält ihn an; beides im Prüfprotokoll |
+| A03 | Dienstliste des Agenten | Dienst "Dienste auf <Rechner>" (Art `agent`) entsteht; der Prozessdienst erscheint als Modell mit seinem Bedarf, ohne Ist-Wert, nicht geschützt; Laden startet ihn bis erreichbar, Entladen hält ihn an; beides im Prüfprotokoll |
 | A04 | Agent trennt | eingetragene Speicherwerte gelten wieder; sein Dienst wird nicht erreichbar |
+| A06 | Dienst braucht mehr, als er nach dem Start belegt | verplant wird der Bedarf (Budget), dem System zugerechnet nur, was die Modelle nicht wirklich belegen (Ist-Wert) |
+| A07 | Dienstdatei verbietet der Leitstelle das Anhalten | Modell gilt als geschützt, Speicher freigeben lässt es stehen, ein Entladen von Hand lehnt der Maschinenraum ab |
 | A05 | Neuer Agent-Schlüssel | der verbundene Agent wird getrennt und kommt mit dem alten Schlüssel nicht wieder herein |
 | A07 | Absturz eines Dienstes, der laufen soll | Neustart nach Pause; mehr Abstürze im Zeitfenster als erlaubt: bleibt aus |
 | A08 | Dienst läuft schon, von außen gestartet | wird übernommen statt doppelt gestartet; Anhalten trifft den lauschenden Prozess und seine Nachfahren |

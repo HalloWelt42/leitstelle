@@ -66,6 +66,7 @@ class ModellSicht(BaseModel):
     knoten: str | None
     faehigkeiten: list[Faehigkeit]
     gb: float
+    gb_jetzt: float | None
     parameter_mrd: float
     zustand: Modellzustand
     geschuetzt: bool
@@ -154,7 +155,7 @@ def lagebild(b: Betrieb) -> Lagebild:
                            steuerbar=b.steuerbar.get(d.kennung, False), meldung=b.dienst_meldung.get(d.kennung, ""), plaetze=d.plaetze,
                            zugang=d.zugang_geheim is not None) for d in b.dienste.values()]
     modelle = [ModellSicht(kennung=m.kennung, name=m.name, familie=m.familie, dienst=m.dienst, knoten=v.dienste[m.dienst].knoten if m.dienst in v.dienste else None,
-                           faehigkeiten=sorted(m.faehigkeiten, key=lambda f: f.value), gb=m.gb, parameter_mrd=m.parameter_mrd, zustand=m.zustand,
+                           faehigkeiten=sorted(m.faehigkeiten, key=lambda f: f.value), gb=m.gb, gb_jetzt=m.gb_jetzt, parameter_mrd=m.parameter_mrd, zustand=m.zustand,
                            geschuetzt=m.geschuetzt(r.schutzgrenze_mrd), geladen_seit_s=m.geladen_seit_s, letzte_nutzung_s=m.letzte_nutzung_s,
                            auftraege_aktiv=m.auftraege_aktiv, ladesperre_bis_s=m.ladesperre_bis_s, ladesperre_grund=m.ladesperre_grund)
                for m in sorted(v.modelle.values(), key=lambda x: (x.dienst, -x.gb))]

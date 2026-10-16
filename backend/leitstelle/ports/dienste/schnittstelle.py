@@ -26,6 +26,9 @@ class ModellBericht(BaseModel):
     plaetze: int | None = None          # gleichzeitige Anfragen je Instanz, wenn der Dienst es meldet
     kontext: int | None = None
     einbettung: bool = False
+    gb_jetzt: float | None = None       # tatsächlich belegt, wenn der Dienst es misst (sonst gilt gb)
+    schutz: bool | None = None          # vom Dienst vorgegeben; None: Regel nach Parameterzahl
+    aktiv: bool = False                 # arbeitet gerade, auch ohne Auftrag über die Leitstelle
 
 
 class Dienstbericht(BaseModel):

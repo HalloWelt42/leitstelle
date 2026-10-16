@@ -197,6 +197,7 @@ export interface ModellSicht {
   knoten: string | null;
   faehigkeiten: Faehigkeit[];
   gb: number;
+  gb_jetzt: number | null;
   parameter_mrd: number;
   zustand: Modellzustand;
   geschuetzt: boolean;
@@ -348,6 +349,9 @@ export interface ModellBericht {
   plaetze: number | null;
   kontext: number | null;
   einbettung: boolean;
+  gb_jetzt: number | null;
+  schutz: boolean | null;
+  aktiv: boolean;
 }
 /**
  * Eine Zeile der Vorschau "Speicher freigeben".

@@ -120,7 +120,8 @@
                   <div class="zweit">{#if worte(m) === WORTE.prozess}Programm im Maschinenraum des Rechners{:else}<span class="zahl">{m.parameter_mrd ? `${zahl(m.parameter_mrd)} Milliarden` : 'Größe unbekannt'}</span> · zuletzt {vor(m.letzte_nutzung_s, jetzt)}{/if}</div></td>
                 <td><div class="marken">{#each m.faehigkeiten.filter((f) => f !== 'uebersetzen' && f !== 'werkzeug') as f (f)}<Faehigkeit wert={f} />{/each}</div></td>
                 <td><div class="dienst">{dienst(m.dienst)?.name}</div><div class="zweit">{knotenName(m.knoten)}</div></td>
-                <td class="zahl"><div style="text-align:right">{m.gb ? gb(m.gb) : '-'}</div></td>
+                <td class="zahl"><div style="text-align:right" title={m.gb_jetzt != null ? 'Bedarf, mit dem die Leitstelle plant; darunter der gerade gemessene Wert' : ''}>{m.gb ? gb(m.gb) : '-'}</div>
+                  {#if m.gb_jetzt != null}<div class="zweit" style="text-align:right">jetzt {gb(m.gb_jetzt)}</div>{/if}</td>
                 <td><Zustand art="modell" wert={m.zustand} dreht />
                   <div class="zweit">{#if m.ladesperre_bis_s && m.ladesperre_bis_s > jetzt}<span class="akzent" title="Der Dienst hat das Laden abgelehnt; bis zum Ende der Pause plant die Leitstelle keinen neuen Versuch">abgelehnt: {m.ladesperre_grund}</span>
                     {:else if m.auftraege_aktiv}<span class="zahl">{m.auftraege_aktiv}</span> {m.auftraege_aktiv === 1 ? 'Auftrag läuft' : 'Aufträge laufen'}
@@ -128,6 +129,7 @@
                     {:else if m.zustand !== 'frei'}{m.geladen_seit_s ? `${worte(m).geladen} ${vor(m.geladen_seit_s, jetzt)}` : worte(m) === WORTE.prozess ? 'lief schon vorher' : 'schon vorher geladen'}{/if}</div></td>
                 <td>
                   {#if !steuerbar(m)}<span class="zweit" title="Dieser Dienst lädt selbst; die Leitstelle steuert seinen Speicher nicht">lädt selbst</span>
+                  {:else if worte(m) === WORTE.prozess && m.geschuetzt && m.zustand !== 'frei'}<span class="zweit" title="Laut Dienstdatei darf die Leitstelle ihn nicht anhalten; das geht nur im Maschinenraum des Rechners">nur im Maschinenraum</span>
                   {:else if m.zustand === 'rechnet' || m.zustand === 'laedt'}<button class="knopf klein" disabled title="Rechnet oder startet gerade; erst danach möglich">{worte(m).entladen}</button>
                   {:else if m.zustand === 'geladen'}<button class="knopf klein" onclick={() => (frage = { modell: m, laden: false })} title="{worte(m).entladen}: gibt {gb(m.gb)} frei">{worte(m).entladen}</button>
                   {:else}<button class="knopf klein" onclick={() => (frage = { modell: m, laden: true })} title="{worte(m).laden}: belegt {gb(m.gb)} auf {knotenName(m.knoten)}">{worte(m).laden}</button>{/if}

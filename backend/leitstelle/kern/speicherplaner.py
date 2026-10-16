@@ -35,7 +35,7 @@ def entladbar(verbund: Verbund, m: Modell, jetzt: float, nur_leerlauf: bool, lee
     if m.zustand != Modellzustand.GELADEN or verbund.belegung(m.kennung):
         return False, "rechnet, lädt oder ist schon zugeteilt"
     if m.geschuetzt(r.schutzgrenze_mrd):
-        return False, "geschützt (unter der Schutzgrenze oder Einbettung)"
+        return False, "geschützt (vom Dienst vorgegeben, unter der Schutzgrenze oder Einbettung)"
     if verbund.wartende_auf_familie(m.familie):
         return False, "ein Auftrag wartet darauf"
     if m.geladen_seit_s is not None and jetzt - m.geladen_seit_s < r.mindestverweildauer_s:

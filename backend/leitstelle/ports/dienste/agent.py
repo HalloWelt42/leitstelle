@@ -1,9 +1,10 @@
 """Adapter für Dienste, die ein Knoten-Agent startet und anhält (Adapterart `agent`).
 
 Jeder Prozessdienst des Agenten erscheint als ein Modell: Starten ist Laden, Anhalten ist Entladen. So gelten
-Speicherplanung, Hauptregler und Oberfläche ohne Sonderweg. Die Größe ist gemessen, solange der Dienst läuft.
-Ohne Parameterzahl gelten diese Modelle als geschützt: die Selbststeuerung hält sie nie von sich aus an, nur
-der Mensch. Anfragen gehen weiterhin direkt an den Dienst, nicht durch die Leitstelle.
+Speicherplanung, Hauptregler und Oberfläche ohne Sonderweg. Geplant wird mit dem Bedarf (höchster gemessener
+Wert, mindestens die Schätzung), nicht mit dem Augenblickswert: Dienste laden ihre Modelle oft erst bei Bedarf.
+Ob die Selbststeuerung einen Dienst anhalten darf, sagt seine Dienstdatei; arbeitet er gerade, zählt das als
+Nutzung, und er weicht nicht. Anfragen gehen weiterhin direkt an den Dienst, nicht durch die Leitstelle.
 """
 
 from __future__ import annotations
@@ -33,7 +34,8 @@ class AgentDienste:
         v = self.agenten.verbindung(self.knoten)
         if v is None:
             return Dienstbericht(erreichbar=False, meldung="Maschinenraum nicht verbunden")
-        modelle = [ModellBericht(schluessel=p.kennung, name=p.name, faehigkeiten=set(p.faehigkeiten), gb=p.gb, parameter_mrd=None,
+        modelle = [ModellBericht(schluessel=p.kennung, name=p.name, faehigkeiten=set(p.faehigkeiten), gb=p.bedarf_gb, gb_jetzt=p.gb_jetzt,
+                                 parameter_mrd=None, schutz=not p.anhalten_erlaubt, aktiv=p.aktiv,
                                  geladen=p.zustand in IM_SPEICHER, instanzen=[p.kennung] if p.zustand in IM_SPEICHER else [])
                    for p in v.dienste.dienste]
         return Dienstbericht(erreichbar=True, steuerbar=True, modelle=modelle)

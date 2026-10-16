@@ -1,5 +1,5 @@
 """Knoten-Agent Ende zu Ende: echte Leitstelle auf einem Port, als Agent der Maschinenraum (eigenes Repo,
-Paket `maschinenraum`) mit einem kleinen HTTP-Server als Prozessdienst. Szenarien A01 bis A05 aus docs/SZENARIEN.md."""
+Paket `maschinenraum`) mit einem kleinen HTTP-Server als Prozessdienst. Szenarien A01 bis A07 aus docs/SZENARIEN.md."""
 
 from __future__ import annotations
 
@@ -44,14 +44,14 @@ async def _warte_bis(bedingung, sekunden: float = 15.0):
     raise AssertionError("Bedingung nicht erreicht")
 
 
-def _agentenordner(tmp: Path, url: str, schluessel: str, port: int) -> Ordner:
+def _agentenordner(tmp: Path, url: str, schluessel: str, port: int, mehr: str = "") -> Ordner:
     o = tmp / "maschinenraum"
     (o / "dienste").mkdir(parents=True)
     (o / "einstellungen.toml").write_text(f'[leitstelle]\nadresse = "{url}"\nwiederverbindung_max_s = 1\n[messung]\ntakt_s = 1\nmacmon = false\n')
     (o / "schluessel").write_text(schluessel)
     (o / "dienste" / "probe.toml").write_text(
         f'name = "Probe"\nordner = "{tmp}"\nbefehl = ["{sys.executable}", "-m", "http.server", "{port}", "--bind", "127.0.0.1"]\n'
-        f'port = {port}\nfaehigkeiten = ["stimme"]\nspeicher_gb = 0.5\nstartzeit_s = 15\nanhaltezeit_s = 5\n')
+        f'port = {port}\nfaehigkeiten = ["stimme"]\nspeicher_gb = 0.5\nstartzeit_s = 15\nanhaltezeit_s = 5\n{mehr}')
     return Ordner(o)
 
 
@@ -128,7 +128,8 @@ async def test_a03_dienst_starten_und_anhalten_ueber_die_leitstelle(tmp_path):
                 return await _modell(c, "probe") is not None
             await _warte_bis(da)
             m = await _modell(c, "probe")
-            assert m["zustand"] == "frei" and m["geschuetzt"] and m["faehigkeiten"] == ["stimme"] and m["knoten"] == knoten
+            assert m["zustand"] == "frei" and not m["geschuetzt"] and m["faehigkeiten"] == ["stimme"] and m["knoten"] == knoten
+            assert m["gb"] == 0.5 and m["gb_jetzt"] is None                      # Bedarf aus der Schätzung, noch nichts belegt
             dienst = next(d for d in (await c.get("/api/lage")).json()["dienste"] if d["kennung"] == m["dienst"])
             assert dienst["art"] == "agent" and dienst["name"] == "Dienste auf Mac Studio" and dienst["steuerbar"]
 
@@ -188,6 +189,60 @@ async def test_a05_neuer_schluessel_trennt_den_agenten(tmp_path):
             assert (await c.post(f"/api/knoten/{knoten}/agent/schluessel")).json()["schluessel"] == neu
             pruef = [e["was"] for e in (await c.get("/api/pruefprotokoll")).json()["eintraege"]]
             assert "Schlüssel für den Maschinenraum neu erzeugt" in pruef and "Schlüssel für den Maschinenraum aufgedeckt" in pruef
+
+
+async def test_a06_geplant_wird_mit_dem_bedarf_das_system_aus_dem_ist_wert(tmp_path):
+    """Der Dienst belegt nach dem Start wenig, braucht laut Schätzung aber 6 GB: die Leitstelle verplant 6 GB,
+    rechnet dem System aber nur zu, was die Modelle nicht wirklich belegen."""
+    port = _freier_port()
+    async with aufbau(tmp_path) as (c, url, knoten, schluessel):
+        o = _agentenordner(tmp_path, url, schluessel, port)
+        datei = o.dienste_ordner / "probe.toml"
+        datei.write_text(datei.read_text().replace("speicher_gb = 0.5", "speicher_gb = 6"))
+        async with agent_laeuft(o):
+            async def da():
+                return await _modell(c, "probe") is not None
+            await _warte_bis(da)
+            m = await _modell(c, "probe")
+            assert (await c.post(f"/api/modelle/{m['kennung']}/laden")).status_code == 200
+
+            async def gemessen():
+                x = await _modell(c, "probe")
+                return x["zustand"] == "geladen" and x["gb_jetzt"] is not None
+            await _warte_bis(gemessen)
+            m = await _modell(c, "probe")
+            assert m["gb"] == 6 and 0 < m["gb_jetzt"] < 1                        # Bedarf verplant, Ist-Wert gemessen
+
+            async def verrechnet():
+                k = await _knoten(c, knoten)
+                mw = k["agent"]["messwerte"]
+                x = await _modell(c, "probe")
+                return mw and abs(k["system_gb"] - max(0.0, mw["speicher_belegt_gb"] - (x["gb_jetzt"] or 0))) < 0.1
+            await _warte_bis(verrechnet)
+            k = await _knoten(c, knoten)
+            assert k["geladen_gb"] == 6                                          # im Budget stehen die 6 GB
+
+
+async def test_a07_anhalten_nur_von_hand(tmp_path):
+    port = _freier_port()
+    async with aufbau(tmp_path) as (c, url, knoten, schluessel):
+        async with agent_laeuft(_agentenordner(tmp_path, url, schluessel, port, mehr="leitstelle_anhalten = false\n")):
+            async def da():
+                return await _modell(c, "probe") is not None
+            await _warte_bis(da)
+            m = await _modell(c, "probe")
+            assert m["geschuetzt"]                                                # die Selbststeuerung lässt ihn in Ruhe
+            assert (await c.post(f"/api/modelle/{m['kennung']}/laden")).status_code == 200
+
+            async def geladen():
+                return (await _modell(c, "probe"))["zustand"] == "geladen"
+            await _warte_bis(geladen)
+            plan = (await c.post(f"/api/knoten/{knoten}/speicher_freigeben", json={"vorschau": True})).json()["plan"]
+            assert [f["darf"] for f in plan if f["modell"] == m["kennung"]] == [False]
+            await c.post(f"/api/modelle/{m['kennung']}/entladen")                # die Leitstelle versucht es von Hand
+            await asyncio.sleep(2.5)
+            assert _offen(port)                                                   # der Maschinenraum lehnt ab
+            assert (await _modell(c, "probe"))["zustand"] == "geladen"
 
 
 def test_protokoll_von_agent_und_kern_ist_deckungsgleich():
