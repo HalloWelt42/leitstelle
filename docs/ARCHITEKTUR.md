@@ -16,12 +16,15 @@ bereit), damit sich jede Anwendung auf die Lage einstellen kann.
 - **Die Leitstelle vermittelt nur.** Sie lädt nie selbst ein Modell und rechnet nie selbst; sie nutzt Kommunikation
   und Zustände. Geladen und gerechnet wird im Modell-Läufer oder im Maschinenraum des jeweiligen Rechners, auf ihre
   Anweisung. Die Leitstelle hat keine Modellbibliothek und bekommt keine.
-- **Der Maschinenraum bündelt alles, was der Modell-Läufer nicht verwaltet**, je Rechner, und ist für sich allein
-  bedienbar wie der Modell-Läufer.
+- **Der Maschinenraum bündelt alle KI-Dienste, die der Modell-Läufer nicht verwaltet**, je Rechner, und ist für sich
+  allein bedienbar wie der Modell-Läufer. Er nimmt nur Dienste mit Fähigkeiten an (Nutzer, 17.10.2026: "hier dürfen
+  Sachen nicht vermischt werden").
 - **Alles geht nur über die Leitstelle:** Anwendungen sprechen nur mit ihr (Fassade, auch `/v1/dienste/...`); die
   Dienste lauschen nur auf ihrem Rechner und sind nur über die Durchleitung des Maschinenraums erreichbar.
-- **Die Leitstelle sieht nur Fähigkeiten:** Programme ohne Fähigkeit (Oberflächen, Backends von Anwendungen,
-  Datenbanken) verwaltet allein der Maschinenraum.
+- **Die Leitstelle sieht nur Fähigkeiten.** Eigene Webapps (Backend, Oberfläche, Datenbank, Abholer, mit oder ohne
+  Docker) startet und stoppt das Stellwerk (Repo HalloWelt42/stellwerk), je Webapp mit allen Teilen; es hat keine
+  Verbindung zur Leitstelle. Die Webapps halten selbst keine Modelle und nutzen KI nur über die Leitstelle.
+  Maschinenraum und Stellwerk teilen sich die Dienststeuerung über den Dienstkern (Repo HalloWelt42/dienstkern).
 
 ## 2. Rollen und Bausteine
 
