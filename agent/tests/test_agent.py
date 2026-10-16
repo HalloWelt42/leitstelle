@@ -182,6 +182,13 @@ async def test_umgebung_ist_abgegrenzt(tmp_path: Path):
     assert env["AUS_DATEI"] == "ja" and env["EIGENES"] == "1" and "NICHT_WEITERGEBEN" not in env
 
 
+def test_variablen_kommen_aus_der_dienstumgebung(tmp_path: Path):
+    o = ordner_mit_dienst(tmp_path, freier_port())
+    vorlage = o.dienste()[0][0].model_copy(update={"befehl": ["$PROG", "--pfad", "${HOME}/x", "$UNBEKANNT"]})
+    assert vorlage.programm({"PROG": "/opt/py", "HOME": "/h"}) == ["/opt/py", "--pfad", "/h/x", "$UNBEKANNT"]
+    assert vorlage.model_copy(update={"befehl": ["bin/start"]}).programm({})[0] == str(tmp_path / "bin/start")
+
+
 def test_fehlerhafte_dienstdatei_wird_gemeldet(tmp_path: Path):
     o = ordner_mit_dienst(tmp_path, freier_port())
     (tmp_path / "dienste" / "Kaputt.toml").write_text('name = "x"\n')

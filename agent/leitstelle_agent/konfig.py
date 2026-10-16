@@ -74,12 +74,12 @@ class DienstVorlage(BaseModel):
             raise ValueError("Dateiname nur aus Kleinbuchstaben, Ziffern, - und _")
         return wert
 
-    def programm(self) -> list[str]:
-        """Befehl mit aufgelöstem Programm: relativ zum Arbeitsordner, ~ und $VAR erweitert."""
-        erstes = os.path.expandvars(os.path.expanduser(self.befehl[0]))
-        if "/" in erstes and not os.path.isabs(erstes):
-            erstes = str(self.ordner / erstes)
-        return [erstes, *self.befehl[1:]]
+    def programm(self, umgebung: dict[str, str]) -> list[str]:
+        """Befehl mit aufgelösten Variablen aus der Umgebung des Dienstes; ein relatives Programm gilt ab `ordner`."""
+        teile = [erweitern(t, umgebung) for t in self.befehl]
+        if "/" in teile[0] and not os.path.isabs(teile[0]):
+            teile[0] = str(self.ordner / teile[0])
+        return teile
 
 
 class Ladefehler(BaseModel):
@@ -120,6 +120,12 @@ class Agentenordner:
             except (OSError, tomllib.TOMLDecodeError, ValidationError) as e:
                 fehler.append(Ladefehler(datei=datei.name, meldung=str(e).splitlines()[0][:200]))
         return vorlagen, fehler
+
+
+def erweitern(text: str, umgebung: dict[str, str]) -> str:
+    """~ am Anfang und $NAME oder ${NAME} aus der gegebenen Umgebung (nicht der des Agenten); Unbekanntes bleibt stehen."""
+    text = re.sub(r"\$(?:\{(\w+)\}|(\w+))", lambda m: umgebung.get(m.group(1) or m.group(2), m.group(0)), text)
+    return str(Path(text).expanduser()) if text.startswith("~") else text
 
 
 def umgebung_lesen(datei: Path) -> dict[str, str]:

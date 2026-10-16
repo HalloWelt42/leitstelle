@@ -30,7 +30,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from .konfig import AgentKonfig, Agentenordner, DienstVorlage, Ladefehler, umgebung_lesen
+from .konfig import AgentKonfig, Agentenordner, DienstVorlage, Ladefehler, erweitern, umgebung_lesen
 from .messen import GIB, MAC, Prozesstabelle, lauschender_prozess, prozess_bytes
 from .protokoll import Befehl, BefehlErgebnis, Befehlsart, Dienstliste, ProzessBericht, Prozesszustand
 
@@ -183,7 +183,8 @@ class Prozessdienst:
                "LANG": os.environ.get("LANG", "de_DE.UTF-8"), "TMPDIR": os.environ.get("TMPDIR", "/tmp")}
         if v.umgebung_datei:
             env.update(umgebung_lesen(v.umgebung_datei))
-        env.update({k: os.path.expandvars(os.path.expanduser(w)) for k, w in v.umgebung.items()})
+        for name, wert in v.umgebung.items():
+            env[name] = erweitern(wert, env)
         return env
 
     def _protokoll_oeffnen(self):
@@ -197,7 +198,7 @@ class Prozessdienst:
         v = self.vorlage
         if not v.vorher:
             return
-        befehl = [os.path.expanduser(v.vorher[0]), *v.vorher[1:]]
+        befehl = [erweitern(t, env) for t in v.vorher]
         if "/" in befehl[0] and not os.path.isabs(befehl[0]):
             befehl[0] = str(v.ordner / befehl[0])
         with self._protokoll_oeffnen() as aus:
@@ -211,7 +212,7 @@ class Prozessdienst:
         with self._protokoll_oeffnen() as aus:
             aus.write(f"\n--- gestartet vom Agenten {time.strftime('%Y-%m-%d %H:%M:%S')} ---\n".encode())
             aus.flush()
-            self.prozess = subprocess.Popen(v.programm(), cwd=v.ordner, env=env, stdin=subprocess.DEVNULL, stdout=aus, stderr=subprocess.STDOUT,
+            self.prozess = subprocess.Popen(v.programm(env), cwd=v.ordner, env=env, stdin=subprocess.DEVNULL, stdout=aus, stderr=subprocess.STDOUT,
                                             start_new_session=True)
         self.stand.gruppe = self.prozess.pid
 

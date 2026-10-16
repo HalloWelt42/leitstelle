@@ -45,7 +45,7 @@ Beispiel: [beispiele/bildwerkstatt.toml](beispiele/bildwerkstatt.toml).
 |---|---|---|
 | `name` | Pflicht | Anzeigename |
 | `ordner` | Pflicht | Arbeitsordner; `~` und `$VAR` werden aufgelöst |
-| `befehl` | Pflicht | Programm und Argumente als Liste; ein relativer Programmpfad gilt ab `ordner` |
+| `befehl` | Pflicht | Programm und Argumente als Liste; ein relativer Programmpfad gilt ab `ordner`; `$NAME` kommt aus der Umgebung des Dienstes (auch aus `umgebung_datei`) |
 | `vorher` | leer | Befehl, der vor jedem Start einmal läuft |
 | `port` | keiner | erreichbar heißt: der Port nimmt Verbindungen an (IPv4 oder IPv6) |
 | `pruefadresse` | keine | strenger: eine Antwort unter 500 von dieser Adresse |
