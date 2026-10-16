@@ -27,7 +27,8 @@ MAC = platform.system() == "Darwin"
 
 
 def _befehl(*args: str) -> str:
-    return subprocess.run(args, capture_output=True, text=True, timeout=10, check=True).stdout
+    """Systembefehl mit neutraler Spracheinstellung: Zahlen kommen dann mit Punkt, egal wie der Dienst eingestellt ist."""
+    return subprocess.run(args, capture_output=True, text=True, timeout=10, check=True, env={**os.environ, "LC_ALL": "C"}).stdout
 
 
 # ── Rechner ──────────────────────────────────────────────────────────────
@@ -46,10 +47,16 @@ def _speicher_mac() -> tuple[float, float, float | None, float | None]:
         return int(m.group(1)) if m else 0
 
     belegt = (seiten("Anonymous pages") - seiten("Pages purgeable") + seiten("Pages wired down") + seiten("Pages occupied by compressor")) * seite
-    swap = _befehl("sysctl", "-n", "vm.swapusage")
-    werte = {k: float(v) for k, v in re.findall(r"(total|used) = ([\d.]+)M", swap)}
-    mib = 1024**2
-    return gesamt / GIB, belegt / GIB, werte.get("used", 0) * mib / GIB, werte.get("total", 0) * mib / GIB
+    swap, swap_gesamt = swap_mac(_befehl("sysctl", "-n", "vm.swapusage"))
+    return gesamt / GIB, belegt / GIB, swap, swap_gesamt
+
+
+def swap_mac(text: str) -> tuple[float | None, float | None]:
+    """`total = 18432.00M  used = 17117.56M ...` (auch mit Dezimalkomma) in GiB; unlesbar ergibt None, nie 0."""
+    werte = {k: float(v.replace(",", ".")) for k, v in re.findall(r"(total|used) = ([\d.,]+)M", text)}
+    if "total" not in werte or "used" not in werte:
+        return None, None
+    return werte["used"] / 1024, werte["total"] / 1024
 
 
 def _meminfo() -> dict[str, int]:

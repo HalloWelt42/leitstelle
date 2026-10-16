@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from leitstelle_agent.konfig import AgentKonfig, Agentenordner
-from leitstelle_agent.messen import Messer, speicher
+from leitstelle_agent.messen import Messer, speicher, swap_mac
 from leitstelle_agent.protokoll import Befehl, Befehlsart, Prozesszustand
 from leitstelle_agent.prozesse import Soll, Verwalter
 
@@ -206,3 +206,9 @@ def test_speicher_und_messer():
 def test_kanaladresse():
     assert AgentKonfig(leitstelle="http://leitstelle:8530/").kanal == "ws://leitstelle:8530/agent/kanal"
     assert AgentKonfig(leitstelle="https://leitstelle").kanal == "wss://leitstelle/agent/kanal"
+
+
+def test_swap_auch_mit_dezimalkomma():
+    assert swap_mac("total = 18432.00M  used = 17117.56M  free = 1314.44M  (encrypted)") == (17117.56 / 1024, 18.0)
+    assert swap_mac("total = 18432,00M  used = 17117,56M  free = 1314,44M  (encrypted)") == (17117.56 / 1024, 18.0)
+    assert swap_mac("unbekannt") == (None, None)
