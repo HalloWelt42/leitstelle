@@ -23,7 +23,7 @@ pytest.importorskip("maschinenraum")
 from maschinenraum import durchleitung  # noqa: E402
 from maschinenraum.konfig import Ordner  # noqa: E402
 from maschinenraum.leitstelle import Leitstellenkanal  # noqa: E402
-from maschinenraum.messen import Messer  # noqa: E402
+from maschinenraum.protokoll import Messwerte  # noqa: E402
 from maschinenraum.prozesse import Verwalter  # noqa: E402
 
 
@@ -72,12 +72,26 @@ async def aufbau(tmp_path: Path):
         yield c, url, knoten, schluessel
 
 
+class ScheinMesser:
+    """Feste Messwerte: die Tests dürfen nicht vom Speicher des Rechners abhängen, auf dem sie laufen
+    (ein Rechner mit 15 GB hätte nach der Reserve von 18 GB kein Budget, und jeder Start würde warten)."""
+
+    def messwege(self) -> list[str]:
+        return ["speicher", "swap"]
+
+    def messen(self) -> Messwerte:
+        return Messwerte(speicher_gesamt_gb=64.0, speicher_belegt_gb=20.0, swap_belegt_gb=0.0, swap_gesamt_gb=2.0)
+
+    def beenden(self) -> None:
+        pass
+
+
 @asynccontextmanager
 async def agent_laeuft(o: Ordner):
     """Maschinenraum wie im Betrieb: Dienstverwaltung, Kanal zur Leitstelle und Durchleitung auf einem freien Port."""
     e = o.einstellungen()
     verwalter = Verwalter(o, e)
-    messer = Messer(e.messung.takt_s, macmon=False)
+    messer = ScheinMesser()
     weg = durchleitung.erstellen(SimpleNamespace(ordner=o, verwalter=verwalter))
     async with laufend(weg) as weg_url:
         e.durchleitung.port = int(weg_url.rsplit(":", 1)[1])
