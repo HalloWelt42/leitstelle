@@ -9,6 +9,18 @@ live in einer Oberfläche: wer was rechnet, wer wartet und warum.
 Jedes Programm, das die gewöhnliche OpenAI-Schnittstelle spricht, kann sie ohne Umbau nutzen: Adresse auf die
 Leitstelle stellen, Schlüssel eintragen, fertig.
 
+## Zusammenspiel mit dem Maschinenraum
+
+Leitstelle und [Maschinenraum](https://github.com/HalloWelt42/maschinenraum) gehören zusammen. Der Modell-Läufer
+verwaltet die Sprachmodelle eines Rechners, der Maschinenraum alles andere (Sprache, Bild, Musik, eigene Dienste),
+jeder mit eigener Oberfläche. Die Leitstelle steht darüber: Anwendungen sprechen nur noch mit ihr, sie wählt Dienst
+und Rechner, plant den Speicher und startet oder hält Dienste über den Maschinenraum des Rechners an.
+
+```
+Anwendungen  ->  Leitstelle  ->  Modell-Läufer      (Sprachmodelle)
+                             ->  Maschinenraum      (alle übrigen Dienste, je Rechner)
+```
+
 ## Was sie kann
 
 - **Fassade im OpenAI-Format** (`/v1/chat/completions` mit und ohne Strom, `/v1/embeddings`, `/v1/models`, dazu
