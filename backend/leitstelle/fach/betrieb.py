@@ -255,7 +255,7 @@ class Betrieb:
 
     def agent_angemeldet(self, v: AgentVerbindung) -> None:
         k = self.knoten[v.knoten]
-        self.melden(f"Knoten-Agent auf {k.name} verbunden ({v.anmeldung.betriebssystem}, Agent {v.anmeldung.agent_version})")
+        self.melden(f"Maschinenraum auf {k.name} verbunden ({v.anmeldung.betriebssystem}, Fassung {v.anmeldung.agent_version})")
         self.bus.senden(umschlag("knoten.angemeldet", {"knoten": k.kennung, "name": k.name, **v.anmeldung.model_dump(mode="json")}))
         self.geaendert()
 
@@ -266,7 +266,7 @@ class Betrieb:
         if e is None or k is None:
             return
         k.system_gb, k.speicher_gb = e.system_gb, e.speicher_gb
-        self.melden(f"Knoten-Agent auf {e.name} getrennt; es gelten wieder die eingetragenen Speicherwerte")
+        self.melden(f"Maschinenraum auf {e.name} getrennt; es gelten wieder die eingetragenen Speicherwerte")
         self.bus.senden(umschlag("knoten.getrennt", {"knoten": knoten, "name": e.name}))
         dienst = self.agentdienst(knoten)
         if dienst:
@@ -291,7 +291,7 @@ class Betrieb:
                               knoten=v.knoten, plaetze=1)
             await self.ablage.dienste.speichern(e)
             self.dienst_setzen(e)
-            self.melden(f"{e.name} eingerichtet: {len(v.dienste.dienste)} Dienste unter dem Knoten-Agenten")
+            self.melden(f"{e.name} eingerichtet: {len(v.dienste.dienste)} Dienste im Maschinenraum")
             dienst = e.kennung
         if dienst:
             await self._abgleich(dienst)
@@ -631,7 +631,7 @@ class Betrieb:
     # ── Vollzug: was der Kern beschließt ─────────────────────────────────
     def dienst_starten(self, dienst: str) -> None:
         d = self.verbund.dienste[dienst]
-        self.melden(f"{d.name} kann nicht gestartet werden: auf dem Rechner läuft kein Knoten-Agent")
+        self.melden(f"{d.name} kann nicht gestartet werden: auf dem Rechner läuft kein Maschinenraum")
 
     def modell_laden(self, modell: str) -> None:
         m = self.verbund.modelle[modell]

@@ -117,7 +117,7 @@
               {@const warten = wartenAuf(m)}
               <tr>
                 <td><div class="n">{m.name}{#if m.geschuetzt}<i class="fa-solid fa-shield-halved schutz" title="Geschützt: unter der Schutzgrenze, Einbettung oder ohne bekannte Größe; die Leitstelle entlädt es nie von selbst. Von Hand geht es."></i>{/if}</div>
-                  <div class="zweit">{#if worte(m) === WORTE.prozess}Programm unter dem Knoten-Agenten{:else}<span class="zahl">{m.parameter_mrd ? `${zahl(m.parameter_mrd)} Milliarden` : 'Größe unbekannt'}</span> · zuletzt {vor(m.letzte_nutzung_s, jetzt)}{/if}</div></td>
+                  <div class="zweit">{#if worte(m) === WORTE.prozess}Programm im Maschinenraum des Rechners{:else}<span class="zahl">{m.parameter_mrd ? `${zahl(m.parameter_mrd)} Milliarden` : 'Größe unbekannt'}</span> · zuletzt {vor(m.letzte_nutzung_s, jetzt)}{/if}</div></td>
                 <td><div class="marken">{#each m.faehigkeiten.filter((f) => f !== 'uebersetzen' && f !== 'werkzeug') as f (f)}<Faehigkeit wert={f} />{/each}</div></td>
                 <td><div class="dienst">{dienst(m.dienst)?.name}</div><div class="zweit">{knotenName(m.knoten)}</div></td>
                 <td class="zahl"><div style="text-align:right">{m.gb ? gb(m.gb) : '-'}</div></td>

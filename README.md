@@ -2,7 +2,7 @@
 
 Zentrale Vermittlungsstelle für KI-Dienste im eigenen Netz. Die Leitstelle kennt die Rechner, die
 Dienste darauf (Modell-Läufer mit OpenAI-Schnittstelle und Programme wie Sprachsynthese, Spracherkennung,
-Bilderzeugung, die ein Knoten-Agent startet und anhält) und externe Anbieter. Anwendungen geben Aufträge ab; die Leitstelle wählt Dienst und Modell,
+Bilderzeugung, die der Maschinenraum des Rechners startet und anhält) und externe Anbieter. Anwendungen geben Aufträge ab; die Leitstelle wählt Dienst und Modell,
 reiht nach Priorität ein, lädt und entlädt Modelle nach gemessenem Bedarf, schichtet selbst um und zeigt alles
 live in einer Oberfläche: wer was rechnet, wer wartet und warum.
 
@@ -18,9 +18,10 @@ Leitstelle stellen, Schlüssel eintragen, fertig.
   leitet um, räumt Leerlauf, weicht in der Kette aus, mit Begründung, Gewinnschwelle und Schutz vor Hin und Her.
   Regeln sind Graphen aus Bausteinen.
 - **Hauptregler** für den ganzen Verbund: Normal, Auslaufen, Halt, Hintergrund anhalten.
-- **Knoten-Agent** je Rechner ([agent/README.md](agent/README.md)): misst den echten Speicher statt ihn zu
-  schätzen, startet und hält die Dienste des Rechners an, die nicht über einen Modell-Läufer laufen, jeden in
-  eigener Prozessgruppe mit eigener Umgebung und eigenem Protokoll; übersteht Neustarts. Ein Befehl installiert ihn.
+- **Knoten-Agenten** je Rechner: der [Maschinenraum](https://github.com/HalloWelt42/maschinenraum) (eigenes
+  Programm mit Oberfläche) meldet den echten Speicher statt einer Schätzung, und die Leitstelle startet und hält
+  über ihn die Dienste an, die nicht über einen Modell-Läufer laufen. Das Protokoll ist offen
+  ([docs/PROTOKOLL.md](docs/PROTOKOLL.md) Abschnitt 4.2); andere Agenten sind möglich.
 - **Oberfläche** mit lebendigem Netzbild, Aufträgen mit Zeitleiste, Modellen mit Budget, Knoten, Diensten
   (Anschluss per Adresse, alles andere wird erkannt), Anwendungen mit Schlüsseln, Prüfprotokoll; eigene
   Telefonansicht.

@@ -55,7 +55,7 @@
       <div class="kennzahl erfolg"><b>{erreichbar.length}</b><span>Erreichbar</span><small>mindestens ein Dienst antwortet</small></div>
       {#if erreichbar.length < bild.knoten.length}<div class="kennzahl fehler"><b>{bild.knoten.length - erreichbar.length}</b><span>Nicht erreichbar</span></div>{/if}
       <div class="kennzahl"><b>{gb(bild.knoten.reduce((s, k) => s + k.geladen_gb, 0))}</b><span>Modelle im Speicher</span></div>
-      <div class="kennzahl"><b>{mitAgent.length}</b><span>Mit Agent</span><small>Speicher gemessen statt geschätzt</small></div>
+      <div class="kennzahl"><b>{mitAgent.length}</b><span>Mit Maschinenraum</span><small>Speicher gemessen statt geschätzt</small></div>
     </div>
   </div>
 
@@ -76,8 +76,8 @@
             <div class="feldreihe">
               <label class="feld-l"><span>Name</span><input class="eingabe" bind:value={entwurf.name} /></label>
               <label class="feld-l"><span>Adresse <small>Rechnername oder IP, für die Zuordnung der Dienste</small></span><input class="eingabe" bind:value={entwurf.adresse} /></label>
-              <label class="feld-l"><span>Speicher in GB <small>gilt, solange kein Knoten-Agent misst</small></span><input class="eingabe" type="number" min="1" bind:value={entwurf.speicher_gb} /></label>
-              <label class="feld-l"><span>System in GB <small>Schätzung für System und andere Programme, solange kein Agent misst</small></span><input class="eingabe" type="number" min="0" bind:value={entwurf.system_gb} /></label>
+              <label class="feld-l"><span>Speicher in GB <small>gilt, solange kein Maschinenraum misst</small></span><input class="eingabe" type="number" min="1" bind:value={entwurf.speicher_gb} /></label>
+              <label class="feld-l"><span>System in GB <small>Schätzung für System und andere Programme, solange kein Maschinenraum misst</small></span><input class="eingabe" type="number" min="0" bind:value={entwurf.system_gb} /></label>
               <label class="feld-l"><span>Festes Budget in GB <small>leer: Speicher minus Reserve</small></span><input class="eingabe" type="number" min="0" bind:value={entwurf.budget_fest_gb} /></label>
               <label class="feld-l"><span>Zone</span>
                 <select class="eingabe" bind:value={entwurf.zone}><option value="heim">Heimnetz</option><option value="fern">Über VPN</option></select></label>

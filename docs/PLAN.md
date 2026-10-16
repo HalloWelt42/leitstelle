@@ -59,7 +59,7 @@ Stand 16.10.2026 (Fassung 0.4): gebaut, geprüft und auf einem Raspberry Pi in B
 
 ## Staffel 2: Knoten-Agent
 
-- Python-Agent `agent/` (Entscheidung 16.10.2026): Messwerte (Prozessor, Speicher, Swap, Platte, Netz; auf dem Mac dazu Grafik,
+- Python-Agent (Entscheidung 16.10.2026; seit 16.10.2026 eigenes Programm Maschinenraum, Repo HalloWelt42/maschinenraum): Messwerte (Prozessor, Speicher, Swap, Platte, Netz; auf dem Mac dazu Grafik,
   Leistung, Temperatur, Lüfter nach den Messwegen aus Leitwarte; auf dem Pi Temperatur aus
   `/sys/class/thermal`), Entdeckung bekannter Dienste (Ports 1234, 10031, 8188, 8766, 8765 und
   Prozesse), Befehle (Dienst starten, anhalten, Messtakt), Anmeldung mit eigenem Schlüssel,
@@ -137,5 +137,5 @@ Name Leitstelle, Betriebsort Pi, Agent in Python, Farbwelt Kräftig, Blauart Kö
 |---|---|
 | 0 | fertig bis auf Freigabe der Entwürfe (16.10.2026): Bestand, Architektur, Protokoll, Umbau, Entwürfe, Entscheidungskern mit Schein-Verbund und Szenarienkatalog, Anbindungsanweisung |
 | 1 | gebaut und auf dem Pi in Betrieb (16.10.2026, 0.4): Kern, Fassade, Verwaltung, Oberfläche, Messpunkt; offen: echter Läufer und erste Anwendung gemeinsam mit dem Nutzer |
-| 2 | Knoten-Agent gebaut (16.10.2026, 0.6): misst Speicher, Swap, Last, Platte, mit macmon Grafik, Temperatur, Leistung; startet und hält Prozessdienste an (eigene Gruppe, Umgebung, Protokoll), Sollzustand übersteht Neustarts, begrenzte Neustarts nach Absturz, Übernahme fremd gestarteter Dienste; Installationsskript von der Leitstelle; Oberfläche Knoten mit Ringen und Agentfeld. Offen: Netz und Lüfter, Verläufe und Knoten-Einzelheiten, Speicherplaner wartet auf die echte Freimeldung, Erster-Start-Seite |
+| 2 | Knoten-Agent gebaut (16.10.2026, 0.6), seit 0.7 als eigenes Programm Maschinenraum mit Oberfläche und Menüleistensymbol: misst Speicher, Swap, Last, Platte, mit macmon Grafik, Temperatur, Leistung; startet und hält Prozessdienste an (eigene Gruppe, Umgebung, Protokoll), Sollzustand übersteht Neustarts, begrenzte Neustarts nach Absturz, Übernahme fremd gestarteter Dienste; Oberfläche Knoten mit Ringen und Feld für den Maschinenraum. Offen: Netz und Lüfter, Verläufe und Knoten-Einzelheiten, Speicherplaner wartet auf die echte Freimeldung, Erster-Start-Seite |
 | 3 bis 7 | offen |

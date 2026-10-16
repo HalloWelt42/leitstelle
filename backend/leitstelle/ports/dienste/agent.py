@@ -32,7 +32,7 @@ class AgentDienste:
     async def zustand(self) -> Dienstbericht:
         v = self.agenten.verbindung(self.knoten)
         if v is None:
-            return Dienstbericht(erreichbar=False, meldung="Knoten-Agent nicht verbunden")
+            return Dienstbericht(erreichbar=False, meldung="Maschinenraum nicht verbunden")
         modelle = [ModellBericht(schluessel=p.kennung, name=p.name, faehigkeiten=set(p.faehigkeiten), gb=p.gb, parameter_mrd=None,
                                  geladen=p.zustand in IM_SPEICHER, instanzen=[p.kennung] if p.zustand in IM_SPEICHER else [])
                    for p in v.dienste.dienste]
@@ -42,9 +42,9 @@ class AgentDienste:
         try:
             e = await self.agenten.befehl(self.knoten, Befehl(befehl=art, ziel=ziel))
         except AgentGetrennt:
-            raise DienstFehler("dienst_nicht_erreichbar", "Knoten-Agent nicht verbunden", wiederholbar=True) from None
+            raise DienstFehler("dienst_nicht_erreichbar", "Maschinenraum nicht verbunden", wiederholbar=True) from None
         if not e.erfolg:
-            raise DienstFehler("dienst_fehler", e.meldung or "vom Agenten abgelehnt")
+            raise DienstFehler("dienst_fehler", e.meldung or "vom Maschinenraum abgelehnt")
 
     async def laden(self, schluessel: str) -> str:
         await self._befehl(Befehlsart.DIENST_STARTEN, schluessel)
@@ -54,7 +54,7 @@ class AgentDienste:
         await self._befehl(Befehlsart.DIENST_ANHALTEN, instanz)
 
     async def anfrage(self, pfad: str, koerper: dict[str, Any]) -> Strom:
-        raise DienstFehler("nicht_unterstuetzt", "Dienste unter einem Knoten-Agenten werden direkt angesprochen, nicht über die Fassade.")
+        raise DienstFehler("nicht_unterstuetzt", "Dienste im Maschinenraum werden direkt angesprochen, nicht über die Fassade.")
 
     async def schliessen(self) -> None:
         return None

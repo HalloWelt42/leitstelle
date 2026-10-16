@@ -42,24 +42,18 @@ docker compose stop leitstelle && tar -czf leitstelle_$(date +%Y%m%d_%H%M).tar.g
 ZIEL=benutzer@rechner tools/ausrollen.sh
 ```
 
-## Knoten-Agent
+## Maschinenraum (Knoten-Agent je Rechner)
 
-In der Oberfläche unter Knoten beim Rechner "Agent einrichten", dann auf dem Rechner:
-
-```bash
-sh -c "$(curl -fsSL http://leitstelle:8530/agent/installieren.sh)"
-```
-
-Dienste je Rechner liegen in `~/Leitstelle-Agent/dienste/` (eine Datei je Dienst, Felder in
-[agent/README.md](../agent/README.md)). Stand ansehen:
+Der Maschinenraum ist ein eigenes Programm (Repo HalloWelt42/maschinenraum): er verwaltet die Dienste eines
+Rechners mit eigener Oberfläche und meldet sich als Knoten-Agent bei der Leitstelle. Installieren auf dem Rechner:
 
 ```bash
-~/Leitstelle-Agent/.venv/bin/python -m leitstelle_agent ~/Leitstelle-Agent --liste
+git clone https://github.com/HalloWelt42/maschinenraum.git && cd maschinenraum && ./installieren.sh
 ```
 
-```bash
-tail -f ~/Leitstelle-Agent/protokolle/agent.log
-```
+Dann in der Leitstelle unter Knoten beim Rechner "Maschinenraum verbinden" und Adresse und Schlüssel in der
+Oberfläche des Maschinenraums (`http://127.0.0.1:8540/`) unter Leitstelle eintragen. Dienste je Rechner liegen in
+`~/Maschinenraum/dienste/`, eine Datei je Dienst.
 
 ## Erste Schritte in der Oberfläche
 

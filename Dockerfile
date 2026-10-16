@@ -1,5 +1,5 @@
 # Leitstelle auf dem Pi. Ein Abbild je Dienst über Bauziele:
-#   leitstelle  Kern mit Fassade, Verwaltung, Kanal und Oberfläche (Port 8530); liefert den Knoten-Agenten aus
+#   leitstelle  Kern mit Fassade, Verwaltung, Kanal und Oberfläche (Port 8530)
 #   entwuerfe   die Entwürfe als Leitfaden (Port 8535)
 # Der Bau scheitert, wenn ein Test rot ist oder die Oberfläche Typfehler hat; ausgeliefert wird nur Geprüftes.
 
@@ -8,10 +8,10 @@ FROM python:3.13-slim AS kern
 WORKDIR /app
 COPY version.json ./
 COPY backend/ backend/
-COPY agent/ agent/
 COPY tools/schein_laeufer.py tools/messen_fassade.py tools/
-RUN pip install --no-cache-dir -e "backend[test]" -e "agent[test]" \
- && cd /app/agent && python -m pytest -q -p no:cacheprovider \
+# Der Maschinenraum (eigenes Repo) dient als echter Knoten-Agent in den Ende-zu-Ende-Tests
+ARG MASCHINENRAUM=https://github.com/HalloWelt42/maschinenraum/archive/refs/heads/main.tar.gz
+RUN pip install --no-cache-dir -e "backend[test]" "$MASCHINENRAUM" \
  && cd /app/backend && python -m pytest -q -p no:cacheprovider \
  && echo "geprüft" > /app/kern-geprueft
 
@@ -31,8 +31,7 @@ COPY backend/ backend/
 RUN pip install --no-cache-dir -e backend && rm -rf backend/tests
 COPY --from=kern /app/kern-geprueft /app/kern-geprueft
 COPY --from=oberflaeche /app/frontend/dist /app/oberflaeche
-COPY agent/ /app/agent/
-ENV LEITSTELLE_DATEN=/daten LEITSTELLE_OBERFLAECHE=/app/oberflaeche LEITSTELLE_AGENT_QUELLE=/app/agent LEITSTELLE_PORT=8530 PYTHONUNBUFFERED=1
+ENV LEITSTELLE_DATEN=/daten LEITSTELLE_OBERFLAECHE=/app/oberflaeche LEITSTELLE_PORT=8530 PYTHONUNBUFFERED=1
 EXPOSE 8530
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8530/gesundheit', timeout=4).status == 200 else 1)"
 CMD ["python", "-m", "leitstelle"]

@@ -1,14 +1,11 @@
-"""Knoten-Agent Ende zu Ende: echte Leitstelle auf einem Port, echter Agent (Paket `leitstelle_agent`) mit einem
-kleinen HTTP-Server als Prozessdienst. Szenarien A01 bis A06 aus docs/SZENARIEN.md."""
+"""Knoten-Agent Ende zu Ende: echte Leitstelle auf einem Port, als Agent der Maschinenraum (eigenes Repo,
+Paket `maschinenraum`) mit einem kleinen HTTP-Server als Prozessdienst. Szenarien A01 bis A05 aus docs/SZENARIEN.md."""
 
 from __future__ import annotations
 
 import asyncio
-import contextlib
-import io
 import socket
 import sys
-import tarfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -21,13 +18,11 @@ from leitstelle.konfig import Konfig
 
 from schein.server import laufend
 
-agent = pytest.importorskip("leitstelle_agent")
-from leitstelle_agent.kanal import Kanal  # noqa: E402
-from leitstelle_agent.konfig import Agentenordner  # noqa: E402
-from leitstelle_agent.messen import Messer  # noqa: E402
-from leitstelle_agent.prozesse import Verwalter  # noqa: E402
-
-WURZEL = Path(__file__).resolve().parents[2]
+pytest.importorskip("maschinenraum")
+from maschinenraum.konfig import Ordner  # noqa: E402
+from maschinenraum.leitstelle import Leitstellenkanal  # noqa: E402
+from maschinenraum.messen import Messer  # noqa: E402
+from maschinenraum.prozesse import Verwalter  # noqa: E402
 
 
 def _freier_port() -> int:
@@ -49,21 +44,21 @@ async def _warte_bis(bedingung, sekunden: float = 15.0):
     raise AssertionError("Bedingung nicht erreicht")
 
 
-def _agentenordner(tmp: Path, url: str, schluessel: str, port: int) -> Agentenordner:
-    o = tmp / "agent"
+def _agentenordner(tmp: Path, url: str, schluessel: str, port: int) -> Ordner:
+    o = tmp / "maschinenraum"
     (o / "dienste").mkdir(parents=True)
-    (o / "agent.toml").write_text(f'leitstelle = "{url}"\ntakt_s = 1\nmacmon = false\nwiederverbindung_max_s = 1\n')
+    (o / "einstellungen.toml").write_text(f'[leitstelle]\nadresse = "{url}"\nwiederverbindung_max_s = 1\n[messung]\ntakt_s = 1\nmacmon = false\n')
     (o / "schluessel").write_text(schluessel)
     (o / "dienste" / "probe.toml").write_text(
         f'name = "Probe"\nordner = "{tmp}"\nbefehl = ["{sys.executable}", "-m", "http.server", "{port}", "--bind", "127.0.0.1"]\n'
         f'port = {port}\nfaehigkeiten = ["stimme"]\nspeicher_gb = 0.5\nstartzeit_s = 15\nanhaltezeit_s = 5\n')
-    return Agentenordner(o)
+    return Ordner(o)
 
 
 @asynccontextmanager
 async def aufbau(tmp_path: Path):
     """Leitstelle mit einem Rechner (64 GB eingetragen, 6 GB System geschätzt) und einem Agent-Schlüssel."""
-    app = erstellen(Konfig(daten=tmp_path / "daten", oberflaeche=None, dienst_takt_s=0.3, agent_quelle=WURZEL / "agent"))
+    app = erstellen(Konfig(daten=tmp_path / "daten", oberflaeche=None, dienst_takt_s=0.3))
     async with laufend(app) as url, httpx.AsyncClient(base_url=url, timeout=30) as c:
         r = await c.post("/api/knoten", json={"name": "Mac Studio", "adresse": "127.0.0.1", "speicher_gb": 64, "system_gb": 6})
         assert r.status_code == 200, r.text
@@ -76,17 +71,19 @@ async def aufbau(tmp_path: Path):
 
 
 @asynccontextmanager
-async def agent_laeuft(o: Agentenordner):
-    konfig = o.konfig()
-    verwalter = Verwalter(o, konfig)
-    messer = Messer(konfig.takt_s, macmon=False)
-    aufgaben = [asyncio.create_task(verwalter.schleife()), asyncio.create_task(Kanal(o, konfig, verwalter, messer).schleife())]
+async def agent_laeuft(o: Ordner):
+    e = o.einstellungen()
+    verwalter = Verwalter(o, e)
+    messer = Messer(e.messung.takt_s, macmon=False)
+    kanal = Leitstellenkanal(o, verwalter, messer)
+    aufgabe = asyncio.create_task(verwalter.schleife())
+    kanal.starten()
     try:
         yield verwalter
     finally:
-        for t in aufgaben:
-            t.cancel()
-        await asyncio.gather(*aufgaben, return_exceptions=True)
+        await kanal.beenden()
+        aufgabe.cancel()
+        await asyncio.gather(aufgabe, return_exceptions=True)
         for d in verwalter.dienste.values():
             if d.stand.gruppe is not None:
                 await d.anhalten()
@@ -190,26 +187,12 @@ async def test_a05_neuer_schluessel_trennt_den_agenten(tmp_path):
             assert not (await _knoten(c, knoten))["agent"]["verbunden"]
             assert (await c.post(f"/api/knoten/{knoten}/agent/schluessel")).json()["schluessel"] == neu
             pruef = [e["was"] for e in (await c.get("/api/pruefprotokoll")).json()["eintraege"]]
-            assert "Agent-Schlüssel neu erzeugt" in pruef and "Agent-Schlüssel aufgedeckt" in pruef
-
-
-async def test_a06_installationsskript_und_paket(tmp_path):
-    async with aufbau(tmp_path) as (c, url, _knoten, _schluessel):
-        r = await c.get("/agent/installieren.sh")
-        assert r.status_code == 200 and f'LEITSTELLE="${{LEITSTELLE:-{url}}}"' in r.text and "__LEITSTELLE_ADRESSE__" not in r.text
-        r = await c.get("/agent/paket.tar.gz")
-        assert r.status_code == 200
-        with tarfile.open(fileobj=io.BytesIO(r.content)) as tar:
-            namen = tar.getnames()
-            assert "leitstelle-agent/pyproject.toml" in namen and "leitstelle-agent/leitstelle_agent/prozesse.py" in namen
-            assert not any("/tests/" in n or "__pycache__" in n or ".egg-info" in n for n in namen)
-            fassung = tar.extractfile("leitstelle-agent/leitstelle_agent/VERSION").read().decode()
-        assert fassung == (await c.get("/gesundheit")).json()["version"]
+            assert "Schlüssel für den Maschinenraum neu erzeugt" in pruef and "Schlüssel für den Maschinenraum aufgedeckt" in pruef
 
 
 def test_protokoll_von_agent_und_kern_ist_deckungsgleich():
     import leitstelle.protokoll.knoten as kern
-    import leitstelle_agent.protokoll as spiegel
+    import maschinenraum.protokoll as spiegel
     for name in ("KnotenAnmeldung", "Messwerte", "Prozesszustand", "ProzessBericht", "Dienstliste", "Befehlsart", "Befehl", "BefehlErgebnis", "Faehigkeit"):
         a, b = getattr(kern, name, None) or getattr(__import__("leitstelle.kern.werte", fromlist=[name]), name), getattr(spiegel, name)
         if hasattr(a, "model_json_schema"):

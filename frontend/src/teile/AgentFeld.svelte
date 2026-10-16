@@ -1,6 +1,7 @@
 <script lang="ts">
-  // Knoten-Agent eines Rechners: ob er sich meldet, Schlüssel erzeugen oder aufdecken, Installationsbefehl.
-  // Der Schlüssel steht nur so lange auf dem Bildschirm, bis das Feld geschlossen wird.
+  // Maschinenraum eines Rechners (der Knoten-Agent): ob er sich meldet, Schlüssel erzeugen oder aufdecken.
+  // Eingetragen wird der Schlüssel in der Oberfläche des Maschinenraums auf dem Rechner selbst.
+  // Er steht nur so lange auf dem Bildschirm, bis das Feld geschlossen wird.
   import { api } from '../lib/api';
   import { vor } from '../lib/format';
   import { tun } from '../lib/meldung.svelte';
@@ -11,10 +12,10 @@
   let schluessel = $state<string | null>(null);
   let erneuern = $state(false);
   const a = $derived(knoten.agent);
-  const befehl = $derived(`sh -c "$(curl -fsSL ${location.origin}/agent/installieren.sh)"`);
+  const adresse = location.origin;
 
   async function erzeugen() {
-    const r = await tun(() => api.agentSchluesselNeu(knoten.kennung), a.schluessel ? 'Neuer Agent-Schlüssel erzeugt' : 'Agent-Schlüssel erzeugt');
+    const r = await tun(() => api.agentSchluesselNeu(knoten.kennung), a.schluessel ? 'Neuer Schlüssel für den Maschinenraum erzeugt' : 'Schlüssel für den Maschinenraum erzeugt');
     if (r) { schluessel = r.schluessel; erneuern = false; }
   }
 
@@ -28,42 +29,42 @@
 </script>
 
 <div class="agentfeld">
-  <div class="etikett">Knoten-Agent</div>
+  <div class="etikett">Maschinenraum</div>
   {#if a.verbunden}
-    <div class="zeile" title="Der Agent misst Speicher und Last und verwaltet die Dienste dieses Rechners">
-      <span class="punkt lebt"></span><span>Meldet sich, Agent <span class="zahl">{a.version}</span>, {a.betriebssystem}</span>
+    <div class="zeile" title="Der Maschinenraum misst Speicher und Last und verwaltet die Dienste dieses Rechners">
+      <span class="punkt lebt"></span><span>Meldet sich, Fassung <span class="zahl">{a.version}</span>, {a.betriebssystem}</span>
       <span class="leise">Messung {vor(a.messzeit_s, jetzt)}</span></div>
   {:else if a.schluessel}
-    <div class="zeile warnung" title="Ein Schlüssel ist vergeben, aber kein Agent verbunden. Bis er sich meldet, gelten die eingetragenen Speicherwerte.">
+    <div class="zeile warnung" title="Ein Schlüssel ist vergeben, aber kein Maschinenraum verbunden. Bis er sich meldet, gelten die eingetragenen Speicherwerte.">
       <span class="punkt aus"></span><span>Nicht verbunden; es gelten die eingetragenen Speicherwerte</span></div>
   {:else}
-    <div class="zeile leise">Kein Agent eingerichtet; der Speicher ist geschätzt, Dienste lassen sich hier nicht starten.</div>
+    <div class="zeile leise">Kein Maschinenraum verbunden; der Speicher ist geschätzt, Dienste lassen sich hier nicht starten.</div>
   {/if}
 
   <div class="knoepfe">
     {#if !a.schluessel}
-      <button class="knopf klein" onclick={erzeugen} title="Erzeugt den Schlüssel, mit dem sich der Agent dieses Rechners anmeldet"><i class="fa-solid fa-key"></i> Agent einrichten</button>
+      <button class="knopf klein" onclick={erzeugen} title="Erzeugt den Schlüssel, mit dem sich der Maschinenraum dieses Rechners anmeldet"><i class="fa-solid fa-key"></i> Maschinenraum verbinden</button>
     {:else}
-      <button class="knopf klein ohne" onclick={aufdecken} title={schluessel ? 'Schlüssel und Befehl ausblenden' : 'Schlüssel und Installationsbefehl zeigen; steht im Prüfprotokoll'}>
-        <i class="fa-solid {schluessel ? 'fa-eye-slash' : 'fa-eye'}"></i> {schluessel ? 'Ausblenden' : 'Schlüssel und Befehl'}</button>
-      <button class="knopf klein ohne" onclick={() => (erneuern = true)} title="Neuen Schlüssel erzeugen; ein verbundener Agent wird getrennt"><i class="fa-solid fa-rotate"></i> Neuer Schlüssel</button>
+      <button class="knopf klein ohne" onclick={aufdecken} title={schluessel ? 'Schlüssel ausblenden' : 'Adresse und Schlüssel zum Eintragen zeigen; steht im Prüfprotokoll'}>
+        <i class="fa-solid {schluessel ? 'fa-eye-slash' : 'fa-eye'}"></i> {schluessel ? 'Ausblenden' : 'Schlüssel zeigen'}</button>
+      <button class="knopf klein ohne" onclick={() => (erneuern = true)} title="Neuen Schlüssel erzeugen; ein verbundener Maschinenraum wird getrennt"><i class="fa-solid fa-rotate"></i> Neuer Schlüssel</button>
     {/if}
   </div>
 
   {#if erneuern}
-    <div class="bestaetigen"><i class="fa-solid fa-triangle-exclamation"></i><span>Neuen Schlüssel erzeugen? Der Agent wird getrennt, bis er den neuen Schlüssel bekommt.</span>
+    <div class="bestaetigen"><i class="fa-solid fa-triangle-exclamation"></i><span>Neuen Schlüssel erzeugen? Der Maschinenraum wird getrennt, bis er den neuen Schlüssel bekommt.</span>
       <div class="rechts"><button class="knopf klein ohne" onclick={() => (erneuern = false)}>Abbrechen</button>
         <button class="knopf klein gefahr-voll" onclick={erzeugen}>Ja, neu erzeugen</button></div></div>
   {/if}
 
   {#if schluessel}
     <div class="einrichten">
+      <label class="feld-l"><span>Adresse der Leitstelle</span>
+        <input class="eingabe zahl" readonly value={adresse} onfocus={markieren} /></label>
       <label class="feld-l"><span>Schlüssel <small>nur für diesen Rechner</small></span>
         <input class="eingabe zahl" readonly value={schluessel} onfocus={markieren} /></label>
-      <label class="feld-l"><span>Auf dem Rechner ausführen <small>fragt nach dem Schlüssel; derselbe Befehl aktualisiert</small></span>
-        <input class="eingabe zahl" readonly value={befehl} onfocus={markieren} /></label>
-      <p class="leise">Der Agent startet danach mit jeder Anmeldung des Benutzers. Dienste trägt man auf dem Rechner im Ordner
-        <span class="zahl">~/Leitstelle-Agent/dienste</span> ein, je Dienst eine Datei.</p>
+      <p class="leise">Beides auf dem Rechner in der Oberfläche des Maschinenraums unter Leitstelle eintragen. Ist er noch
+        nicht installiert: Projekt maschinenraum von HalloWelt42 holen und dort <span class="zahl">./installieren.sh</span> ausführen.</p>
     </div>
   {/if}
 </div>

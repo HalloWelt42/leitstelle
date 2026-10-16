@@ -28,7 +28,6 @@ class Konfig(BaseSettings):
     dienst_takt_s: float = Field(default=5.0, description="Abstand der Zustandsabfrage je Dienst")
     verbindung_s: float = Field(default=10.0, description="Grenze für den Verbindungsaufbau zu Diensten; Arbeit selbst hat keine Lese-Grenze")
     hinweis_s: float = Field(default=15.0, description="Abstand der Wartehinweise in Strömen der Fassade")
-    agent_quelle: Path | None = Field(default=WURZEL / "agent", description="Quellordner des Knoten-Agenten, den die Leitstelle zum Installieren ausliefert")
 
     @property
     def datenbank(self) -> Path:

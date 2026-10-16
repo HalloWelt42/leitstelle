@@ -431,7 +431,7 @@ def immer(k: Kontext) -> bool:
 
 # ── Aktionen: beschreiben nur, ausgeführt wird im Vollzug ─────────────────
 
-@baustein("dienst_starten", "aktion", "Dienst starten", "Startet den Dienst auf dem Zielknoten über den Knoten-Agenten.")
+@baustein("dienst_starten", "aktion", "Dienst starten", "Startet den Dienst auf dem Zielknoten über dessen Maschinenraum.")
 def dienst_starten(k: Kontext) -> dict[str, Any]:
     return {"dienst": k.dienst_ziel}
 

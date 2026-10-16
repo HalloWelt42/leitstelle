@@ -228,9 +228,10 @@ OpenAI-Schnittstelle kennt. Rechner, Dienst und Anwendung werden über die Verwa
 | E13 | Titel mit Umlauten | prozentkodiert und als rohe UTF-8-Bytes richtig im Verlauf |
 | E14 | Nach einem Neustart schon geladene Modelle | ohne bekannten Ladezeitpunkt gilt keine Mindestverweildauer; das ungenutzte 80B weicht nach der Bedarfsfrist |
 
-## 3a. Knoten-Agent (`test_knoten_agent.py`, `agent/tests/test_agent.py`)
+## 3a. Knoten-Agent (`test_knoten_agent.py`; A07 bis A10 im Repo des Maschinenraums, `tests/test_dienste.py`)
 
-Echte Leitstelle auf einem Port, echter Agent, ein kleiner HTTP-Server als Prozessdienst.
+Echte Leitstelle auf einem Port, als Agent der Maschinenraum (Paket `maschinenraum`), ein kleiner HTTP-Server als
+Prozessdienst.
 
 | Nr. | Situation | Erwartet |
 |---|---|---|
@@ -239,7 +240,6 @@ Echte Leitstelle auf einem Port, echter Agent, ein kleiner HTTP-Server als Proze
 | A03 | Dienstliste des Agenten | Dienst "Dienste auf <Rechner>" (Art `agent`) entsteht; der Prozessdienst erscheint als geschütztes Modell; Laden startet ihn bis erreichbar, Entladen hält ihn an; beides im Prüfprotokoll |
 | A04 | Agent trennt | eingetragene Speicherwerte gelten wieder; sein Dienst wird nicht erreichbar |
 | A05 | Neuer Agent-Schlüssel | der verbundene Agent wird getrennt und kommt mit dem alten Schlüssel nicht wieder herein |
-| A06 | Installation | Skript mit der Adresse der Leitstelle, Paket ohne Tests, mit der Fassung der Leitstelle |
 | A07 | Absturz eines Dienstes, der laufen soll | Neustart nach Pause; mehr Abstürze im Zeitfenster als erlaubt: bleibt aus |
 | A08 | Dienst läuft schon, von außen gestartet | wird übernommen statt doppelt gestartet; Anhalten trifft den lauschenden Prozess und seine Nachfahren |
 | A09 | Agent oder Rechner startet neu | Sollzustand bleibt; eigene Gruppen werden innerhalb derselben Systemlaufzeit wiedererkannt, nach Rechnerneustart wird gestartet, was laufen soll |

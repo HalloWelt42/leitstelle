@@ -120,7 +120,7 @@
                 {#if knotenWahl === 'neu'}
                   <div class="feldreihe">
                     <label class="feld-l"><span>Name des Rechners</span><input class="eingabe" bind:value={neuName} placeholder="zum Beispiel Mac Studio" /></label>
-                    <label class="feld-l"><span>Speicher in GB <small>Pflicht, bis der Knoten-Agent misst</small></span><input class="eingabe" type="number" min="1" bind:value={neuSpeicher} placeholder="128" /></label>
+                    <label class="feld-l"><span>Speicher in GB <small>Pflicht, bis ein Maschinenraum misst</small></span><input class="eingabe" type="number" min="1" bind:value={neuSpeicher} placeholder="128" /></label>
                     <label class="feld-l"><span>Zone</span><select class="eingabe" bind:value={neuZone}><option value="heim">Heimnetz</option><option value="fern">Über VPN</option></select></label>
                   </div>
                 {/if}

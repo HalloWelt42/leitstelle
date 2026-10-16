@@ -35,12 +35,14 @@ bereit), damit sich jede Anwendung auf die Lage einstellen kann.
 | Oberfläche | Lagebild, Aufträge, Knoten, Dienste, Modelle, Anwendungen, Regeln, Nachrichtenverkehr, Verlauf, Sicherheit, Protokoll, Hilfe | Svelte 5, TypeScript, Vite | vom Kern ausgeliefert |
 
 Warum Python für den Agenten (Entscheidung des Nutzers): eine Sprache im ganzen Projekt, dieselben
-Modelle und Schemata wie im Kern, auf Macs und Pis ist Python ohnehin da. Der Installationsbefehl legt ein
-eigenes venv an und richtet den Dienst ein; der Agent misst mit Bordmitteln des Systems (ohne Zusatzpaket),
+Modelle und Schemata wie im Kern, auf Macs und Pis ist Python ohnehin da. Umgesetzt ist der Agent als eigenes
+Programm, der Maschinenraum (Repo HalloWelt42/maschinenraum, Entscheidung des Nutzers 16.10.2026: eine zweite
+zentrale Stelle neben dem Modell-Läufer, mit eigener Oberfläche und Menüleistensymbol, auch ohne Leitstelle
+nutzbar). Sein Installationsskript legt ein eigenes venv an und richtet den Dienst ein; er misst mit Bordmitteln des Systems (ohne Zusatzpaket),
 auf dem Mac kommen Grafik, Leistung und Temperatur über macmon dazu, wenn es installiert ist. Die Prozessdienste
 des Rechners erscheinen in der Leitstelle als ein Dienst der Art `agent`, dessen Modelle die Programme sind:
 Starten ist Laden, Anhalten ist Entladen. So gelten Speicherplanung, Prüfprotokoll und Oberfläche ohne Sonderweg
-(Einzelheiten: agent/README.md). Bremst der Agent
+(Einzelheiten im README des Maschinenraums). Bremst der Agent
 einen Pi messbar, wird der Messteil später in ein Binary ausgelagert, die Schnittstelle bleibt. Warum
 Python für den Kern: Standard aller Backends des Hauses, die Last ist Vermittlung und Durchleitung, nicht
 Rechnen. Die Durchleitung (Streams vom Dienst zur Anwendung) ist ein eigener Baustein hinter einer

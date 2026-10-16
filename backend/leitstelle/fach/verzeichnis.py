@@ -124,14 +124,14 @@ class Verzeichnis:
         v = self.b.agenten.verbindung(kennung)
         if v and v.beenden:
             await v.beenden()
-        await self._pruefen(wer, "Agent-Schlüssel neu erzeugt" if k.agent_fingerabdruck else "Agent-Schlüssel erzeugt", k.name)
+        await self._pruefen(wer, "Schlüssel für den Maschinenraum neu erzeugt" if k.agent_fingerabdruck else "Schlüssel für den Maschinenraum erzeugt", k.name)
         return schluessel
 
     async def agent_schluessel_zeigen(self, kennung: str, wer: str) -> str:
         k = self.b.knoten.get(kennung)
         if k is None or not k.agent_geheim:
-            raise Ablehnung("unbekannt", "Für diesen Rechner gibt es noch keinen Agent-Schlüssel.")
-        await self._pruefen(wer, "Agent-Schlüssel aufgedeckt", k.name)
+            raise Ablehnung("unbekannt", "Für diesen Rechner gibt es noch keinen Schlüssel für den Maschinenraum.")
+        await self._pruefen(wer, "Schlüssel für den Maschinenraum aufgedeckt", k.name)
         return self.b.tresor.entschluesseln(k.agent_geheim)
 
     async def knoten_loeschen(self, kennung: str, wer: str) -> None:
