@@ -53,9 +53,9 @@
       <button class:an={ansicht.thema === 'hell'} onclick={() => ansicht.setzeThema('hell')}>Hell</button>
     </span>
     <span class="stufen" title="Schriftgröße auf diesem Gerät">
-      <button class:an={ansicht.schrift === 'normal'} onclick={() => ansicht.setzeSchrift('normal')}>Normal</button>
+      <button class:an={ansicht.schrift === 'klein'} onclick={() => ansicht.setzeSchrift('klein')}>Klein</button>
+      <button class:an={ansicht.schrift === 'mittel'} onclick={() => ansicht.setzeSchrift('mittel')}>Mittel</button>
       <button class:an={ansicht.schrift === 'gross'} onclick={() => ansicht.setzeSchrift('gross')}>Groß</button>
-      <button class:an={ansicht.schrift === 'sehr-gross'} onclick={() => ansicht.setzeSchrift('sehr-gross')}>Sehr groß</button>
     </span>
   </div>
 </nav>

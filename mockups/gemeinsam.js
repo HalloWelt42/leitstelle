@@ -292,13 +292,13 @@ function entwurfSchalter() {
   const lesen = (k, s) => { try { return localStorage.getItem('ls-entwurf-' + k) || s; } catch { return s; } };
   const gruppen = {
     theme: [['dunkel', 'Dunkel'], ['hell', 'Hell']],
-    schrift: [['normal', 'Normal'], ['gross', 'Groß'], ['sehr-gross', 'Sehr groß']],
+    schrift: [['klein', 'Klein'], ['mittel', 'Mittel'], ['gross', 'Groß']],
     palette: [['sanft', 'Sanft'], ['kraeftig', 'Kräftig'], ['leuchtend', 'Leuchtend']],
     flaechen: [['blaugrau', 'Blaugrau'], ['tiefblau', 'Tiefblau']],
     blau: [['himmel', 'Himmel'], ['koenig', 'Königsblau'], ['azur', 'Azur'], ['kornblume', 'Kornblume']],
   };
   const namen = { theme: 'Thema', schrift: 'Schrift', palette: 'Farben', flaechen: 'Flächen', blau: 'Blau' };
-  const standard = { theme: 'dunkel', schrift: 'normal', palette: 'kraeftig', flaechen: 'blaugrau', blau: 'koenig' };
+  const standard = { theme: 'dunkel', schrift: 'gross', palette: 'kraeftig', flaechen: 'blaugrau', blau: 'koenig' };
   const abfrage = new URLSearchParams(location.search);
   const box = document.createElement('div');
   box.className = 'entwurf-schalter';

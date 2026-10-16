@@ -13,7 +13,7 @@
     const abfrage = new URLSearchParams(location.search);
     const lesen = (k, vorgabe) => { let w = abfrage.get(k); if (!w) { try { w = localStorage.getItem('ls-entwurf-' + k); } catch {} } return w || vorgabe; };
     document.documentElement.dataset.theme = lesen('theme', 'dunkel');
-    document.documentElement.dataset.schrift = lesen('schrift', 'normal');
+    document.documentElement.dataset.schrift = lesen('schrift', 'gross');
   })();
 </script>
 <style>

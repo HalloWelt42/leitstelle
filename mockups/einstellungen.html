@@ -47,7 +47,7 @@
   const merken = (k, v) => { try { v === null ? localStorage.removeItem('ls-entwurf-' + k) : localStorage.setItem('ls-entwurf-' + k, v); } catch {} };
   const systemThema = () => matchMedia('(prefers-color-scheme: light)').matches ? 'hell' : 'dunkel';
   let themaWahl = abfrage.get('theme') || gespeichert('theme') || 'system';
-  let schriftWahl = abfrage.get('schrift') || gespeichert('schrift') || 'normal';
+  let schriftWahl = abfrage.get('schrift') || gespeichert('schrift') || 'gross';
 
   // Den schwebenden Entwurfs-Umschalter nachführen, damit beide dasselbe zeigen
   const umschalterNachfuehren = (gruppe, wert) =>
@@ -100,7 +100,7 @@
     zeile('Thema', 'Sanftes Dunkel oder mildes Hell. Vorgabe: System, folgt der Einstellung des Geräts.',
       stufen('thema', [['system', 'System'], ['hell', 'Hell'], ['dunkel', 'Dunkel']], themaWahl, 'Thema der Oberfläche; System folgt der Einstellung des Geräts. Wirkt sofort.')) +
     zeile('Schriftstufe', `Grundschrift ${z(18)}, ${z(20)} oder ${z(22)} Pixel; nichts wird kleiner als ${z(14)} Pixel. Vorgabe: Normal.`,
-      stufen('schrift', [['normal', 'Normal'], ['gross', 'Groß'], ['sehr-gross', 'Sehr groß']], schriftWahl, 'Schriftstufe: skaliert alle Texte und die Seitenleiste mit. Wirkt sofort.'), 'Schriftstufe') +
+      stufen('schrift', [['klein', 'Klein'], ['mittel', 'Mittel'], ['gross', 'Groß']], schriftWahl, 'Schriftstufe: skaliert alle Texte und die Seitenleiste mit. Wirkt sofort.'), 'Schriftstufe') +
     zeile('Bewegung reduzieren', 'Flüsse, Pakete und Schimmer stehen dann still; Zahlen ändern sich weiter. Vorgabe: aus, folgt sonst dem Gerät.',
       schalter(false, 'Hält Flüsse im Netzbild, wandernde Pakete und den Schimmer auf Balken an. Zahlen aktualisieren sich weiter.')) +
     zeile('Zahlen in der Zahlenschrift', 'Zeiten, Größen und Zähler in gleich breiten Ziffern, damit Spalten ruhig stehen. Vorgabe: an.',
@@ -199,7 +199,7 @@
   new MutationObserver(() => {
     const t = document.documentElement.dataset.theme;
     if (!(themaWahl === 'system' && t === systemThema())) stufenAn('thema', t);
-    stufenAn('schrift', document.documentElement.dataset.schrift || 'normal');
+    stufenAn('schrift', document.documentElement.dataset.schrift || 'gross');
   }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-schrift'] });
 
   // Untergruppen: eine Gruppe sichtbar, Reiter im festen Kopf (Nutzerwunsch: kein langes Rollen)

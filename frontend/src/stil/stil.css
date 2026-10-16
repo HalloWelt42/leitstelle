@@ -9,7 +9,7 @@
  * mildes Hell, beide mit geprüften Kontrasten.
  *
  * Regeln: Grundschrift 18 px, kleine Texte 16 px, Marken nie unter 14 px.
- * Schriftstufen (normal, gross, sehr-gross) über data-schrift am <html>.
+ * Schriftstufen (gross als Vorgabe, mittel, klein) über data-schrift am <html>.
  * Keine einseitigen Ränder als Hervorhebung, keine Leuchtleisten, kein
  * !important.
  */
@@ -48,14 +48,16 @@
   --ls-ruhig: 320ms;
 }
 
-/* Schriftstufen: eine Einstellung, je Gerät gemerkt */
-:root[data-schrift="gross"] {
-  --ls-gr-seite: 36px; --ls-gr-titel: 25px; --ls-gr-text: 20px; --ls-gr-klein: 18px; --ls-gr-marke: 16px; --ls-gr-kennzahl: 34px;
-  --ls-seite-breite: 288px;
+/* Schriftstufen: eine Einstellung, je Gerät gemerkt. Groß ist die Vorgabe (die Werte oben), Mittel und Klein
+   verkleinern auf Wunsch des Nutzers (16.10.2026: "das was jetzt normal ist, sollte das größte sein").
+   Klein unterschreitet für Etiketten die sonstige Untergrenze von 14 px bewusst. */
+:root[data-schrift="mittel"] {
+  --ls-gr-seite: 30px; --ls-gr-titel: 21px; --ls-gr-text: 17px; --ls-gr-klein: 15px; --ls-gr-marke: 14px; --ls-gr-kennzahl: 27px;
+  --ls-seite-breite: 248px;
 }
-:root[data-schrift="sehr-gross"] {
-  --ls-gr-seite: 40px; --ls-gr-titel: 28px; --ls-gr-text: 22px; --ls-gr-klein: 20px; --ls-gr-marke: 18px; --ls-gr-kennzahl: 38px;
-  --ls-seite-breite: 312px; --ls-kopf-hoehe: 68px;
+:root[data-schrift="klein"] {
+  --ls-gr-seite: 27px; --ls-gr-titel: 19px; --ls-gr-text: 16px; --ls-gr-klein: 14px; --ls-gr-marke: 13px; --ls-gr-kennzahl: 24px;
+  --ls-seite-breite: 232px; --ls-kopf-hoehe: 58px;
 }
 
 /* ═══ Marken: sanftes Dunkel (Vorgabe) ═══════════════════════════════════ */
