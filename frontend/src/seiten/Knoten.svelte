@@ -109,7 +109,7 @@
                   <span title="Belegt einschließlich System"><i class="fa-solid fa-chart-pie"></i><b>{prozent(k.belegt_anteil)}</b></span>
                   <span title="Aufträge, die gerade auf diesem Rechner rechnen"><i class="fa-solid fa-list-check"></i><b>{rechnend(k.kennung)}</b> {rechnend(k.kennung) === 1 ? 'Auftrag' : 'Aufträge'}</span>
                   {#if k.agent.messwerte?.temperatur_c != null}<span title="Temperatur des Prozessors"><i class="fa-solid fa-temperature-half"></i><b>{komma(k.agent.messwerte.temperatur_c, 0)} °C</b></span>{/if}
-                  {#if k.agent.messwerte?.leistung_w != null}<span title="Leistungsaufnahme des ganzen Rechners"><i class="fa-solid fa-bolt"></i><b>{komma(k.agent.messwerte.leistung_w, 0)}</b> Watt</span>{/if}
+                  {#if k.agent.messwerte?.leistung_w != null}<span title="Leistungsaufnahme des ganzen Rechners"><i class="fa-solid fa-bolt"></i><b>{komma(k.agent.messwerte.leistung_w, 1)}</b> Watt</span>{/if}
                   {#if k.agent.messwerte?.last_1m != null}<span title="Durchschnittliche Last der letzten Minute (wartende und laufende Prozesse)"><i class="fa-solid fa-gauge"></i><b>{komma(k.agent.messwerte.last_1m, 1)}</b> Last</span>{/if}
                   {#if k.agent.messwerte?.platte_frei_gb != null}<span title="Freier Platz auf der Platte"><i class="fa-solid fa-hard-drive"></i><b>{gb(k.agent.messwerte.platte_frei_gb)}</b> frei</span>{/if}
                 </div>

@@ -44,6 +44,7 @@
     <span class="marke-name">Leitstelle</span>
     {#if bild}<span class="zahl">{bild.version}</span>{/if}
   </div>
+  <span class="rolle" title="Leitstelle verteilt Aufträge, Maschinenraum regelt KI, Stellwerk startet Anwendungen"><i class="fa-solid fa-tower-broadcast"></i>verteilt Aufträge</span>
 
   <div class="hauptregler" data-modus={modus} title="Hauptregler: wirkt sofort auf den ganzen Verbund">
     <span class="etikett">Betrieb</span>

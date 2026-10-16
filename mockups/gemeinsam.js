@@ -257,6 +257,7 @@ function schale(aktiv, optionen = {}) {
   if (kopf) kopf.outerHTML = `
     <header class="kopf">
       <div class="marke"><img class="marke-bild" src="symbol-frei.svg" alt=""><span class="marke-name">${APP.name}</span><span class="zahl">${APP.version}</span></div>
+      <span class="rolle" title="Leitstelle verteilt Aufträge, Maschinenraum regelt KI, Stellwerk startet Anwendungen"><i class="fa-solid fa-tower-broadcast"></i>verteilt Aufträge</span>
       <label class="suche"><i class="fa-solid fa-magnifying-glass"></i><input placeholder="Aufträge, Knoten, Modelle durchsuchen"></label>
       ${hauptregler(optionen)}
       <div class="kopf-aktionen">
