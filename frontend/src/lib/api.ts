@@ -31,6 +31,8 @@ async function rufen<T>(pfad: string, methode = 'GET', daten?: unknown): Promise
 
 export interface Seite<T> { eintraege: T[]; gesamt: number; ab: number; anzahl: number }
 export interface FreigabePlan { vorschau: boolean; plan: Freigabe[]; frei_gb: number }
+/** Rechner, wie die Verwaltung ihn zurückgibt: ohne Schlüsselfelder, nur ob ein Agent-Schlüssel vergeben ist */
+export type Rechner = Omit<KnotenEintrag, 'agent_geheim' | 'agent_fingerabdruck'> & { agent_schluessel: boolean };
 
 export const api = {
   lage: () => rufen<Lagebild>('/lage'),
@@ -53,8 +55,10 @@ export const api = {
   modellEntladen: (kennung: string) => rufen(`/modelle/${kennung}/entladen`, 'POST'),
   speicherFreigeben: (knoten: string, vorschau: boolean) => rufen<FreigabePlan>(`/knoten/${knoten}/speicher_freigeben`, 'POST', { vorschau }),
 
-  knotenAnlegen: (d: KnotenDaten) => rufen<KnotenEintrag>('/knoten', 'POST', d),
-  knotenAendern: (kennung: string, d: KnotenDaten) => rufen<KnotenEintrag>(`/knoten/${kennung}`, 'PUT', d),
+  knotenAnlegen: (d: KnotenDaten) => rufen<Rechner>('/knoten', 'POST', d),
+  knotenAendern: (kennung: string, d: KnotenDaten) => rufen<Rechner>(`/knoten/${kennung}`, 'PUT', d),
+  agentSchluessel: (kennung: string) => rufen<{ schluessel: string }>(`/knoten/${kennung}/agent/schluessel`, 'POST'),
+  agentSchluesselNeu: (kennung: string) => rufen<{ schluessel: string }>(`/knoten/${kennung}/agent/schluessel/neu`, 'POST'),
   knotenLoeschen: (kennung: string) => rufen(`/knoten/${kennung}`, 'DELETE'),
 
   dienstErkennen: (adresse: string, zugang: string | null, extern: boolean) => rufen<Erkennung>('/dienste/erkennen', 'POST', { adresse, zugang, extern }),

@@ -137,4 +137,5 @@ Name Leitstelle, Betriebsort Pi, Agent in Python, Farbwelt Kräftig, Blauart Kö
 |---|---|
 | 0 | fertig bis auf Freigabe der Entwürfe (16.10.2026): Bestand, Architektur, Protokoll, Umbau, Entwürfe, Entscheidungskern mit Schein-Verbund und Szenarienkatalog, Anbindungsanweisung |
 | 1 | gebaut und auf dem Pi in Betrieb (16.10.2026, 0.4): Kern, Fassade, Verwaltung, Oberfläche, Messpunkt; offen: echter Läufer und erste Anwendung gemeinsam mit dem Nutzer |
-| 2 bis 7 | offen |
+| 2 | Knoten-Agent gebaut (16.10.2026, 0.6): misst Speicher, Swap, Last, Platte, mit macmon Grafik, Temperatur, Leistung; startet und hält Prozessdienste an (eigene Gruppe, Umgebung, Protokoll), Sollzustand übersteht Neustarts, begrenzte Neustarts nach Absturz, Übernahme fremd gestarteter Dienste; Installationsskript von der Leitstelle; Oberfläche Knoten mit Ringen und Agentfeld. Offen: Netz und Lüfter, Verläufe und Knoten-Einzelheiten, Speicherplaner wartet auf die echte Freimeldung, Erster-Start-Seite |
+| 3 bis 7 | offen |

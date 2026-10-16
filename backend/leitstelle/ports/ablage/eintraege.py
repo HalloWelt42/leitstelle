@@ -17,6 +17,7 @@ class Adapterart(str, Enum):
     """Wie die Leitstelle mit einem Dienst spricht. Neue Arten kommen mit neuen Adaptern dazu."""
 
     OPENAI_KOMPATIBEL = "openai_kompatibel"
+    AGENT = "agent"                     # Prozessdienste eines Knoten-Agenten; Starten ist Laden
 
 
 class KnotenEintrag(BaseModel):
@@ -29,6 +30,8 @@ class KnotenEintrag(BaseModel):
     budget_fest_gb: float | None = None
     hintergrund_von: int | None = None  # Stunde, ab der Hintergrundarbeit bevorzugt hierher darf
     hintergrund_bis: int | None = None
+    agent_fingerabdruck: str | None = None   # Schlüssel des Knoten-Agenten (nur Fingerabdruck zum Erkennen)
+    agent_geheim: str | None = None          # derselbe Schlüssel verschlüsselt, zum Aufdecken
 
 
 class DienstEintrag(BaseModel):

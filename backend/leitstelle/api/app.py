@@ -18,10 +18,11 @@ from ..fach.vermittlung import Vermittlung
 from ..konfig import Konfig
 from ..ports.ablage.datenbank import Datenbank
 from ..ports.ablage.repositorien import Ablage
+from ..ports.agenten import Agentenvermittlung
 from ..ports.dienste import adapter_fabrik
 from ..ports.tresor import Tresor
 from ..ports.uhr import Systemuhr, Uhr
-from . import fassade, kanal, verwaltung
+from . import agent, fassade, kanal, verwaltung
 
 
 def erstellen(konfig: Konfig | None = None, uhr: Uhr | None = None, transport: httpx.AsyncBaseTransport | None = None, mit_takt: bool = True) -> FastAPI:
@@ -33,7 +34,9 @@ def erstellen(konfig: Konfig | None = None, uhr: Uhr | None = None, transport: h
         db = Datenbank(konfig.datenbank)
         await db.oeffnen()
         bus = Ereignisbus()
-        betrieb = Betrieb(Ablage(db), Tresor(konfig.tresor_schluessel), uhr or Systemuhr(), adapter_fabrik(konfig.verbindung_s, transport), bus, konfig)
+        agenten = Agentenvermittlung()
+        betrieb = Betrieb(Ablage(db), Tresor(konfig.tresor_schluessel), uhr or Systemuhr(), adapter_fabrik(konfig.verbindung_s, transport, agenten),
+                          bus, konfig, agenten)
         app.state.konfig, app.state.bus, app.state.betrieb = konfig, bus, betrieb
         app.state.vermittlung = Vermittlung(betrieb, konfig)
         app.state.verzeichnis = Verzeichnis(betrieb)
@@ -60,6 +63,7 @@ def erstellen(konfig: Konfig | None = None, uhr: Uhr | None = None, transport: h
     app.include_router(fassade.router)
     app.include_router(verwaltung.router)
     app.include_router(kanal.router)
+    app.include_router(agent.router)
     _oberflaeche(app, konfig)
     return app
 

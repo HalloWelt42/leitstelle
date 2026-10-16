@@ -9,3 +9,5 @@ dist/
 zugaenge/
 privat/
 daten/
+*.egg-info/
+.pytest_cache/

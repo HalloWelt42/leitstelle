@@ -148,20 +148,34 @@ async def alias_loeschen(alias: str, request: Request):
 
 
 # ── Rechner und Dienste ──────────────────────────────────────────────────
+def _knoten_ohne_geheimnis(e):
+    return e.model_dump(mode="json", exclude={"agent_geheim", "agent_fingerabdruck"}) | {"agent_schluessel": e.agent_fingerabdruck is not None}
+
+
 @router.post("/knoten")
 async def knoten_anlegen(daten: KnotenDaten, request: Request):
-    return await _fachlich(verzeichnis(request).knoten_anlegen(daten, wer(request)))
+    return _knoten_ohne_geheimnis(await _fachlich(verzeichnis(request).knoten_anlegen(daten, wer(request))))
 
 
 @router.put("/knoten/{kennung}")
 async def knoten_aendern(kennung: str, daten: KnotenDaten, request: Request):
-    return await _fachlich(verzeichnis(request).knoten_aendern(kennung, daten, wer(request)))
+    return _knoten_ohne_geheimnis(await _fachlich(verzeichnis(request).knoten_aendern(kennung, daten, wer(request))))
 
 
 @router.delete("/knoten/{kennung}")
 async def knoten_loeschen(kennung: str, request: Request):
     await _fachlich(verzeichnis(request).knoten_loeschen(kennung, wer(request)))
     return {"knoten": kennung}
+
+
+@router.post("/knoten/{kennung}/agent/schluessel")
+async def agent_schluessel_zeigen(kennung: str, request: Request):
+    return {"schluessel": await _fachlich(verzeichnis(request).agent_schluessel_zeigen(kennung, wer(request)))}
+
+
+@router.post("/knoten/{kennung}/agent/schluessel/neu")
+async def agent_schluessel_neu(kennung: str, request: Request):
+    return {"schluessel": await _fachlich(verzeichnis(request).agent_schluessel_neu(kennung, wer(request)))}
 
 
 @router.post("/dienste/erkennen")

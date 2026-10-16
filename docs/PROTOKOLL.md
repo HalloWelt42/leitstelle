@@ -90,11 +90,18 @@ wiederkommt oder die Aufbewahrung endet.
 
 | Art | Richtung | Nutzlast |
 |---|---|---|
-| `knoten.anmelden` | Agent an Leitstelle | `name`, `beschreibung`, `betriebssystem`, `architektur`, `speicher_gb`, `agent_version`, `adressen`, `zone` (Vorschlag), `messwege` (Liste der verfügbaren Messungen) |
-| `knoten.messwerte` | Agent an Leitstelle, im Takt (Vorgabe 5 s); im Nachrichtenverkehr der Oberfläche erscheinen sie nur bei Stufenwechsel (Speicher knapp, Knoten weg), der volle Takt liegt im Verlauf | `cpu_prozent`, `cpu_kerne` (Liste), `speicher_belegt_gb`, `speicher_frei_gb`, `swap_gb`, `grafik_prozent`, `grafik_speicher_gb`, `platte_prozent`, `platte_frei_gb`, `netz_rx_mbit`, `netz_tx_mbit`, `temperatur_c`, `leistung_w`, `luefter_u_min`, `last_1m`; fehlende Werte werden weggelassen, nicht genullt |
-| `knoten.dienste` | Agent an Leitstelle | `dienste` (entdeckt: Art, Adresse, Port, Prozess, Zustand); der Agent prüft bekannte Ports und Prozesse, lädt aber nichts |
-| `knoten.befehl` | Leitstelle an Agent | `befehl` (dienst_starten, dienst_anhalten, dienst_neustart, messtakt, speicher_pruefen), `ziel`, `parameter`; Befehle sind auf die Dienstverwaltung begrenzt |
-| `knoten.befehl_ergebnis` | Agent an Leitstelle | `befehl`, `erfolg`, `meldung` |
+| `knoten.anmelden` | Agent an Leitstelle, erste Nachricht nach dem Verbinden | `name`, `betriebssystem`, `architektur`, `speicher_gb`, `agent_version`, `messwege` (Liste der verfügbaren Messungen) |
+| `knoten.angemeldet` | Leitstelle an Agent, mit `bezug` | `knoten` (Kennung), `name` |
+| `knoten.messwerte` | Agent an Leitstelle, im Takt (Vorgabe 5 s); nicht im Nachrichtenverkehr der Oberfläche | `speicher_gesamt_gb`, `speicher_belegt_gb`, `swap_belegt_gb`, `swap_gesamt_gb`, `cpu_prozent`, `last_1m`, `platte_frei_gb`, `grafik_prozent`, `temperatur_c`, `leistung_w`; alles in GiB; fehlende Werte sind null, nie genullt |
+| `knoten.dienste` | Agent an Leitstelle, bei jeder Änderung und spätestens alle zehn Takte | `dienste`: je Dienst `kennung`, `name`, `faehigkeiten`, `port`, `zustand` (aus, startet, laeuft, stoppt, gestoert), `fremd` (läuft, aber nicht vom Agenten gestartet), `gb` (gemessen, sonst Höchstwert oder Schätzung), `gemessen`, `meldung` |
+| `knoten.befehl` | Leitstelle an Agent | `befehl` (dienst_starten, dienst_anhalten), `ziel` (Kennung des Dienstes); Befehle sind auf die Dienstverwaltung begrenzt |
+| `knoten.befehl_ergebnis` | Agent an Leitstelle, mit `bezug` auf den Befehl | `befehl`, `ziel`, `erfolg`, `meldung`; ein Start antwortet erst, wenn der Dienst erreichbar ist oder seine Startzeit verstrichen ist |
+| `knoten.angemeldet`, `knoten.getrennt` | Leitstelle an Oberfläche | `knoten`, `name`; bei der Anmeldung dazu die Angaben aus `knoten.anmelden` |
+
+Transport: WebSocket `/agent/kanal` mit dem Schlüssel des Agenten als Bearer. Unbekannter Schlüssel: Schließen mit
+Code 4401 und Grund `unbekannter_schluessel`; ein neu erzeugter Schlüssel trennt den verbundenen Agenten mit
+`schluessel_erneuert`. Die Modelle der Nutzlasten stehen in `backend/leitstelle/protokoll/knoten.py`; der Agent
+führt einen Spiegel, den ein Test deckungsgleich hält.
 
 ### 4.3 Aufträge
 

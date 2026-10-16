@@ -42,6 +42,25 @@ docker compose stop leitstelle && tar -czf leitstelle_$(date +%Y%m%d_%H%M).tar.g
 ZIEL=benutzer@rechner tools/ausrollen.sh
 ```
 
+## Knoten-Agent
+
+In der Oberfläche unter Knoten beim Rechner "Agent einrichten", dann auf dem Rechner:
+
+```bash
+sh -c "$(curl -fsSL http://leitstelle:8530/agent/installieren.sh)"
+```
+
+Dienste je Rechner liegen in `~/Leitstelle-Agent/dienste/` (eine Datei je Dienst, Felder in
+[agent/README.md](../agent/README.md)). Stand ansehen:
+
+```bash
+~/Leitstelle-Agent/.venv/bin/python -m leitstelle_agent ~/Leitstelle-Agent --liste
+```
+
+```bash
+tail -f ~/Leitstelle-Agent/protokolle/agent.log
+```
+
 ## Erste Schritte in der Oberfläche
 
 1. **Anschluss hinzufügen** (Dienste): Adresse des Modell-Läufers, zum Beispiel `192.168.1.20:1234`, Erkennen.
@@ -54,7 +73,11 @@ ZIEL=benutzer@rechner tools/ausrollen.sh
 ## Lokal entwickeln
 
 ```bash
-cd backend && python3 -m venv .venv && .venv/bin/pip install -e ".[test]" && .venv/bin/python -m pytest
+cd backend && python3 -m venv .venv && .venv/bin/pip install -e ".[test]" -e "../agent[test]" && .venv/bin/python -m pytest
+```
+
+```bash
+cd agent && ../backend/.venv/bin/python -m pytest
 ```
 
 ```bash

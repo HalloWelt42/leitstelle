@@ -25,9 +25,10 @@ from ..kern.messungen import Messwerk
 from ..kern.modelle import Anwendung, Auftrag, Dienst, Knoten, Massnahme, Modell, Verbund
 from ..kern.werte import Auftragszustand, Betriebsmodus, Dienstzustand, Faehigkeit, Massnahmenzustand, Modellzustand, Prioritaet
 from ..konfig import Konfig
-from ..ports.ablage.eintraege import AnwendungEintrag, AuftragEintrag, BetriebEinstellung, DienstEintrag, KnotenEintrag, PruefEintrag, Schritt
+from ..ports.ablage.eintraege import Adapterart, AnwendungEintrag, AuftragEintrag, BetriebEinstellung, DienstEintrag, KnotenEintrag, PruefEintrag, Schritt
+from ..ports.agenten import AgentVerbindung, Agentenvermittlung
 from ..ports.ablage.repositorien import Ablage
-from ..ports.dienste import AdapterFabrik, DienstAdapter, DienstFehler, ModellBericht
+from ..ports.dienste import AdapterFabrik, DienstAdapter, DienstFehler, ModellBericht, agent_adresse
 from ..ports.tresor import Tresor, fingerabdruck
 from ..ports.uhr import Uhr
 from ..protokoll.umschlag import umschlag
@@ -108,8 +109,10 @@ class Lauf:
 
 
 class Betrieb:
-    def __init__(self, ablage: Ablage, tresor: Tresor, uhr: Uhr, fabrik: AdapterFabrik, bus: Ereignisbus, konfig: Konfig) -> None:
+    def __init__(self, ablage: Ablage, tresor: Tresor, uhr: Uhr, fabrik: AdapterFabrik, bus: Ereignisbus, konfig: Konfig,
+                 agenten: Agentenvermittlung | None = None) -> None:
         self.ablage, self.tresor, self.uhr, self.fabrik, self.bus, self.konfig = ablage, tresor, uhr, fabrik, bus, konfig
+        self.agenten = agenten or Agentenvermittlung()   # dieselbe Vermittlung wie in der Adapter-Fabrik
         self.verbund = Verbund()
         self.messwerk = Messwerk()
         self.kern = Leitstelle()
@@ -192,6 +195,9 @@ class Betrieb:
         fenster = (k.hintergrund_von, k.hintergrund_bis) if k.hintergrund_von is not None and k.hintergrund_bis is not None else None
         self.verbund.knoten[k.kennung] = Knoten(kennung=k.kennung, name=k.name, zone=k.zone, speicher_gb=k.speicher_gb, system_gb=k.system_gb,
                                                  erreichbar=alt.erreichbar if alt else True, hintergrund_fenster=fenster, budget_fest_gb=k.budget_fest_gb)
+        v = self.agenten.verbindung(k.kennung)
+        if v and v.messwerte:
+            self.messwerte_uebernehmen(v)
         self.geaendert()
 
     def knoten_entfernen(self, kennung: str) -> None:
@@ -237,6 +243,59 @@ class Betrieb:
     def anwendung_zum_schluessel(self, schluessel: str) -> AnwendungEintrag | None:
         fp = fingerabdruck(schluessel)
         return next((a for a in self.anwendungen.values() if a.schluessel_fingerabdruck == fp), None)
+
+    # ── Knoten-Agenten ───────────────────────────────────────────────────
+    def knoten_zum_agentschluessel(self, schluessel: str) -> KnotenEintrag | None:
+        fp = fingerabdruck(schluessel)
+        return next((k for k in self.knoten.values() if k.agent_fingerabdruck == fp), None)
+
+    def agentdienst(self, knoten: str) -> str | None:
+        """Kennung des Dienstes, unter dem die Prozessdienste dieses Knotens erscheinen."""
+        return next((d.kennung for d in self.dienste.values() if d.art == Adapterart.AGENT and d.knoten == knoten), None)
+
+    def agent_angemeldet(self, v: AgentVerbindung) -> None:
+        k = self.knoten[v.knoten]
+        self.melden(f"Knoten-Agent auf {k.name} verbunden ({v.anmeldung.betriebssystem}, Agent {v.anmeldung.agent_version})")
+        self.bus.senden(umschlag("knoten.angemeldet", {"knoten": k.kennung, "name": k.name, **v.anmeldung.model_dump(mode="json")}))
+        self.geaendert()
+
+    def agent_getrennt(self, knoten: str) -> None:
+        """Ohne Agent gelten wieder die eingetragenen Werte des Rechners."""
+        e = self.knoten.get(knoten)
+        k = self.verbund.knoten.get(knoten)
+        if e is None or k is None:
+            return
+        k.system_gb, k.speicher_gb = e.system_gb, e.speicher_gb
+        self.melden(f"Knoten-Agent auf {e.name} getrennt; es gelten wieder die eingetragenen Speicherwerte")
+        self.bus.senden(umschlag("knoten.getrennt", {"knoten": knoten, "name": e.name}))
+        dienst = self.agentdienst(knoten)
+        if dienst:
+            self._nebenbei(self._abgleich(dienst))   # seine Dienste sofort als nicht erreichbar zeigen
+        self.geaendert()
+
+    def messwerte_uebernehmen(self, v: AgentVerbindung) -> None:
+        """Gemessener Speicher ersetzt die Schätzung: was nicht die bekannten Modelle belegen, belegt das System."""
+        k = self.verbund.knoten.get(v.knoten)
+        if k is None or v.messwerte is None:
+            return
+        k.speicher_gb = round(v.messwerte.speicher_gesamt_gb, 2)
+        k.system_gb = round(max(0.0, v.messwerte.speicher_belegt_gb - self.verbund.geladen_gb(v.knoten)), 2)
+        self.geaendert()
+
+    async def agent_dienste(self, v: AgentVerbindung) -> None:
+        """Neue Dienstliste des Agenten: beim ersten Mal den Dienst `agent` anlegen, dann sofort abgleichen."""
+        dienst = self.agentdienst(v.knoten)
+        if dienst is None and v.dienste.dienste:
+            k = self.knoten[v.knoten]
+            e = DienstEintrag(kennung=uuid4().hex, name=f"Dienste auf {k.name}", art=Adapterart.AGENT, adresse=agent_adresse(v.knoten),
+                              knoten=v.knoten, plaetze=1)
+            await self.ablage.dienste.speichern(e)
+            self.dienst_setzen(e)
+            self.melden(f"{e.name} eingerichtet: {len(v.dienste.dienste)} Dienste unter dem Knoten-Agenten")
+            dienst = e.kennung
+        if dienst:
+            await self._abgleich(dienst)
+            self.geaendert()
 
     # ── Abgleich mit den Diensten ────────────────────────────────────────
     async def abgleichen(self) -> None:

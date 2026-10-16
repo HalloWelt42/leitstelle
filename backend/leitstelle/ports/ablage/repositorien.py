@@ -30,7 +30,8 @@ def _felder(zeile, *namen: str) -> dict:
 
 
 class KnotenAblage:
-    FELDER = ("kennung", "name", "adresse", "zone", "speicher_gb", "system_gb", "budget_fest_gb", "hintergrund_von", "hintergrund_bis")
+    FELDER = ("kennung", "name", "adresse", "zone", "speicher_gb", "system_gb", "budget_fest_gb", "hintergrund_von", "hintergrund_bis",
+              "agent_fingerabdruck", "agent_geheim")
 
     def __init__(self, db: Datenbank) -> None:
         self.db = db

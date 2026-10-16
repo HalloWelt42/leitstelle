@@ -53,10 +53,18 @@
     if (r) { plan = null; freigabeKnoten = null; weg.gehe('modelle', null, true); }
   }
 
+  // Dienste unter einem Knoten-Agenten sind Programme: dort heißt Laden Starten und Entladen Anhalten
+  const WORTE = {
+    modell: { laden: 'Laden', entladen: 'Entladen', ja_laden: 'Ja, laden', ja_entladen: 'Ja, entladen', wird_laden: 'wird geladen', wird_entladen: 'wird entladen', geladen: 'geladen' },
+    prozess: { laden: 'Starten', entladen: 'Anhalten', ja_laden: 'Ja, starten', ja_entladen: 'Ja, anhalten', wird_laden: 'wird gestartet', wird_entladen: 'wird angehalten', geladen: 'läuft seit' },
+  };
+  const worte = (m: ModellSicht) => (dienst(m.dienst)?.art === 'agent' ? WORTE.prozess : WORTE.modell);
+
   async function bestaetigt() {
     if (!frage) return;
     const { modell, laden } = frage;
-    const r = await tun(() => (laden ? api.modellLaden(modell.kennung) : api.modellEntladen(modell.kennung)), laden ? `${modell.name} wird geladen` : `${modell.name} wird entladen`);
+    const w = worte(modell);
+    const r = await tun(() => (laden ? api.modellLaden(modell.kennung) : api.modellEntladen(modell.kennung)), `${modell.name} ${laden ? w.wird_laden : w.wird_entladen}`);
     if (r !== undefined) frage = null;
   }
 </script>
@@ -109,7 +117,7 @@
               {@const warten = wartenAuf(m)}
               <tr>
                 <td><div class="n">{m.name}{#if m.geschuetzt}<i class="fa-solid fa-shield-halved schutz" title="Geschützt: unter der Schutzgrenze, Einbettung oder ohne bekannte Größe; die Leitstelle entlädt es nie von selbst. Von Hand geht es."></i>{/if}</div>
-                  <div class="zweit"><span class="zahl">{m.parameter_mrd ? `${zahl(m.parameter_mrd)} Milliarden` : 'Größe unbekannt'}</span> · zuletzt {vor(m.letzte_nutzung_s, jetzt)}</div></td>
+                  <div class="zweit">{#if worte(m) === WORTE.prozess}Programm unter dem Knoten-Agenten{:else}<span class="zahl">{m.parameter_mrd ? `${zahl(m.parameter_mrd)} Milliarden` : 'Größe unbekannt'}</span> · zuletzt {vor(m.letzte_nutzung_s, jetzt)}{/if}</div></td>
                 <td><div class="marken">{#each m.faehigkeiten.filter((f) => f !== 'uebersetzen' && f !== 'werkzeug') as f (f)}<Faehigkeit wert={f} />{/each}</div></td>
                 <td><div class="dienst">{dienst(m.dienst)?.name}</div><div class="zweit">{knotenName(m.knoten)}</div></td>
                 <td class="zahl"><div style="text-align:right">{m.gb ? gb(m.gb) : '-'}</div></td>
@@ -117,22 +125,24 @@
                   <div class="zweit">{#if m.ladesperre_bis_s && m.ladesperre_bis_s > jetzt}<span class="akzent" title="Der Dienst hat das Laden abgelehnt; bis zum Ende der Pause plant die Leitstelle keinen neuen Versuch">abgelehnt: {m.ladesperre_grund}</span>
                     {:else if m.auftraege_aktiv}<span class="zahl">{m.auftraege_aktiv}</span> {m.auftraege_aktiv === 1 ? 'Auftrag läuft' : 'Aufträge laufen'}
                     {:else if warten}<span class="akzent"><span class="zahl">{warten}</span> {warten === 1 ? 'Auftrag wartet' : 'Aufträge warten'} darauf</span>
-                    {:else if m.zustand !== 'frei'}{m.geladen_seit_s ? `geladen ${vor(m.geladen_seit_s, jetzt)}` : 'schon vorher geladen'}{/if}</div></td>
+                    {:else if m.zustand !== 'frei'}{m.geladen_seit_s ? `${worte(m).geladen} ${vor(m.geladen_seit_s, jetzt)}` : worte(m) === WORTE.prozess ? 'lief schon vorher' : 'schon vorher geladen'}{/if}</div></td>
                 <td>
                   {#if !steuerbar(m)}<span class="zweit" title="Dieser Dienst lädt selbst; die Leitstelle steuert seinen Speicher nicht">lädt selbst</span>
-                  {:else if m.zustand === 'rechnet' || m.zustand === 'laedt'}<button class="knopf klein" disabled title="Rechnet oder lädt gerade; erst danach entladbar">Entladen</button>
-                  {:else if m.zustand === 'geladen'}<button class="knopf klein" onclick={() => (frage = { modell: m, laden: false })} title="Entladen: gibt {gb(m.gb)} frei">Entladen</button>
-                  {:else}<button class="knopf klein" onclick={() => (frage = { modell: m, laden: true })} title="Laden: belegt {gb(m.gb)} auf {knotenName(m.knoten)}">Laden</button>{/if}
+                  {:else if m.zustand === 'rechnet' || m.zustand === 'laedt'}<button class="knopf klein" disabled title="Rechnet oder startet gerade; erst danach möglich">{worte(m).entladen}</button>
+                  {:else if m.zustand === 'geladen'}<button class="knopf klein" onclick={() => (frage = { modell: m, laden: false })} title="{worte(m).entladen}: gibt {gb(m.gb)} frei">{worte(m).entladen}</button>
+                  {:else}<button class="knopf klein" onclick={() => (frage = { modell: m, laden: true })} title="{worte(m).laden}: belegt {gb(m.gb)} auf {knotenName(m.knoten)}">{worte(m).laden}</button>{/if}
                 </td>
               </tr>
               {#if frage?.modell.kennung === m.kennung}
                 <tr><td colspan="6">
                   <div class="bestaetigen">
                     <i class="fa-solid fa-triangle-exclamation"></i>
-                    <span>{frage.laden ? `${m.name} jetzt laden? Belegt ${gb(m.gb)} auf ${knotenName(m.knoten)}; passt es nicht, lehnt der Dienst ab.`
-                      : `${m.name} entladen? Gibt ${gb(m.gb)} frei.${m.geschuetzt ? ' Das Modell ist geschützt; von Hand geht es trotzdem.' : ''}${warten ? ` ${warten} Auftrag wartet darauf und muss neu laden.` : ''}`}</span>
+                    <span>{#if worte(m) === WORTE.prozess}{frage.laden ? `${m.name} jetzt starten? Braucht etwa ${gb(m.gb)} auf ${knotenName(m.knoten)}.`
+                      : `${m.name} anhalten? Gibt etwa ${gb(m.gb)} frei. Wer ihn gerade nutzt, verliert die Verbindung.`}
+                      {:else}{frage.laden ? `${m.name} jetzt laden? Belegt ${gb(m.gb)} auf ${knotenName(m.knoten)}; passt es nicht, lehnt der Dienst ab.`
+                      : `${m.name} entladen? Gibt ${gb(m.gb)} frei.${m.geschuetzt ? ' Das Modell ist geschützt; von Hand geht es trotzdem.' : ''}${warten ? ` ${warten} Auftrag wartet darauf und muss neu laden.` : ''}`}{/if}</span>
                     <div class="rechts"><button class="knopf klein ohne" onclick={() => (frage = null)}>Abbrechen</button>
-                      <button class="knopf klein {frage.laden ? 'haupt' : 'gefahr-voll'}" onclick={bestaetigt}>{frage.laden ? 'Ja, laden' : 'Ja, entladen'}</button></div>
+                      <button class="knopf klein {frage.laden ? 'haupt' : 'gefahr-voll'}" onclick={bestaetigt}>{frage.laden ? worte(m).ja_laden : worte(m).ja_entladen}</button></div>
                   </div>
                 </td></tr>
               {/if}

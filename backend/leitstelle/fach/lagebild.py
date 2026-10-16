@@ -9,7 +9,21 @@ from .. import version
 from ..kern.modelle import Massnahme
 from ..kern.werte import Auftragszustand, Automatik, Betriebsmodus, Dienstzustand, Faehigkeit, Lage, Modellzustand, Zone
 from ..ports.ablage.eintraege import Schritt
+from ..protokoll.knoten import Messwerte
 from .betrieb import Betrieb
+
+
+class AgentSicht(BaseModel):
+    """Knoten-Agent: Schlüssel vergeben, verbunden, und was er zuletzt gemessen hat."""
+
+    schluessel: bool
+    verbunden: bool
+    seit_s: float | None
+    betriebssystem: str | None
+    version: str | None
+    messwege: list[str]
+    messzeit_s: float | None
+    messwerte: Messwerte | None
 
 
 class KnotenSicht(BaseModel):
@@ -27,6 +41,7 @@ class KnotenSicht(BaseModel):
     budget_fest_gb: float | None
     hintergrund_von: int | None
     hintergrund_bis: int | None
+    agent: AgentSicht
 
 
 class DienstSicht(BaseModel):
@@ -125,10 +140,15 @@ def lagebild(b: Betrieb) -> Lagebild:
     knoten = []
     for k in v.knoten.values():
         e = b.knoten[k.kennung]
+        av = b.agenten.verbindung(k.kennung)
+        agent = AgentSicht(schluessel=e.agent_fingerabdruck is not None, verbunden=av is not None, seit_s=av.seit_s if av else None,
+                           betriebssystem=av.anmeldung.betriebssystem if av else None, version=av.anmeldung.agent_version if av else None,
+                           messwege=list(av.anmeldung.messwege) if av else [], messzeit_s=av.messzeit_s if av else None,
+                           messwerte=av.messwerte if av else None)
         knoten.append(KnotenSicht(kennung=k.kennung, name=k.name, adresse=e.adresse, zone=k.zone, speicher_gb=k.speicher_gb, system_gb=k.system_gb,
                                   budget_gb=round(k.budget_gb(r.budget_reserve_gb), 2), geladen_gb=round(v.geladen_gb(k.kennung), 2),
                                   frei_gb=round(v.frei_gb(k.kennung), 2), belegt_anteil=round(v.belegt_anteil(k.kennung), 3), erreichbar=k.erreichbar,
-                                  budget_fest_gb=k.budget_fest_gb, hintergrund_von=e.hintergrund_von, hintergrund_bis=e.hintergrund_bis))
+                                  budget_fest_gb=k.budget_fest_gb, hintergrund_von=e.hintergrund_von, hintergrund_bis=e.hintergrund_bis, agent=agent))
     dienste = [DienstSicht(kennung=d.kennung, name=d.name, art=d.art.value, adresse=d.adresse, knoten=d.knoten, extern=d.extern,
                            zustand=v.dienste[d.kennung].zustand if d.kennung in v.dienste else Dienstzustand.NICHT_ERREICHBAR,
                            steuerbar=b.steuerbar.get(d.kennung, False), meldung=b.dienst_meldung.get(d.kennung, ""), plaetze=d.plaetze,

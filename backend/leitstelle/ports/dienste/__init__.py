@@ -7,22 +7,28 @@ from collections.abc import Callable
 import httpx
 
 from ..ablage.eintraege import Adapterart
+from ..agenten import Agentenvermittlung
+from .agent import AgentDienste, agent_adresse
 from .openai_kompatibel import OpenAIKompatibel
 from .schnittstelle import DienstAdapter, Dienstbericht, DienstFehler, ModellBericht, Strom
 
 AdapterFabrik = Callable[[Adapterart, str, str | None], DienstAdapter]
 
 
-def adapter_fabrik(verbindung_s: float = 10.0, transport: httpx.AsyncBaseTransport | None = None) -> AdapterFabrik:
+def adapter_fabrik(verbindung_s: float = 10.0, transport: httpx.AsyncBaseTransport | None = None,
+                   agenten: Agentenvermittlung | None = None) -> AdapterFabrik:
     """Baut Adapter nach Art, Adresse und (entschlüsseltem) Zugang."""
+    agenten = agenten or Agentenvermittlung()
 
     def bauen(art: Adapterart, adresse: str, zugang: str | None) -> DienstAdapter:
         match art:
             case Adapterart.OPENAI_KOMPATIBEL:
                 return OpenAIKompatibel(adresse, zugang, verbindung_s=verbindung_s, transport=transport)
+            case Adapterart.AGENT:
+                return AgentDienste(adresse, agenten)
         raise ValueError(f"unbekannte Adapterart {art}")
 
     return bauen
 
 
-__all__ = ["AdapterFabrik", "DienstAdapter", "Dienstbericht", "DienstFehler", "ModellBericht", "Strom", "adapter_fabrik"]
+__all__ = ["AdapterFabrik", "agent_adresse", "DienstAdapter", "Dienstbericht", "DienstFehler", "ModellBericht", "Strom", "adapter_fabrik"]

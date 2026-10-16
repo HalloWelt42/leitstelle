@@ -1,10 +1,12 @@
 <script lang="ts">
   import { api } from '../lib/api';
-  import { gb, prozent } from '../lib/format';
+  import { gb, komma, prozent } from '../lib/format';
   import { tun } from '../lib/meldung.svelte';
   import type { KnotenDaten, KnotenSicht, Lagebild, Zone } from '../lib/typen.gen';
   import { weg } from '../lib/weg.svelte';
   import { DIENSTZUSTAND } from '../lib/wort';
+  import AgentFeld from '../teile/AgentFeld.svelte';
+  import Ring from '../teile/Ring.svelte';
   import Speicherbalken from '../teile/Speicherbalken.svelte';
   import ZoneMarke from '../teile/ZoneMarke.svelte';
 
@@ -15,6 +17,8 @@
   let loeschen = $state<string | null>(null);
 
   const erreichbar = $derived(bild.knoten.filter((k) => k.erreichbar));
+  const mitAgent = $derived(bild.knoten.filter((k) => k.agent.verbunden));
+  const anteil = (teil: number | null | undefined, ganz: number | null | undefined) => (teil != null && ganz ? (100 * teil) / ganz : null);
   const dienste = (k: string) => bild.dienste.filter((d) => d.knoten === k);
   const rechnend = (k: string) => bild.auftraege.filter((a) => a.knoten === k && a.zustand === 'laeuft').length;
   const wartenAufSpeicher = (k: string) => bild.auftraege.filter((a) => a.zustand === 'wartet_speicher' && (a.knoten === k)).length;
@@ -51,6 +55,7 @@
       <div class="kennzahl erfolg"><b>{erreichbar.length}</b><span>Erreichbar</span><small>mindestens ein Dienst antwortet</small></div>
       {#if erreichbar.length < bild.knoten.length}<div class="kennzahl fehler"><b>{bild.knoten.length - erreichbar.length}</b><span>Nicht erreichbar</span></div>{/if}
       <div class="kennzahl"><b>{gb(bild.knoten.reduce((s, k) => s + k.geladen_gb, 0))}</b><span>Modelle im Speicher</span></div>
+      <div class="kennzahl"><b>{mitAgent.length}</b><span>Mit Agent</span><small>Speicher gemessen statt geschätzt</small></div>
     </div>
   </div>
 
@@ -71,8 +76,8 @@
             <div class="feldreihe">
               <label class="feld-l"><span>Name</span><input class="eingabe" bind:value={entwurf.name} /></label>
               <label class="feld-l"><span>Adresse <small>Rechnername oder IP, für die Zuordnung der Dienste</small></span><input class="eingabe" bind:value={entwurf.adresse} /></label>
-              <label class="feld-l"><span>Speicher in GB <small>bis der Knoten-Agent misst</small></span><input class="eingabe" type="number" min="1" bind:value={entwurf.speicher_gb} /></label>
-              <label class="feld-l"><span>System in GB <small>was System und andere Programme belegen</small></span><input class="eingabe" type="number" min="0" bind:value={entwurf.system_gb} /></label>
+              <label class="feld-l"><span>Speicher in GB <small>gilt, solange kein Knoten-Agent misst</small></span><input class="eingabe" type="number" min="1" bind:value={entwurf.speicher_gb} /></label>
+              <label class="feld-l"><span>System in GB <small>Schätzung für System und andere Programme, solange kein Agent misst</small></span><input class="eingabe" type="number" min="0" bind:value={entwurf.system_gb} /></label>
               <label class="feld-l"><span>Festes Budget in GB <small>leer: Speicher minus Reserve</small></span><input class="eingabe" type="number" min="0" bind:value={entwurf.budget_fest_gb} /></label>
               <label class="feld-l"><span>Zone</span>
                 <select class="eingabe" bind:value={entwurf.zone}><option value="heim">Heimnetz</option><option value="fern">Über VPN</option></select></label>
@@ -86,12 +91,27 @@
           {:else}
             <div class="kk-koerper">
               <div class="kk-links">
+                {#if k.agent.messwerte}
+                  {@const mw = k.agent.messwerte}
+                  <div class="ringe">
+                    {#if mw.cpu_prozent != null}<Ring wert={mw.cpu_prozent} name="Prozessor" />{/if}
+                    {#if mw.grafik_prozent != null}<Ring wert={mw.grafik_prozent} name="Grafik" />{/if}
+                    <Ring wert={anteil(mw.speicher_belegt_gb, mw.speicher_gesamt_gb) ?? 0} name="Speicher"
+                          titel="Speicher: {gb(mw.speicher_belegt_gb)} von {gb(mw.speicher_gesamt_gb)} belegt (gemessen)" />
+                    {#if mw.swap_gesamt_gb}<Ring wert={anteil(mw.swap_belegt_gb, mw.swap_gesamt_gb) ?? 0} name="Auslagerung"
+                          titel="Auslagerung auf die Platte: {gb(mw.swap_belegt_gb)} von {gb(mw.swap_gesamt_gb)}. Hoch heißt: der Speicher reicht nicht, alles wird langsamer." />{/if}
+                  </div>
+                {/if}
                 <Speicherbalken knoten={k} modelle={bild.modelle} budgetmarke />
                 <div class="kk-werte">
                   <span title="Modelle im Speicher"><i class="fa-solid fa-brain"></i><b>{gb(k.geladen_gb)}</b> Modelle</span>
                   <span title="Frei im Budget"><i class="fa-solid fa-memory"></i><b>{gb(Math.max(0, k.frei_gb))}</b> frei</span>
                   <span title="Belegt einschließlich System"><i class="fa-solid fa-chart-pie"></i><b>{prozent(k.belegt_anteil)}</b></span>
                   <span title="Aufträge, die gerade auf diesem Rechner rechnen"><i class="fa-solid fa-list-check"></i><b>{rechnend(k.kennung)}</b> {rechnend(k.kennung) === 1 ? 'Auftrag' : 'Aufträge'}</span>
+                  {#if k.agent.messwerte?.temperatur_c != null}<span title="Temperatur des Prozessors"><i class="fa-solid fa-temperature-half"></i><b>{komma(k.agent.messwerte.temperatur_c, 0)} °C</b></span>{/if}
+                  {#if k.agent.messwerte?.leistung_w != null}<span title="Leistungsaufnahme des ganzen Rechners"><i class="fa-solid fa-bolt"></i><b>{komma(k.agent.messwerte.leistung_w, 0)}</b> Watt</span>{/if}
+                  {#if k.agent.messwerte?.last_1m != null}<span title="Durchschnittliche Last der letzten Minute (wartende und laufende Prozesse)"><i class="fa-solid fa-gauge"></i><b>{komma(k.agent.messwerte.last_1m, 1)}</b> Last</span>{/if}
+                  {#if k.agent.messwerte?.platte_frei_gb != null}<span title="Freier Platz auf der Platte"><i class="fa-solid fa-hard-drive"></i><b>{gb(k.agent.messwerte.platte_frei_gb)}</b> frei</span>{/if}
                 </div>
                 {#if wartenAufSpeicher(k.kennung)}
                   <div class="hinweis warnung klein"><i class="fa-solid fa-memory"></i><span>Wartet auf Speicher: <b class="zahl">{wartenAufSpeicher(k.kennung)}</b></span></div>
@@ -105,6 +125,7 @@
                     {/each}</ul>
                   {:else}<div class="kk-leer">Keine Dienste eingerichtet</div>{/if}
                 </div>
+                <AgentFeld knoten={k} jetzt={bild.zeit_s} />
               </div>
             </div>
             {#if loeschen === k.kennung}

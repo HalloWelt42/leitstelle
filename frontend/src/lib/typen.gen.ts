@@ -72,7 +72,7 @@ export type Prioritaet = 0 | 1 | 2 | 3;
  * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "Adapterart".
  */
-export type Adapterart = 'openai_kompatibel';
+export type Adapterart = 'openai_kompatibel' | 'agent';
 export type Zone1 = 'heim' | 'fern' | 'extern';
 export type Zone2 = 'heim' | 'fern' | 'extern';
 export type Prioritaet1 = 0 | 1 | 2 | 3;
@@ -132,6 +132,41 @@ export interface KnotenSicht {
   budget_fest_gb: number | null;
   hintergrund_von: number | null;
   hintergrund_bis: number | null;
+  agent: AgentSicht;
+}
+/**
+ * Knoten-Agent: Schlüssel vergeben, verbunden, und was er zuletzt gemessen hat.
+ *
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "AgentSicht".
+ */
+export interface AgentSicht {
+  schluessel: boolean;
+  verbunden: boolean;
+  seit_s: number | null;
+  betriebssystem: string | null;
+  version: string | null;
+  messwege: string[];
+  messzeit_s: number | null;
+  messwerte: Messwerte | null;
+}
+/**
+ * `knoten.messwerte`: im Takt des Agenten.
+ *
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "Messwerte".
+ */
+export interface Messwerte {
+  speicher_gesamt_gb: number;
+  speicher_belegt_gb: number;
+  swap_belegt_gb?: number | null;
+  swap_gesamt_gb?: number | null;
+  cpu_prozent?: number | null;
+  last_1m?: number | null;
+  platte_frei_gb?: number | null;
+  grafik_prozent?: number | null;
+  temperatur_c?: number | null;
+  leistung_w?: number | null;
 }
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
@@ -341,6 +376,8 @@ export interface KnotenEintrag {
   budget_fest_gb: number | null;
   hintergrund_von: number | null;
   hintergrund_bis: number | null;
+  agent_fingerabdruck: string | null;
+  agent_geheim: string | null;
 }
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema

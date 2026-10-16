@@ -6,6 +6,8 @@ const eins = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 1, maximumF
 export const zahl = (n: number | null | undefined): string => (n == null ? '-' : ganz.format(n));
 export const gb = (n: number | null | undefined): string => (n == null ? '-' : `${eins.format(n)} GB`);
 export const prozent = (anteil: number): string => `${ganz.format(Math.round(anteil * 100))} %`;
+/** Zahl mit fester Zahl an Nachkommastellen, deutsches Komma */
+export const komma = (n: number, stellen = 1): string => n.toLocaleString('de-DE', { minimumFractionDigits: stellen, maximumFractionDigits: stellen });
 
 /** Dauer in Worten: 4 s, 2 Minuten 10 s, 3 Stunden 5 Minuten */
 export function dauer(s: number | null | undefined): string {

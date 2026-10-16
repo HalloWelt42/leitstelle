@@ -1,8 +1,8 @@
 # Leitstelle
 
 Zentrale Vermittlungsstelle für KI-Dienste im eigenen Netz. Die Leitstelle kennt die Rechner, die
-Dienste darauf (Modell-Läufer mit OpenAI-Schnittstelle, später Sprachsynthese, Spracherkennung,
-Bild-Werkbank) und externe Anbieter. Anwendungen geben Aufträge ab; die Leitstelle wählt Dienst und Modell,
+Dienste darauf (Modell-Läufer mit OpenAI-Schnittstelle und Programme wie Sprachsynthese, Spracherkennung,
+Bilderzeugung, die ein Knoten-Agent startet und anhält) und externe Anbieter. Anwendungen geben Aufträge ab; die Leitstelle wählt Dienst und Modell,
 reiht nach Priorität ein, lädt und entlädt Modelle nach gemessenem Bedarf, schichtet selbst um und zeigt alles
 live in einer Oberfläche: wer was rechnet, wer wartet und warum.
 
@@ -18,6 +18,9 @@ Leitstelle stellen, Schlüssel eintragen, fertig.
   leitet um, räumt Leerlauf, weicht in der Kette aus, mit Begründung, Gewinnschwelle und Schutz vor Hin und Her.
   Regeln sind Graphen aus Bausteinen.
 - **Hauptregler** für den ganzen Verbund: Normal, Auslaufen, Halt, Hintergrund anhalten.
+- **Knoten-Agent** je Rechner ([agent/README.md](agent/README.md)): misst den echten Speicher statt ihn zu
+  schätzen, startet und hält die Dienste des Rechners an, die nicht über einen Modell-Läufer laufen, jeden in
+  eigener Prozessgruppe mit eigener Umgebung und eigenem Protokoll; übersteht Neustarts. Ein Befehl installiert ihn.
 - **Oberfläche** mit lebendigem Netzbild, Aufträgen mit Zeitleiste, Modellen mit Budget, Knoten, Diensten
   (Anschluss per Adresse, alles andere wird erkannt), Anwendungen mit Schlüsseln, Prüfprotokoll; eigene
   Telefonansicht.
@@ -25,7 +28,7 @@ Leitstelle stellen, Schlüssel eintragen, fertig.
   Schein-Läufer ([docs/SZENARIEN.md](docs/SZENARIEN.md)); Kosten der Durchleitung gemessen
   ([docs/MESSUNGEN.md](docs/MESSUNGEN.md)).
 
-Was noch kommt (Knoten-Agent, Anmeldung und Signale über den Kanal, weitere Dienstarten): [docs/PLAN.md](docs/PLAN.md).
+Was noch kommt (Anmeldung und Signale über den Kanal, Bibliotheken, Regeleditor, Sicherheit, Verlauf): [docs/PLAN.md](docs/PLAN.md).
 
 ## Schnellstart
 

@@ -105,12 +105,34 @@ class Verzeichnis:
     async def knoten_aendern(self, kennung: str, d: KnotenDaten, wer: str) -> KnotenEintrag:
         if kennung not in self.b.knoten:
             raise Ablehnung("unbekannt", "Diesen Rechner gibt es nicht.")
-        k = KnotenEintrag(kennung=kennung, **d.model_dump())
+        k = self.b.knoten[kennung].model_copy(update=d.model_dump())
         k.adresse = k.adresse.strip().lower()
         await self.b.ablage.knoten.speichern(k)
         self.b.knoten_setzen(k)
         await self._pruefen(wer, "Rechner geändert", k.name)
         return k
+
+    async def agent_schluessel_neu(self, kennung: str, wer: str) -> str:
+        """Neuer Schlüssel für den Knoten-Agenten; ein verbundener Agent mit dem alten Schlüssel wird getrennt."""
+        k = self.b.knoten.get(kennung)
+        if k is None:
+            raise Ablehnung("unbekannt", "Diesen Rechner gibt es nicht.")
+        schluessel = neuer_anwendungsschluessel()
+        neu = k.model_copy(update={"agent_fingerabdruck": fingerabdruck(schluessel), "agent_geheim": self.b.tresor.verschluesseln(schluessel)})
+        await self.b.ablage.knoten.speichern(neu)
+        self.b.knoten_setzen(neu)
+        v = self.b.agenten.verbindung(kennung)
+        if v and v.beenden:
+            await v.beenden()
+        await self._pruefen(wer, "Agent-Schlüssel neu erzeugt" if k.agent_fingerabdruck else "Agent-Schlüssel erzeugt", k.name)
+        return schluessel
+
+    async def agent_schluessel_zeigen(self, kennung: str, wer: str) -> str:
+        k = self.b.knoten.get(kennung)
+        if k is None or not k.agent_geheim:
+            raise Ablehnung("unbekannt", "Für diesen Rechner gibt es noch keinen Agent-Schlüssel.")
+        await self._pruefen(wer, "Agent-Schlüssel aufgedeckt", k.name)
+        return self.b.tresor.entschluesseln(k.agent_geheim)
 
     async def knoten_loeschen(self, kennung: str, wer: str) -> None:
         k = self.b.knoten.get(kennung)

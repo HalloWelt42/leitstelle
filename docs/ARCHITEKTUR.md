@@ -28,7 +28,7 @@ bereit), damit sich jede Anwendung auf die Lage einstellen kann.
 | Baustein | Verantwortung | Sprache | Ort |
 |---|---|---|---|
 | Kern | Vermittlung, Zuteilung, Speicherplanung, Signale, Regeln, Daten, Oberfläche ausliefern | Python 3.12, FastAPI | ein Rechner im Heimnetz (Pi in Docker oder Mac per launchd) |
-| Knoten-Agent | misst (Prozessor, Speicher, Grafik, Platte, Netz, Temperatur), entdeckt Dienste, führt Knotenbefehle aus (Dienst starten, anhalten) | Python (Entscheidung 16.10.2026), eigenes venv, als launchd- oder systemd-Dienst; Messwege über psutil, auf dem Mac ergänzt um kleine Hilfsaufrufe für Grafik und Temperatur | jeder Rechner |
+| Knoten-Agent | misst (Speicher, Swap, Last, Platte, Prozessor, Grafik, Temperatur, Leistung), verwaltet die Prozessdienste des Rechners aus seinem Ordner (starten, anhalten, Absturz, Sollzustand) | Python (Entscheidung 16.10.2026), eigenes venv, als launchd- oder systemd-Dienst; Messwege über Bordmittel (`vm_stat`, `sysctl`, `/proc`), auf dem Mac ergänzt um macmon, wenn vorhanden | jeder Rechner |
 | Dienst-Adapter | übersetzt zwischen Auftrag und der Schnittstelle eines Dienstes; meldet Fähigkeiten, Modelle, Zustand; lädt und entlädt Modelle | Python, Plugins im Kern | Kern |
 | Anwendungs-Bibliothek | Anmeldung, Herzschlag, Aufträge, Signalkanal in drei Zeilen | Python, TypeScript, später Swift | in den Anwendungen |
 | Fassade | OpenAI-kompatible Endpunkte `/v1/*`, damit Anwendungen ohne Umbau sofort laufen | Teil des Kerns | Kern |
@@ -36,8 +36,11 @@ bereit), damit sich jede Anwendung auf die Lage einstellen kann.
 
 Warum Python für den Agenten (Entscheidung des Nutzers): eine Sprache im ganzen Projekt, dieselben
 Modelle und Schemata wie im Kern, auf Macs und Pis ist Python ohnehin da. Der Installationsbefehl legt ein
-eigenes venv an und richtet den Dienst ein; der Agent misst mit psutil, auf dem Mac kommen Grafik,
-Leistung und Temperatur über kleine Hilfsaufrufe nach dem Vorbild der Leitwarte dazu. Bremst der Agent
+eigenes venv an und richtet den Dienst ein; der Agent misst mit Bordmitteln des Systems (ohne Zusatzpaket),
+auf dem Mac kommen Grafik, Leistung und Temperatur über macmon dazu, wenn es installiert ist. Die Prozessdienste
+des Rechners erscheinen in der Leitstelle als ein Dienst der Art `agent`, dessen Modelle die Programme sind:
+Starten ist Laden, Anhalten ist Entladen. So gelten Speicherplanung, Prüfprotokoll und Oberfläche ohne Sonderweg
+(Einzelheiten: agent/README.md). Bremst der Agent
 einen Pi messbar, wird der Messteil später in ein Binary ausgelagert, die Schnittstelle bleibt. Warum
 Python für den Kern: Standard aller Backends des Hauses, die Last ist Vermittlung und Durchleitung, nicht
 Rechnen. Die Durchleitung (Streams vom Dienst zur Anwendung) ist ein eigener Baustein hinter einer
@@ -362,7 +365,7 @@ für Fachlogik und für Dinge, die es nicht passend gibt.
 | Datenhaltung | SQLAlchemy 2 (async) mit aiosqlite, Alembic für Migrationen | Migrationen beim Start wie TubeVault |
 | Geheimnisse | `cryptography` (Fernet) für Schlüssel und Anbieter-Token | geprüfte Verschlüsselung statt eigener |
 | Anmeldung Oberfläche | `py_webauthn` (Passkey), `pyotp` (Einmalcode) | wie bei FauPeeN bewährt |
-| Knoten-Agent | `psutil` für Messwerte, `websockets` für den Kanal; Mac-Zusätze (Grafik, Temperatur) über kleine Hilfsaufrufe nach Leitwarte | eine Sprache, überall vorhanden |
+| Knoten-Agent | `websockets` für den Kanal, `pydantic` für die Nutzlasten; Messwerte über Bordmittel, auf dem Mac macmon als Zusatz | eine Sprache, überall vorhanden, keine Übersetzung nötig |
 | Protokoll-Typen | JSON-Schema aus Pydantic, TypeScript-Typen daraus mit `json-schema-to-typescript` | eine Wahrheit für Kern, Bibliothek und Oberfläche |
 | Tests | pytest (Tabellen-Tests für Zuteiler, Speicherplaner, Regelgraphen), vitest, Playwright für die Oberfläche | Standard |
 
