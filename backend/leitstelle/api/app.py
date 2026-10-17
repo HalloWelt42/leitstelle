@@ -69,13 +69,14 @@ def erstellen(konfig: Konfig | None = None, uhr: Uhr | None = None, transport: h
 
 
 def _oberflaeche(app: FastAPI, konfig: Konfig) -> None:
-    """Liefert die gebaute Oberfläche aus; unbekannte Pfade bekommen index.html (Router im Browser)."""
+    """Liefert die gebaute Oberfläche aus; unbekannte Pfade bekommen index.html (Router im Browser).
+    HEAD wie GET, damit Prüfungen der Symbole und des Manifests (curl -I) dieselbe Antwort sehen."""
     wurzel = konfig.oberflaeche
     if wurzel is None or not (wurzel / "index.html").exists():
         return
     wurzel = wurzel.resolve()
 
-    @app.get("/{pfad:path}", include_in_schema=False)
+    @app.api_route("/{pfad:path}", methods=["GET", "HEAD"], include_in_schema=False)
     async def seite(pfad: str, request: Request):
         if not konfig.erlaubt(request.client.host if request.client else None):
             return JSONResponse({"grund": "herkunft_nicht_erlaubt", "begruendung": "Nur aus dem Heimnetz oder über VPN erreichbar."}, status_code=403)
