@@ -1,4 +1,6 @@
 // Zugriff auf die eigene Schnittstelle /api/*. Jede Ablehnung kommt mit Grundwort und Satz zurück.
+// Schreibende Aufrufe zählen als laufende Arbeit, solange ihre Antwort aussteht (kein Neuladen mittendrin).
+import { arbeit } from './arbeit.svelte';
 import type {
   AnwendungDaten, AuftragEintrag, Betriebsmodus, DienstAenderung, DienstDaten, Erkennung, Freigabe, Kennzahlen, KnotenDaten, KnotenEintrag,
   Lagebild, Massnahme, PruefEintrag,
@@ -10,7 +12,11 @@ export class ApiFehler extends Error {
   }
 }
 
-async function rufen<T>(pfad: string, methode = 'GET', daten?: unknown): Promise<T> {
+function rufen<T>(pfad: string, methode = 'GET', daten?: unknown): Promise<T> {
+  return methode === 'GET' ? senden<T>(pfad, methode, daten) : arbeit.rahmen(() => senden<T>(pfad, methode, daten));
+}
+
+async function senden<T>(pfad: string, methode: string, daten?: unknown): Promise<T> {
   const antwort = await fetch(`/api${pfad}`, {
     method: methode,
     headers: daten === undefined ? undefined : { 'Content-Type': 'application/json' },
@@ -35,6 +41,7 @@ export interface FreigabePlan { vorschau: boolean; plan: Freigabe[]; frei_gb: nu
 export type Rechner = Omit<KnotenEintrag, 'agent_geheim' | 'agent_fingerabdruck'> & { agent_schluessel: boolean };
 
 export const api = {
+  version: () => rufen<{ version: string }>('/version'),
   lage: () => rufen<Lagebild>('/lage'),
   kennzahlen: () => rufen<Kennzahlen>('/kennzahlen'),
   hauptregler: (modus: Betriebsmodus, hintergrund: boolean, grund = '') =>

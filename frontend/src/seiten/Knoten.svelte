@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api } from '../lib/api';
+  import { arbeit } from '../lib/arbeit.svelte';
   import { gb, komma, prozent } from '../lib/format';
   import { tun } from '../lib/meldung.svelte';
   import type { KnotenDaten, KnotenSicht, Lagebild, Zone } from '../lib/typen.gen';
@@ -15,6 +16,7 @@
   let bearbeiten = $state<string | null>(null);
   let entwurf = $state<KnotenDaten | null>(null);
   let loeschen = $state<string | null>(null);
+  arbeit.bearbeitung(() => bearbeiten !== null);
 
   const erreichbar = $derived(bild.knoten.filter((k) => k.erreichbar));
   const mitAgent = $derived(bild.knoten.filter((k) => k.agent.verbunden));

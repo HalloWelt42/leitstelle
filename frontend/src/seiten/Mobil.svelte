@@ -8,6 +8,7 @@
   import type { Betriebsmodus } from '../lib/typen.gen';
   import { FAEHIGKEIT, LAGE, MODUS } from '../lib/wort';
   import Halteknopf from '../teile/Halteknopf.svelte';
+  import NeueFassung from '../teile/NeueFassung.svelte';
   import Speicherbalken from '../teile/Speicherbalken.svelte';
 
   type Blatt = 'lage' | 'auftraege' | 'knoten' | 'meldungen';
@@ -36,6 +37,7 @@
   </header>
 
   <div class="m-inhalt">
+    <NeueFassung telefon />
     {#if !bild}
       <div class="m-karte"><p>Verbinde mit der Leitstelle ...</p></div>
     {:else if blatt === 'lage'}

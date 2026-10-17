@@ -21,6 +21,8 @@ WORKDIR /app/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY frontend/ ./
+# Die Oberfläche baut ihre Fassung aus version.json ein (vite.config.ts liest ../version.json)
+COPY version.json /app/version.json
 RUN npx svelte-check --tsconfig ./tsconfig.json --fail-on-warnings && npm run build
 
 # ── Laufzeit des Kerns ───────────────────────────────────────────────────

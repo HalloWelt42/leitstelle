@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api } from '../lib/api';
+  import { arbeit } from '../lib/arbeit.svelte';
   import { gb } from '../lib/format';
   import { tun } from '../lib/meldung.svelte';
   import type { Erkennung, Lagebild, Zone } from '../lib/typen.gen';
@@ -23,6 +24,8 @@
   let neuZone = $state<Zone>('heim');
   let plaetze = $state(4);
   let nameGeaendert = $state(false);
+  // Begonnener Anschluss (Adresse eingetragen oder schon erkannt): keine neue Fassung mittendrin laden
+  arbeit.bearbeitung(() => adresse.trim() !== '' || erkennung !== null);
   // Solange der Name nicht von Hand geändert ist, folgt er dem gewählten oder neu eingetragenen Rechner
   const namensvorschlag = $derived(art === 'extern' ? (erkennung?.name_vorschlag ?? '')
     : `Modell-Läufer ${knotenWahl === 'neu' ? (neuName.trim() || erkennung?.rechnername || '') : (bild.knoten.find((k) => k.kennung === knotenWahl)?.name ?? '')}`.trim());

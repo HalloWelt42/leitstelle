@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api } from '../lib/api';
+  import { arbeit } from '../lib/arbeit.svelte';
   import { kanal } from '../lib/kanal.svelte';
   import { tun } from '../lib/meldung.svelte';
   import type { Betriebsmodus } from '../lib/typen.gen';
@@ -12,6 +13,7 @@
 
   let leiste = $state<Betriebsmodus | null>(null);
   let grund = $state('');
+  arbeit.bearbeitung(() => leiste !== null);
 
   const lage = $derived.by(() => {
     if (!bild) return { klasse: 'aus', wort: 'Getrennt', satz: 'Keine Verbindung zur Leitstelle; verbinde neu.' };

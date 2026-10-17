@@ -3,6 +3,7 @@
   // Eingetragen wird der Schlüssel in der Oberfläche des Maschinenraums auf dem Rechner selbst.
   // Er steht nur so lange auf dem Bildschirm, bis das Feld geschlossen wird.
   import { api } from '../lib/api';
+  import { arbeit } from '../lib/arbeit.svelte';
   import { vor } from '../lib/format';
   import { tun } from '../lib/meldung.svelte';
   import type { KnotenSicht } from '../lib/typen.gen';
@@ -11,6 +12,8 @@
 
   let schluessel = $state<string | null>(null);
   let erneuern = $state(false);
+  // Solange der Schlüssel zum Abschreiben dasteht, keine neue Fassung laden
+  arbeit.bearbeitung(() => schluessel !== null);
   const a = $derived(knoten.agent);
   const adresse = location.origin;
 

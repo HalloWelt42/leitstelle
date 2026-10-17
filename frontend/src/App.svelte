@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
+  import { fassungVerfolgen } from './lib/fassung.svelte';
   import { kanal } from './lib/kanal.svelte';
   import { weg } from './lib/weg.svelte';
   import Anschluss from './seiten/Anschluss.svelte';
@@ -12,10 +14,13 @@
   import Uebersicht from './seiten/Uebersicht.svelte';
   import Fuss from './teile/Fuss.svelte';
   import Kopf from './teile/Kopf.svelte';
+  import NeueFassung from './teile/NeueFassung.svelte';
   import Rueckmeldungen from './teile/Rueckmeldungen.svelte';
   import Seitenleiste from './teile/Seitenleiste.svelte';
 
   kanal.starten();
+  // Neue Fassung des Kerns: von selbst neu laden, sobald es nichts unterbricht
+  onMount(fassungVerfolgen);
   // Telefone bekommen eine eigenständige, reduzierte Ansicht statt einer gequetschten Schreibtischfassung
   if (matchMedia('(max-width: 700px)').matches && weg.seite !== 'mobil') weg.gehe('mobil', null, true);
 </script>
@@ -27,6 +32,7 @@
     <Kopf />
     <Seitenleiste />
     <main class="haupt rahmen" id="haupt">
+      <NeueFassung />
       {#if !kanal.lagebild}
         <div class="verbinden"><div class="leer"><i class="fa-solid fa-satellite-dish"></i><h2>Verbinde mit der Leitstelle</h2>
           <p>Die Oberfläche wartet auf das erste Lagebild über den Live-Kanal.</p></div></div>

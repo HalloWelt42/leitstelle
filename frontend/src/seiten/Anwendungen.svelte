@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api } from '../lib/api';
+  import { arbeit } from '../lib/arbeit.svelte';
   import { uhrzeit } from '../lib/format';
   import { meldungen, tun } from '../lib/meldung.svelte';
   import type { AnwendungDaten, AnwendungSicht, Faehigkeit as F, Lagebild, Prioritaet, Zone } from '../lib/typen.gen';
@@ -20,6 +21,9 @@
   let frage = $state<'neu' | 'sperren' | 'loeschen' | null>(null);
   let sperrgrund = $state('');
   let kettenWahl = $state<Record<string, string>>({});
+  // Entwurf, wie er gefüllt oder zuletzt gespeichert wurde; weicht er ab, ist die Bearbeitung offen
+  let ausgang = $state(JSON.stringify(leer()));
+  arbeit.bearbeitung(() => neuerSchluessel !== null || JSON.stringify(entwurf) !== ausgang);
 
   const gewaehlt = $derived(weg.teil && weg.teil !== 'neu' ? bild.anwendungen.find((a) => a.kennung === weg.teil) ?? null : null);
   const anlegen = $derived(weg.teil === 'neu');
@@ -35,8 +39,10 @@
     fuerKennung = k;
     schluessel = null;
     frage = null;
-    entwurf = g ? { name: g.name, prioritaet: g.prioritaet as Prioritaet, faehigkeiten: [...g.faehigkeiten], zonen: g.zonen.filter((z) => z !== 'extern'),
-                    extern_erlaubt: g.extern_erlaubt, gleichzeitig: g.gleichzeitig, ketten: structuredClone($state.snapshot(g.ketten)) } : leer();
+    const fuellung = g ? { name: g.name, prioritaet: g.prioritaet as Prioritaet, faehigkeiten: [...g.faehigkeiten], zonen: g.zonen.filter((z) => z !== 'extern'),
+                           extern_erlaubt: g.extern_erlaubt, gleichzeitig: g.gleichzeitig, ketten: structuredClone($state.snapshot(g.ketten)) } : leer();
+    entwurf = fuellung;
+    ausgang = JSON.stringify(fuellung);
   });
 
   const modelleFuer = (f: F) => [...new Map(bild.modelle.filter((m) => m.faehigkeiten.includes(f)).map((m) => [m.familie, m])).values()];
@@ -63,7 +69,7 @@
       const r = await tun(() => api.anwendungAnlegen(entwurf), 'Anwendung angelegt');
       if (r) { neuerSchluessel = { name: r.name, schluessel: r.schluessel }; weg.gehe('anwendungen', r.kennung, true); }
     } else if (gewaehlt) {
-      await tun(() => api.anwendungAendern(gewaehlt.kennung, entwurf), 'Gespeichert');
+      if (await tun(() => api.anwendungAendern(gewaehlt.kennung, entwurf), 'Gespeichert')) ausgang = JSON.stringify(entwurf);
     }
   }
 

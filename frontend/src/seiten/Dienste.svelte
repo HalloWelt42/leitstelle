@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api } from '../lib/api';
+  import { arbeit } from '../lib/arbeit.svelte';
   import { tun } from '../lib/meldung.svelte';
   import type { DienstSicht, Lagebild } from '../lib/typen.gen';
   import { weg } from '../lib/weg.svelte';
@@ -12,6 +13,7 @@
   let entwurf = $state<{ name: string; adresse: string; plaetze: number; zugang: string; zugangNeu: boolean }>({ name: '', adresse: '', plaetze: 4, zugang: '', zugangNeu: false });
   let loeschen = $state<string | null>(null);
   let aufgedeckt = $state<Record<string, string | null>>({});
+  arbeit.bearbeitung(() => bearbeiten !== null);
 
   const bereit = $derived(bild.dienste.filter((d) => d.zustand === 'bereit'));
   const knotenName = (k: string | null) => bild.knoten.find((x) => x.kennung === k)?.name ?? 'Extern';
