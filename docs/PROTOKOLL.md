@@ -67,9 +67,13 @@ verbindet sich die Gegenseite neu und bekommt mit `anwendung.angemeldet` den akt
 Aufträge zurück. Verpasste Signale werden nicht nachgeliefert; der Stand ersetzt sie.
 
 Herzschlag: alle 10 Sekunden (einstellbar) von jeder Dauerverbindung; Herzschläge und periodische Messwerte werden gespeichert, aber im Nachrichtenverkehr der Oberfläche standardmäßig ausgeblendet. Ohne Herzschlag gilt eine
-Anwendung nach der eingestellten Frist (Vorgabe 60 s) als getrennt, ein Knoten nach 15 s als nicht
-erreichbar. Laufende Aufträge einer getrennten Anwendung laufen weiter; das Ergebnis wartet, bis sie
-wiederkommt oder die Aufbewahrung endet.
+Anwendung nach der eingestellten Frist (Vorgabe 60 s) als getrennt. Laufende Aufträge einer getrennten Anwendung laufen
+weiter; das Ergebnis wartet, bis sie wiederkommt oder die Aufbewahrung endet.
+
+Knoten-Agenten: eine Frist für Herzschläge gibt es nicht. Ein Agent, der still verschwindet (Netz weg, Strom weg),
+fällt erst über den Ping der WebSocket-Verbindung auf (alle 20 s, Antwort binnen 20 s: nach 20 bis 40 s); seine Dienste
+gelten dann als nicht erreichbar. Ein Rechner, der einschläft, meldet sich vorher mit `knoten.schlaeft` ab (4.2); er
+gilt dann nicht als ausgefallen, sondern als schlafend, bis sich sein Agent wieder anmeldet.
 
 ## 4. Nachrichtenarten
 
@@ -96,15 +100,25 @@ wiederkommt oder die Aufbewahrung endet.
 | `knoten.dienste` | Agent an Leitstelle, bei jeder Änderung und spätestens alle zehn Takte | `dienste`: je Dienst `kennung`, `name`, `faehigkeiten`, `port`, `zustand` (aus, startet, laeuft, stoppt, gestoert), `fremd` (läuft, aber nicht vom Agenten gestartet), `gb_jetzt` (gerade gemessen, sonst null), `bedarf_gb` (was er laufend braucht: höchster gemessener Wert, mindestens die Schätzung; damit plant die Leitstelle), `aktiv` (arbeitet gerade, nach Prozessorlast), `anhalten_erlaubt` (darf die Leitstelle ihn anhalten), `meldung` |
 | `knoten.befehl` | Leitstelle an Agent | `befehl` (dienst_starten, dienst_anhalten), `ziel` (Kennung des Dienstes); Befehle sind auf die Dienstverwaltung begrenzt |
 | `knoten.befehl_ergebnis` | Agent an Leitstelle, mit `bezug` auf den Befehl | `befehl`, `ziel`, `erfolg`, `meldung`; ein Start antwortet erst, wenn der Dienst erreichbar ist oder seine Startzeit verstrichen ist |
+| `knoten.schlaeft` | Agent an Leitstelle, unmittelbar vor dem Einschlafen des Rechners | `grund` (`leerlauf`: nach der Leerlaufzeit, `angefordert`: von Hand, Deckel, Ein-Taste), `meldung`; danach schließt der Agent die Verbindung mit Code 1000 und Grund `schlaeft` und meldet sich erst nach dem Aufwachen wieder an |
+| `knoten.schlaf_vermerkt` | Leitstelle an Agent, mit `bezug` auf `knoten.schlaeft` | leer; der Agent wartet höchstens 3 s darauf (eine ältere Leitstelle antwortet nicht) und schließt in jedem Fall |
 | `knoten.angemeldet`, `knoten.getrennt` | Leitstelle an Oberfläche | `knoten`, `name`; bei der Anmeldung dazu die Angaben aus `knoten.anmelden` |
+| `knoten.schlaeft`, `knoten.aufgewacht` | Leitstelle an Oberfläche | `knoten`, `name`; beim Einschlafen dazu `grund` |
 
 Durchleitung: der Agent meldet in `knoten.anmelden` den Port `durchleitung_port`. Die Leitstelle ruft dort
 `/<dienst>/<pfad>` mit demselben Schlüssel als Bearer auf; der Agent reicht an den Dienst weiter, der nur auf seinem
 Rechner lauscht. Ziel ist die Adresse, von der aus sich der Agent verbunden hat.
 
+Schlaf: nach `knoten.schlaeft` führt die Leitstelle den Rechner als schlafend (Zustand `schlaeft`, mit Zeitpunkt; der
+Vermerk übersteht ihren Neustart). Seine Dienste heißen `schlaeft`, werden nicht geprüft und zählen keine Fehlschläge;
+laufende Aufträge auf ihm enden mit `rechner_schlaeft`, neue werden mit 503 `rechner_schlaeft` abgelehnt (7), solange
+ihr Modell nur auf schlafenden Rechnern liegt. Die Lage bleibt ruhig und nennt ihn als Hinweis. Die nächste
+`knoten.anmelden` desselben Agenten beendet den Schlaf; seine Dienste werden sofort geprüft. Von Hand beendet ihn
+`POST /api/knoten/<kennung>/schlaf_beenden` ("Nicht mehr warten").
+
 Transport: WebSocket `/agent/kanal` mit dem Schlüssel des Agenten als Bearer. Unbekannter Schlüssel: Schließen mit
 Code 4401 und Grund `unbekannter_schluessel`; ein neu erzeugter Schlüssel trennt den verbundenen Agenten mit
-`schluessel_erneuert`. Die Modelle der Nutzlasten stehen in `backend/leitstelle/protokoll/knoten.py`; der Agent
+`schluessel_erneuert`; vor dem Schlaf schließt der Agent selbst mit 1000 und `schlaeft`. Die Modelle der Nutzlasten stehen in `backend/leitstelle/protokoll/knoten.py`; der Agent
 führt einen Spiegel, den ein Test deckungsgleich hält.
 
 ### 4.3 Aufträge
@@ -298,11 +312,19 @@ Gründe sind Wörter aus Listen, die Oberfläche übersetzt sie:
 
 `unbekannter_schluessel`, `gesperrt`, `herkunft_nicht_erlaubt`, `faehigkeit_nicht_erlaubt`,
 `zone_nicht_erlaubt`, `kostengrenze`, `kontingent`, `kein_dienst`, `kein_modell`,
-`modell_passt_nicht`, `dienst_nicht_erreichbar`, `dienst_fehler`, `instanz_weg`, `stillstand`, `nicht_anhaltbar`,
-`nutzer`, `regel_hintergrund`, `lage`, `dringend_vor`, `wartung`.
+`modell_passt_nicht`, `dienst_nicht_erreichbar`, `rechner_schlaeft`, `dienst_fehler`, `instanz_weg`, `stillstand`,
+`nicht_anhaltbar`, `nutzer`, `regel_hintergrund`, `lage`, `dringend_vor`, `wartung`.
 
 Jede Fehler- oder Ablehnungsnachricht trägt zusätzlich `begruendung` in einem Satz und, wenn
 vorhanden, die Originalmeldung des Dienstes in `meldung`.
+
+`rechner_schlaeft`: das Modell liegt nur auf Rechnern, die schlafen (4.2). Die Fassade antwortet mit 503,
+`Retry-After` 60 s (einstellbar, `LEITSTELLE_SCHLAF_WIEDER_S`) und den Namen der Rechner in `error.x-leitstelle.rechner`;
+der Satz lautet zum Beispiel "Mac Studio schläft; der Auftrag kann erst laufen, wenn er wach ist." Die Leitstelle hält
+die Anfrage nicht selbst fest: die Anwendung wartet und versucht es erneut (der Appkern ohne Grenze, bis er wach ist).
+Ein abgebrochener Strom trägt die Namen im letzten Stück unter `x-leitstelle.rechner`. `zone_nicht_erlaubt` (403)
+heißt nur noch, dass die Zone wirklich nicht passt; ein Rechner, der unangekündigt verschwunden ist, gibt
+`dienst_nicht_erreichbar` (503).
 
 ## 8. Erweiterung und Verträglichkeit
 

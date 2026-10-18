@@ -179,3 +179,24 @@ docs/PROTOKOLL.md Abschnitt 4.8.
 | Mehrere Instanzen | bei Andrang, wenn Platz: wartet ein kleiner Dienst länger als eine gemessene Schwelle und ist genug frei, startet die Leitstelle eine weitere Instanz; ein großer Auftrag reduziert wieder |
 | Frist begonnener Arbeiten | bleibt: 300 s nach der letzten Nutzung, ab der zweiten Anfrage; Wert nach dem Verlauf prüfen |
 | Externe Anbieter | die Apps entscheiden selbst per Einstellung (Erlaubnisliste), nur wo die Qualität nicht leidet; freiwillig, entlastet die lokale KI; Vertonung, TubeVault, Transkription; txt2voice nicht (wird abgelöst) |
+
+## Entscheidung: Warten, bis der Mac wach ist (19.10.2026)
+
+Vorher scheiterten Aufträge sofort, wenn der Mac schlief: nach wenigen Sekunden galt er als nicht erreichbar, und der
+Zuteiler lehnte mit 403 `zone_nicht_erlaubt` ab, worauf die Apps nicht warteten. Dienste im OpenAI-Format auf demselben
+Rechner zählten die ganze Nacht Fehlschläge und standen morgens im Ausfall mit Prüfabständen bis zu einem Tag; laufende
+Aufträge hingen, außer bei Automatik "selbst".
+
+| Frage | Entscheidung |
+|---|---|
+| Was tun, wenn der Mac schläft | warten, bis er wach ist (Nutzer: "Warten, bis er wach ist") |
+| Wer erkennt den Schlaf | der Maschinenraum selbst (IOKit, auch ohne Menüleiste); er meldet `knoten.schlaeft` vor dem Einschlafen und meldet sich beim Aufwachen neu an |
+| Wer wartet | die App (Appkern `geduldig`, ohne Grenze, mit Abbrechen); die Leitstelle hält keine Anfrage fest, sie antwortet 503 `rechner_schlaeft` mit Retry-After 60 s und den Rechnern in `error.x-leitstelle.rechner` |
+| Laufende Aufträge beim Einschlafen | enden mit `rechner_schlaeft`, auch ohne Automatik; zugeteilte und wartende entscheidet der Zuteiler neu |
+| Dienste auf dem schlafenden Rechner | Zustand `schlaeft`: keine Prüfung, keine Fehlschläge; beim Aufwachen Prüfstand zurück und sofort prüfen |
+| Lage | bleibt ruhig, "Mac Studio schläft" als Hinweis; nirgends als Gefahr gezeigt |
+| Neustart der Leitstelle im Schlaf | der Schlaf bleibt vermerkt (Einstellungsablage, Schlüssel `schlaf`); unbekannte Namen auf einem schlafenden Rechner heißen `rechner_schlaeft` |
+| Von Hand | "Nicht mehr warten" auf der Knotenseite beendet den Schlafzustand; Prüfprotokoll |
+| Zonenfehler | 403 nur, wenn die Zone wirklich nicht passt; unangekündigt verschwundene Rechner geben 503 `dienst_nicht_erreichbar` |
+| Leerlaufschlaf während eines Auftrags | aufschieben, solange der Maschinenraum eine Anfrage durchreicht (Einstellung `schlaf.leerlauf_aufschieben`, Vorgabe an); Deckel, Menü und Ein-Taste wirken immer |
+| Geduld der Apps bei anderen Ausfällen | Einstellung "Geduld bei Ausfall" je App (Vorgabe 30 Minuten); der Schlaf zählt nicht dazu |

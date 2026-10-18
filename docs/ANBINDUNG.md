@@ -95,6 +95,7 @@ Die Anwendung ändert nur die Adresse ihres Modell-Läufers und bekommt einen Sc
 | 429 | `gesperrt` | Anwendung gesperrt (von Hand oder nach Auslaufen) | `Retry-After` beachten, Hinweis zeigen |
 | 503 | `halt` | Hauptregler steht auf Halt | Hinweis zeigen, nach `Retry-After` erneut |
 | 503 | `dienst_nicht_erreichbar`, `modell_passt_nicht` | Dienst weg, oder er hat das Laden dreimal abgelehnt | Hinweis zeigen, später erneut |
+| 503 | `rechner_schlaeft` | der Rechner mit dem Modell schläft; `error.x-leitstelle.rechner` nennt ihn, `Retry-After` 60 s | "wartet, bis Mac Studio wach ist" zeigen und ohne Grenze erneut versuchen, bis er wach ist (Abbrechen erlauben) |
 | 502 | `dienst_fehler` | der Dienst hat den Auftrag nicht geschafft; `wiederholbar` im Text | einmal wiederholen, wenn wiederholbar |
 
 - Bricht der Nutzer einen Auftrag in der Leitstelle sofort ab, endet der Strom mit einem letzten Stück

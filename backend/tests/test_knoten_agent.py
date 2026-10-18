@@ -1,5 +1,5 @@
 """Knoten-Agent Ende zu Ende: echte Leitstelle auf einem Port, als Agent der Maschinenraum (eigenes Repo,
-Paket `maschinenraum`) mit einem kleinen HTTP-Server als Prozessdienst. Szenarien A01 bis A07 aus docs/SZENARIEN.md."""
+Paket `maschinenraum`) mit einem kleinen HTTP-Server als Prozessdienst. Szenarien A01 bis A11 aus docs/SZENARIEN.md."""
 
 from __future__ import annotations
 
@@ -88,7 +88,8 @@ class ScheinMesser:
 
 @asynccontextmanager
 async def agent_laeuft(o: Ordner):
-    """Maschinenraum wie im Betrieb: Dienstverwaltung, Kanal zur Leitstelle und Durchleitung auf einem freien Port."""
+    """Maschinenraum wie im Betrieb: Dienstverwaltung, Kanal zur Leitstelle und Durchleitung auf einem freien Port.
+    Liefert den Kanal (für Schlaf und Aufwachen)."""
     e = o.einstellungen()
     verwalter = Verwalter(o, e)
     messer = ScheinMesser()
@@ -100,7 +101,7 @@ async def agent_laeuft(o: Ordner):
         aufgabe = asyncio.create_task(verwalter.schleife())
         kanal.starten()
         try:
-            yield verwalter
+            yield kanal
         finally:
             await kanal.beenden()
             await _aufraeumen(verwalter, aufgabe)
@@ -355,3 +356,37 @@ async def test_a09_nach_dem_neustart_ist_ein_ungemeldeter_dienst_nur_gerade_weg(
             await _warte_bis(wieder)
             r = await anw.get("/v1/dienste/gibtsnicht/x", headers=kopf)
             assert r.json()["error"]["code"] == "kein_modell"                 # gemeldet und trotzdem unbekannt: endgültig
+
+
+async def test_a11_schlaf_ende_zu_ende_mit_dem_echten_maschinenraum(tmp_path):
+    """Der Kanal des Maschinenraums meldet den Schlaf, wie es sein Wächter vor dem Einschlafen tut: die Leitstelle
+    vermerkt ihn sofort (keine 3 s Wartezeit), Aufträge bekommen 503 rechner_schlaeft; nach dem Aufwachen meldet er
+    sich neu, und der Dienst ist wieder nutzbar."""
+    from maschinenraum.leitstelle import Verbindung
+    from maschinenraum.protokoll import Schlafgrund
+    port = _freier_port()
+    (tmp_path / "hallo.txt").write_text("Grüße aus dem Dienst")
+    async with aufbau(tmp_path) as (c, url, knoten, schluessel):
+        app_schluessel = (await c.post("/api/anwendungen", json={"name": "Sprache", "faehigkeiten": ["stimme"]})).json()["schluessel"]
+        kopf = {"Authorization": f"Bearer {app_schluessel}"}
+        async with agent_laeuft(_agentenordner(tmp_path, url, schluessel, port)) as kanal, httpx.AsyncClient(base_url=url, timeout=60) as anw:
+            async def da():
+                return await _modell(c, "probe") is not None and kanal.stand.zustand == Verbindung.VERBUNDEN
+            await _warte_bis(da)
+            beginn = asyncio.get_running_loop().time()
+            await kanal.einschlafen(Schlafgrund.LEERLAUF)
+            assert asyncio.get_running_loop().time() - beginn < 2.0, "die Leitstelle hat geantwortet"
+            assert kanal.stand.zustand == Verbindung.SCHLAEFT
+            assert (await _knoten(c, knoten))["zustand"] == "schlaeft"
+            r = await anw.get("/v1/dienste/probe/hallo.txt", headers=kopf)
+            assert r.status_code == 503 and r.json()["error"]["code"] == "rechner_schlaeft", r.text
+            assert r.json()["error"]["x-leitstelle"] == {"rechner": ["Mac Studio"]} and r.headers["retry-after"] == "60"
+            await asyncio.sleep(1.5)
+            assert not (await _knoten(c, knoten))["agent"]["verbunden"], "solange er schläft, ruht die Verbindung"
+            kanal.aufwachen()
+
+            async def wach():
+                return (await _knoten(c, knoten))["zustand"] == "erreichbar" and kanal.stand.zustand == Verbindung.VERBUNDEN
+            await _warte_bis(wach)
+            r = await anw.get("/v1/dienste/probe/hallo.txt", headers=kopf)
+            assert r.status_code == 200 and r.content.decode() == "Grüße aus dem Dienst", r.text

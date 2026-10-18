@@ -1,6 +1,6 @@
 # Szenarienkatalog: geprüftes Verhalten des Entscheidungskerns
 
-Jedes Szenario ist ein Test in `backend/tests/`; die Nummer (S01 bis S47 für den Kern, E01 bis E14 Ende zu Ende)
+Jedes Szenario ist ein Test in `backend/tests/`; die Nummer (S01 bis S53 für den Kern, E01 bis E16 Ende zu Ende, R01 bis R07 Schlaf)
 steht im Testnamen. Alles ist
 gemockt: kein echter Modell-Läufer, kein Netz, keine Uhr. Die Schein-Welt (`backend/leitstelle/simulation/`)
 bildet den echten Bestand nach (8 Anwendungen, 5 Anbindungen, 4 Knoten, 14 Modellinstanzen) und kennt eine
@@ -208,6 +208,15 @@ Budget = Speicher minus dem Größeren aus Reserve (18 GB) und System, oder ein 
 | S48 | Schutzvorgabe eines Dienstes | geht der Regel nach Parameterzahl vor: erlaubt der Dienst das Anhalten, darf auch ein Modell ohne Parameterzahl weichen; verbietet er es, bleibt auch ein großes stehen |
 | S49 | Bedarf und Ist-Wert | verplant (Budget) wird der Bedarf, als belegt gilt der gemessene Ist-Wert |
 
+### Schlaf eines Rechners im Kern (`test_zuteiler.py`)
+
+| Nr | Szenario | Erwartung |
+|---|---|---|
+| S50 | Stimme liegt nur auf Mac Studio, der schläft | Ablehnung `rechner_schlaeft` mit dem Rechner und dem Satz "Mac Studio schläft; der Auftrag kann erst laufen, wenn er wach ist."; Knotenzustand `schlaeft`; Lage ruhig mit Hinweis, nicht "nicht erreichbar" |
+| S51 | Mac Studio unangekündigt weg (nicht schlafend) | `dienst_nicht_erreichbar` statt `zone_nicht_erlaubt`; ein externes Modell ohne Erlaubnis und eine Anwendung ohne Heimnetz bleiben `zone_nicht_erlaubt` |
+| S52 | Hören liegt auf Mac Studio (schläft) und MacBook | das MacBook rechnet; ist es nur weg, `dienst_nicht_erreichbar`; schlafen beide, `rechner_schlaeft` mit beiden Namen |
+| S53 | Laufender Auftrag auf einem schlafenden Rechner | kein Lauf "Umverteilen bei Ausfall", Lage ruhig; derselbe Fall ohne Schlaf: Ausfall und Engpass |
+
 ## 3. Ende zu Ende (`test_ende_zu_ende.py`)
 
 Leitstelle und Schein-Läufer laufen auf echten Ports; die Aufrufe kommen wie von einer Anwendung, die nur die
@@ -251,6 +260,22 @@ Prozessdienst.
 | A08 | Dienst läuft schon, von außen gestartet | wird übernommen statt doppelt gestartet; Anhalten trifft den lauschenden Prozess und seine Nachfahren |
 | A09 | Agent oder Rechner startet neu | Sollzustand bleibt; eigene Gruppen werden innerhalb derselben Systemlaufzeit wiedererkannt, nach Rechnerneustart wird gestartet, was laufen soll |
 | A10 | Dienst wird in der Startzeit nicht erreichbar | Versuch wird beendet, Meldung mit der letzten Protokollzeile |
+| A11 | Der echte Kanal des Maschinenraums schläft ein und wacht auf | Leitstelle vermerkt sofort (unter 2 s), Dienstfassade 503 `rechner_schlaeft` mit Rechner; die Verbindung ruht; nach dem Aufwachen Anmeldung, Rechner erreichbar, Durchleitung wieder 200 |
+
+## 3b. Schlaf eines Rechners (`test_schlaf.py`)
+
+Leitstelle, Schein-Läufer und Schein-Agent (`tests/schein/agent.py`) auf echten Ports; Läufer und Agent liegen auf
+demselben Rechner, wie LM Studio neben dem Maschinenraum.
+
+| Nr | Szenario | Erwartung |
+|---|---|---|
+| R01 | Agent meldet `knoten.schlaeft` | Antwort `knoten.schlaf_vermerkt`; Rechner und beide Dienste `schlaeft`, null Fehlschläge, der Läufer wird nicht mehr gefragt; Lage ruhig mit "Mac Studio schläft"; Meldungen nennen Grund und Trennung |
+| R02 | Aufrufe während des Schlafs | Chat mit und ohne Strom und Dienstfassade: 503 `rechner_schlaeft`, Retry-After 60, `error.x-leitstelle.rechner` = Mac Studio; im Verlauf abgelehnt mit diesem Grund |
+| R03 | Zwei laufende Aufträge (mit und ohne Strom), Automatik "vorschlagen" | beide enden mit `rechner_schlaeft` (503 beziehungsweise letztes Stück `leitstelle_abbruch` mit Rechner), im Verlauf abgebrochen |
+| R04 | Zwölf Stunden Schlaf mit vielen Takten (Stelluhr), Läufer antwortet nicht | kein Fehlschlag, kein Ausfall, keine Abfrage; nach dem Aufwachen ohne Takt sofort bereit, Meldung "aufgewacht nach 12,0 h", Chat geht |
+| R05 | Neustart der Leitstelle während des Schlafs | Rechner und Dienste weiter `schlaeft`; ein danach unbekannter Name auf ihm gibt `rechner_schlaeft`; nach dem Aufwachen geht der Chat |
+| R06 | Agent verschwindet ohne Meldung, Läufer antwortet nicht | 503 `dienst_nicht_erreichbar` (früher 403 `zone_nicht_erlaubt`), Retry-After 30, ohne Rechner |
+| R07 | "Nicht mehr warten" von Hand | Dienste geprüft, Rechner nicht erreichbar, Aufrufe `dienst_nicht_erreichbar`; Prüfprotokoll; ein zweites Mal 404 |
 
 ## 4. Zweige je Vorlage
 
