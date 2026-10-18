@@ -352,7 +352,7 @@ class Betrieb:
         else:
             m.name, m.faehigkeiten, m.gb = mb.name, set(mb.faehigkeiten), mb.gb
             m.parameter_mrd, m.geschuetzt_fest = mb.parameter_mrd or 0.0, mb.einbettung or unbekannte_groesse
-        m.schutz_vorgabe, m.gb_jetzt = mb.schutz, mb.gb_jetzt
+        m.schutz_vorgabe, m.gb_jetzt, m.plaetze = mb.schutz, mb.gb_jetzt, mb.plaetze
         if mb.aktiv:
             m.letzte_nutzung_s = jetzt      # arbeitet ohne Auftrag über die Leitstelle: gilt als genutzt, weicht nicht
         ort = self.orte.setdefault(kennung, ModellOrt(schluessel=mb.schluessel))
@@ -462,7 +462,7 @@ class Betrieb:
             d = v.dienste.get(a.dienst or "")
             if m is None or d is None or not d.nutzbar or m.zustand not in (Modellzustand.GELADEN, Modellzustand.RECHNET):
                 continue
-            if m.auftraege_aktiv >= d.plaetze:
+            if m.auftraege_aktiv >= v.plaetze(m):
                 continue
             a.zustand = Auftragszustand.LAEUFT
             a.start_s = v.zeit_s

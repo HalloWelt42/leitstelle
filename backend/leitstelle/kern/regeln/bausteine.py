@@ -320,7 +320,7 @@ def kette_hat_alternative(k: Kontext) -> bool:
             d = k.verbund.dienste[m.dienst]
             if d.extern or d.knoten is None or not d.nutzbar or not erlaubte_zone(k.verbund, a, d.knoten):
                 continue
-            if len(k.verbund.belegung(m.kennung)) >= d.plaetze:
+            if len(k.verbund.belegung(m.kennung)) >= k.verbund.plaetze(m):
                 continue
             k.knoten_ziel, k.dienst_ziel, k.modell_ziel = d.knoten, d.kennung, m.kennung
             k.aufwand_s = 0.0

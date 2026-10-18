@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from ..fach.fehler import Ablehnung
 from ..fach.vermittlung import Vorgang, Wartet
-from ..kern.werte import WORT, Auftragszustand, Faehigkeit, Modellzustand, Prioritaet, Zone
+from ..kern.werte import GIB, WORT, Auftragszustand, Faehigkeit, Modellzustand, Prioritaet, Zone
 from ..ports.ablage.eintraege import AnwendungEintrag
 from ..ports.dienste import Durchleitung
 from .gemeinsam import betrieb, fehler_antwort, konfig, vermittlung
@@ -247,7 +247,7 @@ async def modelle_v1(request: Request):
         ort = b.ort(m.kennung)
         geladen = m.zustand != Modellzustand.FREI
         aus.append({"key": m.familie, "type": "embedding" if _typ(m) == "embeddings" else "llm", "display_name": m.name,
-                    "params_string": f"{m.parameter_mrd:g}B" if m.parameter_mrd else None, "size_bytes": int(m.gb * 1e9),
+                    "params_string": f"{m.parameter_mrd:g}B" if m.parameter_mrd else None, "size_bytes": int(m.gb * GIB),
                     "max_context_length": ort.kontext, "capabilities": {"vision": Faehigkeit.BILD_BESCHREIBEN in m.faehigkeiten,
                                                                          "trained_for_tool_use": Faehigkeit.WERKZEUG in m.faehigkeiten},
                     "loaded_instances": [{"id": ort.anfragename}] if geladen else []})

@@ -40,7 +40,7 @@ class AgentDienste:
         if v is None:
             return Dienstbericht(erreichbar=False, meldung="Maschinenraum nicht verbunden")
         modelle = [ModellBericht(schluessel=p.kennung, name=p.name, faehigkeiten=set(p.faehigkeiten), gb=p.bedarf_gb, gb_jetzt=p.gb_jetzt,
-                                 parameter_mrd=None, schutz=not p.anhalten_erlaubt, aktiv=p.aktiv,
+                                 parameter_mrd=None, schutz=not p.anhalten_erlaubt, aktiv=p.aktiv, plaetze=p.plaetze,
                                  geladen=p.zustand in IM_SPEICHER, instanzen=[p.kennung] if p.zustand in IM_SPEICHER else [])
                    for p in v.dienste.dienste]
         return Dienstbericht(erreichbar=True, steuerbar=True, modelle=modelle)

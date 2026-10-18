@@ -27,7 +27,7 @@ async def test_zustand_laden_entladen_strom():
         assert m["qwen/qwen3-next-80b"].geladen and m["qwen/qwen3-next-80b"].parameter_mrd == 80 and m["qwen/qwen3-next-80b"].plaetze == 4
         assert m["text-embedding-bge-m3"].einbettung and m["text-embedding-bge-m3"].faehigkeiten == {F.EINBETTUNG}
         assert F.BILD_BESCHREIBEN in m["zai-org/glm-4.6v-flash"].faehigkeiten and not m["zai-org/glm-4.6v-flash"].geladen
-        assert m["zai-org/glm-4.6v-flash"].gb == 11.8
+        assert m["zai-org/glm-4.6v-flash"].gb == round(11.8e9 / 1024**3, 2)              # GB wie macOS: 1024^3 Byte
 
         instanz = await a.laden("zai-org/glm-4.6v-flash")
         assert instanz == "zai-org/glm-4.6v-flash"

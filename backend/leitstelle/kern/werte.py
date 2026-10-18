@@ -5,6 +5,10 @@ from __future__ import annotations
 from enum import Enum, IntEnum
 
 
+# Speicher in GB meint überall 1024^3 Byte, wie macOS und der Maschinenraum zählen (vorher teils 10^9: 7 % Abweichung)
+GIB = 1024**3
+
+
 class Faehigkeit(str, Enum):
     TEXT = "text"
     EINBETTUNG = "einbettung"

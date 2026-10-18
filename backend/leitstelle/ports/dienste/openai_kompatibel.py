@@ -17,6 +17,7 @@ from typing import Any
 
 import httpx
 
+from ...kern.werte import GIB
 from ...kern.werte import Faehigkeit as F
 from .schnittstelle import Dienstbericht, DienstFehler, Durchleitung, ModellBericht
 
@@ -129,7 +130,7 @@ class OpenAIKompatibel:
         parallel = [int(i.get("config", {}).get("parallel")) for i in instanzen if i.get("config", {}).get("parallel")]
         return ModellBericht(
             schluessel=m["key"], name=m.get("display_name") or m["key"], faehigkeiten=faehigkeiten,
-            gb=round((m.get("size_bytes") or 0) / 1e9, 2), parameter_mrd=_milliarden(m.get("params_string")),
+            gb=round((m.get("size_bytes") or 0) / GIB, 2), parameter_mrd=_milliarden(m.get("params_string")),
             geladen=bool(instanzen), instanzen=[i["id"] for i in instanzen if i.get("id")], plaetze=max(parallel) if parallel else None,
             kontext=m.get("max_context_length"), einbettung=einbettung)
 

@@ -146,3 +146,22 @@ def test_s47_hauptregler_hintergrund_haelt_ohne_ausnahme():
     w.verbund.hintergrund_erlaubt = True
     w.laufen_bis_fertig(60)
     assert a.zustand == Z.FERTIG
+
+
+def test_plaetze_je_modell_maschinenraum_bestimmt_eintrag_begrenzt(welt):
+    """Plätze je Modell: beim Maschinenraum (Dienst art agent) gilt, was seine Dienstdatei meldet; sonst begrenzt der
+    Eintrag des Dienstes, was das Modell meldet. Ohne Meldung gilt der Eintrag."""
+    v = welt.verbund
+    m = v.modelle["qwen80@128"]
+    d = v.dienste[m.dienst]
+    d.plaetze, m.plaetze = 1, None
+    assert v.plaetze(m) == 1
+    m.plaetze = 4
+    assert v.plaetze(m) == 1, "der Eintrag des Modell-Läufers begrenzt"
+    d.plaetze = 8
+    assert v.plaetze(m) == 4
+    d.art = "agent"
+    d.plaetze = 1
+    assert v.plaetze(m) == 4, "beim Maschinenraum zählt die Dienstdatei"
+    m.plaetze = None
+    assert v.plaetze(m) == 1

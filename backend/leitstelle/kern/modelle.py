@@ -75,6 +75,7 @@ class Modell(BaseModel):
     geladen_seit_s: float | None = None
     letzte_nutzung_s: float | None = None
     auftraege_aktiv: int = 0
+    plaetze: int | None = None        # gleichzeitige Aufträge, wenn der Dienst es je Modell meldet; sonst die des Dienstes
     # Hat der Dienst das Laden abgelehnt (zu wenig Speicher, Fehler), wird bis dahin kein neuer Versuch geplant
     ladesperre_bis_s: float | None = None
     ladesperre_grund: str = ""
@@ -242,6 +243,15 @@ class Verbund(BaseModel):
 
     def laufende_auf_modell(self, modell: str) -> list[Auftrag]:
         return [a for a in self.auftraege.values() if a.zustand == Auftragszustand.LAEUFT and a.modell == modell]
+
+    def plaetze(self, m: Modell) -> int:
+        """Gleichzeitige Aufträge auf diesem Modell. Beim Maschinenraum bestimmt seine Dienstdatei die Plätze je Dienst
+        (der Eintrag "Dienste auf ..." ist nur ein Behälter); bei anderen Diensten begrenzt ihr Eintrag nach oben, was
+        das Modell meldet (etwa `parallel` des Modell-Läufers), damit eine bewusste Begrenzung gilt."""
+        d = self.dienste[m.dienst]
+        if d.art == "agent":
+            return m.plaetze or 1
+        return min(d.plaetze, m.plaetze) if m.plaetze else d.plaetze
 
     def belegung(self, modell: str) -> list[Auftrag]:
         """Aufträge, die das Modell halten: laufende und schon zugeteilte."""

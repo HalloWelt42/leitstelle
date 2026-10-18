@@ -83,7 +83,7 @@ def ablehnungsgrund(verbund: Verbund, auftrag: Auftrag, kette: list[str]) -> tup
 
 
 def platz_frei(verbund: Verbund, m: Modell) -> bool:
-    return len(verbund.belegung(m.kennung)) < verbund.dienste[m.dienst].plaetze
+    return len(verbund.belegung(m.kennung)) < verbund.plaetze(m)
 
 
 def wirksame_prioritaet(verbund: Verbund, a: Auftrag) -> int:
@@ -137,7 +137,7 @@ def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> 
         geladene: list[tuple[int, Modell]] = []
         for i, fam in enumerate(suche):
             for m in kandidaten(verbund, a, fam, mit_extern):
-                if m.zustand in (Modellzustand.GELADEN, Modellzustand.RECHNET) and platz_frei(verbund, m) and vergeben_plaetze.get(m.kennung, 0) < verbund.dienste[m.dienst].plaetze - len(verbund.belegung(m.kennung)):
+                if m.zustand in (Modellzustand.GELADEN, Modellzustand.RECHNET) and platz_frei(verbund, m) and vergeben_plaetze.get(m.kennung, 0) < verbund.plaetze(m) - len(verbund.belegung(m.kennung)):
                     d = verbund.dienste[m.dienst]
                     bevorzugt = 0 if (a.prioritaet == Prioritaet.HINTERGRUND and verbund.hintergrund_knoten_bevorzugt and d.knoten == verbund.hintergrund_knoten_bevorzugt) else 1
                     geladene.append((bevorzugt * 100 + i, m))
