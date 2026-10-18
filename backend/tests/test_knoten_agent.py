@@ -92,7 +92,7 @@ async def agent_laeuft(o: Ordner):
     e = o.einstellungen()
     verwalter = Verwalter(o, e)
     messer = ScheinMesser()
-    weg = durchleitung.erstellen(SimpleNamespace(ordner=o, verwalter=verwalter))
+    weg = durchleitung.erstellen(SimpleNamespace(ordner=o, verwalter=verwalter, durchleitungen=0))
     async with laufend(weg) as weg_url:
         e.durchleitung.port = int(weg_url.rsplit(":", 1)[1])
         o.einstellungen_speichern(e)
