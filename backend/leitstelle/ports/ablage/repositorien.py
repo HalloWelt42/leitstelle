@@ -11,11 +11,12 @@ from ...kern.messungen import Messwerk, Mittel
 from ...kern.modelle import Massnahme, Regelwerk
 from ...kern.werte import Auftragszustand, Faehigkeit, Massnahmenart, Massnahmenzustand, OFFENE_ZUSTAENDE, Prioritaet, Zone
 from .datenbank import Datenbank
-from .eintraege import AliasEintrag, AnwendungEintrag, AuftragEintrag, BetriebEinstellung, DienstEintrag, Kennzahlen, KnotenEintrag, PruefEintrag
+from .eintraege import AliasEintrag, AnwendungEintrag, AuftragEintrag, BetriebEinstellung, Bewegung, DienstEintrag, Kennzahlen, KnotenEintrag, PruefEintrag
 from .tabellen import (
     AliasTabelle,
     AnwendungTabelle,
     AuftragTabelle,
+    BewegungTabelle,
     DienstTabelle,
     EinstellungTabelle,
     KnotenTabelle,
@@ -263,6 +264,21 @@ class PruefAblage:
             return [PruefEintrag(zeit_s=z.zeit_s, wer=z.wer, was=z.was, gegenstand=z.gegenstand) for z in zeilen]
 
 
+class BewegungsAblage:
+    def __init__(self, db: Datenbank) -> None:
+        self.db = db
+
+    async def anhaengen(self, b: Bewegung) -> None:
+        async with self.db.sitzung() as s, s.begin():
+            s.add(BewegungTabelle(**b.model_dump(mode="json")))
+
+    async def neueste(self, anzahl: int = 50, ab: int = 0) -> tuple[list[Bewegung], int]:
+        async with self.db.sitzung() as s:
+            gesamt = await s.scalar(select(func.count()).select_from(BewegungTabelle)) or 0
+            zeilen = (await s.scalars(select(BewegungTabelle).order_by(BewegungTabelle.nummer.desc()).offset(ab).limit(anzahl))).all()
+            return [Bewegung(**_felder(z, *Bewegung.model_fields)) for z in zeilen], gesamt
+
+
 class Ablage:
     """Alle Repositorien über einer Datenbank."""
 
@@ -277,3 +293,4 @@ class Ablage:
         self.messungen = MessAblage(db)
         self.einstellungen = EinstellungAblage(db)
         self.pruefung = PruefAblage(db)
+        self.bewegungen = BewegungsAblage(db)

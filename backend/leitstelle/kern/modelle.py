@@ -135,6 +135,7 @@ class Auftrag(BaseModel):
     voraussichtlich_s: float | None = None
     teilergebnis: bool = False
     grund: str | None = None          # Wort aus PROTOKOLL.md Abschnitt 7, wenn abgelehnt oder abgebrochen
+    arbeit: str | None = None         # Arbeit der Anwendung, zu der die Anfrage gehört (Kopf X-Leitstelle-Arbeit)
 
     @property
     def offen(self) -> bool:
@@ -145,6 +146,19 @@ class Auftrag(BaseModel):
         return self.zustand in WARTENDE_ZUSTAENDE
 
 
+class Arbeit(BaseModel):
+    """Eine Arbeit einer Anwendung, die aus vielen Anfragen besteht (etwa eine Vertonung: Hören, Übersetzen, Sprechen;
+    Kopf X-Leitstelle-Arbeit). Ab der zweiten Anfrage gilt sie als begonnen: Modelle, die sie in der Frist genutzt hat,
+    entlädt die Leitstelle nicht für andere (Nutzer 18.10.2026: "Begonnenes nicht wegnehmen")."""
+
+    kennung: str                      # Anwendung und Kennung der App, "anwendung:arbeit"
+    anwendung: str
+    titel: str
+    beginn_s: float
+    anfragen: int = 0
+    modelle: dict[str, float] = Field(default_factory=dict)   # Modellkennung -> letzte Nutzung (Ende der Anfrage)
+
+
 class Regelwerk(BaseModel):
     """Alles Einstellbare an einem Ort; jede Grenze sichtbar und erklärt (Oberfläche: Regeln)."""
 
@@ -153,6 +167,8 @@ class Regelwerk(BaseModel):
     mindestverweildauer_s: float = 600.0
     leerlauf_s: float = 1800.0            # ab wann ein Modell als Leerlauf gilt (Anzeige, Doppel auflösen)
     bedarfsfrist_s: float = 60.0          # wartet ein Auftrag auf den Platz, darf ein Modell schon nach dieser Zeit ohne Auftrag weichen
+    arbeit_frist_s: float = 300.0         # so lange nach ihrer letzten Nutzung hält eine begonnene Arbeit ein Modell
+    arbeit_ab_anfragen: int = 2           # ab so vielen Anfragen gilt eine Arbeit als begonnen (eine einzelne hält nichts)
     gewinnfaktor: float = 2.0
     extern_schwelle_s: float = 120.0
     hintergrund_spaetestens_s: float = 900.0
@@ -194,6 +210,7 @@ class Verbund(BaseModel):
     modelle: dict[str, Modell] = Field(default_factory=dict)
     anwendungen: dict[str, Anwendung] = Field(default_factory=dict)
     auftraege: dict[str, Auftrag] = Field(default_factory=dict)
+    arbeiten: dict[str, Arbeit] = Field(default_factory=dict)
     regelwerk: Regelwerk = Field(default_factory=Regelwerk)
     betriebsmodus: Betriebsmodus = Betriebsmodus.NORMAL
     hintergrund_an: bool = True       # Regel "Hintergrund bei Lage" (mit Fairness: nach der Frist rückt Hintergrund trotzdem auf)
@@ -256,6 +273,38 @@ class Verbund(BaseModel):
     def belegung(self, modell: str) -> list[Auftrag]:
         """Aufträge, die das Modell halten: laufende und schon zugeteilte."""
         return [a for a in self.auftraege.values() if a.zustand in (Auftragszustand.LAEUFT, Auftragszustand.ZUGETEILT) and a.modell == modell]
+
+    def arbeit_haelt(self, modell: str, ausser: str | None = None) -> Arbeit | None:
+        """Die begonnene Arbeit, die das Modell in der Frist genutzt hat; die fragende Arbeit selbst zählt nicht, sie
+        darf eigene Modelle für ihren nächsten Schritt weichen lassen."""
+        r = self.regelwerk
+        for w in self.arbeiten.values():
+            zuletzt = w.modelle.get(modell)
+            if w.kennung != ausser and w.anfragen >= r.arbeit_ab_anfragen and zuletzt is not None and self.zeit_s - zuletzt < r.arbeit_frist_s:
+                return w
+        return None
+
+    def arbeit_zaehlen(self, a: Auftrag, titel: str) -> None:
+        """Eine neue Anfrage einer Arbeit."""
+        if a.arbeit is None:
+            return
+        w = self.arbeiten.get(a.arbeit)
+        if w is None:
+            w = self.arbeiten[a.arbeit] = Arbeit(kennung=a.arbeit, anwendung=a.anwendung, titel=titel, beginn_s=self.zeit_s)
+        w.anfragen += 1
+
+    def arbeit_nutzte(self, a: Auftrag) -> None:
+        """Ende einer Anfrage: ihr Modell gilt ab jetzt als zuletzt von der Arbeit genutzt."""
+        w = self.arbeiten.get(a.arbeit or "")
+        if w is not None and a.modell and a.start_s is not None:
+            w.modelle[a.modell] = self.zeit_s
+
+    def arbeiten_aufraeumen(self) -> None:
+        """Arbeiten ohne offene Anfrage, deren letzte Nutzung länger als die Frist her ist, sind vorbei."""
+        offen = {a.arbeit for a in self.auftraege.values() if a.offen and a.arbeit}
+        frist = self.regelwerk.arbeit_frist_s
+        for k in [k for k, w in self.arbeiten.items() if k not in offen and self.zeit_s - max(w.modelle.values(), default=w.beginn_s) >= frist]:
+            del self.arbeiten[k]
 
     def wartende_auf_familie(self, familie: str) -> list[Auftrag]:
         return [a for a in self.wartende_auftraege() if a.festes_modell == familie or self.erste_familie(a) == familie]

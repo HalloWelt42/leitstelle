@@ -107,6 +107,13 @@ async def massnahmen(request: Request, ab: int = Query(0, ge=0), anzahl: int = Q
     return {"eintraege": eintraege, "gesamt": gesamt, "ab": ab, "anzahl": anzahl}
 
 
+@router.get("/bewegungen")
+async def bewegungen(request: Request, ab: int = Query(0, ge=0), anzahl: int = Query(50, ge=1, le=200)):
+    """Laden und Entladen als Rohdaten, neueste zuerst."""
+    eintraege, gesamt = await betrieb(request).ablage.bewegungen.neueste(anzahl, ab)
+    return {"eintraege": eintraege, "gesamt": gesamt, "ab": ab, "anzahl": anzahl}
+
+
 @router.get("/pruefprotokoll")
 async def pruefprotokoll(request: Request, anzahl: int = Query(100, ge=1, le=500)):
     return {"eintraege": await betrieb(request).ablage.pruefung.neueste(anzahl)}

@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from .messungen import Messwerk
 from .modelle import Auftrag, Modell, Verbund
 from .speicherplaner import planen
-from .werte import Auftragszustand, Betriebsmodus, Modellzustand, Prioritaet, Zone
+from .werte import Auftragszustand, Betriebsmodus, Faehigkeit, Modellzustand, Prioritaet, Zone
 from .text import komma
 
 
@@ -94,7 +94,10 @@ def wirksame_prioritaet(verbund: Verbund, a: Auftrag) -> int:
 
 
 def reihenfolge(verbund: Verbund) -> list[Auftrag]:
-    return sorted(verbund.wartende_auftraege(), key=lambda a: (-wirksame_prioritaet(verbund, a), a.eingang_s))
+    """Einbettung zuerst (Nutzer 18.10.2026: "höchste Priorität"; kurz, und Suchen warten sonst hinter langen Texten),
+    dann nach Priorität, dann nach Eingang."""
+    return sorted(verbund.wartende_auftraege(),
+                  key=lambda a: (a.faehigkeit != Faehigkeit.EINBETTUNG, -wirksame_prioritaet(verbund, a), a.eingang_s))
 
 
 def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> Zuteilergebnis:
@@ -171,7 +174,7 @@ def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> 
                     if not m.ladbar(verbund.zeit_s):
                         gesperrt.append(m)
                         continue
-                    plan = planen(verbund, d.knoten, m.gb + geplanter_speicher.get(d.knoten, 0.0), messwerk, familie=m.familie)
+                    plan = planen(verbund, d.knoten, m.gb + geplanter_speicher.get(d.knoten, 0.0), messwerk, familie=m.familie, fuer_arbeit=a.arbeit)
                     plaene.append((plan, m, d))
                 if gefunden:
                     break

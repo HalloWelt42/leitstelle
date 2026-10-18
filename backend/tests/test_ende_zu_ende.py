@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import json
 from contextlib import asynccontextmanager
+from urllib.parse import quote
 
 import httpx
 import pytest
@@ -98,6 +99,26 @@ async def test_e13_titel_mit_umlauten(tmp_path):
         await _warte_bis(lambda: _zustand(c, r.headers["x-leitstelle-auftrag"], "fertig"))
         e = (await c.get(f"/api/auftraege/{r.headers['x-leitstelle-auftrag']}")).json()
         assert e["titel"] == "Größe prüfen"
+
+
+
+async def test_e17_anfragen_einer_arbeit_werden_gezaehlt_und_gemerkt(tmp_path):
+    """Kopf X-Leitstelle-Arbeit: die Anfragen einer Arbeit der Anwendung zählen zusammen, ihr Modell gilt als von ihr
+    genutzt, der Verlauf trägt die Arbeit; eine Kennung mit unerlaubten Zeichen zählt nicht."""
+    async with aufbau(tmp_path) as (c, anw, lage, app):
+        for _ in range(2):
+            r = await anw.post("/chat/completions", json={"model": "qwen/qwen3-next-80b", "messages": []},
+                               headers={"X-Leitstelle-Arbeit": "vt-42", "X-Leitstelle-Titel": quote("Vertonung prüfen")})
+            await _warte_bis(lambda: _zustand(c, r.headers["x-leitstelle-auftrag"], "fertig"))
+        e = (await c.get(f"/api/auftraege/{r.headers['x-leitstelle-auftrag']}")).json()
+        arbeit = e["arbeit"]
+        assert arbeit.endswith(":vt-42")
+        w = app.state.betrieb.verbund.arbeiten[arbeit]
+        assert w.anfragen == 2 and w.titel == "Vertonung prüfen"
+        assert [app.state.betrieb.verbund.modelle[k].name for k in w.modelle] == [e["modell_name"]] == ["Qwen3 Next 80B"]
+        r = await anw.post("/chat/completions", json={"model": "qwen/qwen3-next-80b", "messages": []}, headers={"X-Leitstelle-Arbeit": "a b"})
+        await _warte_bis(lambda: _zustand(c, r.headers["x-leitstelle-auftrag"], "fertig"))
+        assert (await c.get(f"/api/auftraege/{r.headers['x-leitstelle-auftrag']}")).json()["arbeit"] is None
 
 
 async def test_e02_nicht_geladenes_modell_wird_vorher_geladen_und_gemessen(tmp_path):
@@ -221,6 +242,28 @@ async def test_e09_selbststeuerung_raeumt_leerlauf_fuer_wartenden_auftrag(tmp_pa
         assert lage.entladevorgaenge == ["qwen/qwen3-next-80b"] and lage.ladevorgaenge == ["zai-org/glm-4.6v-flash"]
         massnahmen = (await c.get("/api/massnahmen")).json()["eintraege"]
         assert any(m["art"] == "leerlauf_raeumen" and m["zustand"] == "ausgefuehrt" for m in massnahmen)
+
+
+
+async def test_e18_erst_frei_dann_laden(tmp_path):
+    """Das Entladen dauert, und der Läufer lässt GLM neben dem 80B nicht zu: die Leitstelle lädt erst, wenn das Entladen
+    zurück ist, im ersten Versuch und ohne Ablehnung (vorher liefen beide nebeneinander, das Laden scheiterte)."""
+    r = Regelwerk(bedarfsfrist_s=0, mindestverweildauer_s=0, umschichter_takt_s=0.5)
+    async with aufbau(tmp_path, speicher_gb=64.0, regelwerk=r) as (c, anw, lage, _):
+        lage.speicher_gb, lage.entladezeit_s = 50.0, 0.4
+        antwort = await anw.post("/chat/completions", json={"model": "zai-org/glm-4.6v-flash", "messages": []})
+        assert antwort.status_code == 200, antwort.text
+        assert lage.entladevorgaenge == ["qwen/qwen3-next-80b"] and lage.ladevorgaenge == ["zai-org/glm-4.6v-flash"]
+        meldungen = [m["text"] for m in (await c.get("/api/lage")).json()["meldungen"]]
+        assert not any("abgelehnt" in m for m in meldungen), meldungen
+        async def zwei_bewegungen() -> bool:          # die Schreibfolge legt sie nebenher ab
+            return (await c.get("/api/bewegungen")).json()["gesamt"] == 2
+        await _warte_bis(zwei_bewegungen)
+        b = (await c.get("/api/bewegungen")).json()
+        reihe = [(x["richtung"], x["name"], x["ausgang"]) for x in reversed(b["eintraege"])]
+        assert reihe == [("entladen", "Qwen3 Next 80B", "ok"), ("laden", "Glm 4.6v Flash", "ok")], reihe
+        entladen, laden = reversed(b["eintraege"])
+        assert entladen["dauer_s"] >= 0.4 and laden["zeit_s"] >= entladen["zeit_s"] + entladen["dauer_s"] - 0.01
 
 
 async def test_e10_vom_dienst_selbst_entladenes_modell_wird_neu_geladen(tmp_path):

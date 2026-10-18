@@ -216,6 +216,8 @@ export interface ModellSicht {
   geladen_seit_s: number | null;
   letzte_nutzung_s: number | null;
   auftraege_aktiv: number;
+  plaetze: number;
+  gehalten_von: string | null;
   ladesperre_bis_s: number | null;
   ladesperre_grund: string;
 }
@@ -330,6 +332,7 @@ export interface AuftragEintrag {
   teilergebnis_zeichen: number;
   weg: string;
   schritte: Schritt[];
+  arbeit: string | null;
 }
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema

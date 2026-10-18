@@ -215,8 +215,8 @@ die zugleich die Verbindung offen halten. In der Oberfläche heißen solche Nach
 
 Priorität der Fassaden-Aufträge: Vorgabe der Anwendung; ein Kopf `X-Leitstelle-Prioritaet` kann sie je
 Aufruf absenken (nie heben), ebenso `X-Leitstelle-Titel` für einen lesbaren Titel (prozentkodiert, weil HTTP-Köpfe nur
-ASCII tragen). Mehr als diese zwei Köpfe gibt
-es nicht; wer mehr will, nutzt das Protokoll.
+ASCII tragen) und `X-Leitstelle-Arbeit` für die Arbeit, zu der die Anfrage gehört (ANBINDUNG). Mehr als diese drei
+Köpfe gibt es nicht; wer mehr will, nutzt das Protokoll.
 
 ## 7. Fehler und Gründe
 

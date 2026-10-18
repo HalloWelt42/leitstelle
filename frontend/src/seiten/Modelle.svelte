@@ -124,8 +124,9 @@
                   {#if m.gb_jetzt != null}<div class="zweit" style="text-align:right">jetzt {gb(m.gb_jetzt)}</div>{/if}</td>
                 <td><Zustand art="modell" wert={m.zustand} dreht />
                   <div class="zweit">{#if m.ladesperre_bis_s && m.ladesperre_bis_s > jetzt}<span class="akzent" title="Der Dienst hat das Laden abgelehnt; bis zum Ende der Pause plant die Leitstelle keinen neuen Versuch">abgelehnt: {m.ladesperre_grund}</span>
-                    {:else if m.auftraege_aktiv}<span class="zahl">{m.auftraege_aktiv}</span> {m.auftraege_aktiv === 1 ? 'Auftrag läuft' : 'Aufträge laufen'}
+                    {:else if m.auftraege_aktiv}<span class="zahl">{m.auftraege_aktiv}</span> {m.auftraege_aktiv === 1 ? 'Auftrag läuft' : 'Aufträge laufen'}{#if m.plaetze > 1}<span title="So viele Aufträge rechnet der Dienst nebeneinander (Dienstdatei des Maschinenraums oder Eintrag des Dienstes)">, <span class="zahl">{m.plaetze}</span> Plätze</span>{/if}
                     {:else if warten}<span class="akzent"><span class="zahl">{warten}</span> {warten === 1 ? 'Auftrag wartet' : 'Aufträge warten'} darauf</span>
+                    {:else if m.gehalten_von}<span title="Eine begonnene Arbeit hat es eben genutzt; für andere Anfragen weicht es nicht, bis die Frist ohne Nutzung um ist">bleibt für {m.gehalten_von}</span>
                     {:else if m.zustand !== 'frei'}{m.geladen_seit_s ? `${worte(m).geladen} ${vor(m.geladen_seit_s, jetzt)}` : worte(m) === WORTE.prozess ? 'lief schon vorher' : 'schon vorher geladen'}{/if}</div></td>
                 <td>
                   {#if !steuerbar(m)}<span class="zweit" title="Dieser Dienst lädt selbst; die Leitstelle steuert seinen Speicher nicht">lädt selbst</span>

@@ -9,6 +9,7 @@ Anwendungen genau diese Form lesen.
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 from urllib.parse import unquote
 
@@ -51,6 +52,16 @@ def _titel(request: Request, faehigkeit: Faehigkeit) -> str:
     return unquote(roh)[:200] or f"{WORT[faehigkeit.value]} über die Fassade"
 
 
+ARBEIT_ZEICHEN = re.compile(r"[A-Za-z0-9._:-]{1,64}")
+
+
+def _arbeit(request: Request) -> str | None:
+    """X-Leitstelle-Arbeit: Kennung der Arbeit, zu der die Anfrage gehört (ANBINDUNG 2.1); nur erlaubte Zeichen, sonst
+    zählt die Anfrage für sich."""
+    roh = request.headers.get("x-leitstelle-arbeit", "").strip()
+    return roh if ARBEIT_ZEICHEN.fullmatch(roh) else None
+
+
 def _bild_im_chat(koerper: dict[str, Any]) -> bool:
     for n in koerper.get("messages") or []:
         inhalt = n.get("content") if isinstance(n, dict) else None
@@ -86,7 +97,7 @@ async def _vermitteln(request: Request, pfad: str, faehigkeit: Faehigkeit) -> Re
     titel = _titel(request, faehigkeit)
     verm = vermittlung(request)
     try:
-        v = verm.annehmen(app.kennung, faehigkeit, koerper.get("model"), _prioritaet(request, app), titel)
+        v = verm.annehmen(app.kennung, faehigkeit, koerper.get("model"), _prioritaet(request, app), titel, _arbeit(request))
     except Ablehnung as a:
         return fehler_antwort(a.grund, a.begruendung)
 
@@ -132,7 +143,7 @@ async def einbettung(request: Request) -> Response:
 
 # Köpfe, die nur einer Verbindung gelten oder die Leitstelle selbst auswertet
 OHNE_KOPF = {"host", "authorization", "content-length", "connection", "keep-alive", "transfer-encoding", "te", "trailer", "upgrade",
-             "x-leitstelle-titel", "x-leitstelle-prioritaet"}
+             "x-leitstelle-titel", "x-leitstelle-prioritaet", "x-leitstelle-arbeit"}
 
 
 async def dienst(request: Request, name: str, pfad: str) -> Response:
@@ -149,7 +160,7 @@ async def dienst(request: Request, name: str, pfad: str) -> Response:
         return fehler_antwort(a.grund, a.begruendung)
     try:
         faehigkeit = verm.faehigkeit_fuer(app.kennung, familie)
-        v = verm.annehmen(app.kennung, faehigkeit, name, _prioritaet(request, app), _titel(request, faehigkeit))
+        v = verm.annehmen(app.kennung, faehigkeit, name, _prioritaet(request, app), _titel(request, faehigkeit), _arbeit(request))
     except Ablehnung as a:
         return fehler_antwort(a.grund, a.begruendung)
     anfrage = Durchleitung(methode=request.method, pfad=pfad, abfrage=request.url.query, inhalt=await request.body(),

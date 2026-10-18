@@ -59,13 +59,14 @@ class Vermittlung:
         self.konfig = konfig
 
     # ── Annehmen ─────────────────────────────────────────────────────────
-    def annehmen(self, anwendung: str, faehigkeit: Faehigkeit, modellwunsch: str | None, prioritaet: Prioritaet | None, titel: str) -> Vorgang:
+    def annehmen(self, anwendung: str, faehigkeit: Faehigkeit, modellwunsch: str | None, prioritaet: Prioritaet | None, titel: str,
+                 arbeit: str | None = None) -> Vorgang:
         familie = None
         if modellwunsch and modellwunsch not in ("auto", "leitstelle"):
             familie = self.betrieb.familie_fuer(modellwunsch)
             if familie is None:
                 raise self.betrieb.unbekannt(modellwunsch)
-        auftrag, lauf = self.betrieb.anlegen(anwendung, faehigkeit, familie, prioritaet, titel)
+        auftrag, lauf = self.betrieb.anlegen(anwendung, faehigkeit, familie, prioritaet, titel, arbeit)
         v = Vorgang(auftrag=auftrag, lauf=lauf)
         if lauf.ende.is_set():                         # sofort abgelehnt (Rechte, Zone, kein Modell)
             self._abschliessen(v, Auftragszustand.ABGELEHNT, lauf.grund, lauf.begruendung)

@@ -73,6 +73,8 @@ class ModellSicht(BaseModel):
     geladen_seit_s: float | None
     letzte_nutzung_s: float | None
     auftraege_aktiv: int
+    plaetze: int
+    gehalten_von: str | None          # Titel der begonnenen Arbeit, für die es nicht weicht
     ladesperre_bis_s: float | None
     ladesperre_grund: str
 
@@ -157,7 +159,8 @@ def lagebild(b: Betrieb) -> Lagebild:
     modelle = [ModellSicht(kennung=m.kennung, name=m.name, familie=m.familie, dienst=m.dienst, knoten=v.dienste[m.dienst].knoten if m.dienst in v.dienste else None,
                            faehigkeiten=sorted(m.faehigkeiten, key=lambda f: f.value), gb=m.gb, gb_jetzt=m.gb_jetzt, parameter_mrd=m.parameter_mrd, zustand=m.zustand,
                            geschuetzt=m.geschuetzt(r.schutzgrenze_mrd), geladen_seit_s=m.geladen_seit_s, letzte_nutzung_s=m.letzte_nutzung_s,
-                           auftraege_aktiv=m.auftraege_aktiv, ladesperre_bis_s=m.ladesperre_bis_s, ladesperre_grund=m.ladesperre_grund)
+                           auftraege_aktiv=m.auftraege_aktiv, plaetze=v.plaetze(m),
+                           gehalten_von=w.titel if (w := v.arbeit_haelt(m.kennung)) else None, ladesperre_bis_s=m.ladesperre_bis_s, ladesperre_grund=m.ladesperre_grund)
                for m in sorted(v.modelle.values(), key=lambda x: (x.dienst, -x.gb))]
     auftraege = []
     for a in sorted(v.auftraege.values(), key=lambda x: x.eingang_s):

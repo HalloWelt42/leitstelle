@@ -3,6 +3,7 @@
 import pytest
 
 from leitstelle.kern.messungen import Messwerk
+from leitstelle.kern.modelle import Arbeit
 from leitstelle.kern.speicherplaner import planen
 from leitstelle.kern.werte import Faehigkeit as F
 
@@ -83,3 +84,27 @@ def test_s49_verplant_wird_der_bedarf_belegt_ist_der_ist_wert(welt):
     m.gb_jetzt = 0.5
     assert welt.verbund.geladen_gb("mac-128") == vorher_geplant
     assert welt.verbund.belegt_bekannt_gb("mac-128") == pytest.approx(vorher_belegt - m.gb + 0.5)
+
+
+def test_begonnene_arbeit_behaelt_ihre_modelle(welt):
+    """Nutzer 18.10.2026: "Begonnenes nicht wegnehmen". Ein Modell, das eine begonnene Arbeit in der Frist genutzt hat,
+    weicht nicht für andere, wohl aber für die Arbeit selbst; nach der Frist oder bei nur einer Anfrage hält es nichts."""
+    v = welt.verbund
+    w = v.arbeiten["vertonung:a1"] = Arbeit(kennung="vertonung:a1", anwendung="vertonung", titel="Vertonung: Probe",
+                                            beginn_s=v.zeit_s - 900, anfragen=5, modelle={"qwen80@128": v.zeit_s - 100})
+    plan = planen(v, "mac-128", 11.8, Messwerk(), familie="glm-4.6v")
+    assert not plan.passt and "begonnene Arbeit Vertonung: Probe nutzt es (zuletzt vor 100 s)" in plan.begruendung
+    assert planen(v, "mac-128", 11.8, Messwerk(), familie="glm-4.6v", fuer_arbeit="vertonung:a1").entladen == ["qwen80@128"]
+    w.modelle["qwen80@128"] = v.zeit_s - v.regelwerk.arbeit_frist_s
+    assert planen(v, "mac-128", 11.8, Messwerk(), familie="glm-4.6v").entladen == ["qwen80@128"], "nach der Frist hält sie nichts"
+    w.modelle["qwen80@128"], w.anfragen = v.zeit_s - 100, 1
+    assert planen(v, "mac-128", 11.8, Messwerk(), familie="glm-4.6v").entladen == ["qwen80@128"], "eine einzelne Anfrage hält nichts"
+
+
+def test_vorbei_ist_eine_arbeit_ohne_offene_anfrage_nach_der_frist(welt):
+    v = welt.verbund
+    v.arbeiten["vertonung:a1"] = Arbeit(kennung="vertonung:a1", anwendung="vertonung", titel="alt", beginn_s=v.zeit_s - 900,
+                                        anfragen=3, modelle={"qwen80@128": v.zeit_s - v.regelwerk.arbeit_frist_s})
+    v.arbeiten["vertonung:a2"] = Arbeit(kennung="vertonung:a2", anwendung="vertonung", titel="neu", beginn_s=v.zeit_s - 10, anfragen=1)
+    v.arbeiten_aufraeumen()
+    assert list(v.arbeiten) == ["vertonung:a2"]

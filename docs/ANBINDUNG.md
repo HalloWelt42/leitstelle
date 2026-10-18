@@ -66,8 +66,12 @@ Die Anwendung ändert nur die Adresse ihres Modell-Läufers und bekommt einen Sc
   `X-Leitstelle-Wartet-S` (geschätzte Wartezeit, wenn der Auftrag beim Antworten wartet); bei Antworten ohne Strom
   zusätzlich `X-Leitstelle-Modell` und `X-Leitstelle-Knoten`.
 - Köpfe, die eine Anwendung senden darf: `X-Leitstelle-Prioritaet` (`hintergrund`, `normal`, `hoch`, `dringend`;
-  senkt die Vorgabe der Anwendung, hebt sie nie) und `X-Leitstelle-Titel` (lesbarer Titel für Oberfläche und
-  Verlauf; HTTP-Köpfe tragen nur ASCII, Umlaute deshalb prozentkodiert, zum Beispiel `Quelltext%20pr%C3%BCfen`).
+  senkt die Vorgabe der Anwendung, hebt sie nie), `X-Leitstelle-Titel` (lesbarer Titel für Oberfläche und
+  Verlauf; HTTP-Köpfe tragen nur ASCII, Umlaute deshalb prozentkodiert, zum Beispiel `Quelltext%20pr%C3%BCfen`) und
+  `X-Leitstelle-Arbeit` (Kennung einer Arbeit der Anwendung, die aus vielen Anfragen besteht, etwa ein Auftrag einer
+  Vertonung; 1 bis 64 Zeichen aus `A-Z a-z 0-9 . _ : -`, sonst zählt die Anfrage für sich). Ab der zweiten Anfrage gilt
+  die Arbeit als begonnen: Modelle, die sie in den letzten `arbeit_frist_s` (Vorgabe 300 s) genutzt hat, entlädt die
+  Leitstelle nicht für andere, nur für die Arbeit selbst. Der Appkern setzt den Kopf in jedem Auftrag von selbst.
 - Mehr gleichzeitige Aufträge als erlaubt warten in der Warteschlange statt abgelehnt zu werden.
 - Fehlt `model`, setzt die Leitstelle das erste passende Modell der Kette ein.
 - Reasoning-Modelle mit leerem Inhalt: die Leitstelle wiederholt mit größerem Budget und entfernt die

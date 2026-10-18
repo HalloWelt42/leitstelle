@@ -90,5 +90,6 @@ async def test_migration_mit_altbestand(tmp_path):
     db = Datenbank(pfad)
     await db.oeffnen()
     a = await Ablage(db).auftraege.holen("a")
-    assert a is not None and a.schritte == [] and a.eingang_s == 5.0
+    assert a is not None and a.schritte == [] and a.eingang_s == 5.0 and a.arbeit is None
+    assert await Ablage(db).bewegungen.neueste() == ([], 0)
     await db.schliessen()

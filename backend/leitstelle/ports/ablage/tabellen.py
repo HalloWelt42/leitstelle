@@ -88,6 +88,7 @@ class AuftragTabelle(Basis):
     teilergebnis_zeichen: Mapped[int] = mapped_column(Integer, default=0)
     weg: Mapped[str] = mapped_column(String(20), default="fassade")
     schritte: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
+    arbeit: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
 
 
 class MassnahmeTabelle(Basis):
@@ -119,6 +120,22 @@ class EinstellungTabelle(Basis):
     __tablename__ = "einstellungen"
     schluessel: Mapped[str] = mapped_column(String(40), primary_key=True)
     wert: Mapped[dict[str, Any]] = mapped_column(JSON)
+
+
+class BewegungTabelle(Basis):
+    """Laden und Entladen als Rohdaten: nur anhängen."""
+
+    __tablename__ = "bewegungen"
+    nummer: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    zeit_s: Mapped[float] = mapped_column(Float, index=True)
+    richtung: Mapped[str] = mapped_column(String(20))
+    familie: Mapped[str] = mapped_column(String(255), index=True)
+    name: Mapped[str] = mapped_column(String(255))
+    knoten: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    gb: Mapped[float] = mapped_column(Float)
+    dauer_s: Mapped[float] = mapped_column(Float)
+    ausgang: Mapped[str] = mapped_column(String(20))
+    meldung: Mapped[str] = mapped_column(Text, default="")
 
 
 class PruefTabelle(Basis):

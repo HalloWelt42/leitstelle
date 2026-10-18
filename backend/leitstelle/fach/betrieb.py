@@ -25,7 +25,8 @@ from ..kern.messungen import Messwerk
 from ..kern.modelle import Anwendung, Auftrag, Dienst, Knoten, Massnahme, Modell, Verbund
 from ..kern.werte import Auftragszustand, Betriebsmodus, Dienstzustand, Faehigkeit, Massnahmenzustand, Modellzustand, Prioritaet
 from ..konfig import Konfig
-from ..ports.ablage.eintraege import Adapterart, AnwendungEintrag, AuftragEintrag, BetriebEinstellung, DienstEintrag, KnotenEintrag, PruefEintrag, Schritt
+from ..ports.ablage.eintraege import (Adapterart, AnwendungEintrag, AuftragEintrag, Ausgang, BetriebEinstellung, Bewegung, DienstEintrag, KnotenEintrag,
+                                      PruefEintrag, Richtung, Schritt)
 from ..ports.agenten import AgentVerbindung, Agentenvermittlung
 from ..ports.ablage.repositorien import Ablage
 from ..ports.dienste import AdapterFabrik, DienstAdapter, DienstFehler, ModellBericht, agent_adresse
@@ -128,6 +129,7 @@ class Betrieb:
         self.laeufe: dict[str, Lauf] = {}
         self.ladeversuche: dict[str, int] = {}
         self.ladeaufgaben: dict[str, asyncio.Task] = {}
+        self.entladungen: dict[str, set[asyncio.Task]] = {}   # je Knoten laufendes Entladen; Laden dort wartet darauf
         self.massnahmen: deque[Massnahme] = deque(maxlen=40)
         self.meldungen: deque[tuple[float, str]] = deque(maxlen=60)
         self._gesperrt_gemeldet: dict[tuple, float] = {}
@@ -176,7 +178,7 @@ class Betrieb:
         for a in self.adapter.values():
             await a.schliessen()
 
-    def _nebenbei(self, coro: Coroutine[Any, Any, Any]) -> None:
+    def _nebenbei(self, coro: Coroutine[Any, Any, Any]) -> asyncio.Task:
         """Was den Ablauf nicht aufhalten soll (schließen, abgleichen, entladen); Fehler landen im Protokoll. Schreiben in
         die Ablage geht über die Schreibfolge, damit nichts Älteres etwas Neueres überholt."""
         t = asyncio.create_task(coro)
@@ -188,6 +190,7 @@ class Betrieb:
                 log.error("Hintergrundaufgabe gescheitert: %r", x.exception())
 
         t.add_done_callback(fertig)
+        return t
 
     def geaendert(self) -> None:
         self.aenderung += 1
@@ -474,7 +477,8 @@ class Betrieb:
                 lauf.freigabe.set()
 
     # ── Aufträge ─────────────────────────────────────────────────────────
-    def anlegen(self, anwendung: str, faehigkeit: Faehigkeit, festes_modell: str | None, prioritaet: Prioritaet | None, titel: str) -> tuple[Auftrag, Lauf]:
+    def anlegen(self, anwendung: str, faehigkeit: Faehigkeit, festes_modell: str | None, prioritaet: Prioritaet | None, titel: str,
+                arbeit: str | None = None) -> tuple[Auftrag, Lauf]:
         app = self.anwendungen[anwendung]
         if self.verbund.betriebsmodus == Betriebsmodus.HALT:
             raise Ablehnung("halt", "Der Hauptregler steht auf Halt; es wird nichts gerechnet.")
@@ -482,7 +486,10 @@ class Betrieb:
             raise Ablehnung("gesperrt", app.sperrgrund or "Die Anwendung ist gesperrt.")
         self._zeit_setzen()
         a = Auftrag(kennung=uuid4().hex, anwendung=anwendung, faehigkeit=faehigkeit, prioritaet=app.prioritaet if prioritaet is None else prioritaet,
-                    eingang_s=self.verbund.zeit_s, festes_modell=festes_modell, anhaltbar=False, laufzeit_s=0.0)
+                    eingang_s=self.verbund.zeit_s, festes_modell=festes_modell, anhaltbar=False, laufzeit_s=0.0,
+                    arbeit=f"{anwendung}:{arbeit}" if arbeit else None)
+        self.verbund.arbeiten_aufraeumen()
+        self.verbund.arbeit_zaehlen(a, titel)
         lauf = Lauf(a.kennung, titel)
         lauf.notieren(a.eingang_s, Auftragszustand.EINGEREIHT, f"angenommen von {app.name}" + (f", Modell {festes_modell} verlangt" if festes_modell else ""))
         self.verbund.auftraege[a.kennung] = a
@@ -507,6 +514,7 @@ class Betrieb:
             m.letzte_nutzung_s = jetzt
             if m.auftraege_aktiv == 0 and m.zustand == Modellzustand.RECHNET:
                 m.zustand = Modellzustand.GELADEN
+            self.verbund.arbeit_nutzte(a)
         if zustand == Auftragszustand.FERTIG and a.start_s is not None:
             self.messwerk.merke_laufzeit(a.anwendung, a.faehigkeit.value, jetzt - a.start_s)
             self.schreibfolge.einreihen(self.ablage.messungen.speichern(self.messwerk))
@@ -538,7 +546,7 @@ class Betrieb:
                               modell_name=m.name if m else None, dienst=a.dienst, knoten=a.knoten, extern=a.extern, umgeleitet=a.umgeleitet,
                               eingang_s=a.eingang_s, start_s=a.start_s, ende_s=a.ende_s, erstes_stueck_s=messung.erstes_stueck_s,
                               token_ein=messung.token_ein, token_aus=messung.token_aus, teilergebnis_zeichen=messung.teilergebnis_zeichen,
-                              schritte=list(lauf.schritte) if lauf else [])
+                              schritte=list(lauf.schritte) if lauf else [], arbeit=a.arbeit)
 
     def ort(self, modell: str) -> ModellOrt:
         return self.orte.get(modell) or ModellOrt(schluessel=self.verbund.modelle[modell].familie)
@@ -677,13 +685,18 @@ class Betrieb:
     async def _laden(self, modell: str) -> None:
         m = self.verbund.modelle[modell]
         d = self.verbund.dienste[m.dienst]
+        if laufend := self.entladungen.get(d.knoten or ""):
+            # Erst frei, dann laden: was für dieses Laden weicht, muss den Speicher wirklich hergegeben haben
+            await asyncio.gather(*laufend, return_exceptions=True)
         start = self.uhr.jetzt()
         try:
             instanz = await self.adapter[d.kennung].laden(self.ort(modell).schluessel)
         except DienstFehler as f:
+            self._bewegung(modell, Richtung.LADEN, start, Ausgang.ABGELEHNT, f.meldung)
             self._laden_gescheitert(modell, f)
         else:
             dauer = self.uhr.jetzt() - start
+            self._bewegung(modell, Richtung.LADEN, start)
             self.orte.setdefault(modell, ModellOrt(schluessel=m.familie)).instanzen = [instanz]
             if m.zustand == Modellzustand.LAEDT:
                 m.zustand = Modellzustand.GELADEN
@@ -733,16 +746,35 @@ class Betrieb:
         m.geladen_seit_s = None
         if modell in self.orte:
             self.orte[modell].instanzen = []
-        self._nebenbei(self._entladen(d.kennung, m.name, instanzen))
+        if d.knoten:
+            laufend = self.entladungen.setdefault(d.knoten, set())
+            t = self._nebenbei(self._entladen(modell, instanzen))
+            laufend.add(t)
+            t.add_done_callback(laufend.discard)
+        else:
+            self._nebenbei(self._entladen(modell, instanzen))
         self.bus.senden(umschlag("signal.modell", {"modell": m.name, "zustand": "entladen", "knoten": d.knoten}))
         self.geaendert()
 
-    async def _entladen(self, dienst: str, name: str, instanzen: list[str]) -> None:
+    async def _entladen(self, modell: str, instanzen: list[str]) -> None:
+        m = self.verbund.modelle[modell]
         for i in instanzen:
+            start = self.uhr.jetzt()
             try:
-                await self.adapter[dienst].entladen(i)
+                await self.adapter[m.dienst].entladen(i)
             except DienstFehler as f:
-                self.melden(f"Entladen von {name} gescheitert: {f.meldung}; der nächste Abgleich zeigt den wahren Stand")
+                self._bewegung(modell, Richtung.ENTLADEN, start, Ausgang.GESCHEITERT, f.meldung)
+                self.melden(f"Entladen von {m.name} gescheitert: {f.meldung}; der nächste Abgleich zeigt den wahren Stand")
+            else:
+                self._bewegung(modell, Richtung.ENTLADEN, start)
+
+    def _bewegung(self, modell: str, richtung: Richtung, start: float, ausgang: Ausgang = Ausgang.OK, meldung: str = "") -> None:
+        """Laden und Entladen als Rohdatum in den Verlauf."""
+        m = self.verbund.modelle[modell]
+        knoten = self.verbund.dienste[m.dienst].knoten if m.dienst in self.verbund.dienste else None
+        b = Bewegung(zeit_s=start, richtung=richtung, familie=m.familie, name=m.name, knoten=knoten, gb=m.gb,
+                     dauer_s=round(self.uhr.jetzt() - start, 3), ausgang=ausgang, meldung=meldung[:300])
+        self.schreibfolge.einreihen(self.ablage.bewegungen.anhaengen(b))
 
     def auftrag_umleiten(self, auftrag: str, dienst: str, modell: str, knoten: str | None) -> None:
         a = self.verbund.auftraege[auftrag]

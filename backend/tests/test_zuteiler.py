@@ -3,6 +3,8 @@ Szenarien S01 bis S08 und S28 aus docs/SZENARIEN.md."""
 
 from leitstelle.kern.werte import Auftragszustand as Z, Betriebsmodus, Faehigkeit as F, Prioritaet as P, Zone
 
+from leitstelle.kern.zuteiler import reihenfolge
+
 from conftest import entlade, lade, welt_mit
 
 
@@ -165,3 +167,12 @@ def test_plaetze_je_modell_maschinenraum_bestimmt_eintrag_begrenzt(welt):
     assert v.plaetze(m) == 4, "beim Maschinenraum zählt die Dienstdatei"
     m.plaetze = None
     assert v.plaetze(m) == 1
+
+
+def test_einbettung_zuerst(welt):
+    """Nutzer 18.10.2026: Einbettung hat höchste Priorität, vor jedem Text, auch einem dringenden; untereinander gilt
+    wieder die Priorität."""
+    text = welt.auftrag("zusage", F.TEXT, prioritaet=P.DRINGEND)
+    spaet = welt.auftrag("fundus", F.EINBETTUNG, prioritaet=P.HINTERGRUND)
+    such = welt.auftrag("fundus", F.EINBETTUNG, prioritaet=P.NORMAL)
+    assert [a.kennung for a in reihenfolge(welt.verbund)] == [such.kennung, spaet.kennung, text.kennung]

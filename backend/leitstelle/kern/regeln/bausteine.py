@@ -263,7 +263,8 @@ def leerlaufmodell_vorhanden(k: Kontext) -> bool:
     if not m.ladbar(k.verbund.zeit_s):
         k.werte["leerlauf"] = f"Laden von {m.name} ist gesperrt: {m.ladesperre_grund}"
         return False
-    plan = planen(k.verbund, k.knoten_quelle, m.gb, k.messwerk, familie=fam, nur_leerlauf=True, leerlauf_grenze_s=k.r.bedarfsfrist_s)
+    plan = planen(k.verbund, k.knoten_quelle, m.gb, k.messwerk, familie=fam, nur_leerlauf=True, leerlauf_grenze_s=k.r.bedarfsfrist_s,
+                  fuer_arbeit=a.arbeit)
     if not plan.passt or not plan.entladen:
         k.werte["leerlauf"] = plan.begruendung
         return False

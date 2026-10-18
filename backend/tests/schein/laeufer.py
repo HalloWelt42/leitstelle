@@ -33,6 +33,7 @@ class Lage:
     modelle: dict[str, ScheinModell]
     speicher_gb: float = 100.0       # was der Läufer insgesamt laden lässt
     ladezeit_s: float = 0.05
+    entladezeit_s: float = 0.0       # bis der Speicher wirklich frei ist
     stueck_pause_s: float = 0.01
     stuecke: int = 5
     kopf_pause_s: float = 0.0        # /schein/sprechen: Rechenzeit bis zum Antwortkopf
@@ -104,6 +105,7 @@ def schein_laeufer(lage: Lage | None = None) -> FastAPI:
         m = L().modell_der_instanz(kennung)
         if m is None or kennung not in m.instanzen:
             return JSONResponse({"error": {"message": f"instance {kennung} not loaded"}}, status_code=404)
+        await asyncio.sleep(L().entladezeit_s)
         m.instanzen.remove(kennung)
         L().entladevorgaenge.append(m.schluessel)
         return {"instance_id": kennung}

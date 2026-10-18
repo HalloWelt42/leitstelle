@@ -101,6 +101,7 @@ class AuftragEintrag(BaseModel):
     teilergebnis_zeichen: int = 0
     weg: str = "fassade"
     schritte: list[Schritt] = Field(default_factory=list)
+    arbeit: str | None = None          # Arbeit der Anwendung (Kopf X-Leitstelle-Arbeit), "anwendung:kennung"
 
 
 class Kennzahlen(BaseModel):
@@ -127,3 +128,29 @@ class PruefEintrag(BaseModel):
     wer: str
     was: str
     gegenstand: str = ""
+
+
+class Richtung(str, Enum):
+    LADEN = "laden"
+    ENTLADEN = "entladen"
+
+
+class Ausgang(str, Enum):
+    OK = "ok"
+    ABGELEHNT = "abgelehnt"           # der Dienst hat das Laden abgelehnt (etwa zu wenig Speicher)
+    GESCHEITERT = "gescheitert"       # Fehler beim Entladen; der nächste Abgleich zeigt den wahren Stand
+
+
+class Bewegung(BaseModel):
+    """Ein Laden oder Entladen als Rohdatum, damit sich Fristen und Regeln aus dem Verlauf einstellen lassen
+    (ZUSAMMENSPIEL Z2). `zeit_s` ist der Beginn beim Dienst, `dauer_s` bis zur Antwort."""
+
+    zeit_s: float
+    richtung: Richtung
+    familie: str
+    name: str
+    knoten: str | None = None
+    gb: float
+    dauer_s: float
+    ausgang: Ausgang = Ausgang.OK
+    meldung: str = ""

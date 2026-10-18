@@ -34,22 +34,38 @@ Der Pi rechnet nicht (Nutzer 18.10.2026: "pi ist nur datenlieferant"); Rechenkno
 
 ### Stufe Z1: Maschinenraum meldet richtig (zuerst)
 
-- **Bedarf**: was ein Dienst im Betrieb typischerweise braucht, nicht der höchste je gemessene Wert: der 95-%-Wert der
-  Messungen der letzten 24 Stunden, mindestens die Schätzung der Dienstdatei. Einzelne Spitzen fallen heraus und
-  verfallen; ein Dienst, der wirklich mehr braucht, hebt den Wert von selbst.
+Stand: umgesetzt und ausgerollt am 18.10.2026 (Leitstelle 0.12.0, Maschinenraum 0.9.0, Dienstkern 0.2.1).
+
+- **Bedarf**: was ein Dienst im Betrieb typischerweise braucht, nicht der höchste je gemessene Wert: der 80-%-Rangwert
+  der letzten 30 Arbeitsspitzen (je Arbeitsphase der höchste Wert), mindestens die Schätzung der Dienstdatei und
+  mindestens der Wert gerade. Einzelne Spitzen fallen heraus und verfallen; ein Dienst, der wirklich mehr braucht, hebt
+  den Wert von selbst. Ergebnis: frei 28,6 statt 10,9 GiB; Stimmklon 6,0, Trennen 4,7, Sprechen 3,3.
 - **Plätze**: je Dienst in der Dienstdatei (`plaetze`, Vorgabe 1; Tondienst 4), gemeldet an die Leitstelle; die
-  Leitstelle nutzt sie je Modell (auch `parallel` der Modell-Läufer) statt fest 1.
-- **Eine Einheit**: GB (10^9 Byte) überall.
+  Leitstelle nutzt sie je Modell (auch `parallel` der Modell-Läufer) statt fest 1. Die Modellseite zeigt sie, sobald
+  mehr als ein Platz da ist.
+- **Eine Einheit**: GiB (2^30 Byte) überall, wie die Speicheranzeige von macOS und der Maschinenraum.
 - **Start auf Befehl** setzt den Absturzzähler nicht zurück (sonst hebelt die Leitstelle "bleibt aus" aus).
 
 ### Stufe Z2: Leitstelle entscheidet sauber
 
+Stand 18.10.2026 (Leitstelle 0.13.0, Appkern 0.31.0): Arbeit, Einbettung zuerst, erst frei dann laden und Bewegungen
+umgesetzt; Vorrang und Wahl beim Entladen waren schon so (größtes ungenutztes zuerst, nur so viel wie nötig).
+
+- **Begonnenes nicht wegnehmen**: jede Anfrage aus einem Auftrag einer App trägt dessen Kennung (Kopf
+  `X-Leitstelle-Arbeit`, setzt der Appkern). Ab der zweiten Anfrage gilt die Arbeit als begonnen; Modelle, die sie in
+  den letzten `arbeit_frist_s` (300 s) genutzt hat, weichen nicht für andere, nur für sie selbst. Die Modellseite zeigt
+  "bleibt für ...", der Speicherplan nennt die Arbeit als Grund. Der Verlauf trägt die Arbeit je Auftrag, damit sich
+  Frist und Schwelle aus echten Abläufen einstellen lassen.
+- **Einbettung zuerst**: in der Warteschlange vor jedem Text, auch einem dringenden; geladen bleibt sie (geschützt).
 - **Entladen nur bei Not**: wer weicht, bestimmt die Rangfolge (siehe unten); nie ein rechnendes, zugeteiltes oder
   geschütztes Modell (unter 10B, Einbettung); Mindestverweildauer bleibt.
-- **Erst frei, dann laden**: nach dem Entladen auf die Freimeldung des Rechners warten, dann laden.
+- **Erst frei, dann laden**: ein Laden wartet, bis jedes laufende Entladen auf demselben Rechner zurück ist (vorher
+  liefen beide nebeneinander, und der Dienst konnte das Laden mangels Speicher ablehnen).
 - **Vorrang** nach den Regeln des Nutzers (Rangfolge im Dialog geklärt, siehe Entscheidungen).
 - **Messwerte als Rohdaten**: Lade-, Warte- und Rechenzeiten je Modell und Knoten bleiben als Reihe, damit sich die
   Regeln aus dem Verlauf einstellen lassen (Nutzer: "da wir loggen, können wir die logs ... zum verbessern nutzen").
+  Warte- und Rechenzeiten stehen in den Aufträgen (`/api/auftraege`), jedes Laden und Entladen mit Beginn, Dauer und
+  Ausgang in `/api/bewegungen`.
 
 ### Stufe Z3: mehrere Instanzen kleiner Dienste
 

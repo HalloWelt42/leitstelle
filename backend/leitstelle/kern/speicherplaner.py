@@ -2,7 +2,8 @@
 
 Reine Funktion über den Verbund. Regeln (aus txt2voice und Zusage zusammengeführt):
 Budget je Knoten; nie entladen: geschützte Modelle (unter der Schutzgrenze oder Einbettung),
-rechnende Modelle, Modelle mit wartenden Aufträgen, Modelle innerhalb der Mindestverweildauer;
+rechnende Modelle, Modelle mit wartenden Aufträgen, Modelle, die eine begonnene Arbeit einer Anwendung
+gerade nutzt (außer für diese Arbeit selbst), Modelle innerhalb der Mindestverweildauer;
 nur so viel wie nötig, größte zuerst; Leerlauf-Entladen nur, wenn Platz gebraucht wird.
 Der Plan ist zugleich die Vorschau ("Speicher freigeben").
 """
@@ -29,8 +30,9 @@ class Speicherplan(BaseModel):
     begruendung: str = ""
 
 
-def entladbar(verbund: Verbund, m: Modell, jetzt: float, nur_leerlauf: bool, leerlauf_grenze_s: float | None = None) -> tuple[bool, str]:
-    """Ob ein Modell weichen darf, mit Grund, warum nicht."""
+def entladbar(verbund: Verbund, m: Modell, jetzt: float, nur_leerlauf: bool, leerlauf_grenze_s: float | None = None,
+              fuer_arbeit: str | None = None) -> tuple[bool, str]:
+    """Ob ein Modell weichen darf, mit Grund, warum nicht. `fuer_arbeit`: die Arbeit, für die Platz gebraucht wird."""
     r = verbund.regelwerk
     if m.zustand != Modellzustand.GELADEN or verbund.belegung(m.kennung):
         return False, "rechnet, lädt oder ist schon zugeteilt"
@@ -38,6 +40,8 @@ def entladbar(verbund: Verbund, m: Modell, jetzt: float, nur_leerlauf: bool, lee
         return False, "geschützt (vom Dienst vorgegeben, unter der Schutzgrenze oder Einbettung)"
     if verbund.wartende_auf_familie(m.familie):
         return False, "ein Auftrag wartet darauf"
+    if (w := verbund.arbeit_haelt(m.kennung, ausser=fuer_arbeit)) is not None:
+        return False, f"die begonnene Arbeit {w.titel} nutzt es (zuletzt vor {jetzt - w.modelle[m.kennung]:.0f} s)"
     if m.geladen_seit_s is not None and jetzt - m.geladen_seit_s < r.mindestverweildauer_s:
         return False, "Mindestverweildauer läuft noch"
     grenze = r.leerlauf_s if leerlauf_grenze_s is None else leerlauf_grenze_s
@@ -46,7 +50,8 @@ def entladbar(verbund: Verbund, m: Modell, jetzt: float, nur_leerlauf: bool, lee
     return True, "darf weichen"
 
 
-def planen(verbund: Verbund, knoten: str, benoetigt_gb: float, messwerk: Messwerk, familie: str | None = None, nur_leerlauf: bool = False, leerlauf_grenze_s: float | None = None) -> Speicherplan:
+def planen(verbund: Verbund, knoten: str, benoetigt_gb: float, messwerk: Messwerk, familie: str | None = None, nur_leerlauf: bool = False,
+           leerlauf_grenze_s: float | None = None, fuer_arbeit: str | None = None) -> Speicherplan:
     """Plant, ob benoetigt_gb auf dem Knoten Platz findet; entlädt nur so viel wie nötig, größte zuerst."""
     jetzt = verbund.zeit_s
     frei = verbund.frei_gb(knoten)
@@ -54,7 +59,7 @@ def planen(verbund: Verbund, knoten: str, benoetigt_gb: float, messwerk: Messwer
     if benoetigt_gb <= frei:
         return Speicherplan(knoten=knoten, benoetigt_gb=benoetigt_gb, frei_gb=frei, passt=True, aufwand_s=ladezeit,
                             begruendung=f"{komma(benoetigt_gb)} GB passen, {komma(frei)} GB frei")
-    kandidaten = sorted((m for m in verbund.modelle_auf(knoten) if entladbar(verbund, m, jetzt, nur_leerlauf, leerlauf_grenze_s)[0]), key=lambda m: m.gb, reverse=True)
+    kandidaten = sorted((m for m in verbund.modelle_auf(knoten) if entladbar(verbund, m, jetzt, nur_leerlauf, leerlauf_grenze_s, fuer_arbeit)[0]), key=lambda m: m.gb, reverse=True)
     entladen: list[str] = []
     gewonnen = 0.0
     for m in kandidaten:
@@ -77,6 +82,6 @@ def planen(verbund: Verbund, knoten: str, benoetigt_gb: float, messwerk: Messwer
         if frei + gewonnen + m.gb >= benoetigt_gb:
             frei_nach = rest
             break
-    gruende = "; ".join(f"{m.name}: {entladbar(verbund, m, jetzt, nur_leerlauf, leerlauf_grenze_s)[1]}" for m in verbund.modelle_auf(knoten) if m.im_speicher and m.kennung not in entladen)
+    gruende = "; ".join(f"{m.name}: {entladbar(verbund, m, jetzt, nur_leerlauf, leerlauf_grenze_s, fuer_arbeit)[1]}" for m in verbund.modelle_auf(knoten) if m.im_speicher and m.kennung not in entladen)
     return Speicherplan(knoten=knoten, benoetigt_gb=benoetigt_gb, frei_gb=frei, passt=False, entladen=[], frei_nach_s=frei_nach, blockiert_durch=blockiert,
                         aufwand_s=ladezeit, begruendung=f"{komma(benoetigt_gb)} GB passen nicht neben {komma(verbund.geladen_gb(knoten))} GB ({komma(frei)} GB frei). {gruende}")
