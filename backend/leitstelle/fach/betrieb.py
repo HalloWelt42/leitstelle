@@ -34,6 +34,7 @@ from ..ports.uhr import Uhr
 from ..protokoll.umschlag import umschlag
 from .ereignisse import Ereignisbus
 from .fehler import Ablehnung
+from .schreibfolge import Schreibfolge
 from ..kern.text import komma
 
 log = logging.getLogger("leitstelle.betrieb")
@@ -131,6 +132,7 @@ class Betrieb:
         self.meldungen: deque[tuple[float, str]] = deque(maxlen=60)
         self._gesperrt_gemeldet: dict[tuple, float] = {}
         self._hintergrund: set[asyncio.Task] = set()
+        self.schreibfolge = Schreibfolge()   # alles, was im Hintergrund in die Ablage geht, in der Reihenfolge des Geschehens
         self._schleife: asyncio.Task | None = None
         self._letzter_abgleich = 0.0
         self._letzte_umschichtung = 0.0
@@ -169,12 +171,14 @@ class Betrieb:
         for t in list(self.ladeaufgaben.values()) + list(self._hintergrund):
             t.cancel()
         await asyncio.gather(*self._hintergrund, *self.ladeaufgaben.values(), return_exceptions=True)
+        await self.schreibfolge.leeren()
         await self.ablage.messungen.speichern(self.messwerk)
         for a in self.adapter.values():
             await a.schliessen()
 
     def _nebenbei(self, coro: Coroutine[Any, Any, Any]) -> None:
-        """Speichern und Ähnliches, das den Ablauf nicht aufhalten soll; Fehler landen im Protokoll."""
+        """Was den Ablauf nicht aufhalten soll (schließen, abgleichen, entladen); Fehler landen im Protokoll. Schreiben in
+        die Ablage geht über die Schreibfolge, damit nichts Älteres etwas Neueres überholt."""
         t = asyncio.create_task(coro)
         self._hintergrund.add(t)
 
@@ -445,7 +449,7 @@ class Betrieb:
             else:
                 continue
             self.massnahmen.appendleft(m)
-            self._nebenbei(self.ablage.massnahmen.speichern(m))
+            self.schreibfolge.einreihen(self.ablage.massnahmen.speichern(m))
             self.bus.senden(umschlag("leitstelle.massnahme", m))
         self.verbund.massnahmen.clear()
         self._gesperrt_gemeldet = {k: z for k, z in self._gesperrt_gemeldet.items() if jetzt - z < fenster}
@@ -484,7 +488,7 @@ class Betrieb:
         self.verbund.auftraege[a.kennung] = a
         self.laeufe[a.kennung] = lauf
         self.anstossen()
-        self._nebenbei(self.ablage.auftraege.speichern(self._eintrag(a, lauf, Messung())))
+        self.schreibfolge.einreihen(self.ablage.auftraege.speichern(self._eintrag(a, lauf, Messung())))
         self.bus.senden(umschlag("auftrag.angenommen", {"auftrag": a.kennung, "anwendung": anwendung, "zustand": a.zustand.value,
                                                         "faehigkeit": faehigkeit.value, "titel": titel}))
         return a, lauf
@@ -505,7 +509,7 @@ class Betrieb:
                 m.zustand = Modellzustand.GELADEN
         if zustand == Auftragszustand.FERTIG and a.start_s is not None:
             self.messwerk.merke_laufzeit(a.anwendung, a.faehigkeit.value, jetzt - a.start_s)
-            self._nebenbei(self.ablage.messungen.speichern(self.messwerk))
+            self.schreibfolge.einreihen(self.ablage.messungen.speichern(self.messwerk))
         a.zustand = zustand
         a.ende_s = jetzt
         a.grund = grund
@@ -515,7 +519,7 @@ class Betrieb:
         if lauf:
             dauer = f" nach {komma(jetzt - a.start_s)} s" if a.start_s is not None else ""
             lauf.notieren(jetzt, zustand, (begruendung or {Auftragszustand.FERTIG: "fertig"}.get(zustand, grund or "")) + dauer)
-        self._nebenbei(self.ablage.auftraege.speichern(self._eintrag(a, lauf, messung)))
+        self.schreibfolge.einreihen(self.ablage.auftraege.speichern(self._eintrag(a, lauf, messung)))
         art = {Auftragszustand.FERTIG: "auftrag.ergebnis", Auftragszustand.ABGEBROCHEN: "auftrag.abgebrochen"}.get(zustand, "auftrag.fehler")
         m = self.verbund.modelle.get(a.modell or "")
         self.bus.senden(umschlag(art, {"auftrag": kennung, "zustand": zustand.value, "grund": grund, "teilergebnis": a.teilergebnis,
@@ -687,7 +691,7 @@ class Betrieb:
             m.ladesperre_bis_s, m.ladesperre_grund = None, ""
             self.ladeversuche.pop(modell, None)
             self.messwerk.merke_ladezeit(m.familie, d.knoten or "", dauer)
-            self._nebenbei(self.ablage.messungen.speichern(self.messwerk))
+            self.schreibfolge.einreihen(self.ablage.messungen.speichern(self.messwerk))
             self.melden(f"{m.name} auf {d.name} geladen in {komma(dauer)} s")
             self.bus.senden(umschlag("signal.modell", {"modell": m.name, "zustand": "bereit", "knoten": d.knoten, "dauer_s": round(dauer, 1)}))
         finally:

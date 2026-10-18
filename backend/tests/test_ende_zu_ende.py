@@ -16,6 +16,7 @@ from leitstelle.kern.modelle import Regelwerk
 from leitstelle.konfig import Konfig
 from leitstelle.ports.ablage.datenbank import Datenbank
 from leitstelle.ports.ablage.repositorien import Ablage
+from leitstelle.ports.dienste.openai_kompatibel import HttpStrom
 
 from schein.laeufer import schein_laeufer
 from schein.server import laufend
@@ -265,3 +266,61 @@ async def test_e14_beim_start_geladene_modelle_sind_nicht_frisch(tmp_path):
         antwort = await anw.post("/chat/completions", json={"model": "zai-org/glm-4.6v-flash", "messages": []})
         assert antwort.status_code == 200, antwort.text
         assert lage.entladevorgaenge == ["qwen/qwen3-next-80b"]
+
+
+async def test_e15_kurze_auftraege_stehen_mit_endzustand_im_verlauf(tmp_path, caplog):
+    """Vorfall vom 18.10.2026: Aufträge von wenigen Millisekunden (Stimmenliste über die Dienstfassade) und sofort
+    abgelehnte blieben im Verlauf auf "laeuft" oder "eingereiht", obwohl sie im Speicher längst fertig waren: das Speichern
+    beim Anlegen und beim Abschließen liefen gleichzeitig, das zweite scheiterte am doppelten Schlüssel."""
+    async with aufbau(tmp_path) as (c, anw, _, app):
+        kurz = await asyncio.gather(*(anw.get("/dienste/qwen3-next-80b/v1/models") for _ in range(60)))
+        assert all(r.status_code == 200 for r in kurz)
+        abgelehnt = await asyncio.gather(*(anw.post("/chat/completions", json={"messages": []}) for _ in range(20)))
+        assert all(r.status_code == 404 for r in abgelehnt)
+        await _warte_bis(lambda: _wahr(not app.state.betrieb.verbund.auftraege))
+        await app.state.betrieb.schreibfolge.leeren()
+        eintraege = (await c.get("/api/auftraege", params={"anzahl": 200})).json()["eintraege"]
+        assert sorted(e["zustand"] for e in eintraege) == ["abgelehnt"] * 20 + ["fertig"] * 60
+    assert "gescheitert" not in caplog.text
+
+
+async def _abreissen(url: str, schluessel: str, pfad: str, nach_s: float) -> None:
+    """Wie eine Anwendung, die mitten in der Anfrage neu startet: Anfrage schicken, nach `nach_s` die Verbindung schließen."""
+    u = httpx.URL(url)
+    leser, schreiber = await asyncio.open_connection(u.host, u.port)
+    schreiber.write(f"GET {pfad} HTTP/1.1\r\nHost: {u.host}\r\nAuthorization: Bearer {schluessel}\r\n\r\n".encode())
+    await schreiber.drain()
+    try:
+        await asyncio.wait_for(leser.read(64), nach_s)
+    except TimeoutError:
+        pass
+    schreiber.close()
+
+
+@pytest.mark.parametrize("wann", ["vor_dem_kopf", "im_strom"])
+async def test_e16_anwendung_trennt_waehrend_der_durchleitung(tmp_path, monkeypatch, wann):
+    """Die Anwendung bricht eine Anfrage über die Dienstfassade ab, während der Dienst noch rechnet (vor dem Antwortkopf)
+    oder mitten in seiner Antwort: abgebrochen mit Grund `anwendung` im Verlauf, Speicher leer, das Modell wieder frei.
+    Das Schließen der Dienstantwort dauert hier etwas; auch dieses Warten wird beim Abriss abgebrochen."""
+    schliessen = HttpStrom.schliessen
+
+    async def langsam_schliessen(self):
+        await asyncio.sleep(0.05)
+        await schliessen(self)
+
+    monkeypatch.setattr(HttpStrom, "schliessen", langsam_schliessen)
+    async with aufbau(tmp_path) as (c, anw, lage, app):
+        if wann == "vor_dem_kopf":
+            lage.kopf_pause_s = 1.0
+        else:
+            lage.stuecke, lage.stueck_pause_s = 100, 0.05
+        b = app.state.betrieb
+        await _abreissen(str(anw.base_url).removesuffix("/v1/"), anw.headers["authorization"][7:],
+                         "/v1/dienste/qwen3-next-80b/schein/sprechen", 0.3)
+        await _warte_bis(lambda: _wahr(not b.verbund.auftraege))
+        await b.schreibfolge.leeren()
+        eintrag, = (await c.get("/api/auftraege")).json()["eintraege"]
+        assert (eintrag["zustand"], eintrag["grund"]) == ("abgebrochen", "anwendung")
+        m = next(m for m in b.verbund.modelle.values() if m.familie == "qwen/qwen3-next-80b")
+        assert m.auftraege_aktiv == 0 and m.zustand.value == "geladen", "das Modell ist wieder frei"
+        await _warte_bis(lambda: _wahr(lage.abgebrochen == 1), 3.0)      # auch die Antwort des Dienstes ist geschlossen

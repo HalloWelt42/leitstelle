@@ -1,9 +1,9 @@
 """Schein-Läufer: bildet die Schnittstelle des Modell-Läufers nach, wie sie am echten Gerät gemessen wurde.
 
 Native Schnittstelle `/api/v1/models` mit Laden (Speichergrenze, Ladezeit) und Entladen per Instanz,
-OpenAI-Schnittstelle `/v1/chat/completions` (mit und ohne Strom) und `/v1/embeddings`. Anders als der
-echte Läufer lädt er nie von selbst: wer ein nicht geladenes Modell anspricht, bekommt 400. So fällt auf,
-wenn die Leitstelle das Laden vergisst.
+OpenAI-Schnittstelle `/v1/chat/completions` (mit und ohne Strom) und `/v1/embeddings`, dazu `/schein/sprechen`
+wie ein Dienst mit eigener Schnittstelle für die Dienstfassade. Anders als der echte Läufer lädt er nie von
+selbst: wer ein nicht geladenes Modell anspricht, bekommt 400. So fällt auf, wenn die Leitstelle das Laden vergisst.
 """
 
 from __future__ import annotations
@@ -35,6 +35,7 @@ class Lage:
     ladezeit_s: float = 0.05
     stueck_pause_s: float = 0.01
     stuecke: int = 5
+    kopf_pause_s: float = 0.0        # /schein/sprechen: Rechenzeit bis zum Antwortkopf
     parallel: int = 4
     anfragen: list[dict] = field(default_factory=list)
     gleichzeitig: int = 0
@@ -152,6 +153,25 @@ def schein_laeufer(lage: Lage | None = None) -> FastAPI:
                     L().abgebrochen += 1
 
         return StreamingResponse(strom(), media_type="text/event-stream")
+
+    @app.api_route("/schein/sprechen", methods=["GET", "POST"])
+    async def sprechen():
+        """Wie ein Dienst mit eigener Schnittstelle (Sprache): rechnet `kopf_pause_s` vor dem Antwortkopf, liefert
+        dann `stuecke` Binärstücke im Abstand von `stueck_pause_s`; eine abgerissene Antwort zählt in `abgebrochen`."""
+        await asyncio.sleep(L().kopf_pause_s)
+
+        async def ton():
+            fertig = False
+            try:
+                for _ in range(L().stuecke):
+                    await asyncio.sleep(L().stueck_pause_s)
+                    yield b"\x00\x01" * 512
+                fertig = True
+            finally:
+                if not fertig:
+                    L().abgebrochen += 1
+
+        return StreamingResponse(ton(), media_type="audio/wav")
 
     @app.post("/v1/embeddings")
     async def einbettung(anfrage: Request):

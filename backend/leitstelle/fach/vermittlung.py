@@ -288,9 +288,11 @@ class Vermittlung:
         except DienstFehler as f:
             self._abschliessen(v, Auftragszustand.FEHLGESCHLAGEN, f.grund, f.meldung)
         finally:
+            # erst abschließen, dann schließen: reißt die Anwendung ab, wird dieser Rest abgebrochen, und jedes weitere
+            # `await` kann selbst abgebrochen werden; der Auftrag braucht seinen Endzustand trotzdem
             v.lauf.abbrecher = None
-            await antwort.schliessen()
             self.aufraeumen(v)
+            await antwort.schliessen()
 
     async def ausfuehren(self, v: Vorgang, pfad: str, koerper: dict[str, Any], strom: bool,
                          getrennt: Callable[[], Awaitable[bool]] | None = None) -> AsyncIterator[bytes | Wartet]:

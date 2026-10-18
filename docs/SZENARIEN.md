@@ -229,6 +229,8 @@ OpenAI-Schnittstelle kennt. Rechner, Dienst und Anwendung werden über die Verwa
 | E12 | Live-Kanal | der erste Umschlag ist das Lagebild, danach Ereignisse bis `auftrag.ergebnis` |
 | E13 | Titel mit Umlauten | prozentkodiert und als rohe UTF-8-Bytes richtig im Verlauf |
 | E14 | Nach einem Neustart schon geladene Modelle | ohne bekannten Ladezeitpunkt gilt keine Mindestverweildauer; das ungenutzte 80B weicht nach der Bedarfsfrist |
+| E15 | 60 Aufrufe von wenigen Millisekunden über die Dienstfassade und 20 sofortige Ablehnungen, alle gleichzeitig | jeder Auftrag steht mit seinem Endzustand im Verlauf (fertig oder abgelehnt), keine gescheiterte Schreibung; Speichern geht über die Schreibfolge |
+| E16 | Anwendung trennt während der Durchleitung über die Dienstfassade, vor dem Antwortkopf und mitten in der Antwort, bei langsamem Schließen | abgebrochen mit Grund `anwendung` im Verlauf, Speicher leer, das Modell wieder frei, die Antwort des Dienstes geschlossen |
 
 ## 3a. Knoten-Agent (`test_knoten_agent.py`; A07 bis A10 im Repo des Maschinenraums, `tests/test_dienste.py`)
 
