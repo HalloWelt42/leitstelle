@@ -82,6 +82,8 @@ class ModellSicht(BaseModel):
     plaetze: int
     gehalten_von: str | None          # Titel der begonnenen Arbeit, für die es nicht weicht
     steckbrief: Steckbrief             # wofür es gemacht ist, was es kann, wie es sich verhält (PROTOKOLL 4.8)
+    instanzen_hoechstens: int          # so viele Instanzen darf die Leitstelle starten
+    zusatz: bool                       # weitere Instanz: weicht bei Speichermangel zuerst
     ladesperre_bis_s: float | None
     ladesperre_grund: str
 
@@ -172,7 +174,8 @@ def lagebild(b: Betrieb) -> Lagebild:
                            faehigkeiten=sorted(m.faehigkeiten, key=lambda f: f.value), gb=m.gb, gb_jetzt=m.gb_jetzt, parameter_mrd=m.parameter_mrd, zustand=m.zustand,
                            geschuetzt=m.geschuetzt(r.schutzgrenze_mrd), geladen_seit_s=m.geladen_seit_s, letzte_nutzung_s=m.letzte_nutzung_s,
                            auftraege_aktiv=m.auftraege_aktiv, plaetze=v.plaetze(m),
-                           gehalten_von=w.titel if (w := v.arbeit_haelt(m.kennung)) else None, steckbrief=b.steckbrief(m), ladesperre_bis_s=m.ladesperre_bis_s, ladesperre_grund=m.ladesperre_grund)
+                           gehalten_von=w.titel if (w := v.arbeit_haelt(m.kennung)) else None, steckbrief=b.steckbrief(m), instanzen_hoechstens=m.instanzen_hoechstens, zusatz=m.zusatz,
+                           ladesperre_bis_s=m.ladesperre_bis_s, ladesperre_grund=m.ladesperre_grund)
                for m in sorted(v.modelle.values(), key=lambda x: (x.dienst, -x.gb))]
     auftraege = []
     for a in sorted(v.auftraege.values(), key=lambda x: x.eingang_s):

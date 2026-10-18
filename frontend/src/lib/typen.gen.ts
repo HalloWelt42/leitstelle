@@ -251,6 +251,8 @@ export interface ModellSicht {
   plaetze: number;
   gehalten_von: string | null;
   steckbrief: Steckbrief;
+  instanzen_hoechstens: number;
+  zusatz: boolean;
   ladesperre_bis_s: number | null;
   ladesperre_grund: string;
 }
