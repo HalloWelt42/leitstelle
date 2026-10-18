@@ -10,7 +10,7 @@
 </script>
 
 <footer class="fuss">
-  <span><i class="fa-solid fa-circle-play"></i>&nbsp; <span class="zahl">{laufend}</span> Aufträge laufen · <span class="zahl">{wartend}</span> warten</span>
+  <span><i class="fa-solid fa-circle-play"></i>&nbsp; <span class="zahl">{laufend}</span> {laufend === 1 ? 'Auftrag läuft' : 'Aufträge laufen'} · <span class="zahl">{wartend}</span> {wartend === 1 ? 'wartet' : 'warten'}</span>
   {#if vollster}<span title="Belegter Speicher (Modelle und System) des vollsten Rechners"><i class="fa-solid fa-memory"></i>&nbsp; {vollster.name} <span class="zahl">{prozent(vollster.belegt_anteil)}</span> Speicher</span>{/if}
   <div class="rechts">
     {#if bild}<span title="Rechner, deren Dienste antworten"><span class="punkt" class:gefahr={erreichbar < bild.knoten.length}></span>{erreichbar} von {bild.knoten.length} Knoten</span>{/if}

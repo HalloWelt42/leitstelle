@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { fassungVerfolgen } from './lib/fassung.svelte';
   import { kanal } from './lib/kanal.svelte';
+  import { telefonweicheStarten } from './lib/telefon';
   import { weg } from './lib/weg.svelte';
   import Anschluss from './seiten/Anschluss.svelte';
   import Anwendungen from './seiten/Anwendungen.svelte';
@@ -21,8 +22,7 @@
   kanal.starten();
   // Neue Fassung des Kerns: von selbst neu laden, sobald es nichts unterbricht
   onMount(fassungVerfolgen);
-  // Telefone bekommen eine eigenständige, reduzierte Ansicht statt einer gequetschten Schreibtischfassung
-  if (matchMedia('(max-width: 700px)').matches && weg.seite !== 'mobil') weg.gehe('mobil', null, true);
+  telefonweicheStarten();
 </script>
 
 {#if weg.seite === 'mobil'}
