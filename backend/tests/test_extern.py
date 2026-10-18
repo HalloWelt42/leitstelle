@@ -4,10 +4,11 @@ zum Ausfall, "jetzt prüfen", Sperre und Neueinreihen nach 429. Die Uhr steht, b
 from __future__ import annotations
 
 import asyncio
+import json
 
 import httpx
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from leitstelle.api.app import erstellen
 from leitstelle.api.fassade import _extern
@@ -34,12 +35,19 @@ def schein_hetzner() -> FastAPI:
         return HETZNER_MODELLE
 
     @app.post("/api/v1/chat/completions")
-    async def antworten():
+    async def antworten(anfrage: Request):
+        app.state.koerper = await anfrage.json()
         if app.state.zu_viel:
             app.state.zu_viel -= 1
             return JSONResponse({"error": {"message": "rate limit"}}, status_code=429, headers={"Retry-After": "7"})
-        return {"choices": [{"index": 0, "message": {"role": "assistant", "content": "hallo"}, "finish_reason": "stop"}],
-                "usage": {"prompt_tokens": 3, "completion_tokens": 1}}
+        if not app.state.koerper.get("stream"):        # wie Hetzner bei langem Denken: still, dann 504 nach der Frist
+            return JSONResponse({"error": "Gateway Timeout"}, status_code=504)
+        stuecke = [{"choices": [{"index": 0, "delta": {"reasoning_content": "erst denken "}}]},
+                   {"choices": [{"index": 0, "delta": {"content": "hal"}}]},
+                   {"choices": [{"index": 0, "delta": {"content": "lo"}, "finish_reason": "stop"}]},
+                   {"choices": [], "usage": {"prompt_tokens": 3, "completion_tokens": 7}}]
+        sse = "".join(f"data: {json.dumps({'id': 'x', 'model': 'Qwen/Qwen3.8-27B', **t})}\n\n" for t in stuecke) + "data: [DONE]\n\n"
+        return StreamingResponse(iter([sse.encode()]), media_type="text/event-stream")
 
     return app
 
@@ -122,4 +130,7 @@ async def test_e19_externer_anbieter_grenze_ausfall_und_ueberlast(tmp_path):
                 b.anstossen()
                 antwort = await asyncio.wait_for(anfrage, 10)
             assert antwort.status_code == 200 and antwort.json()["choices"][0]["message"]["content"] == "hallo"
+            assert hetzner.state.koerper["stream"] is True, "zum Anbieter immer als Strom (Vorschaltrechner brechen stille Anfragen ab)"
+            assert antwort.json()["choices"][0]["message"]["reasoning_content"] == "erst denken "
+            assert antwort.json()["usage"]["completion_tokens"] == 7, "Verbrauch aus dem Strom"
             assert hetzner.state.pfade.count("/api/v1/chat/completions") == 2

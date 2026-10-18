@@ -206,6 +206,63 @@ def _milliarden_im_namen(kennung: str) -> float | None:
     return _milliarden(t.group(1) + t.group(2)) if t else None
 
 
+class GesammelteAntwort:
+    """Eine ganze Antwort, die der Adapter aus einem Strom des Anbieters zusammengesetzt hat (die Anwendung wollte keinen
+    Strom). Verhält sich wie ein Strom mit einem einzigen Stück."""
+
+    def __init__(self, inhalt: bytes) -> None:
+        self._inhalt = inhalt
+        self.status = 200
+        self.kopf = {"content-type": "application/json"}
+
+    async def zeilen(self) -> AsyncIterator[bytes]:
+        for zeile in self._inhalt.splitlines():
+            yield zeile
+
+    async def stuecke(self) -> AsyncIterator[bytes]:
+        yield self._inhalt
+
+    async def lesen(self) -> bytes:
+        return self._inhalt
+
+    async def schliessen(self) -> None:
+        return None
+
+
+async def strom_zusammensetzen(zeilen: AsyncIterator[bytes]) -> dict[str, Any]:
+    """SSE-Stücke im OpenAI-Format zu einer ganzen Antwort: Inhalt, Denken, Werkzeugaufrufe, Ende, Verbrauch."""
+    kopf: dict[str, Any] = {}
+    inhalt, denken, aufrufe, ende, verbrauch = [], [], {}, None, None
+    async for zeile in zeilen:
+        if not zeile.startswith(b"data: ") or zeile == b"data: [DONE]":
+            continue
+        try:
+            teil = json.loads(zeile[6:])
+        except ValueError:
+            continue
+        for feld in ("id", "created", "model"):
+            kopf.setdefault(feld, teil.get(feld))
+        verbrauch = teil.get("usage") or verbrauch
+        for wahl in teil.get("choices") or []:
+            delta = wahl.get("delta") or {}
+            inhalt.append(delta.get("content") or "")
+            denken.append(delta.get("reasoning_content") or delta.get("reasoning") or "")
+            for t in delta.get("tool_calls") or []:
+                a = aufrufe.setdefault(t.get("index", 0), {"id": None, "type": "function", "function": {"name": "", "arguments": ""}})
+                a["id"] = t.get("id") or a["id"]
+                f = t.get("function") or {}
+                a["function"]["name"] += f.get("name") or ""
+                a["function"]["arguments"] += f.get("arguments") or ""
+            ende = wahl.get("finish_reason") or ende
+    nachricht: dict[str, Any] = {"role": "assistant", "content": "".join(inhalt)}
+    if "".join(denken):
+        nachricht["reasoning_content"] = "".join(denken)
+    if aufrufe:
+        nachricht["tool_calls"] = [aufrufe[i] for i in sorted(aufrufe)]
+    return {**kopf, "object": "chat.completion", "choices": [{"index": 0, "message": nachricht, "finish_reason": ende}],
+            **({"usage": verbrauch} if verbrauch else {})}
+
+
 class ExternOpenAI(OpenAIKompatibel):
     """Externer Anbieter im OpenAI-Format (zuerst Hetzner): nur `/v1/models`, nie Laden oder Entladen; mehrere Namen
     mit gleichem `root` sind ein Modell (Hetzner nennt jedes Modell zweimal). Jede Anfrage zählt für die Grenze je
@@ -233,6 +290,21 @@ class ExternOpenAI(OpenAIKompatibel):
                                          instanzen=[str(m["id"]) for m in namen], parameter_mrd=_milliarden_im_namen(haupt),
                                          kontext=namen[0].get("max_model_len")))
         return Dienstbericht(erreichbar=True, steuerbar=False, modelle=modelle, meldung="externer Anbieter: immer bereit, Laden übernimmt der Anbieter")
+
+    async def anfrage(self, pfad: str, koerper: dict[str, Any]) -> HttpStrom | GesammelteAntwort:
+        """Immer als Strom zum Anbieter: Vorschaltrechner externer Anbieter brechen stille Anfragen nach einer Frist ab
+        (Hetzner: 504 nach 300 s, gemessen 18.10.2026 an einem denkenden Modell); im Strom fließen die Token laufend.
+        Wollte die Anwendung keinen Strom, setzt der Adapter die Antwort zusammen."""
+        if koerper.get("stream") or not pfad.rstrip("/").endswith("chat/completions"):
+            return await super().anfrage(pfad, koerper)
+        strom = await super().anfrage(pfad, {**koerper, "stream": True, "stream_options": {"include_usage": True}})
+        if strom.status >= 400:
+            return strom
+        try:
+            antwort = await strom_zusammensetzen(strom.zeilen())
+        finally:
+            await strom.schliessen()
+        return GesammelteAntwort(json.dumps(antwort, ensure_ascii=False).encode())
 
     async def laden(self, schluessel: str) -> str:
         raise DienstFehler("nicht_steuerbar", "Ein externer Anbieter lädt seine Modelle selbst.")
