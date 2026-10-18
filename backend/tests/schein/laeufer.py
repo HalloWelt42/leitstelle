@@ -4,6 +4,7 @@ Native Schnittstelle `/api/v1/models` mit Laden (Speichergrenze, Ladezeit) und E
 OpenAI-Schnittstelle `/v1/chat/completions` (mit und ohne Strom) und `/v1/embeddings`, dazu `/schein/sprechen`
 wie ein Dienst mit eigener Schnittstelle für die Dienstfassade. Anders als der echte Läufer lädt er nie von
 selbst: wer ein nicht geladenes Modell anspricht, bekommt 400. So fällt auf, wenn die Leitstelle das Laden vergisst.
+Mit `aus` antwortet er auf alles mit 503, wie ein Läufer auf einem schlafenden Rechner; `aufrufe` zählt jede Anfrage.
 """
 
 from __future__ import annotations
@@ -48,6 +49,8 @@ class Lage:
     abgebrochen: int = 0
     ladevorgaenge: list[str] = field(default_factory=list)
     entladevorgaenge: list[str] = field(default_factory=list)
+    aus: bool = False                # antwortet nicht (503), etwa weil sein Rechner schläft
+    aufrufe: int = 0                 # alle Anfragen, auch die Zustandsabfragen der Leitstelle
 
     def belegt(self) -> float:
         return sum(m.gb for m in self.modelle.values() if m.instanzen)
@@ -71,12 +74,29 @@ def standard_modelle() -> dict[str, ScheinModell]:
     return {m.schluessel: m for m in ms}
 
 
+class _Schalter:
+    """Reine ASGI-Zwischenschicht (Ströme und Abbrüche bleiben unverändert): zählt Anfragen, antwortet aus mit 503."""
+
+    def __init__(self, app, lage) -> None:
+        self.app, self.lage = app, lage
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] == "http":
+            self.lage().aufrufe += 1
+            if self.lage().aus:
+                await JSONResponse({"error": {"message": "nicht erreichbar"}}, status_code=503)(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
+
+
 def schein_laeufer(lage: Lage | None = None) -> FastAPI:
     app = FastAPI()
     app.state.lage = lage or Lage(modelle=standard_modelle())
 
     def L() -> Lage:
         return app.state.lage
+
+    app.add_middleware(_Schalter, lage=L)
 
     @app.get("/api/v1/models")
     async def modelle():

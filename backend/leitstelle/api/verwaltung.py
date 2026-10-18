@@ -150,6 +150,13 @@ async def speicher_freigeben(kennung: str, daten: FreigabeDaten, request: Reques
     return {"vorschau": daten.vorschau, "plan": plan, "frei_gb": round(sum(f.gb for f in plan if f.darf), 2)}
 
 
+@router.post("/knoten/{kennung}/schlaf_beenden")
+async def schlaf_beenden(kennung: str, request: Request):
+    """"Nicht mehr warten": der Rechner gilt nicht mehr als schlafend; seine Dienste werden sofort wieder geprüft."""
+    await _fachlich(betrieb(request).schlaf_beenden(kennung, wer(request)))
+    return {"knoten": kennung, "schlaeft": False}
+
+
 @router.post("/aliasse")
 async def alias_setzen(daten: AliasDaten, request: Request):
     await _fachlich(verzeichnis(request).alias_setzen(daten.alias, daten.familie, wer(request)))

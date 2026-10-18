@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from .. import version
 from ..kern.modelle import ANFRAGE_FENSTER_S, Massnahme
 from ..protokoll.steckbrief import Steckbrief
-from ..kern.werte import Auftragszustand, Automatik, Betriebsmodus, Dienstzustand, Faehigkeit, Lage, Modellzustand, Zone
+from ..kern.werte import Auftragszustand, Automatik, Betriebsmodus, Dienstzustand, Faehigkeit, Knotenzustand, Lage, Modellzustand, Zone
 from ..ports.ablage.eintraege import Schritt
 from ..protokoll.knoten import Messwerte
 from .betrieb import Betrieb
@@ -38,7 +38,9 @@ class KnotenSicht(BaseModel):
     geladen_gb: float
     frei_gb: float
     belegt_anteil: float
-    erreichbar: bool
+    erreichbar: bool                   # falsch auch, solange er schläft
+    zustand: Knotenzustand             # erreichbar, nicht erreichbar oder schläft (kein Ausfall)
+    schlaeft_seit_s: float | None
     budget_fest_gb: float | None
     hintergrund_von: int | None
     hintergrund_bis: int | None
@@ -160,7 +162,7 @@ def lagebild(b: Betrieb) -> Lagebild:
         knoten.append(KnotenSicht(kennung=k.kennung, name=k.name, adresse=e.adresse, zone=k.zone, speicher_gb=k.speicher_gb, system_gb=k.system_gb,
                                   budget_gb=round(k.budget_gb(r.budget_reserve_gb), 2), geladen_gb=round(v.geladen_gb(k.kennung), 2),
                                   frei_gb=round(v.frei_gb(k.kennung), 2), belegt_anteil=round(v.belegt_anteil(k.kennung), 3), erreichbar=k.erreichbar,
-                                  budget_fest_gb=k.budget_fest_gb, hintergrund_von=e.hintergrund_von, hintergrund_bis=e.hintergrund_bis, agent=agent))
+                                  zustand=k.zustand, schlaeft_seit_s=k.schlaeft_seit_s, budget_fest_gb=k.budget_fest_gb, hintergrund_von=e.hintergrund_von, hintergrund_bis=e.hintergrund_bis, agent=agent))
     dienste = [DienstSicht(kennung=d.kennung, name=d.name, art=d.art.value, adresse=d.adresse, knoten=d.knoten, extern=d.extern,
                            zustand=v.dienste[d.kennung].zustand if d.kennung in v.dienste else Dienstzustand.NICHT_ERREICHBAR,
                            steuerbar=b.steuerbar.get(d.kennung, False), meldung=b.dienst_meldung.get(d.kennung, ""), plaetze=d.plaetze,

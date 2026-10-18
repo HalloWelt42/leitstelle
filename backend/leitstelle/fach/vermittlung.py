@@ -18,7 +18,7 @@ from ..kern.werte import Auftragszustand, Faehigkeit, Modellzustand, Prioritaet
 from ..konfig import Konfig
 from ..ports.dienste import DienstFehler, Durchleitung, Strom
 from .betrieb import Betrieb, Lauf, Messung
-from .fehler import Ablehnung
+from .fehler import Ablehnung, fehler_inhalt
 
 NEUVERSUCHE_NICHT_GELADEN = 2       # Dienst hat das Modell zwischen Abgleich und Anfrage selbst entladen
 NEUVERSUCHE_UEBERLAST = 3           # Dienst meldete Überlast (429, extern auch 5xx): gesperrt, Auftrag wartet oder weicht aus
@@ -60,10 +60,6 @@ class Vorgang:
     start_s: float = 0.0              # Beginn der Durchleitung, für die Zeit bis zum ersten Stück
 
 
-def _fehler_json(grund: str, text: str) -> dict[str, Any]:
-    return {"error": {"message": text, "type": "leitstelle", "code": grund}}
-
-
 class Vermittlung:
     def __init__(self, betrieb: Betrieb, konfig: Konfig) -> None:
         self.betrieb = betrieb
@@ -81,7 +77,7 @@ class Vermittlung:
         v = Vorgang(auftrag=auftrag, lauf=lauf)
         if lauf.ende.is_set():                         # sofort abgelehnt (Rechte, Zone, kein Modell)
             self._abschliessen(v, Auftragszustand.ABGELEHNT, lauf.grund, lauf.begruendung)
-            raise Ablehnung(lauf.grund or "kein_dienst", lauf.begruendung)
+            raise Ablehnung(lauf.grund or "kein_dienst", lauf.begruendung, lauf.zusatz)
         return v
 
     def _abschliessen(self, v: Vorgang, zustand: Auftragszustand, grund: str | None = None, begruendung: str | None = None) -> None:
@@ -103,7 +99,7 @@ class Vermittlung:
                 a = v.auftrag
                 zustand = Auftragszustand.ABGELEHNT if a.zustand == Auftragszustand.ABGELEHNT else Auftragszustand.ABGEBROCHEN
                 self._abschliessen(v, zustand, lauf.grund, lauf.begruendung)
-                raise Ablehnung(lauf.grund or "nutzer", lauf.begruendung)
+                raise Ablehnung(lauf.grund or "nutzer", lauf.begruendung, lauf.zusatz)
             warte_auf = [asyncio.ensure_future(lauf.freigabe.wait()), asyncio.ensure_future(lauf.ende.wait())]
             fertig, offen = await asyncio.wait(warte_auf, timeout=1.0, return_when=asyncio.FIRST_COMPLETED)
             for t in offen:
@@ -258,15 +254,16 @@ class Vermittlung:
         lauf = v.lauf
         self._abschliessen(v, Auftragszustand.ABGEBROCHEN, lauf.grund or "nutzer", lauf.begruendung)
         if not strom:
-            return json.dumps(_fehler_json(lauf.grund or "nutzer", lauf.begruendung)).encode()
+            return json.dumps({"error": fehler_inhalt(lauf.grund or "nutzer", lauf.begruendung, lauf.zusatz)}).encode()
         ende = {"id": f"leitstelle-{v.auftrag.kennung}", "object": "chat.completion.chunk", "model": v.modellname,
                 "choices": [{"index": 0, "delta": {}, "finish_reason": "leitstelle_abbruch"}],
-                "x-leitstelle": {"grund": lauf.grund, "begruendung": lauf.begruendung, "teilergebnis_zeichen": v.messung.teilergebnis_zeichen}}
+                "x-leitstelle": {"grund": lauf.grund, "begruendung": lauf.begruendung, "teilergebnis_zeichen": v.messung.teilergebnis_zeichen,
+                                 **(lauf.zusatz.model_dump(mode="json") if lauf.zusatz else {})}}
         return f"data: {json.dumps(ende, ensure_ascii=False)}\n\ndata: [DONE]\n\n".encode()
 
     @staticmethod
     def _fehler(strom: bool, grund: str, text: str) -> bytes:
-        daten = json.dumps(_fehler_json(grund, text), ensure_ascii=False)
+        daten = json.dumps({"error": fehler_inhalt(grund, text)}, ensure_ascii=False)
         return f"data: {daten}\n\ndata: [DONE]\n\n".encode() if strom else daten.encode()
 
     # ── Allgemeine Durchleitung (Dienste mit eigener Schnittstelle) ──────
@@ -291,7 +288,7 @@ class Vermittlung:
             return await self._bis_ende(b.adapter[a.dienst or ""].durchleiten(b.ort(a.modell or "").schluessel, d), v.lauf)
         except _Abbruch:
             self._abschliessen(v, Auftragszustand.ABGEBROCHEN, v.lauf.grund or "nutzer", v.lauf.begruendung)
-            raise Ablehnung(v.lauf.grund or "nutzer", v.lauf.begruendung) from None
+            raise Ablehnung(v.lauf.grund or "nutzer", v.lauf.begruendung, v.lauf.zusatz) from None
         except DienstFehler as f:
             self._abschliessen(v, Auftragszustand.FEHLGESCHLAGEN, f.grund, f.meldung)
             raise Ablehnung(f.grund, f.meldung) from None

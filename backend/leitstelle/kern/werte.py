@@ -81,6 +81,13 @@ class Dienstzustand(str, Enum):
     PAUSIERT = "pausiert"
     NICHT_ERREICHBAR = "nicht_erreichbar"
     AUSFALL = "ausfall"               # antwortet seit mehreren Prüfungen nicht; geprüft wird in wachsenden Abständen
+    SCHLAEFT = "schlaeft"             # sein Rechner schläft: keine Prüfung, kein Fehlschlag, bis er wach ist
+
+
+class Knotenzustand(str, Enum):
+    ERREICHBAR = "erreichbar"         # mindestens ein Dienst antwortet
+    NICHT_ERREICHBAR = "nicht_erreichbar"
+    SCHLAEFT = "schlaeft"             # hat sich beim Einschlafen abgemeldet; Aufträge warten in den Apps, bis er wach ist
 
 
 class Betriebsmodus(str, Enum):
@@ -132,6 +139,7 @@ WORT: dict[str, str] = {
     "umleiten": "Umleiten", "leerlauf_raeumen": "Leerlauf räumen", "vorwaermen": "Vorwärmen", "kette_ausweichen": "Kette ausweichen",
     "extern_ausweichen": "Extern ausweichen", "umverteilen": "Umverteilen", "verlagern": "Verlagern", "doppel_aufloesen": "Doppel auflösen",
     "hintergrund_lage": "Hintergrund bei Lage", "weitere_instanz": "Weitere Instanz",
-    "bereit": "Bereit", "aus": "Aus", "startet": "Startet", "nicht_erreichbar": "Nicht erreichbar", "ausfall": "Ausfall",
+    "bereit": "Bereit", "aus": "Aus", "startet": "Startet", "nicht_erreichbar": "Nicht erreichbar", "ausfall": "Ausfall", "schlaeft": "Schläft", "erreichbar": "Erreichbar",
+    "leerlauf": "nach Leerlauf", "angefordert": "von Hand",
     "denken": "Denkt schrittweise", "programmieren": "Programmieren", "lange_texte": "Lange Texte", "schnell": "Schnell", "gruendlich": "Gründlich",
 }

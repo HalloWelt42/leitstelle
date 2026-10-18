@@ -18,6 +18,7 @@ from .werte import (
     Betriebsmodus,
     Dienstzustand,
     Faehigkeit,
+    Knotenzustand,
     Massnahmenart,
     Massnahmenzustand,
     Modellzustand,
@@ -32,9 +33,20 @@ class Knoten(BaseModel):
     zone: Zone
     speicher_gb: float
     system_gb: float = 6.0            # was System und andere Programme belegen (Messwert des Agenten)
-    erreichbar: bool = True
+    erreichbar: bool = True           # bleibt falsch, solange er schläft: alle Filter gelten unverändert
+    schlaeft_seit_s: float | None = None                 # hat sich schlafen gelegt (knoten.schlaeft); None: wach
     hintergrund_fenster: tuple[int, int] | None = None   # Stunden (von, bis), in denen Hintergrundarbeit hierher darf
     budget_fest_gb: float | None = None                  # von Hand gesetztes Budget; sonst Gesamtspeicher minus Reserve
+
+    @property
+    def schlaeft(self) -> bool:
+        return self.schlaeft_seit_s is not None
+
+    @property
+    def zustand(self) -> Knotenzustand:
+        if self.schlaeft:
+            return Knotenzustand.SCHLAEFT
+        return Knotenzustand.ERREICHBAR if self.erreichbar else Knotenzustand.NICHT_ERREICHBAR
 
     def budget_gb(self, reserve_gb: float) -> float:
         """Speicher, den Modelle zusammen höchstens belegen dürfen."""
@@ -137,6 +149,7 @@ class Auftrag(BaseModel):
     # vom Zuteiler gesetzt, damit die Regeln wissen, worauf ein Auftrag wartet
     wartet_auf_familie: str | None = None
     wartet_auf_knoten: str | None = None
+    schlafende_knoten: list[str] = Field(default_factory=list)   # abgelehnt, weil diese Rechner schlafen (rechner_schlaeft)
     voraussichtlich_s: float | None = None
     teilergebnis: bool = False
     grund: str | None = None          # Wort aus PROTOKOLL.md Abschnitt 7, wenn abgelehnt oder abgebrochen
@@ -245,6 +258,12 @@ class Verbund(BaseModel):
     def knoten_von_dienst(self, dienst: str) -> Knoten | None:
         k = self.dienste[dienst].knoten
         return self.knoten[k] if k else None
+
+    def auf_schlafendem(self, dienst: str) -> bool:
+        """Liegt der Dienst auf einem Rechner, der schläft? Externe Anbieter schlafen nie."""
+        d = self.dienste.get(dienst)
+        k = self.knoten.get(d.knoten) if d and d.knoten else None
+        return k is not None and k.schlaeft
 
     def geladen_gb(self, knoten: str) -> float:
         """Verplanter Speicher der Modelle im Speicher (Bedarf)."""

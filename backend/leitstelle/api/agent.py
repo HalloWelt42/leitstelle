@@ -2,7 +2,8 @@
 
 Ein Knoten-Agent (zum Beispiel der Maschinenraum eines Rechners) verbindet sich von sich aus mit seinem
 Schlüssel als Bearer. Erste Nachricht ist `knoten.anmelden`; danach Messwerte im Takt, die Dienstliste bei
-Änderung und Antworten auf Befehle.
+Änderung und Antworten auf Befehle. Vor dem Einschlafen meldet er `knoten.schlaeft`; die Leitstelle vermerkt den Schlaf,
+antwortet mit `knoten.schlaf_vermerkt` und wartet, bis er sich wieder anmeldet.
 """
 
 from __future__ import annotations
@@ -15,7 +16,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
 from ..fach.betrieb import Betrieb
-from ..protokoll.knoten import BefehlErgebnis, Dienstliste, KnotenAnmeldung, Messwerte
+from ..protokoll.knoten import BefehlErgebnis, Dienstliste, KnotenAnmeldung, KnotenSchlaeft, Messwerte
 from ..protokoll.umschlag import Umschlag, umschlag
 
 router = APIRouter()
@@ -80,6 +81,9 @@ async def kanal(ws: WebSocket) -> None:
                         await betrieb.agent_dienste(v)
                     case "knoten.befehl_ergebnis":
                         betrieb.agenten.ergebnis(v, u.bezug, BefehlErgebnis.model_validate(u.nutzlast))
+                    case "knoten.schlaeft":
+                        betrieb.agent_schlaeft(v, KnotenSchlaeft.model_validate(u.nutzlast))
+                        await senden(umschlag("knoten.schlaf_vermerkt", {}, an=f"agent:{knoten.kennung}", bezug=u.id))
                     case "herzschlag":
                         pass
                     case _:

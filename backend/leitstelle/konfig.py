@@ -33,6 +33,9 @@ class Konfig(BaseSettings):
     steckbrief_takt_s: float = Field(default=300.0, description="so oft holt die Leitstelle die Messwerte der Steckbriefe aus dem Verlauf")
     verbindung_s: float = Field(default=10.0, description="Grenze für den Verbindungsaufbau zu Diensten; Arbeit selbst hat keine Lese-Grenze")
     hinweis_s: float = Field(default=15.0, description="Abstand der Wartehinweise in Strömen der Fassade")
+    wieder_s: float = Field(default=30.0, description="Retry-After bei 429 und 503: wann ein neuer Versuch Sinn hat")
+    schlaf_wieder_s: float = Field(default=60.0, description="Retry-After, wenn der Rechner des Dienstes schläft (rechner_schlaeft); "
+                                                              "er wacht selten in Sekunden auf")
 
     @property
     def datenbank(self) -> Path:

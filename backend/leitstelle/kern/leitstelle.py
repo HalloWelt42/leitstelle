@@ -57,4 +57,5 @@ class Leitstelle:
             a.zustand = Auftragszustand.ABGELEHNT
             a.begruendung = w.begruendung
             a.grund = w.grund
+            a.schlafende_knoten = list(w.schlafende_knoten)
             verbund.melden(f"abgelehnt {a.kennung}: {w.begruendung}")

@@ -26,25 +26,30 @@ from ..kern.modelle import Anwendung, Auftrag, Dienst, Knoten, Massnahme, Modell
 from ..kern.werte import WORT, Auftragszustand, Betriebsmodus, Dienstzustand, Faehigkeit, Massnahmenzustand, Modellzustand, Prioritaet, Zone
 from ..konfig import Konfig
 from ..ports.ablage.eintraege import (Adapterart, AnwendungEintrag, AuftragEintrag, Ausgang, BetriebEinstellung, Bewegung, DienstEintrag, KnotenEintrag,
-                                      PruefEintrag, Richtung, Schritt, SteckbriefEintrag)
+                                      PruefEintrag, Richtung, Schlafstand, Schritt, SteckbriefEintrag)
 from ..ports.agenten import AgentVerbindung, Agentenvermittlung
 from ..ports.ablage.repositorien import Ablage
 from ..ports.dienste import AdapterFabrik, DienstAdapter, DienstFehler, ModellBericht, agent_adresse
 from ..ports.tresor import Tresor, fingerabdruck
 from ..ports.uhr import Uhr
-from ..protokoll.knoten import Selbstauskunft
+from ..protokoll.knoten import KnotenSchlaeft, Selbstauskunft
 from ..protokoll.steckbrief import Messwerte, Steckbrief
 from ..protokoll.umschlag import umschlag
 from .ereignisse import Ereignisbus
-from .fehler import Ablehnung
+from .fehler import Ablehnung, Zusatz
 from .schreibfolge import Schreibfolge
 from .steckbrief import messwerte_aus, zusammensetzen
-from ..kern.text import komma
+from ..kern.text import komma, schlaf_satz
 
 log = logging.getLogger("leitstelle.betrieb")
 
 LADEPAUSEN_S = (10.0, 20.0, 40.0, 60.0)    # Pausen nach abgelehnten Ladeversuchen, wachsend
 LADEFEHLER_BIS_ABBRUCH = 3                  # so oft darf das Laden für einen Auftrag scheitern
+
+
+def _schlafdauer(s: float) -> str:
+    """Wie lange ein Rechner schlief, für die Meldung beim Aufwachen."""
+    return f"{komma(s / 3600)} h" if s >= 3600 else f"{max(1, round(s / 60))} min"
 
 
 def modell_kennung(dienst: str, schluessel: str) -> str:
@@ -103,6 +108,7 @@ class Lauf:
         self.ende = asyncio.Event()         # abgelehnt oder abgebrochen
         self.grund: str | None = None
         self.begruendung: str = ""
+        self.zusatz: Zusatz | None = None   # geht als error.x-leitstelle an die Anwendung (etwa schlafende Rechner)
         self.danach_sperren: str | None = None   # Auslaufen: nach dem Ende die Anwendung sperren, mit diesem Grund
         self.ladefehler = 0
         self.schritte: list[Schritt] = []
@@ -115,9 +121,9 @@ class Lauf:
             self._stand = (zustand.value, text)
             self.schritte.append(Schritt(zeit_s=zeit_s, zustand=zustand, text=text))
 
-    def beenden_mit(self, grund: str, begruendung: str) -> None:
+    def beenden_mit(self, grund: str, begruendung: str, zusatz: Zusatz | None = None) -> None:
         if not self.ende.is_set():
-            self.grund, self.begruendung = grund, begruendung
+            self.grund, self.begruendung, self.zusatz = grund, begruendung, zusatz
             self.ende.set()
             if self.abbrecher:
                 self.abbrecher()
@@ -170,6 +176,7 @@ class Betrieb:
             self.melden(f"{abgebrochen} offene Aufträge aus der Zeit vor dem Neustart als abgebrochen vermerkt")
         for k in await self.ablage.knoten.alle():
             self.knoten_setzen(k)
+        await self._schlaf_wiederherstellen()
         for d in await self.ablage.dienste.alle():
             self.dienst_setzen(d)
         for a in await self.ablage.anwendungen.alle():
@@ -221,7 +228,8 @@ class Betrieb:
         alt = self.verbund.knoten.get(k.kennung)
         fenster = (k.hintergrund_von, k.hintergrund_bis) if k.hintergrund_von is not None and k.hintergrund_bis is not None else None
         self.verbund.knoten[k.kennung] = Knoten(kennung=k.kennung, name=k.name, zone=k.zone, speicher_gb=k.speicher_gb, system_gb=k.system_gb,
-                                                 erreichbar=alt.erreichbar if alt else True, hintergrund_fenster=fenster, budget_fest_gb=k.budget_fest_gb)
+                                                 erreichbar=alt.erreichbar if alt else True, schlaeft_seit_s=alt.schlaeft_seit_s if alt else None,
+                                                 hintergrund_fenster=fenster, budget_fest_gb=k.budget_fest_gb)
         v = self.agenten.verbindung(k.kennung)
         if v and v.messwerte:
             self.messwerte_uebernehmen(v)
@@ -284,9 +292,13 @@ class Betrieb:
         return next((d.kennung for d in self.dienste.values() if d.art == Adapterart.AGENT and d.knoten == knoten), None)
 
     def agent_angemeldet(self, v: AgentVerbindung) -> None:
+        """Die Anmeldung des Maschinenraums hebt einen Schlaf auf: der Rechner ist wach."""
         k = self.knoten[v.knoten]
         self.melden(f"Maschinenraum auf {k.name} verbunden ({v.anmeldung.betriebssystem}, Fassung {v.anmeldung.agent_version})")
         self.bus.senden(umschlag("knoten.angemeldet", {"knoten": k.kennung, "name": k.name, **v.anmeldung.model_dump(mode="json")}))
+        kn = self.verbund.knoten.get(v.knoten)
+        if kn is not None and kn.schlaeft_seit_s is not None:
+            self._wecken(kn, f"{kn.name} ist aufgewacht nach {_schlafdauer(self.uhr.jetzt() - kn.schlaeft_seit_s)}")
         self.geaendert()
 
     def agent_getrennt(self, knoten: str) -> None:
@@ -296,12 +308,79 @@ class Betrieb:
         if e is None or k is None:
             return
         k.system_gb, k.speicher_gb = e.system_gb, e.speicher_gb
-        self.melden(f"Maschinenraum auf {e.name} getrennt; es gelten wieder die eingetragenen Speicherwerte")
+        if k.schlaeft:
+            self.melden(f"Maschinenraum auf {e.name} getrennt: der Rechner schläft")
+        else:
+            self.melden(f"Maschinenraum auf {e.name} getrennt; es gelten wieder die eingetragenen Speicherwerte")
         self.bus.senden(umschlag("knoten.getrennt", {"knoten": knoten, "name": e.name}))
         dienst = self.agentdienst(knoten)
         if dienst:
-            self._nebenbei(self._abgleich(dienst))   # seine Dienste sofort als nicht erreichbar zeigen
+            self._nebenbei(self._abgleich(dienst))   # seine Dienste sofort als nicht erreichbar zeigen (schläft er: als schlafend)
         self.geaendert()
+
+    # ── Schlaf der Rechner ───────────────────────────────────────────────
+    def agent_schlaeft(self, v: AgentVerbindung, meldung: KnotenSchlaeft) -> None:
+        """Der Rechner schläft gleich ein (`knoten.schlaeft`): kein Ausfall, sondern Warten, bis er wach ist. Laufende
+        Aufträge auf ihm enden mit `rechner_schlaeft` (auch ohne Automatik, sie hingen sonst), zugeteilte und wartende
+        entscheidet der Zuteiler neu; seine Dienste werden bis zum Aufwachen nicht geprüft und zählen keine Fehlschläge."""
+        k = self.verbund.knoten.get(v.knoten)
+        if k is None:
+            return
+        self._zeit_setzen()
+        if k.schlaeft_seit_s is None:
+            k.schlaeft_seit_s = self.verbund.zeit_s
+        k.erreichbar = False
+        for d in self.verbund.dienste_auf(k.kennung):
+            d.zustand = Dienstzustand.SCHLAEFT
+            self.pruefstand.pop(d.kennung, None)
+        self.schreibfolge.einreihen(self.ablage.einstellungen.schlaf_speichern(self._schlafstand()))
+        self._laufende_beenden(k.kennung, "rechner_schlaeft", schlaf_satz([k.name]), Zusatz(rechner=[k.name]))
+        self.wartende_neu_einreihen(k.kennung)
+        self.melden(f"{k.name} schläft ({WORT[meldung.grund.value]}); Aufträge warten in den Apps, bis er wach ist")
+        self.bus.senden(umschlag("knoten.schlaeft", {"knoten": k.kennung, "name": k.name, "grund": meldung.grund.value}))
+        self.anstossen()
+
+    async def schlaf_beenden(self, knoten: str, wer: str) -> None:
+        """"Nicht mehr warten": der Rechner gilt wieder als wach, aber nicht erreichbar, bis seine Dienste antworten.
+        Für einen Rechner, der aufgewacht ist, ohne dass sich sein Maschinenraum meldet (oder der nie aufwacht)."""
+        k = self.verbund.knoten.get(knoten)
+        if k is None:
+            raise Ablehnung("unbekannt", "Diesen Rechner gibt es nicht.")
+        if k.schlaeft_seit_s is None:
+            raise Ablehnung("unbekannt", f"{k.name} schläft nicht.")
+        self._wecken(k, f"{k.name}: Schlafzustand von Hand beendet; seine Dienste werden wieder geprüft")
+        await self.ablage.pruefung.anhaengen(PruefEintrag(zeit_s=self.uhr.jetzt(), wer=wer, was="Schlafzustand von Hand beendet", gegenstand=k.name))
+
+    def _wecken(self, k: Knoten, text: str) -> None:
+        """Ende des Schlafs: die Dienste des Rechners gelten als ungeprüft und werden sofort gefragt (nicht erst nach den
+        wachsenden Abständen eines Ausfalls)."""
+        k.schlaeft_seit_s = None
+        for d in self.verbund.dienste_auf(k.kennung):
+            d.zustand = Dienstzustand.NICHT_ERREICHBAR
+            self.pruefstand.pop(d.kennung, None)
+        self.schreibfolge.einreihen(self.ablage.einstellungen.schlaf_speichern(self._schlafstand()))
+        self.melden(text)
+        self.bus.senden(umschlag("knoten.aufgewacht", {"knoten": k.kennung, "name": k.name}))
+        self._nebenbei(self._knoten_pruefen(k.kennung))
+        self.geaendert()
+
+    async def _knoten_pruefen(self, knoten: str) -> None:
+        """Alle abgefragten Dienste eines Rechners sofort prüfen; der Maschinenraum meldet seine selbst."""
+        await asyncio.gather(*(self._abgleich(d.kennung) for d in self.verbund.dienste_auf(knoten)
+                               if d.kennung in self.adapter and not self.adapter[d.kennung].meldet_sich_selbst))
+        self._erreichbarkeit_setzen()
+        self.anstossen()
+
+    def _schlafstand(self) -> Schlafstand:
+        return Schlafstand(seit_s={k.kennung: k.schlaeft_seit_s for k in self.verbund.knoten.values() if k.schlaeft_seit_s is not None})
+
+    async def _schlaf_wiederherstellen(self) -> None:
+        """Nach dem Neustart der Leitstelle: wer schlief, schläft weiter, bis sich sein Maschinenraum meldet."""
+        for kennung, seit in (await self.ablage.einstellungen.schlaf()).seit_s.items():
+            k = self.verbund.knoten.get(kennung)
+            if k is not None:
+                k.schlaeft_seit_s, k.erreichbar = seit, False
+                self.melden(f"{k.name} schläft noch (seit dem Neustart der Leitstelle vermerkt)")
 
     def messwerte_uebernehmen(self, v: AgentVerbindung) -> None:
         """Gemessener Speicher ersetzt die Schätzung: was die bekannten Modelle nicht wirklich belegen, belegt das System.
@@ -334,22 +413,31 @@ class Betrieb:
         jetzt = self.uhr.jetzt()
         faellig = [k for k, a in self.adapter.items() if a.meldet_sich_selbst or jetzt >= self.pruefstand.get(k, Pruefstand()).naechste_s]
         await asyncio.gather(*(self._abgleich(k) for k in faellig))
+        self._erreichbarkeit_setzen()
+        self._letzter_abgleich = self.uhr.jetzt()
+        self.geaendert()
+
+    def _erreichbarkeit_setzen(self) -> None:
+        """Ein Rechner ist erreichbar, wenn einer seiner Dienste antwortet; ein schlafender bleibt es nicht, bis er wach ist."""
         for k in self.verbund.knoten.values():
+            if k.schlaeft:
+                continue
             dienste = self.verbund.dienste_auf(k.kennung)
             erreichbar = any(d.zustand not in (Dienstzustand.NICHT_ERREICHBAR, Dienstzustand.AUSFALL) for d in dienste) if dienste else True
             if erreichbar != k.erreichbar:
                 k.erreichbar = erreichbar
                 self.melden(f"{k.name} ist {'wieder erreichbar' if erreichbar else 'nicht erreichbar'}")
-        self._letzter_abgleich = self.uhr.jetzt()
-        self.geaendert()
 
     async def _abgleich(self, dienst: str) -> None:
         adapter = self.adapter.get(dienst)
         if adapter is None:
             return
+        if self.verbund.auf_schlafendem(dienst):
+            self.verbund.dienste[dienst].zustand = Dienstzustand.SCHLAEFT   # nicht fragen: kein Fehlschlag, kein Ausfall
+            return
         bericht = await adapter.zustand()
         d = self.verbund.dienste.get(dienst)
-        if d is None:            # während der Abfrage entfernt
+        if d is None or self.verbund.auf_schlafendem(dienst):   # während der Abfrage entfernt oder eingeschlafen
             return
         neu = Dienstzustand.BEREIT if bericht.erreichbar else self._fehlschlag_vermerken(dienst) if not adapter.meldet_sich_selbst else Dienstzustand.NICHT_ERREICHBAR
         if bericht.erreichbar and not adapter.meldet_sich_selbst:
@@ -403,7 +491,7 @@ class Betrieb:
     def dienst_gestoert(self, dienst: str, meldung: str) -> None:
         """Eine Anfrage erreichte den Dienst nicht: bis zur nächsten erfolgreichen Prüfung bekommt er keine Aufträge."""
         d, a = self.verbund.dienste.get(dienst), self.adapter.get(dienst)
-        if d is None or a is None or a.meldet_sich_selbst:
+        if d is None or a is None or a.meldet_sich_selbst or self.verbund.auf_schlafendem(dienst):
             return
         d.zustand = self._fehlschlag_vermerken(dienst)
         self.melden(f"{d.name}: {WORT[d.zustand.value]} ({meldung[:120]}); nächste Prüfung in {komma(self.pruefstand[dienst].naechste_s - self.uhr.jetzt())} s")
@@ -527,7 +615,7 @@ class Betrieb:
         for a in list(self.verbund.auftraege.values()):
             lauf = self.laeufe.get(a.kennung)
             if a.zustand == Auftragszustand.ABGELEHNT and lauf:
-                lauf.beenden_mit(a.grund or "kein_dienst", a.begruendung)
+                lauf.beenden_mit(a.grund or "kein_dienst", a.begruendung, self._schlafzusatz(a.schlafende_knoten))
         self._massnahmen_uebernehmen()
         self.verbund.ereignisse.clear()
         self._starten_was_bereit()
@@ -536,6 +624,10 @@ class Betrieb:
             if lauf:
                 lauf.notieren(self.verbund.zeit_s, a.zustand, self._schritttext(a))
         self.geaendert()
+
+    def _schlafzusatz(self, knoten: list[str]) -> Zusatz | None:
+        """Die Namen schlafender Rechner für die Anwendung (error.x-leitstelle.rechner)."""
+        return Zusatz(rechner=[self.verbund.knoten[k].name for k in knoten if k in self.verbund.knoten]) if knoten else None
 
     def _schritttext(self, a: Auftrag) -> str:
         if a.zustand == Auftragszustand.LAEUFT:
@@ -658,22 +750,31 @@ class Betrieb:
         return self.orte.get(modell) or ModellOrt(schluessel=self.verbund.modelle[modell].familie)
 
     def knoten_ohne_meldung(self) -> list[str]:
-        """Rechner mit eingetragenem Maschinenraum, dessen Dienste die Leitstelle (noch) nicht kennt: nach ihrem
-        Neustart, bis er sich meldet, oder solange er schläft. Ein Name, den sie dann nicht kennt, kann dort liegen."""
-        aus = []
+        """Rechner, deren Dienste die Leitstelle (noch) nicht kennt: mit eingetragenem Maschinenraum nach ihrem Neustart,
+        bis er sich meldet, und jeder Rechner, der seitdem schläft. Ein Name, den sie dann nicht kennt, kann dort liegen."""
+        aus: list[str] = []
         for d in self.dienste.values():
-            if d.art == Adapterart.AGENT and not any(m.dienst == d.kennung for m in self.verbund.modelle.values()):
-                k = self.knoten.get(d.knoten) if d.knoten else None
-                aus.append(k.name if k else (d.knoten or d.name))
+            if not d.knoten or any(m.dienst == d.kennung for m in self.verbund.modelle.values()):
+                continue
+            k = self.verbund.knoten.get(d.knoten)
+            if (d.art == Adapterart.AGENT or (k is not None and k.schlaeft)) and d.knoten not in aus:
+                aus.append(d.knoten)
         return aus
 
     def unbekannt(self, name: str, was: str = "Modell") -> Ablehnung:
         """Die Ablehnung für einen unbekannten Namen: endgültig (kein_modell) nur, wenn sich alle Maschinenräume gemeldet
-        haben; sonst "nicht erreichbar" mit Wartezeit, damit Apps nach dem Neustart der Leitstelle nicht aufgeben."""
-        if fehlend := self.knoten_ohne_meldung():
-            return Ablehnung("dienst_nicht_erreichbar", f"{was} {name} ist noch nicht gemeldet: der Maschinenraum auf "
-                                                        f"{', '.join(fehlend)} hat sich noch nicht gemeldet; gleich erneut versuchen.")
-        return Ablehnung("kein_modell", f"{was} {name} ist im Verbund nicht bekannt.")
+        haben; schlafen die übrigen, wartet die App, bis einer wach ist; sonst "nicht erreichbar" mit kurzer Wartezeit,
+        damit Apps nach dem Neustart der Leitstelle nicht aufgeben."""
+        fehlend = self.knoten_ohne_meldung()
+        if not fehlend:
+            return Ablehnung("kein_modell", f"{was} {name} ist im Verbund nicht bekannt.")
+        schlafend = [k for k in fehlend if k in self.verbund.knoten and self.verbund.knoten[k].schlaeft]
+        if len(schlafend) == len(fehlend):
+            namen = [self.verbund.knoten[k].name for k in schlafend]
+            return Ablehnung("rechner_schlaeft", schlaf_satz(namen), Zusatz(rechner=namen))
+        namen = [self.knoten[k].name if k in self.knoten else k for k in fehlend if k not in schlafend]
+        return Ablehnung("dienst_nicht_erreichbar", f"{was} {name} ist noch nicht gemeldet: der Maschinenraum auf "
+                                                    f"{', '.join(namen)} hat sich noch nicht gemeldet; gleich erneut versuchen.")
 
     def familie_fuer(self, name: str) -> str | None:
         """Löst einen Modellnamen der Anwendung auf: eigener Alias, Schlüssel, Instanz, Name ohne Anbieter, Anzeigename."""
@@ -927,11 +1028,16 @@ class Betrieb:
         self.bus.senden(umschlag(art, nutzlast, an=f"anwendung:{anwendung}"))
 
     def laufende_abbrechen_mit_teilergebnis(self, knoten: str) -> None:
+        """Regel "Umverteilen bei Ausfall"."""
+        self._laufende_beenden(knoten, "dienst_nicht_erreichbar", f"{self.verbund.knoten[knoten].name} ist nicht mehr erreichbar.")
+
+    def _laufende_beenden(self, knoten: str, grund: str, begruendung: str, zusatz: Zusatz | None = None) -> None:
+        """Laufende Aufträge auf dem Rechner enden mit Teilergebnis, zugeteilte kommen zurück in die Warteschlange."""
         for a in list(self.verbund.auftraege.values()):
             if a.knoten != knoten:
                 continue
             if a.zustand == Auftragszustand.LAEUFT and a.kennung in self.laeufe:
-                self.laeufe[a.kennung].beenden_mit("dienst_nicht_erreichbar", f"{self.verbund.knoten[knoten].name} ist nicht mehr erreichbar.")
+                self.laeufe[a.kennung].beenden_mit(grund, begruendung, zusatz)
             elif a.zustand == Auftragszustand.ZUGETEILT:
                 a.zustand = Auftragszustand.EINGEREIHT
                 a.dienst = a.modell = a.knoten = None

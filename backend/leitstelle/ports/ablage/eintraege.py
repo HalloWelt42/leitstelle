@@ -144,6 +144,12 @@ class BetriebEinstellung(BaseModel):
     hintergrund_an: bool = True
 
 
+class Schlafstand(BaseModel):
+    """Rechner, die sich schlafen gelegt haben (Kennung, seit wann); übersteht einen Neustart der Leitstelle."""
+
+    seit_s: dict[str, float] = Field(default_factory=dict)
+
+
 class PruefEintrag(BaseModel):
     zeit_s: float
     wer: str

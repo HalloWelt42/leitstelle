@@ -11,7 +11,8 @@ from ...kern.messungen import Messwerk, Mittel
 from ...kern.modelle import Massnahme, Regelwerk
 from ...kern.werte import Auftragszustand, Faehigkeit, Massnahmenart, Massnahmenzustand, OFFENE_ZUSTAENDE, Prioritaet, Zone
 from .datenbank import Datenbank
-from .eintraege import AliasEintrag, AnwendungEintrag, AuftragEintrag, BetriebEinstellung, Bewegung, DienstEintrag, Kennzahlen, KnotenEintrag, PruefEintrag, SteckbriefEintrag
+from .eintraege import (AliasEintrag, AnwendungEintrag, AuftragEintrag, BetriebEinstellung, Bewegung, DienstEintrag, Kennzahlen, KnotenEintrag, PruefEintrag,
+                        Schlafstand, SteckbriefEintrag)
 from .tabellen import (
     AliasTabelle,
     AnwendungTabelle,
@@ -275,6 +276,13 @@ class EinstellungAblage:
 
     async def betrieb_speichern(self, b: BetriebEinstellung) -> None:
         await self._schreiben("betrieb", b.model_dump(mode="json"))
+
+    async def schlaf(self) -> Schlafstand:
+        daten = await self._lesen("schlaf")
+        return Schlafstand.model_validate(daten) if daten else Schlafstand()
+
+    async def schlaf_speichern(self, s: Schlafstand) -> None:
+        await self._schreiben("schlaf", s.model_dump(mode="json"))
 
 
 class PruefAblage:

@@ -14,7 +14,7 @@ from .messungen import Messwerk
 from .modelle import Auftrag, Modell, Verbund
 from .speicherplaner import planen
 from .werte import Auftragszustand, Betriebsmodus, Faehigkeit, Modellzustand, Prioritaet, Zone
-from .text import komma
+from .text import komma, schlaf_satz
 
 
 class Zuteilung(BaseModel):
@@ -34,6 +34,7 @@ class Wartegrund(BaseModel):
     grund: str | None = None          # Wort für Ablehnungen (PROTOKOLL.md Abschnitt 7)
     wartet_auf_familie: str | None = None
     wartet_auf_knoten: str | None = None
+    schlafende_knoten: list[str] = Field(default_factory=list)   # rechner_schlaeft: auf diese Rechner wartet der Auftrag
     voraussichtlich_s: float | None = None
 
 
@@ -43,13 +44,22 @@ class Zuteilergebnis(BaseModel):
     abgelehnt: list[Wartegrund] = Field(default_factory=list)
 
 
-def zone_erlaubt(verbund: Verbund, auftrag: Auftrag, modell: Modell) -> bool:
+def zone_passt(verbund: Verbund, auftrag: Auftrag, modell: Modell) -> bool:
+    """Darf die Anwendung dorthin, wo das Modell liegt (Zone, extern nur auf Wunsch der App)? Ob der Rechner gerade
+    antwortet, spielt hier keine Rolle; ein Zonenfehler ist endgültig, ein schlafender Rechner nicht."""
     dienst = verbund.dienste[modell.dienst]
-    app = verbund.anwendungen[auftrag.anwendung]
     if dienst.extern:
         return verbund.extern_erlaubt(auftrag, modell)
-    knoten = verbund.knoten[dienst.knoten] if dienst.knoten else None
-    return knoten is not None and knoten.erreichbar and knoten.zone in app.zonen
+    knoten = verbund.knoten.get(dienst.knoten) if dienst.knoten else None
+    return knoten is not None and knoten.zone in verbund.anwendungen[auftrag.anwendung].zonen
+
+
+def zone_erlaubt(verbund: Verbund, auftrag: Auftrag, modell: Modell) -> bool:
+    """Die Zone passt, und der Rechner des Modells antwortet (externe Anbieter haben keinen)."""
+    if not zone_passt(verbund, auftrag, modell):
+        return False
+    dienst = verbund.dienste[modell.dienst]
+    return dienst.extern or verbund.knoten[dienst.knoten or ""].erreichbar
 
 
 def kandidaten(verbund: Verbund, auftrag: Auftrag, familie: str, mit_extern: bool) -> list[Modell]:
@@ -72,18 +82,34 @@ def kandidaten(verbund: Verbund, auftrag: Auftrag, familie: str, mit_extern: boo
     return aus
 
 
-def ablehnungsgrund(verbund: Verbund, auftrag: Auftrag, kette: list[str]) -> tuple[str, str]:
-    """Warum es für den Auftrag keinen Kandidaten gibt, als Wort und Satz."""
+def schlafende_fuer(verbund: Verbund, modelle: list[Modell]) -> list[str]:
+    """Die Rechner der Modelle, wenn jedes Modell im eigenen Netz auf einem schlafenden Rechner liegt; sonst leer.
+    Externe Anbieter zählen nicht mit: wären sie für den Auftrag nutzbar, gäbe es einen Kandidaten."""
+    vor_ort = [verbund.dienste[m.dienst].knoten for m in modelle if not verbund.dienste[m.dienst].extern]
+    if not vor_ort or not all(k in verbund.knoten and verbund.knoten[k].schlaeft for k in vor_ort):
+        return []
+    return sorted({k for k in vor_ort if k is not None})
+
+
+def ablehnungsgrund(verbund: Verbund, auftrag: Auftrag, kette: list[str]) -> Wartegrund:
+    """Warum es für den Auftrag keinen Kandidaten gibt, als Wort und Satz. Reihenfolge: die Zone passt wirklich nicht
+    (endgültig), alle passenden Rechner schlafen (die App wartet, bis einer wach ist), sonst ist der Dienst gerade weg."""
+    def absage(grund: str, satz: str, schlafend: list[str] | None = None) -> Wartegrund:
+        return Wartegrund(auftrag=auftrag.kennung, zustand=Auftragszustand.ABGELEHNT, grund=grund, begruendung=satz,
+                          schlafende_knoten=schlafend or [])
     if auftrag.feste_instanz and auftrag.feste_instanz not in verbund.modelle:
-        return "instanz_weg", "die Instanz, die das Ergebnis hat, läuft nicht mehr; der Aufruf muss von vorn beginnen"
+        return absage("instanz_weg", "die Instanz, die das Ergebnis hat, läuft nicht mehr; der Aufruf muss von vorn beginnen")
     passende = [m for m in verbund.modelle.values() if m.familie in kette and auftrag.faehigkeit in m.faehigkeiten]
     if not passende:
         if auftrag.festes_modell:
-            return "kein_modell", f"Modell {auftrag.festes_modell} ist im Verbund nicht bekannt oder kann das nicht"
-        return "kein_modell", "kein Modell der Kette kann diese Fähigkeit"
-    if not any(zone_erlaubt(verbund, auftrag, m) for m in passende):
-        return "zone_nicht_erlaubt", "das Modell liegt nur in Zonen, die die Anwendung nicht nutzen darf"
-    return "dienst_nicht_erreichbar", "der Dienst mit diesem Modell ist gerade nicht erreichbar"
+            return absage("kein_modell", f"Modell {auftrag.festes_modell} ist im Verbund nicht bekannt oder kann das nicht")
+        return absage("kein_modell", "kein Modell der Kette kann diese Fähigkeit")
+    in_zone = [m for m in passende if zone_passt(verbund, auftrag, m)]
+    if not in_zone:
+        return absage("zone_nicht_erlaubt", "das Modell liegt nur in Zonen, die die Anwendung nicht nutzen darf")
+    if schlafend := schlafende_fuer(verbund, in_zone):
+        return absage("rechner_schlaeft", schlaf_satz([verbund.knoten[k].name for k in schlafend]), schlafend)
+    return absage("dienst_nicht_erreichbar", "der Dienst mit diesem Modell ist gerade nicht erreichbar")
 
 
 def platz_frei(verbund: Verbund, m: Modell, schon_vergeben: int = 0) -> bool:
@@ -221,6 +247,5 @@ def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> 
         elif warte:
             ergebnis.wartend.append(warte)
         else:
-            grund, satz = ablehnungsgrund(verbund, a, kette)
-            ergebnis.abgelehnt.append(Wartegrund(auftrag=a.kennung, zustand=Auftragszustand.ABGELEHNT, grund=grund, begruendung=satz))
+            ergebnis.abgelehnt.append(ablehnungsgrund(verbund, a, kette))
     return ergebnis

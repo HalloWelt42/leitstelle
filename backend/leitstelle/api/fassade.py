@@ -16,12 +16,12 @@ from urllib.parse import unquote
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
-from ..fach.fehler import Ablehnung
+from ..fach.fehler import Ablehnung, fehler_inhalt
 from ..fach.vermittlung import Vorgang, Wartet
 from ..kern.werte import GIB, WORT, Auftragszustand, Eignung, Faehigkeit, Modellzustand, Prioritaet, Zone
 from ..ports.ablage.eintraege import AnwendungEintrag
 from ..ports.dienste import Durchleitung
-from .gemeinsam import betrieb, fehler_antwort, konfig, vermittlung
+from .gemeinsam import ablehnung_antwort, betrieb, fehler_antwort, konfig, vermittlung
 
 router = APIRouter()
 
@@ -106,7 +106,7 @@ def _hinweis(w: Wartet) -> bytes:
 async def _vermitteln(request: Request, pfad: str, faehigkeit: Faehigkeit) -> Response:
     app = _anwendung(request)
     if app is None:
-        return fehler_antwort("unbekannter_schluessel", "Schlüssel fehlt oder ist unbekannt (Kopf Authorization: Bearer ...).")
+        return fehler_antwort(request, "unbekannter_schluessel", "Schlüssel fehlt oder ist unbekannt (Kopf Authorization: Bearer ...).")
     try:
         koerper = await request.json()
     except ValueError:
@@ -119,7 +119,7 @@ async def _vermitteln(request: Request, pfad: str, faehigkeit: Faehigkeit) -> Re
     try:
         v = verm.annehmen(app.kennung, faehigkeit, koerper.get("model"), _prioritaet(request, app), titel, _arbeit(request), _extern(request))
     except Ablehnung as a:
-        return fehler_antwort(a.grund, a.begruendung)
+        return ablehnung_antwort(request, a)
 
     if strom:
         async def sse():
@@ -127,7 +127,7 @@ async def _vermitteln(request: Request, pfad: str, faehigkeit: Faehigkeit) -> Re
                 async for teil in verm.ausfuehren(v, pfad, koerper, True):
                     yield _hinweis(teil) if isinstance(teil, Wartet) else teil
             except Ablehnung as a:
-                daten = json.dumps({"error": {"message": a.begruendung, "type": "leitstelle", "code": a.grund}}, ensure_ascii=False)
+                daten = json.dumps({"error": fehler_inhalt(a.grund, a.begruendung, a.zusatz)}, ensure_ascii=False)
                 yield f"data: {daten}\n\ndata: [DONE]\n\n".encode()
             finally:
                 verm.aufraeumen(v)
@@ -140,7 +140,7 @@ async def _vermitteln(request: Request, pfad: str, faehigkeit: Faehigkeit) -> Re
             if not isinstance(teil, Wartet):
                 teile.append(teil)
     except Ablehnung as a:
-        return fehler_antwort(a.grund, a.begruendung)
+        return ablehnung_antwort(request, a)
     finally:
         verm.aufraeumen(v)
     kopf = _kopf(request, v) | {"X-Leitstelle-Modell": v.modellname} | ({"X-Leitstelle-Knoten": v.knoten} if v.knoten else {})
@@ -148,7 +148,7 @@ async def _vermitteln(request: Request, pfad: str, faehigkeit: Faehigkeit) -> Re
     if z == Auftragszustand.FERTIG:
         return Response(b"".join(teile), media_type="application/json", headers=kopf)
     grund = v.auftrag.grund or ("dienst_fehler" if z == Auftragszustand.FEHLGESCHLAGEN else "nutzer")
-    antwort = fehler_antwort(grund, v.auftrag.begruendung or "abgebrochen")
+    antwort = fehler_antwort(request, grund, v.auftrag.begruendung or "abgebrochen", v.lauf.zusatz)
     antwort.headers.update(kopf)
     return antwort
 
@@ -172,18 +172,17 @@ async def dienst(request: Request, name: str, pfad: str) -> Response:
     unverändert durch. So geht jeder Zugriff über die Leitstelle, auch zu Diensten, die nur auf ihrem Rechner lauschen."""
     app = _anwendung(request)
     if app is None:
-        return fehler_antwort("unbekannter_schluessel", "Schlüssel fehlt oder ist unbekannt (Kopf Authorization: Bearer ...).")
+        return fehler_antwort(request, "unbekannter_schluessel", "Schlüssel fehlt oder ist unbekannt (Kopf Authorization: Bearer ...).")
     b, verm = betrieb(request), vermittlung(request)
     familie = b.familie_fuer(name)
     if familie is None:
-        a = b.unbekannt(name, "Dienst")
-        return fehler_antwort(a.grund, a.begruendung)
+        return ablehnung_antwort(request, b.unbekannt(name, "Dienst"))
     try:
         faehigkeit = verm.faehigkeit_fuer(app.kennung, familie)
         v = verm.annehmen(app.kennung, faehigkeit, name, _prioritaet(request, app), _titel(request, faehigkeit), _arbeit(request), _extern(request),
                           instanz=_instanz(request, familie))
     except Ablehnung as a:
-        return fehler_antwort(a.grund, a.begruendung)
+        return ablehnung_antwort(request, a)
     anfrage = Durchleitung(methode=request.method, pfad=pfad, abfrage=request.url.query, inhalt=await request.body(),
                            kopf={k: w for k, w in request.headers.items() if k.lower() not in OHNE_KOPF})
     try:
@@ -192,7 +191,7 @@ async def dienst(request: Request, name: str, pfad: str) -> Response:
         antwort = await verm.roh_anfragen(v, anfrage)
     except Ablehnung as a:
         verm.aufraeumen(v)
-        fehler = fehler_antwort(a.grund, a.begruendung)
+        fehler = ablehnung_antwort(request, a)
         fehler.headers.update(_kopf(request, v))
         return fehler
     kopf = {k: w for k, w in antwort.kopf.items() if k.lower() not in OHNE_KOPF} | _kopf(request, v) | {"X-Leitstelle-Modell": v.modellname}
@@ -242,7 +241,7 @@ def _darf_lesen(request: Request) -> tuple[bool, AnwendungEintrag | None]:
 async def modelle(request: Request):
     darf, app = _darf_lesen(request)
     if not darf:
-        return fehler_antwort("unbekannter_schluessel", "Schlüssel fehlt oder ist unbekannt.")
+        return fehler_antwort(request, "unbekannter_schluessel", "Schlüssel fehlt oder ist unbekannt.")
     b = betrieb(request)
     daten = []
     for m in _sichtbare_modelle(request, app):
@@ -261,7 +260,7 @@ async def steckbriefe(request: Request, faehigkeit: Faehigkeit | None = None, ei
     Eignung müssen passen; bei `sprache` zuerst die Modelle, die sie ausdrücklich können, dann die ohne Angabe."""
     darf, app = _darf_lesen(request)
     if not darf:
-        return fehler_antwort("unbekannter_schluessel", "Schlüssel fehlt oder ist unbekannt.")
+        return fehler_antwort(request, "unbekannter_schluessel", "Schlüssel fehlt oder ist unbekannt.")
     b = betrieb(request)
     aus = []
     for m in _sichtbare_modelle(request, app):
@@ -283,7 +282,7 @@ def _typ(m) -> str:
 async def modelle_v0(request: Request):
     darf, app = _darf_lesen(request)
     if not darf:
-        return fehler_antwort("unbekannter_schluessel", "Schlüssel fehlt oder ist unbekannt.")
+        return fehler_antwort(request, "unbekannter_schluessel", "Schlüssel fehlt oder ist unbekannt.")
     b = betrieb(request)
     return {"object": "list", "data": [{"id": m.familie, "object": "model", "type": _typ(m), "publisher": m.familie.split("/")[0] if "/" in m.familie else "",
                                         "state": "loaded" if m.zustand != Modellzustand.FREI else "not-loaded",
@@ -294,7 +293,7 @@ async def modelle_v0(request: Request):
 async def modelle_v1(request: Request):
     darf, app = _darf_lesen(request)
     if not darf:
-        return fehler_antwort("unbekannter_schluessel", "Schlüssel fehlt oder ist unbekannt.")
+        return fehler_antwort(request, "unbekannter_schluessel", "Schlüssel fehlt oder ist unbekannt.")
     b = betrieb(request)
     aus = []
     for m in _sichtbare_modelle(request, app):

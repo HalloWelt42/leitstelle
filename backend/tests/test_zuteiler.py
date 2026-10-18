@@ -212,3 +212,86 @@ def test_folgeaufruf_an_dieselbe_instanz(welt):
     weg.feste_instanz = "whisper-mittel.3@hoerer-32"
     e = zuteilen(v, Messwerk())
     assert [(x.auftrag, x.grund) for x in e.abgelehnt] == [(weg.kennung, "instanz_weg")]
+
+
+def _einschlafen(v, knoten: str) -> None:
+    """Wie die Leitstelle nach `knoten.schlaeft`: Rechner schläft, seine Dienste auch."""
+    from leitstelle.kern.werte import Dienstzustand
+    k = v.knoten[knoten]
+    k.schlaeft_seit_s, k.erreichbar = v.zeit_s, False
+    for d in v.dienste_auf(knoten):
+        d.zustand = Dienstzustand.SCHLAEFT
+
+
+def test_s50_rechner_schlaeft_ablehnung_nennt_ihn(welt):
+    """Liegt das Modell nur auf einem schlafenden Rechner, lautet die Ablehnung rechner_schlaeft mit dem Rechner; die Lage
+    bleibt ruhig und nennt ihn als Hinweis."""
+    from leitstelle.kern.lage import beurteilen
+    from leitstelle.kern.werte import Knotenzustand, Lage
+    v = welt.verbund
+    _einschlafen(v, "mac-128")
+    a = welt.auftrag("tubevault", F.STIMME, laufzeit_s=5)
+    e = zuteilen(v, Messwerk())
+    [w] = e.abgelehnt
+    assert (w.auftrag, w.grund, w.schlafende_knoten) == (a.kennung, "rechner_schlaeft", ["mac-128"])
+    assert w.begruendung == "Mac Studio schläft; der Auftrag kann erst laufen, wenn er wach ist."
+    assert v.knoten["mac-128"].zustand == Knotenzustand.SCHLAEFT
+    lage, grund = beurteilen(v)
+    assert lage == Lage.RUHIG and grund.endswith("Mac Studio schläft") and "nicht erreichbar" not in grund
+
+
+def test_s51_unangekuendigt_weg_ist_nicht_erreichbar_statt_zone(welt):
+    """Fehler vom 19.10.2026: ein Rechner, der ohne Abmeldung verschwand, gab 403 zone_nicht_erlaubt (endgültig); jetzt
+    dienst_nicht_erreichbar (die App wartet). Eine Zone, die wirklich nicht passt, bleibt 403."""
+    from leitstelle.kern.werte import Dienstzustand
+    v = welt.verbund
+    v.knoten["mac-128"].erreichbar = False
+    for d in v.dienste_auf("mac-128"):
+        d.zustand = Dienstzustand.NICHT_ERREICHBAR
+    a = welt.auftrag("tubevault", F.STIMME, laufzeit_s=5)
+    z = welt.auftrag("zusage", F.TEXT, laufzeit_s=5, festes_modell="qwen-35b-extern")
+    e = {w.auftrag: w for w in zuteilen(v, Messwerk()).abgelehnt}
+    assert e[a.kennung].grund == "dienst_nicht_erreichbar" and not e[a.kennung].schlafende_knoten
+    assert e[z.kennung].grund == "zone_nicht_erlaubt"
+    v.anwendungen["tubevault"].zonen = {Zone.FERN}             # Mac Studio liegt im Heimnetz: die Zone passt wirklich nicht
+    b = welt.auftrag("tubevault", F.STIMME, laufzeit_s=5)
+    e = {w.auftrag: w for w in zuteilen(v, Messwerk()).abgelehnt}
+    assert e[b.kennung].grund == "zone_nicht_erlaubt"
+
+
+def test_s52_schlaf_nur_wenn_alle_passenden_rechner_schlafen(welt):
+    """Gibt es die Familie auch auf einem wachen Rechner, rechnet der; ist der nur weg (nicht schlafend), heißt es
+    dienst_nicht_erreichbar, damit die App nicht ohne Grenze wartet."""
+    from leitstelle.kern.werte import Dienstzustand
+    v = welt.verbund
+    _einschlafen(v, "mac-128")
+    a = welt.auftrag("rufzeichen", F.HOEREN, laufzeit_s=5)          # whisper-mittel auf dem MacBook, whisper-gross auf Mac Studio
+    e = zuteilen(v, Messwerk())
+    assert [(z.auftrag, z.knoten) for z in e.zuteilungen] == [(a.kennung, "mac-32")]
+    v.dienste["hoerer-32"].zustand = Dienstzustand.NICHT_ERREICHBAR
+    v.knoten["mac-32"].erreichbar = False
+    del v.auftraege[a.kennung]
+    b = welt.auftrag("rufzeichen", F.HOEREN, laufzeit_s=5)
+    [w] = zuteilen(v, Messwerk()).abgelehnt
+    assert (w.auftrag, w.grund) == (b.kennung, "dienst_nicht_erreichbar")
+    _einschlafen(v, "mac-32")
+    [w] = zuteilen(v, Messwerk()).abgelehnt
+    assert (w.grund, w.schlafende_knoten) == ("rechner_schlaeft", ["mac-128", "mac-32"])
+    assert w.begruendung == "Mac Studio und MacBook schlafen; der Auftrag kann erst laufen, wenn einer von ihnen wach ist."
+
+
+def test_s53_schlafender_rechner_ist_kein_ausfall(welt):
+    """Auch mit einem offenen Auftrag auf ihm löst ein schlafender Rechner weder "Umverteilen bei Ausfall" noch Engpass aus."""
+    from leitstelle.kern.lage import beurteilen
+    from leitstelle.kern.regeln.bausteine import BAUSTEINE, Kontext
+    from leitstelle.kern.werte import Lage
+    v = welt.verbund
+    a = welt.auftrag("rufzeichen", F.STIMME, laufzeit_s=60)
+    welt.laufen(6)
+    assert v.auftraege[a.kennung].zustand == Z.LAEUFT and v.auftraege[a.kennung].knoten == "mac-128"
+    _einschlafen(v, "mac-128")
+    assert BAUSTEINE["knoten_ausgefallen"].funktion(Kontext(verbund=v, messwerk=Messwerk(), instanz="")) == []
+    assert beurteilen(v)[0] == Lage.RUHIG
+    v.knoten["mac-128"].schlaeft_seit_s = None                        # derselbe Fall ohne Schlaf: Ausfall
+    assert len(BAUSTEINE["knoten_ausgefallen"].funktion(Kontext(verbund=v, messwerk=Messwerk(), instanz=""))) == 1
+    assert beurteilen(v)[0] == Lage.ENGPASS

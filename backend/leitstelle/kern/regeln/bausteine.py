@@ -144,11 +144,11 @@ def auftrag_eingereiht_ohne_modell(k: Kontext) -> list[Kontext]:
     return aus
 
 
-@baustein("knoten_ausgefallen", "ausloeser", "Knoten fällt aus", "Je nicht erreichbarem Knoten mit offenen Aufträgen ein Lauf.")
+@baustein("knoten_ausgefallen", "ausloeser", "Knoten fällt aus", "Je nicht erreichbarem Knoten mit offenen Aufträgen ein Lauf; ein schlafender Rechner ist kein Ausfall.")
 def knoten_ausgefallen(k: Kontext) -> list[Kontext]:
     aus = []
     for kn in k.verbund.knoten.values():
-        if not kn.erreichbar and any(a.knoten == kn.kennung and a.offen for a in k.verbund.auftraege.values()):
+        if not kn.erreichbar and not kn.schlaeft and any(a.knoten == kn.kennung and a.offen for a in k.verbund.auftraege.values()):
             aus.append(Kontext(verbund=k.verbund, messwerk=k.messwerk, instanz=kn.kennung, knoten_quelle=kn.kennung))
     return aus
 
