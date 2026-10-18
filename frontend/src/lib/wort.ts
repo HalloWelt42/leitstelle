@@ -50,6 +50,7 @@ export const DIENSTZUSTAND: Record<Dienstzustand, Zustandsbild> = {
   startet: { wort: 'Startet', symbol: 'fa-rotate', klasse: 'wartet' },
   pausiert: { wort: 'Pausiert', symbol: 'fa-circle-pause', klasse: 'pausiert' },
   nicht_erreichbar: { wort: 'Nicht erreichbar', symbol: 'fa-circle-xmark', klasse: 'fehler' },
+  ausfall: { wort: 'Ausfall', symbol: 'fa-plug-circle-xmark', klasse: 'fehler' },
 };
 
 export const ZONE: Record<Zone, { wort: string; symbol: string }> = {

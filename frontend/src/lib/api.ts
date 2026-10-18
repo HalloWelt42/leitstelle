@@ -73,6 +73,7 @@ export const api = {
   dienstAendern: (kennung: string, d: DienstAenderung) => rufen(`/dienste/${kennung}`, 'PATCH', d),
   dienstLoeschen: (kennung: string) => rufen(`/dienste/${kennung}`, 'DELETE'),
   dienstZugang: (kennung: string) => rufen<{ zugang: string | null }>(`/dienste/${kennung}/zugang`, 'POST'),
+  dienstPruefen: (kennung: string) => rufen<{ dienst: string; zustand: string }>(`/dienste/${kennung}/pruefen`, 'POST'),
 
   anwendungAnlegen: (d: AnwendungDaten) => rufen<{ kennung: string; name: string; schluessel: string }>('/anwendungen', 'POST', d),
   anwendungAendern: (kennung: string, d: AnwendungDaten) => rufen(`/anwendungen/${kennung}`, 'PUT', d),

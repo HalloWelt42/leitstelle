@@ -23,7 +23,7 @@ from pydantic import BaseModel
 from ..kern.leitstelle import Leitstelle
 from ..kern.messungen import Messwerk
 from ..kern.modelle import Anwendung, Auftrag, Dienst, Knoten, Massnahme, Modell, Verbund
-from ..kern.werte import Auftragszustand, Betriebsmodus, Dienstzustand, Faehigkeit, Massnahmenzustand, Modellzustand, Prioritaet
+from ..kern.werte import WORT, Auftragszustand, Betriebsmodus, Dienstzustand, Faehigkeit, Massnahmenzustand, Modellzustand, Prioritaet
 from ..konfig import Konfig
 from ..ports.ablage.eintraege import (Adapterart, AnwendungEintrag, AuftragEintrag, Ausgang, BetriebEinstellung, Bewegung, DienstEintrag, KnotenEintrag,
                                       PruefEintrag, Richtung, Schritt)
@@ -60,6 +60,16 @@ class ModellOrt:
     @property
     def anfragename(self) -> str:
         return self.instanzen[0] if self.instanzen else self.schluessel
+
+
+@dataclass
+class Pruefstand:
+    """Wann ein abgefragter Dienst wieder gefragt wird: gesund nach seinem Abgleichabstand, nach Fehlschlägen in
+    wachsenden Abständen (ZUSAMMENSPIEL Z4)."""
+
+    fehlschlaege: int = 0
+    naechste_s: float = 0.0
+    seit_s: float | None = None        # erster Fehlschlag der laufenden Reihe
 
 
 @dataclass
@@ -125,6 +135,7 @@ class Betrieb:
         self.aliasse: dict[str, str] = {}
         self.steuerbar: dict[str, bool] = {}
         self.dienst_meldung: dict[str, str] = {}
+        self.pruefstand: dict[str, Pruefstand] = {}
         self.orte: dict[str, ModellOrt] = {}
         self.laeufe: dict[str, Lauf] = {}
         self.ladeversuche: dict[str, int] = {}
@@ -218,11 +229,13 @@ class Betrieb:
             self._nebenbei(alt_adapter.schliessen())
         self.dienste[d.kennung] = d
         zugang = self.tresor.entschluesseln(d.zugang_geheim) if d.zugang_geheim else None
-        self.adapter[d.kennung] = self.fabrik(d.art, d.adresse, zugang)
+        self.adapter[d.kennung] = self.fabrik(d.art, d.adresse, zugang, lambda k=d.kennung: self.verbund.anfrage_gesendet(k, self.uhr.jetzt()))
+        self.pruefstand.pop(d.kennung, None)            # geändert: sofort neu prüfen
         alt = self.verbund.dienste.get(d.kennung)
         self.verbund.dienste[d.kennung] = Dienst(kennung=d.kennung, name=d.name, knoten=d.knoten, art=d.art.value,
                                                   faehigkeiten=alt.faehigkeiten if alt else set(), zustand=alt.zustand if alt else Dienstzustand.NICHT_ERREICHBAR,
-                                                  installiert=False, extern=d.extern, plaetze=d.plaetze)
+                                                  installiert=False, extern=d.extern, plaetze=d.plaetze, anfragen_je_minute=d.anfragen_je_minute,
+                                                  anfragen_s=alt.anfragen_s if alt else [], gesperrt_bis_s=alt.gesperrt_bis_s if alt else None)
         self.geaendert()
 
     def dienst_entfernen(self, kennung: str) -> None:
@@ -307,10 +320,13 @@ class Betrieb:
 
     # ── Abgleich mit den Diensten ────────────────────────────────────────
     async def abgleichen(self) -> None:
-        await asyncio.gather(*(self._abgleich(k) for k in list(self.adapter)))
+        """Fragt jeden fälligen Dienst nach Zustand und Modellen (Dienste, die sich selbst melden, jedes Mal)."""
+        jetzt = self.uhr.jetzt()
+        faellig = [k for k, a in self.adapter.items() if a.meldet_sich_selbst or jetzt >= self.pruefstand.get(k, Pruefstand()).naechste_s]
+        await asyncio.gather(*(self._abgleich(k) for k in faellig))
         for k in self.verbund.knoten.values():
             dienste = self.verbund.dienste_auf(k.kennung)
-            erreichbar = any(d.zustand != Dienstzustand.NICHT_ERREICHBAR for d in dienste) if dienste else True
+            erreichbar = any(d.zustand not in (Dienstzustand.NICHT_ERREICHBAR, Dienstzustand.AUSFALL) for d in dienste) if dienste else True
             if erreichbar != k.erreichbar:
                 k.erreichbar = erreichbar
                 self.melden(f"{k.name} ist {'wieder erreichbar' if erreichbar else 'nicht erreichbar'}")
@@ -325,9 +341,13 @@ class Betrieb:
         d = self.verbund.dienste.get(dienst)
         if d is None:            # während der Abfrage entfernt
             return
-        neu = Dienstzustand.BEREIT if bericht.erreichbar else Dienstzustand.NICHT_ERREICHBAR
+        neu = Dienstzustand.BEREIT if bericht.erreichbar else self._fehlschlag_vermerken(dienst) if not adapter.meldet_sich_selbst else Dienstzustand.NICHT_ERREICHBAR
+        if bericht.erreichbar and not adapter.meldet_sich_selbst:
+            self._gesund_vermerken(dienst)
         if neu != d.zustand:
-            self.melden(f"{d.name}: {'bereit' if bericht.erreichbar else 'nicht erreichbar'}{', ' + bericht.meldung if bericht.meldung and not bericht.erreichbar else ''}")
+            p = self.pruefstand.get(dienst)
+            naechste = f"; nächste Prüfung in {komma(p.naechste_s - self.uhr.jetzt())} s" if p and p.fehlschlaege else ""
+            self.melden(f"{d.name}: {WORT[neu.value]}{', ' + bericht.meldung if bericht.meldung and not bericht.erreichbar else ''}{naechste}")
         d.zustand = neu
         self.steuerbar[dienst] = bericht.steuerbar
         self.dienst_meldung[dienst] = bericht.meldung
@@ -344,6 +364,47 @@ class Betrieb:
                 self.verbund.modelle.pop(m.kennung, None)
                 self.orte.pop(m.kennung, None)
         d.faehigkeiten = set().union(*(m.faehigkeiten for m in self.verbund.modelle_von(dienst))) if self.verbund.modelle_von(dienst) else set()
+
+    def _gesund_vermerken(self, dienst: str) -> None:
+        e = self.dienste.get(dienst)
+        abstand = e.abgleich_s if e and e.abgleich_s else self.konfig.extern_abgleich_s if e and e.extern else self.konfig.dienst_takt_s
+        self.pruefstand[dienst] = Pruefstand(naechste_s=self.uhr.jetzt() + abstand)
+
+    def _fehlschlag_vermerken(self, dienst: str) -> Dienstzustand:
+        """Abstand verdoppelt sich je Fehlschlag (bis höchstens einen Tag); ab dem n-ten in Folge heißt es Ausfall."""
+        k, jetzt = self.konfig, self.uhr.jetzt()
+        alt = self.pruefstand.get(dienst, Pruefstand())
+        fehlschlaege = alt.fehlschlaege + 1
+        abstand = min(k.pruefung_ab_s * 2 ** (fehlschlaege - 1), k.pruefung_hoechstens_s)
+        self.pruefstand[dienst] = Pruefstand(fehlschlaege=fehlschlaege, naechste_s=jetzt + abstand, seit_s=alt.seit_s or jetzt)
+        return Dienstzustand.AUSFALL if fehlschlaege >= k.ausfall_ab_fehlschlag else Dienstzustand.NICHT_ERREICHBAR
+
+    async def dienst_pruefen(self, dienst: str, wer: str) -> Dienstzustand:
+        """"Jetzt prüfen": sofort fragen, unabhängig vom Prüfplan; antwortet der Dienst, gilt wieder der normale Abstand."""
+        if dienst not in self.adapter:
+            raise Ablehnung("unbekannt", "Diesen Dienst gibt es nicht.")
+        await self._abgleich(dienst)
+        self._zeit_setzen()
+        self.anstossen()
+        await self.ablage.pruefung.anhaengen(PruefEintrag(zeit_s=self.uhr.jetzt(), wer=wer, was="Dienst von Hand geprüft", gegenstand=self.dienste[dienst].name))
+        return self.verbund.dienste[dienst].zustand
+
+    def dienst_gestoert(self, dienst: str, meldung: str) -> None:
+        """Eine Anfrage erreichte den Dienst nicht: bis zur nächsten erfolgreichen Prüfung bekommt er keine Aufträge."""
+        d, a = self.verbund.dienste.get(dienst), self.adapter.get(dienst)
+        if d is None or a is None or a.meldet_sich_selbst:
+            return
+        d.zustand = self._fehlschlag_vermerken(dienst)
+        self.melden(f"{d.name}: {WORT[d.zustand.value]} ({meldung[:120]}); nächste Prüfung in {komma(self.pruefstand[dienst].naechste_s - self.uhr.jetzt())} s")
+
+    def dienst_ueberlastet(self, dienst: str, warte_s: float) -> None:
+        """Der Dienst meldete zu viele Anfragen (429): gesperrt für seine Wartezeit."""
+        d = self.verbund.dienste.get(dienst)
+        if d is None:
+            return
+        self._zeit_setzen()
+        d.gesperrt_bis_s = self.verbund.zeit_s + warte_s
+        self.melden(f"{d.name} meldet zu viele Anfragen; gesperrt für {komma(warte_s)} s")
 
     def _modell_abgleichen(self, kennung: str, d: Dienst, mb: ModellBericht, steuerbar: bool, jetzt: float) -> None:
         unbekannte_groesse = mb.parameter_mrd is None

@@ -21,6 +21,17 @@ from .betrieb import Betrieb, Lauf, Messung
 from .fehler import Ablehnung
 
 NEUVERSUCHE_NICHT_GELADEN = 2       # Dienst hat das Modell zwischen Abgleich und Anfrage selbst entladen
+NEUVERSUCHE_UEBERLAST = 3           # Dienst meldete zu viele Anfragen (429): gesperrt, Auftrag wartet oder weicht aus
+UEBERLAST_WARTE_S = 60.0            # Sperre, wenn der Dienst kein Retry-After nennt
+
+
+def warte_s_aus(kopf: dict[str, str]) -> float:
+    """Retry-After in Sekunden (die Datumsform kommt bei Anbietern im OpenAI-Format nicht vor)."""
+    wert = next((w for k, w in kopf.items() if k.lower() == "retry-after"), "")
+    try:
+        return max(1.0, float(wert))
+    except ValueError:
+        return UEBERLAST_WARTE_S
 
 
 class _Abbruch(Exception):
@@ -139,10 +150,16 @@ class Vermittlung:
             yield self._abbruch_ende(v, strom)
             return
         except DienstFehler as f:
+            if f.grund == "dienst_nicht_erreichbar":
+                b.dienst_gestoert(a.dienst or "", f.meldung)
             self._abschliessen(v, Auftragszustand.FEHLGESCHLAGEN, f.grund, f.meldung)
             yield self._fehler(strom, f.grund, f.meldung)
             return
         try:
+            if antwort.status == 429 and v.neuversuche < NEUVERSUCHE_UEBERLAST:
+                b.dienst_ueberlastet(a.dienst or "", warte_s_aus(antwort.kopf))
+                self._zurueckstellen(v)
+                raise _Neuversuch()
             if antwort.status >= 400:
                 text = (await antwort.lesen()).decode("utf-8", "replace")
                 if self._nicht_geladen(text) and v.neuversuche < NEUVERSUCHE_NICHT_GELADEN:
@@ -189,15 +206,23 @@ class Vermittlung:
 
     def _neu_einreihen(self, v: Vorgang) -> None:
         """Der Dienst kennt das Modell nicht mehr als geladen: Modell als frei werten, Auftrag zurück in die Warteschlange."""
+        m = self.betrieb.verbund.modelle.get(v.auftrag.modell or "")
+        if m is not None:
+            m.zustand = Modellzustand.FREI
+            m.geladen_seit_s = None
+            self.betrieb.melden(f"{m.name} war beim Dienst nicht mehr geladen; der Auftrag wird neu eingereiht")
+        self._zurueckstellen(v)
+
+    def _zurueckstellen(self, v: Vorgang) -> None:
+        """Auftrag zurück in die Warteschlange; der Zuteiler wählt neu (anderer Platz, anderes Modell oder warten)."""
         b = self.betrieb
         a = v.auftrag
         v.neuversuche += 1
         m = b.verbund.modelle.get(a.modell or "")
         if m is not None:
             m.auftraege_aktiv = max(0, m.auftraege_aktiv - 1)
-            m.zustand = Modellzustand.FREI
-            m.geladen_seit_s = None
-            b.melden(f"{m.name} war beim Dienst nicht mehr geladen; der Auftrag wird neu eingereiht")
+            if m.auftraege_aktiv == 0 and m.zustand == Modellzustand.RECHNET:
+                m.zustand = Modellzustand.GELADEN
         a.zustand = Auftragszustand.EINGEREIHT
         a.dienst = a.modell = a.knoten = None
         a.start_s = None

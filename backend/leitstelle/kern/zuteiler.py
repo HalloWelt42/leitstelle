@@ -82,8 +82,9 @@ def ablehnungsgrund(verbund: Verbund, auftrag: Auftrag, kette: list[str]) -> tup
     return "dienst_nicht_erreichbar", "der Dienst mit diesem Modell ist gerade nicht erreichbar"
 
 
-def platz_frei(verbund: Verbund, m: Modell) -> bool:
-    return len(verbund.belegung(m.kennung)) < verbund.plaetze(m)
+def platz_frei(verbund: Verbund, m: Modell, schon_vergeben: int = 0) -> bool:
+    """Ein Platz auf dem Modell und, wo der Dienst eine Grenze je Minute hat, eine Anfrage im Fenster."""
+    return len(verbund.belegung(m.kennung)) < verbund.plaetze(m) and verbund.anfrage_frei_in_s(m.dienst, schon_vergeben) == 0
 
 
 def wirksame_prioritaet(verbund: Verbund, a: Auftrag) -> int:
@@ -108,6 +109,7 @@ def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> 
             ergebnis.wartend.append(Wartegrund(auftrag=a.kennung, zustand=a.zustand, begruendung=f"Hauptregler steht auf {verbund.betriebsmodus.value}, nichts Neues wird gestartet"))
         return ergebnis
     vergeben_plaetze: dict[str, int] = {}       # Modellkennung -> in diesem Lauf schon vergebene Plätze
+    vergeben_anfragen: dict[str, int] = {}      # Dienstkennung -> in diesem Lauf schon vergebene Anfragen (Grenze je Minute)
     geplanter_speicher: dict[str, float] = {}   # Knoten -> in diesem Lauf schon verplante GB
     je_anwendung: dict[str, int] = {}
     for a in verbund.offene_auftraege():
@@ -140,7 +142,8 @@ def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> 
         geladene: list[tuple[int, Modell]] = []
         for i, fam in enumerate(suche):
             for m in kandidaten(verbund, a, fam, mit_extern):
-                if m.zustand in (Modellzustand.GELADEN, Modellzustand.RECHNET) and platz_frei(verbund, m) and vergeben_plaetze.get(m.kennung, 0) < verbund.plaetze(m) - len(verbund.belegung(m.kennung)):
+                if (m.zustand in (Modellzustand.GELADEN, Modellzustand.RECHNET) and platz_frei(verbund, m, vergeben_anfragen.get(m.dienst, 0))
+                        and vergeben_plaetze.get(m.kennung, 0) < verbund.plaetze(m) - len(verbund.belegung(m.kennung))):
                     d = verbund.dienste[m.dienst]
                     bevorzugt = 0 if (a.prioritaet == Prioritaet.HINTERGRUND and verbund.hintergrund_knoten_bevorzugt and d.knoten == verbund.hintergrund_knoten_bevorzugt) else 1
                     geladene.append((bevorzugt * 100 + i, m))
@@ -158,6 +161,12 @@ def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> 
                 belegt = [m for m in ks if m.zustand in (Modellzustand.GELADEN, Modellzustand.RECHNET, Modellzustand.LAEDT)]
                 if belegt:
                     m = belegt[0]
+                    if (frei_in := verbund.anfrage_frei_in_s(m.dienst, vergeben_anfragen.get(m.dienst, 0))) > 0:
+                        d = verbund.dienste[m.dienst]
+                        grenze = f"Grenze von {d.anfragen_je_minute} Anfragen je Minute erreicht" if d.anfragen_je_minute else "Dienst meldete zu viele Anfragen"
+                        warte = Wartegrund(auftrag=a.kennung, zustand=Auftragszustand.EINGEREIHT, wartet_auf_familie=fam, wartet_auf_knoten=d.knoten,
+                                           voraussichtlich_s=frei_in, begruendung=f"{d.name}: {grenze}, wieder frei in etwa {frei_in:.0f} s")
+                        break
                     rest = max((messwerk.rest_s(x.anwendung, x.faehigkeit.value, x.fortschritt_s) for x in verbund.belegung(m.kennung)), default=None)
                     d = verbund.dienste[m.dienst]
                     warte = Wartegrund(auftrag=a.kennung, zustand=Auftragszustand.EINGEREIHT, wartet_auf_familie=fam, wartet_auf_knoten=d.knoten, voraussichtlich_s=rest,
@@ -202,6 +211,7 @@ def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> 
         if gefunden:
             ergebnis.zuteilungen.append(gefunden)
             vergeben_plaetze[gefunden.modell] = vergeben_plaetze.get(gefunden.modell, 0) + 1
+            vergeben_anfragen[gefunden.dienst] = vergeben_anfragen.get(gefunden.dienst, 0) + 1
             je_anwendung[a.anwendung] = je_anwendung.get(a.anwendung, 0) + 1
         elif warte:
             ergebnis.wartend.append(warte)

@@ -24,7 +24,7 @@ export type Zone = 'heim' | 'fern' | 'extern';
  * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "Dienstzustand".
  */
-export type Dienstzustand = 'bereit' | 'aus' | 'startet' | 'pausiert' | 'nicht_erreichbar';
+export type Dienstzustand = 'bereit' | 'aus' | 'startet' | 'pausiert' | 'nicht_erreichbar' | 'ausfall';
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "Faehigkeit".
@@ -84,7 +84,7 @@ export type Prioritaet = 0 | 1 | 2 | 3;
  * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "Adapterart".
  */
-export type Adapterart = 'openai_kompatibel' | 'agent';
+export type Adapterart = 'openai_kompatibel' | 'extern_openai' | 'agent';
 export type Zone1 = 'heim' | 'fern' | 'extern';
 export type Zone2 = 'heim' | 'fern' | 'extern';
 export type Prioritaet1 = 0 | 1 | 2 | 3;
@@ -196,6 +196,11 @@ export interface DienstSicht {
   meldung: string;
   plaetze: number;
   zugang: boolean;
+  anfragen_je_minute: number | null;
+  anfragen_letzte_minute: number;
+  frei_in_s: number;
+  fehlschlaege: number;
+  naechste_pruefung_s: number | null;
 }
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
@@ -465,6 +470,8 @@ export interface DienstDaten {
   neuer_knoten?: KnotenDaten | null;
   extern?: boolean;
   plaetze?: number;
+  anfragen_je_minute?: number | null;
+  abgleich_s?: number | null;
 }
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
@@ -475,6 +482,8 @@ export interface DienstAenderung {
   adresse?: string | null;
   zugang?: string | null;
   plaetze?: number | null;
+  anfragen_je_minute?: number | null;
+  abgleich_s?: number | null;
 }
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema

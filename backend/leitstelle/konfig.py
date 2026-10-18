@@ -25,7 +25,11 @@ class Konfig(BaseSettings):
     erlaubte_netze: list[str] = Field(
         default=["127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fd00::/8", "fe80::/10"],
         description="Netze, aus denen Oberfläche und Verwaltung erreichbar sind (Heimnetz und VPN)")
-    dienst_takt_s: float = Field(default=5.0, description="Abstand der Zustandsabfrage je Dienst")
+    dienst_takt_s: float = Field(default=5.0, description="Abstand der Zustandsabfrage je Dienst im eigenen Netz")
+    extern_abgleich_s: float = Field(default=900.0, description="Abstand der Zustandsabfrage externer Anbieter, wenn sie gesund sind (jede Abfrage zählt für ihre Grenze)")
+    pruefung_ab_s: float = Field(default=5.0, description="erster Abstand nach einem Fehlschlag; er verdoppelt sich mit jedem weiteren")
+    pruefung_hoechstens_s: float = Field(default=86400.0, description="größter Abstand zwischen zwei Prüfungen eines ausgefallenen Dienstes (ein Tag)")
+    ausfall_ab_fehlschlag: int = Field(default=5, description="ab so vielen Fehlschlägen in Folge heißt der Zustand Ausfall statt nicht erreichbar")
     verbindung_s: float = Field(default=10.0, description="Grenze für den Verbindungsaufbau zu Diensten; Arbeit selbst hat keine Lese-Grenze")
     hinweis_s: float = Field(default=15.0, description="Abstand der Wartehinweise in Strömen der Fassade")
 

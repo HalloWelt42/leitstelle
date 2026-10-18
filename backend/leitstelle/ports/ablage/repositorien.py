@@ -52,7 +52,7 @@ class KnotenAblage:
 
 
 class DienstAblage:
-    FELDER = ("kennung", "name", "art", "adresse", "knoten", "extern", "zugang_geheim", "plaetze")
+    FELDER = tuple(DienstEintrag.model_fields)
 
     def __init__(self, db: Datenbank) -> None:
         self.db = db

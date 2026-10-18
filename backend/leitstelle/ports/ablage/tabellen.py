@@ -37,6 +37,8 @@ class DienstTabelle(Basis):
     extern: Mapped[bool] = mapped_column(Boolean, default=False)
     zugang_geheim: Mapped[str | None] = mapped_column(Text, nullable=True)
     plaetze: Mapped[int] = mapped_column(Integer, default=4)
+    anfragen_je_minute: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    abgleich_s: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
 class AnwendungTabelle(Basis):

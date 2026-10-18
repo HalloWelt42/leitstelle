@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from typing import Any
 
 import httpx
@@ -96,15 +96,24 @@ class HttpStrom:
 
 
 class OpenAIKompatibel:
-    def __init__(self, adresse: str, zugang: str | None = None, verbindung_s: float = 10.0, transport: httpx.AsyncBaseTransport | None = None) -> None:
+    meldet_sich_selbst = False           # die Leitstelle fragt nach dem Zustand (mit wachsenden Abständen bei Ausfall)
+
+    def __init__(self, adresse: str, zugang: str | None = None, verbindung_s: float = 10.0, transport: httpx.AsyncBaseTransport | None = None,
+                 beim_senden: Callable[[], None] | None = None) -> None:
         basis = adresse.rstrip("/")
         if basis.endswith("/v1"):
             basis = basis[:-3]
         kopf = {"Authorization": f"Bearer {zugang}"} if zugang else {}
         self._kurz = httpx.Timeout(verbindung_s)
-        # Arbeit (Laden, Antworten) ohne Lese-Grenze, nur Verbindungsaufbau begrenzt
+        self._beim_senden = beim_senden
+        # Arbeit (Laden, Antworten) ohne Lese-Grenze, nur Verbindungsaufbau begrenzt; jede Anfrage wird gezählt
         self._client = httpx.AsyncClient(base_url=basis, headers=kopf, transport=transport,
-                                         timeout=httpx.Timeout(connect=verbindung_s, read=None, write=None, pool=None))
+                                         timeout=httpx.Timeout(connect=verbindung_s, read=None, write=None, pool=None),
+                                         event_hooks={"request": [self._gesendet]} if beim_senden else {})
+
+    async def _gesendet(self, _anfrage: httpx.Request) -> None:
+        if self._beim_senden:
+            self._beim_senden()
 
     async def schliessen(self) -> None:
         await self._client.aclose()
@@ -179,3 +188,44 @@ class OpenAIKompatibel:
         except httpx.HTTPError as fehler:
             raise DienstFehler("dienst_nicht_erreichbar", f"{type(fehler).__name__} {fehler}".strip(), wiederholbar=True) from fehler
         return HttpStrom(antwort)
+
+
+def _milliarden_im_namen(kennung: str) -> float | None:
+    """'Qwen/Qwen3.6-35B-A3B' -> 35, 'Qwen3.8-27B' -> 27: die Gesamtzahl, nicht die aktive (A3B)."""
+    t = re.search(r"(?<![A-Za-z])(\d+(?:\.\d+)?)\s*([BM])(?![A-Za-z])", kennung.upper())
+    return _milliarden(t.group(1) + t.group(2)) if t else None
+
+
+class ExternOpenAI(OpenAIKompatibel):
+    """Externer Anbieter im OpenAI-Format (zuerst Hetzner): nur `/v1/models`, nie Laden oder Entladen; mehrere Namen
+    mit gleichem `root` sind ein Modell (Hetzner nennt jedes Modell zweimal). Jede Anfrage zählt für die Grenze je
+    Minute, auch die Zustandsabfrage; die Leitstelle fragt deshalb selten (ZUSAMMENSPIEL Z4)."""
+
+    async def zustand(self) -> Dienstbericht:
+        try:
+            r = await self._client.get("/v1/models", timeout=self._kurz)
+            if r.status_code != 200:
+                return Dienstbericht(erreichbar=False, meldung=f"Antwort {r.status_code}: {_fehlertext(r.content)}")
+            daten = r.json().get("data", [])
+        except (httpx.HTTPError, ValueError, AttributeError) as fehler:
+            return Dienstbericht(erreichbar=False, meldung=f"nicht erreichbar: {type(fehler).__name__} {fehler}".strip())
+        gruppen: dict[str, list[dict[str, Any]]] = {}
+        for m in daten:
+            gruppen.setdefault(str(m.get("root") or m["id"]), []).append(m)
+        modelle = []
+        for namen in gruppen.values():
+            # Hauptname: mit Anbieter vorn, sonst der kürzeste; die übrigen sind Aliasse (Instanzen tragen alle Namen)
+            namen = sorted(namen, key=lambda m: ("/" not in str(m["id"]), len(str(m["id"])), str(m["id"])))
+            haupt = str(namen[0]["id"])
+            einbettung = "embed" in haupt.lower()
+            modelle.append(ModellBericht(schluessel=haupt, name=haupt.split("/")[-1], gb=0.0, geladen=True, einbettung=einbettung,
+                                         faehigkeiten={F.EINBETTUNG} if einbettung else set(TEXT_FAEHIGKEITEN),
+                                         instanzen=[str(m["id"]) for m in namen], parameter_mrd=_milliarden_im_namen(haupt),
+                                         kontext=namen[0].get("max_model_len")))
+        return Dienstbericht(erreichbar=True, steuerbar=False, modelle=modelle, meldung="externer Anbieter: immer bereit, Laden übernimmt der Anbieter")
+
+    async def laden(self, schluessel: str) -> str:
+        raise DienstFehler("nicht_steuerbar", "Ein externer Anbieter lädt seine Modelle selbst.")
+
+    async def entladen(self, instanz: str) -> None:
+        raise DienstFehler("nicht_steuerbar", "Ein externer Anbieter entlädt seine Modelle selbst.")

@@ -204,6 +204,13 @@ async def dienst_aendern(kennung: str, daten: DienstAenderung, request: Request)
     return _dienst_ohne_geheimnis(await _fachlich(verzeichnis(request).dienst_aendern(kennung, daten, wer(request))))
 
 
+@router.post("/dienste/{kennung}/pruefen")
+async def dienst_pruefen(kennung: str, request: Request):
+    """Jetzt prüfen: fragt den Dienst sofort, auch im Ausfall (sonst in wachsenden Abständen)."""
+    zustand = await _fachlich(betrieb(request).dienst_pruefen(kennung, wer(request)))
+    return {"dienst": kennung, "zustand": zustand}
+
+
 @router.delete("/dienste/{kennung}")
 async def dienst_loeschen(kennung: str, request: Request):
     await _fachlich(verzeichnis(request).dienst_loeschen(kennung, wer(request)))

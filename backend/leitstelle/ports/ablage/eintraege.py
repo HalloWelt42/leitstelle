@@ -17,6 +17,7 @@ class Adapterart(str, Enum):
     """Wie die Leitstelle mit einem Dienst spricht. Neue Arten kommen mit neuen Adaptern dazu."""
 
     OPENAI_KOMPATIBEL = "openai_kompatibel"
+    EXTERN_OPENAI = "extern_openai"     # externer Anbieter im OpenAI-Format: nur Modellliste, Grenze je Minute
     AGENT = "agent"                     # Prozessdienste eines Knoten-Agenten; Starten ist Laden
 
 
@@ -43,6 +44,8 @@ class DienstEintrag(BaseModel):
     extern: bool = False
     zugang_geheim: str | None = None   # verschlüsselt im Tresor; nur wenn die Gegenstelle einen verlangt
     plaetze: int = 4                   # gleichzeitige Aufträge je geladenem Modell
+    anfragen_je_minute: int | None = None   # Grenze des Anbieters (Hetzner etwa 10); die Leitstelle hält sie ein
+    abgleich_s: float | None = None    # Abstand der Zustandsabfrage, wenn der Dienst gesund ist (None: Vorgabe der Konfig)
 
 
 class AnwendungEintrag(BaseModel):

@@ -9,10 +9,11 @@ import httpx
 from ..ablage.eintraege import Adapterart
 from ..agenten import Agentenvermittlung
 from .agent import AgentDienste, agent_adresse
-from .openai_kompatibel import OpenAIKompatibel
+from .openai_kompatibel import ExternOpenAI, OpenAIKompatibel
 from .schnittstelle import DienstAdapter, Dienstbericht, DienstFehler, Durchleitung, ModellBericht, Strom
 
-AdapterFabrik = Callable[[Adapterart, str, str | None], DienstAdapter]
+# Art, Adresse, entschlüsselter Zugang und was bei jeder gesendeten Anfrage geschieht (Zählen für die Grenze je Minute)
+AdapterFabrik = Callable[[Adapterart, str, str | None, Callable[[], None] | None], DienstAdapter]
 
 
 def adapter_fabrik(verbindung_s: float = 10.0, transport: httpx.AsyncBaseTransport | None = None,
@@ -20,10 +21,12 @@ def adapter_fabrik(verbindung_s: float = 10.0, transport: httpx.AsyncBaseTranspo
     """Baut Adapter nach Art, Adresse und (entschlüsseltem) Zugang."""
     agenten = agenten or Agentenvermittlung()
 
-    def bauen(art: Adapterart, adresse: str, zugang: str | None) -> DienstAdapter:
+    def bauen(art: Adapterart, adresse: str, zugang: str | None, beim_senden: Callable[[], None] | None = None) -> DienstAdapter:
         match art:
             case Adapterart.OPENAI_KOMPATIBEL:
-                return OpenAIKompatibel(adresse, zugang, verbindung_s=verbindung_s, transport=transport)
+                return OpenAIKompatibel(adresse, zugang, verbindung_s=verbindung_s, transport=transport, beim_senden=beim_senden)
+            case Adapterart.EXTERN_OPENAI:
+                return ExternOpenAI(adresse, zugang, verbindung_s=verbindung_s, transport=transport, beim_senden=beim_senden)
             case Adapterart.AGENT:
                 return AgentDienste(adresse, agenten, verbindung_s=verbindung_s)
         raise ValueError(f"unbekannte Adapterart {art}")

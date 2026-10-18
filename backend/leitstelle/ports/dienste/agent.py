@@ -28,6 +28,8 @@ def agent_adresse(knoten: str) -> str:
 
 
 class AgentDienste:
+    meldet_sich_selbst = True            # der Maschinenraum meldet sich; sein Zustand liegt schon vor
+
     def __init__(self, adresse: str, agenten: Agentenvermittlung, verbindung_s: float = 10.0) -> None:
         if not adresse.startswith(SCHEMA):
             raise ValueError(f"keine Agent-Adresse: {adresse}")

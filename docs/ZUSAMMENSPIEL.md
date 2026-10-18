@@ -79,6 +79,39 @@ umgesetzt; Vorrang und Wahl beim Entladen waren schon so (größtes ungenutztes 
   (Anfragen je Minute) hält die Leitstelle ein; Zone extern nur, wo die App es erlaubt.
 - **Ausfälle**: ein Dienst, der nicht antwortet, wird in wachsenden Abständen geprüft (von wenigen Sekunden bis
   höchstens einmal am Tag) und als Ausfall markiert; ganz weg: einmal täglich oder von Hand ("jetzt prüfen").
+
+Entwurf (18.10.2026, Messung an Hetzner: `/v1/models` nennt je Modell `id`, `max_model_len` und `root`; mehrere `id`
+mit gleichem `root` sind dasselbe Modell; keine Grenzwerte in den Antwortköpfen):
+
+- **Jede Anfrage zählt**: der Adapter zählt jede Anfrage, die er an den Dienst schickt (Arbeit, Wiederholungen,
+  Zustandsabfragen) über einen Haken seines HTTP-Clients; der Kern führt je Dienst das gleitende Fenster der letzten
+  60 s. Ist die Grenze erreicht, gilt der Dienst wie ein belegter Platz: der Auftrag wartet mit Frist (bis die älteste
+  Anfrage aus dem Fenster fällt) oder weicht aus. Antwortet der Dienst trotzdem mit 429, sperrt die Leitstelle ihn für
+  `Retry-After` (sonst 60 s).
+- **Seltener Abgleich**: externe Dienste werden im gesunden Zustand nur alle `abgleich_s` (Vorgabe 900 s) nach ihren
+  Modellen gefragt, nur über `/v1/models`; Namen mit gleichem `root` werden zu einem Modell mit Aliassen.
+- **Prüfabstände bei Ausfall** (alle abgefragten Dienste; Dienste des Maschinenraums melden sich selbst und sind
+  ausgenommen): nach jedem Fehlschlag verdoppelt sich der Abstand, von `pruefung_ab_s` (5 s) bis höchstens
+  `pruefung_hoechstens_s` (1 Tag); ab dem fünften Fehlschlag in Folge heißt der Zustand **Ausfall** statt "nicht
+  erreichbar". "Jetzt prüfen" in der Oberfläche prüft sofort und setzt den Abstand zurück, wenn der Dienst antwortet.
+- **Daten verlassen das Heimnetz nur mit Erlaubnis**: eine App nutzt einen externen Dienst nur mit `extern_erlaubt` und
+  Zone extern; ohne beides sieht sie ihn nicht.
+
+## Selbstauskunft: Steckbrief je Modell
+
+Nutzer 18.10.2026: "die modelle [können] auskunft über sich selber geben ... so kann eine anfrage einer software eine
+antwort bekommen, für welchen zweck ein dienst oder ki optimiert ist". Jedes Modell im Verbund hat einen Steckbrief;
+die Leitstelle setzt ihn aus drei Quellen zusammen und nennt je Angabe, woher sie stammt:
+
+| Quelle | Angaben |
+|---|---|
+| der Dienst selbst | Modell-Läufer: Kontext, Parameter, Quantisierung, Bilder verstehen, Werkzeuge; Hetzner: Kontext; Dienste des Maschinenraums: was in ihrer Dienstdatei steht (Zweck, Sprachen, Eignung) |
+| gemessen von der Leitstelle | Wörter je Sekunde, Zeit bis zum ersten Stück, Ladezeit, wie oft erreichbar |
+| eingetragen von Hand | Zweck und Eignung, wo der Dienst nichts sagt (etwa bei externen Anbietern) |
+
+Eine App fragt über `GET /v1/steckbriefe` (Fassade, mit `faehigkeit` und `eignung` als Filter) oder `frage.modelle`
+(Protokoll); `/v1/models` trägt den Steckbrief zusätzlich je Eintrag unter `leitstelle`. Festgelegt in
+docs/PROTOKOLL.md Abschnitt 4.8.
 - **Zweiter Mac**: ein zweiter Maschinenraum meldet sich als eigener Knoten; Umleiten und Doppel-Auflösen gibt es schon.
   Vorher prüfen: nichts im Code darf einen einzigen Mac annehmen (Namen, Budget, Tondienst je Rechner).
 

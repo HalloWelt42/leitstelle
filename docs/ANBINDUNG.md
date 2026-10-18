@@ -345,7 +345,7 @@ erkennt der Adapter.
 | Art | Adapter in der Leitstelle | Was der Dienst selbst tun muss |
 |---|---|---|
 | Modell-Läufer mit OpenAI-Form und nativer Zustandsschnittstelle | `openai_kompatibel` (Zustand, Laden, Entladen über die native Schnittstelle des Läufers) | nichts; läuft wie bisher |
-| Externer Anbieter mit OpenAI-Form | `extern_openai` | nichts; Schlüssel liegt nur in der Leitstelle (verschlüsselt, mit Auge) |
+| Externer Anbieter mit OpenAI-Form | `extern_openai` (nur `/v1/models`, nie Laden; Namen mit gleichem `root` sind ein Modell; Grenze je Minute und Abgleichabstand je Dienst einstellbar, Vorgabe 900 s) | nichts; Schlüssel liegt nur in der Leitstelle (verschlüsselt, mit Auge) |
 | Eigener Sprach-Worker (Stimme, Stimme klonen, Hören) | `sprachdienst` | eigene Modellverwaltung entfernen; eine Sperre für die Grafik bleibt und gilt als ein Platz |
 | Eigener Spracherkennungsdienst | `hoeren_http` | `GET /zustand` mit Modell und Speicher anbieten, sonst nichts |
 | Bild-Werkbank (Bilderzeugung, Freistellen) | `bildwerkbank` | nichts; Bindung an 127.0.0.1 bleibt, der Knoten-Agent stellt den Weg her |
@@ -365,7 +365,10 @@ class DienstAdapter(Protocol):
     async def abbrechen(self, auftrag: str) -> Teilergebnis | None: ...
 ```
 
-Regeln für Adapter: die Gesundheitsprüfung lädt nie ein Modell; `zustand()` ist billig und läuft im Takt;
+Regeln für Adapter: die Gesundheitsprüfung lädt nie ein Modell; `zustand()` ist billig und läuft im Takt
+(abgefragte Dienste nach ihrem Abgleichabstand, nach Fehlschlägen in wachsenden Abständen von 5 s bis höchstens einem
+Tag, ab dem fünften Fehlschlag in Folge im Zustand `ausfall`; Dienste mit `meldet_sich_selbst`, etwa der Maschinenraum,
+jedes Mal); jede gesendete Anfrage meldet der Adapter über `beim_senden`, damit die Leitstelle Grenzen je Minute einhält;
 jede Zeit (Laden, Lauf, erstes Stück) wird gemessen und an das Messwerk gemeldet; Fehler kommen mit dem
 Wortlaut des Dienstes und einem Wort als Grund; Teilergebnisse werden gesammelt, damit ein Abbruch sie
 liefern kann.

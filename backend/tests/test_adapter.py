@@ -7,7 +7,7 @@ from fastapi import FastAPI
 
 from leitstelle.kern.werte import Faehigkeit as F
 from leitstelle.ports.dienste import DienstFehler
-from leitstelle.ports.dienste.openai_kompatibel import OpenAIKompatibel, _milliarden
+from leitstelle.ports.dienste.openai_kompatibel import ExternOpenAI, OpenAIKompatibel, _milliarden, _milliarden_im_namen
 
 from schein.laeufer import schein_laeufer
 from schein.server import laufend
@@ -75,3 +75,48 @@ async def test_nicht_erreichbar():
     b = await a.zustand()
     assert not b.erreichbar and "nicht erreichbar" in b.meldung
     await a.schliessen()
+
+
+HETZNER_MODELLE = {"object": "list", "data": [
+    {"id": "Qwen/Qwen3.6-35B-A3B", "object": "model", "owned_by": "hetzner", "root": "s3://models/qwen36-35b-a3b-fp8", "max_model_len": 262144},
+    {"id": "Qwen/Qwen3.6-35B-A3B-FP8", "object": "model", "owned_by": "hetzner", "root": "s3://models/qwen36-35b-a3b-fp8", "max_model_len": 262144},
+    {"id": "Qwen/Qwen3.8-27B", "object": "model", "owned_by": "hetzner", "root": "s3://models/qwen38-27b-fp8", "max_model_len": 262144},
+    {"id": "Qwen3.8-27B", "object": "model", "owned_by": "hetzner", "root": "s3://models/qwen38-27b-fp8", "max_model_len": 262144}]}
+
+
+async def test_externer_anbieter_wie_hetzner():
+    """Antwort wie bei Hetzner gemessen (18.10.2026): je Modell zwei Namen mit gleichem root. Der Adapter fragt nur
+    /v1/models (eine Anfrage, sie zählt für die Grenze), fasst Namen zu einem Modell zusammen und lädt nie."""
+    app = FastAPI()
+    gesehen: list[str] = []
+
+    @app.middleware("http")
+    async def mitschreiben(anfrage, weiter):
+        gesehen.append(anfrage.url.path)
+        return await weiter(anfrage)
+
+    @app.get("/api/v1/models")
+    async def liste():
+        return HETZNER_MODELLE
+
+    gezaehlt = []
+    async with laufend(app) as adresse:
+        a = ExternOpenAI(adresse + "/api/v1", "geheim", beim_senden=lambda: gezaehlt.append(1))
+        b = await a.zustand()
+        assert gesehen == ["/api/v1/models"] and len(gezaehlt) == 1
+        assert b.erreichbar and not b.steuerbar
+        m = {x.schluessel: x for x in b.modelle}
+        assert set(m) == {"Qwen/Qwen3.6-35B-A3B", "Qwen/Qwen3.8-27B"}
+        assert m["Qwen/Qwen3.8-27B"].instanzen == ["Qwen/Qwen3.8-27B", "Qwen3.8-27B"] and m["Qwen/Qwen3.8-27B"].kontext == 262144
+        assert m["Qwen/Qwen3.6-35B-A3B"].parameter_mrd == 35 and m["Qwen/Qwen3.6-35B-A3B"].geladen
+        try:
+            await a.laden("Qwen/Qwen3.8-27B")
+            raise AssertionError("ein externer Anbieter lädt selbst")
+        except DienstFehler as f:
+            assert f.grund == "nicht_steuerbar"
+        await a.schliessen()
+
+
+def test_parameterzahl_im_namen():
+    assert _milliarden_im_namen("Qwen/Qwen3.6-35B-A3B") == 35 and _milliarden_im_namen("Qwen3.8-27B") == 27
+    assert _milliarden_im_namen("text-embedding-bge-m3") is None

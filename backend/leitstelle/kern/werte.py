@@ -70,6 +70,7 @@ class Dienstzustand(str, Enum):
     STARTET = "startet"
     PAUSIERT = "pausiert"
     NICHT_ERREICHBAR = "nicht_erreichbar"
+    AUSFALL = "ausfall"               # antwortet seit mehreren Prüfungen nicht; geprüft wird in wachsenden Abständen
 
 
 class Betriebsmodus(str, Enum):
@@ -120,4 +121,5 @@ WORT: dict[str, str] = {
     "umleiten": "Umleiten", "leerlauf_raeumen": "Leerlauf räumen", "vorwaermen": "Vorwärmen", "kette_ausweichen": "Kette ausweichen",
     "extern_ausweichen": "Extern ausweichen", "umverteilen": "Umverteilen", "verlagern": "Verlagern", "doppel_aufloesen": "Doppel auflösen",
     "hintergrund_lage": "Hintergrund bei Lage",
+    "bereit": "Bereit", "aus": "Aus", "startet": "Startet", "nicht_erreichbar": "Nicht erreichbar", "ausfall": "Ausfall",
 }

@@ -23,6 +23,7 @@
   let neuSpeicher = $state<number | null>(null);
   let neuZone = $state<Zone>('heim');
   let plaetze = $state(4);
+  let grenze = $state<number | null>(null);
   let nameGeaendert = $state(false);
   // Begonnener Anschluss (Adresse eingetragen oder schon erkannt): keine neue Fassung mittendrin laden
   arbeit.bearbeitung(() => adresse.trim() !== '' || erkennung !== null);
@@ -60,7 +61,8 @@
       ? { name: neuName.trim() || erkennung.rechnername || 'Rechner', adresse: erkennung.rechnername ?? '', speicher_gb: neuSpeicher ?? 0, zone: neuZone }
       : null;
     const r = await tun(() => api.dienstAnlegen({ adresse: erkennung!.adresse, name: name.trim() || null, zugang: zugang || null, extern: art === 'extern',
-      knoten: art === 'dienst' && knotenWahl !== 'neu' ? knotenWahl : null, neuer_knoten: neuerKnoten, plaetze }), 'Dienst angeschlossen');
+      knoten: art === 'dienst' && knotenWahl !== 'neu' ? knotenWahl : null, neuer_knoten: neuerKnoten, plaetze,
+      anfragen_je_minute: grenze || null }), 'Dienst angeschlossen');
     if (r) weg.gehe('dienste');
   }
 
@@ -134,6 +136,8 @@
               <div class="pruef"><i class="fa-solid fa-check"></i><span class="k">Name</span><span class="v"><input class="eingabe" style="height:34px; width: 280px" bind:value={name} oninput={() => (nameGeaendert = true)} /></span></div>
               <div class="pruef"><i class="fa-solid fa-check"></i><span class="k">Plätze</span>
                 <span class="v"><input class="eingabe" type="number" min="1" max="64" style="height:34px; width: 90px" bind:value={plaetze} title="Gleichzeitige Aufträge je geladenem Modell" /> <span class="leise">gleichzeitige Aufträge je Modell</span></span></div>
+              {#if art === 'extern'}<div class="pruef"><i class="fa-solid fa-gauge"></i><span class="k">Grenze</span>
+                <span class="v"><input class="eingabe" type="number" min="1" max="100000" style="height:34px; width: 90px" bind:value={grenze} title="So viele Anfragen je Minute nimmt der Anbieter an; leer heißt keine Grenze" /> <span class="leise">Anfragen je Minute (leer: keine)</span></span></div>{/if}
             {/if}
           </div>
           <div class="tun" style="margin-top: var(--ls-a4); display: flex; gap: var(--ls-a2)">

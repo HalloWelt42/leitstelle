@@ -321,7 +321,7 @@ def kette_hat_alternative(k: Kontext) -> bool:
             d = k.verbund.dienste[m.dienst]
             if d.extern or d.knoten is None or not d.nutzbar or not erlaubte_zone(k.verbund, a, d.knoten):
                 continue
-            if len(k.verbund.belegung(m.kennung)) >= k.verbund.plaetze(m):
+            if len(k.verbund.belegung(m.kennung)) >= k.verbund.plaetze(m) or k.verbund.anfrage_frei_in_s(m.dienst) > 0:
                 continue
             k.knoten_ziel, k.dienst_ziel, k.modell_ziel = d.knoten, d.kennung, m.kennung
             k.aufwand_s = 0.0
@@ -357,7 +357,7 @@ def extern_dienst_vorhanden(k: Kontext) -> bool:
     treffer = []
     for m in k.verbund.modelle.values():
         d = k.verbund.dienste[m.dienst]
-        if d.extern and d.nutzbar and a.faehigkeit in m.faehigkeiten and a.faehigkeit in d.faehigkeiten:
+        if d.extern and d.nutzbar and a.faehigkeit in m.faehigkeiten and a.faehigkeit in d.faehigkeiten and k.verbund.anfrage_frei_in_s(d.kennung) == 0:
             rang = kette.index(m.familie) if m.familie in kette else len(kette)
             treffer.append((rang, m, d))
     if not treffer:

@@ -1,6 +1,8 @@
 <script lang="ts">
   import { api } from '../lib/api';
   import { arbeit } from '../lib/arbeit.svelte';
+  import { dauer } from '../lib/format';
+  import { kanal } from '../lib/kanal.svelte';
   import { tun } from '../lib/meldung.svelte';
   import type { DienstSicht, Lagebild } from '../lib/typen.gen';
   import { weg } from '../lib/weg.svelte';
@@ -10,10 +12,17 @@
   let { bild }: { bild: Lagebild } = $props();
 
   let bearbeiten = $state<string | null>(null);
-  let entwurf = $state<{ name: string; adresse: string; plaetze: number; zugang: string; zugangNeu: boolean }>({ name: '', adresse: '', plaetze: 4, zugang: '', zugangNeu: false });
+  type Entwurf = { name: string; adresse: string; plaetze: number; zugang: string; zugangNeu: boolean; grenze: number | null; abgleich: number | null };
+  let entwurf = $state<Entwurf>({ name: '', adresse: '', plaetze: 4, zugang: '', zugangNeu: false, grenze: null, abgleich: null });
   let loeschen = $state<string | null>(null);
   let aufgedeckt = $state<Record<string, string | null>>({});
+  let jetzt = $state(kanal.jetzt());
   arbeit.bearbeitung(() => bearbeiten !== null);
+
+  $effect(() => {
+    const t = setInterval(() => (jetzt = kanal.jetzt()), 1000);
+    return () => clearInterval(t);
+  });
 
   const bereit = $derived(bild.dienste.filter((d) => d.zustand === 'bereit'));
   const knotenName = (k: string | null) => bild.knoten.find((x) => x.kennung === k)?.name ?? 'Extern';
@@ -22,13 +31,15 @@
 
   function beginnen(d: DienstSicht) {
     bearbeiten = d.kennung;
-    entwurf = { name: d.name, adresse: d.adresse, plaetze: d.plaetze, zugang: '', zugangNeu: false };
+    entwurf = { name: d.name, adresse: d.adresse, plaetze: d.plaetze, zugang: '', zugangNeu: false, grenze: d.anfragen_je_minute, abgleich: null };
   }
 
   async function speichern() {
     if (!bearbeiten) return;
     const e = entwurf;
-    const daten = { name: e.name, adresse: e.adresse, plaetze: e.plaetze, zugang: e.zugangNeu ? e.zugang : null };
+    // leere Grenze entfernt sie (0), leerer Abgleich lässt ihn
+    const daten = { name: e.name, adresse: e.adresse, plaetze: e.plaetze, zugang: e.zugangNeu ? e.zugang : null,
+                    anfragen_je_minute: e.grenze ?? 0, abgleich_s: e.abgleich || null };
     if (await tun(() => api.dienstAendern(bearbeiten!, daten), 'Dienst gespeichert')) bearbeiten = null;
   }
 
@@ -54,7 +65,7 @@
     <div class="kennzahlen">
       <div class="kennzahl"><b>{bild.dienste.length}</b><span>Dienste</span></div>
       <div class="kennzahl erfolg"><b>{bereit.length}</b><span>Bereit</span></div>
-      {#if bereit.length < bild.dienste.length}<div class="kennzahl fehler"><b>{bild.dienste.length - bereit.length}</b><span>Nicht erreichbar</span></div>{/if}
+      {#if bereit.length < bild.dienste.length}<div class="kennzahl fehler"><b>{bild.dienste.length - bereit.length}</b><span>Nicht erreichbar</span>{#if bild.dienste.some((d) => d.zustand === 'ausfall')}<small>davon {bild.dienste.filter((d) => d.zustand === 'ausfall').length} im Ausfall</small>{/if}</div>{/if}
       <div class="kennzahl"><b>{bild.dienste.filter((d) => d.steuerbar).length}</b><span>Steuerbar</span><small>Leitstelle lädt und entlädt</small></div>
     </div>
   </div>
@@ -69,10 +80,15 @@
             <tr>
               <td><b>{d.name}</b><div class="leise klein zahl">{d.adresse}</div></td>
               <td>{knotenName(d.knoten)} <ZoneMarke wert={knotenZone(d)} /></td>
-              <td><Zustand art="dienst" wert={d.zustand} />{#if d.meldung}<div class="leise klein" title={d.meldung}>{d.meldung.length > 60 ? d.meldung.slice(0, 57) + '...' : d.meldung}</div>{/if}</td>
+              <td><Zustand art="dienst" wert={d.zustand} />{#if d.meldung}<div class="leise klein" title={d.meldung}>{d.meldung.length > 60 ? d.meldung.slice(0, 57) + '...' : d.meldung}</div>{/if}
+                {#if d.fehlschlaege && d.naechste_pruefung_s}<div class="klein" title="Nach jedem Fehlschlag verdoppelt sich der Abstand, höchstens ein Tag; ab dem fünften Fehlschlag in Folge heißt es Ausfall">
+                  <span class="zahl">{d.fehlschlaege}</span> {d.fehlschlaege === 1 ? 'Fehlschlag' : 'Fehlschläge'}, nächste Prüfung {d.naechste_pruefung_s > jetzt ? `in ${dauer(d.naechste_pruefung_s - jetzt)}` : 'gleich'}
+                  <button class="knopf klein ohne" onclick={() => tun(() => api.dienstPruefen(d.kennung), 'Geprüft')} title="Sofort fragen, unabhängig von den Abständen"><i class="fa-solid fa-rotate"></i> Jetzt prüfen</button></div>{/if}</td>
               <td class="klein" title={d.steuerbar ? 'Die Leitstelle liest den echten Ladezustand und lädt und entlädt selbst' : 'Der Dienst meldet nur seine Modelle; Laden und Entladen übernimmt er selbst'}>{d.steuerbar ? 'Leitstelle steuert' : 'Dienst lädt selbst'}</td>
               <td class="zahl">{ms.length} <span class="leise">({ms.filter((m) => m.zustand !== 'frei').length} geladen)</span></td>
-              <td class="zahl" title="Gleichzeitige Aufträge je geladenem Modell">{d.plaetze}</td>
+              <td class="zahl" title="Gleichzeitige Aufträge je geladenem Modell">{d.plaetze}
+                {#if d.anfragen_je_minute}<div class="klein" class:akzent={d.frei_in_s > 0} title="Grenze des Anbieters; jede Anfrage zählt, auch die Abfrage der Modelle">
+                  {d.anfragen_letzte_minute} von {d.anfragen_je_minute} je Minute{#if d.frei_in_s > 0}, frei in {dauer(d.frei_in_s)}{/if}</div>{/if}</td>
               <td>{#if d.zugang}
                   <span class="zahl">{d.kennung in aufgedeckt ? (aufgedeckt[d.kennung] ?? '') : '••••••••'}</span>
                   <button class="knopf ohne symbol klein" onclick={() => zugangZeigen(d.kennung)} title="Zugang aufdecken; steht im Prüfprotokoll"><i class="fa-solid {d.kennung in aufgedeckt ? 'fa-eye-slash' : 'fa-eye'}"></i></button>
@@ -88,6 +104,8 @@
                   <label class="feld-l"><span>Name</span><input class="eingabe" bind:value={entwurf.name} /></label>
                   <label class="feld-l"><span>Adresse</span><input class="eingabe" bind:value={entwurf.adresse} /></label>
                   <label class="feld-l"><span>Plätze <small>gleichzeitige Aufträge je Modell</small></span><input class="eingabe" type="number" min="1" max="64" bind:value={entwurf.plaetze} /></label>
+                  <label class="feld-l"><span>Grenze <small>Anfragen je Minute, leer heißt keine</small></span><input class="eingabe" type="number" min="1" max="100000" bind:value={entwurf.grenze} /></label>
+                  {#if d.extern}<label class="feld-l"><span>Abgleich <small>Sekunden zwischen zwei Abfragen der Modelle, leer lässt ihn</small></span><input class="eingabe" type="number" min="1" max="86400" bind:value={entwurf.abgleich} /></label>{/if}
                   <label class="feld-l"><span>Zugang <small>{entwurf.zugangNeu ? 'leer entfernt den Zugang' : 'bleibt, wie er ist'}</small></span>
                     <span class="feld-l zeile-feld"><input class="eingabe" type="password" bind:value={entwurf.zugang} disabled={!entwurf.zugangNeu} placeholder="neuer Schlüssel" />
                       <button class="knopf klein ohne" onclick={() => (entwurf.zugangNeu = !entwurf.zugangNeu)}>{entwurf.zugangNeu ? 'Doch nicht' : 'Ändern'}</button></span></label>

@@ -6,7 +6,7 @@ from __future__ import annotations
 from pydantic import BaseModel
 
 from .. import version
-from ..kern.modelle import Massnahme
+from ..kern.modelle import ANFRAGE_FENSTER_S, Massnahme
 from ..kern.werte import Auftragszustand, Automatik, Betriebsmodus, Dienstzustand, Faehigkeit, Lage, Modellzustand, Zone
 from ..ports.ablage.eintraege import Schritt
 from ..protokoll.knoten import Messwerte
@@ -56,6 +56,11 @@ class DienstSicht(BaseModel):
     meldung: str
     plaetze: int
     zugang: bool
+    anfragen_je_minute: int | None     # Grenze des Anbieters
+    anfragen_letzte_minute: int        # gesendete Anfragen im Fenster
+    frei_in_s: float                   # bis zur nächsten erlaubten Anfrage (0: jetzt)
+    fehlschlaege: int                  # Prüfungen ohne Antwort in Folge
+    naechste_pruefung_s: float | None  # Zeitpunkt der nächsten Zustandsabfrage (None: meldet sich selbst)
 
 
 class ModellSicht(BaseModel):
@@ -155,7 +160,12 @@ def lagebild(b: Betrieb) -> Lagebild:
     dienste = [DienstSicht(kennung=d.kennung, name=d.name, art=d.art.value, adresse=d.adresse, knoten=d.knoten, extern=d.extern,
                            zustand=v.dienste[d.kennung].zustand if d.kennung in v.dienste else Dienstzustand.NICHT_ERREICHBAR,
                            steuerbar=b.steuerbar.get(d.kennung, False), meldung=b.dienst_meldung.get(d.kennung, ""), plaetze=d.plaetze,
-                           zugang=d.zugang_geheim is not None) for d in b.dienste.values()]
+                           zugang=d.zugang_geheim is not None, anfragen_je_minute=d.anfragen_je_minute,
+                           anfragen_letzte_minute=sum(1 for t in v.dienste[d.kennung].anfragen_s if v.zeit_s - t < ANFRAGE_FENSTER_S) if d.kennung in v.dienste else 0,
+                           frei_in_s=v.anfrage_frei_in_s(d.kennung) if d.kennung in v.dienste else 0.0,
+                           fehlschlaege=b.pruefstand[d.kennung].fehlschlaege if d.kennung in b.pruefstand else 0,
+                           naechste_pruefung_s=None if d.kennung in b.adapter and b.adapter[d.kennung].meldet_sich_selbst
+                           else b.pruefstand[d.kennung].naechste_s if d.kennung in b.pruefstand else None) for d in b.dienste.values()]
     modelle = [ModellSicht(kennung=m.kennung, name=m.name, familie=m.familie, dienst=m.dienst, knoten=v.dienste[m.dienst].knoten if m.dienst in v.dienste else None,
                            faehigkeiten=sorted(m.faehigkeiten, key=lambda f: f.value), gb=m.gb, gb_jetzt=m.gb_jetzt, parameter_mrd=m.parameter_mrd, zustand=m.zustand,
                            geschuetzt=m.geschuetzt(r.schutzgrenze_mrd), geladen_seit_s=m.geladen_seit_s, letzte_nutzung_s=m.letzte_nutzung_s,

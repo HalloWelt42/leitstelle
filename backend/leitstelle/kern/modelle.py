@@ -54,6 +54,9 @@ class Dienst(BaseModel):
     startzeit_s: float = 3.0          # Vorgabe ohne Messung
     extern: bool = False
     plaetze: int = 1                  # gleichzeitige Aufträge je Modell
+    anfragen_je_minute: int | None = None   # Grenze des Anbieters; die Leitstelle hält sie ein
+    anfragen_s: list[float] = Field(default_factory=list)   # Zeitpunkte gesendeter Anfragen im gleitenden Fenster
+    gesperrt_bis_s: float | None = None     # nach "zu viele Anfragen" des Dienstes (429)
 
     @property
     def nutzbar(self) -> bool:
@@ -202,6 +205,9 @@ class Massnahme(BaseModel):
     bewegungen: list[str] = Field(default_factory=list)   # "laden:familie@knoten", "entladen:familie@knoten" für den Flatterschutz
 
 
+ANFRAGE_FENSTER_S = 60.0              # Grenzen gelten je Minute
+
+
 class Verbund(BaseModel):
     """Der ganze Zustand, über den der Kern entscheidet."""
 
@@ -269,6 +275,27 @@ class Verbund(BaseModel):
         if d.art == "agent":
             return m.plaetze or 1
         return min(d.plaetze, m.plaetze) if m.plaetze else d.plaetze
+
+    def anfrage_gesendet(self, dienst: str, zeit_s: float) -> None:
+        """Jede Anfrage an den Dienst (Arbeit, Wiederholung, Zustandsabfrage) zählt für seine Grenze."""
+        d = self.dienste.get(dienst)
+        if d is not None:
+            d.anfragen_s = [t for t in d.anfragen_s if zeit_s - t < ANFRAGE_FENSTER_S] + [zeit_s]
+
+    def anfrage_frei_in_s(self, dienst: str, schon_vergeben: int = 0) -> float:
+        """Sekunden, bis der Dienst die nächste Anfrage annimmt (0: jetzt): Sperre nach 429 und Grenze je Minute. Es
+        zählen die gesendeten Anfragen der letzten Minute, zugeteilte, die noch nicht gesendet sind, und `schon_vergeben`
+        (in diesem Zuteillauf)."""
+        d = self.dienste[dienst]
+        warten = max(0.0, (d.gesperrt_bis_s or 0.0) - self.zeit_s)
+        if d.anfragen_je_minute:
+            fenster = sorted(t for t in d.anfragen_s if self.zeit_s - t < ANFRAGE_FENSTER_S)
+            offen = sum(1 for a in self.auftraege.values() if a.dienst == dienst and a.zustand == Auftragszustand.ZUGETEILT) + schon_vergeben
+            zuviel = len(fenster) + offen - d.anfragen_je_minute + 1
+            if zuviel > 0:
+                frei = fenster[zuviel - 1] + ANFRAGE_FENSTER_S - self.zeit_s if zuviel <= len(fenster) else ANFRAGE_FENSTER_S
+                warten = max(warten, frei)
+        return round(warten, 1)
 
     def belegung(self, modell: str) -> list[Auftrag]:
         """Aufträge, die das Modell halten: laufende und schon zugeteilte."""

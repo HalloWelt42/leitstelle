@@ -3,7 +3,8 @@ Szenarien S01 bis S08 und S28 aus docs/SZENARIEN.md."""
 
 from leitstelle.kern.werte import Auftragszustand as Z, Betriebsmodus, Faehigkeit as F, Prioritaet as P, Zone
 
-from leitstelle.kern.zuteiler import reihenfolge
+from leitstelle.kern.zuteiler import reihenfolge, zuteilen
+from leitstelle.kern.messungen import Messwerk
 
 from conftest import entlade, lade, welt_mit
 
@@ -176,3 +177,20 @@ def test_einbettung_zuerst(welt):
     spaet = welt.auftrag("fundus", F.EINBETTUNG, prioritaet=P.HINTERGRUND)
     such = welt.auftrag("fundus", F.EINBETTUNG, prioritaet=P.NORMAL)
     assert [a.kennung for a in reihenfolge(welt.verbund)] == [such.kennung, spaet.kennung, text.kennung]
+
+
+def test_grenze_je_minute_des_externen_anbieters(welt):
+    """Hetzner nimmt etwa 10 Anfragen je Minute an; die Leitstelle schickt nie mehr. Gesendete Anfragen im Fenster
+    und Zuteilungen desselben Laufs zählen; wer darüber liegt, wartet mit Frist und Grund."""
+    v = welt.verbund
+    d = v.dienste["extern-anbieter"]
+    d.anfragen_je_minute = 3
+    v.anfrage_gesendet("extern-anbieter", v.zeit_s - 50)     # fällt in 10 s aus dem Fenster
+    v.anfrage_gesendet("extern-anbieter", v.zeit_s - 70)     # schon draußen
+    auftraege = [welt.auftrag("fundus", F.TEXT, festes_modell="qwen-35b-extern") for _ in range(3)]
+    e = zuteilen(v, Messwerk())
+    assert [z.auftrag for z in e.zuteilungen] == [a.kennung for a in auftraege[:2]]
+    w = next(x for x in e.wartend if x.auftrag == auftraege[2].kennung)
+    assert "Grenze von 3 Anfragen je Minute erreicht" in w.begruendung and w.voraussichtlich_s == 10.0
+    d.gesperrt_bis_s = v.zeit_s + 30                           # nach 429 des Anbieters
+    assert v.anfrage_frei_in_s("extern-anbieter") == 30.0

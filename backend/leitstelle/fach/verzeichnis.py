@@ -45,6 +45,11 @@ class Erkennung(BaseModel):
     modelle: list[ModellBericht]
 
 
+def _art(extern: bool) -> Adapterart:
+    """Externe Anbieter sprechen OpenAI-Format, werden aber selten gefragt und nie gesteuert (ZUSAMMENSPIEL Z4)."""
+    return Adapterart.EXTERN_OPENAI if extern else Adapterart.OPENAI_KOMPATIBEL
+
+
 class DienstDaten(BaseModel):
     adresse: str = Field(min_length=8, max_length=255)
     name: str | None = Field(default=None, max_length=120)
@@ -53,6 +58,8 @@ class DienstDaten(BaseModel):
     neuer_knoten: KnotenDaten | None = None
     extern: bool = False
     plaetze: int = Field(default=4, ge=1, le=64)
+    anfragen_je_minute: int | None = Field(default=None, ge=1, le=100000)   # Grenze des Anbieters
+    abgleich_s: float | None = Field(default=None, ge=1, le=86400)         # Abstand der Zustandsabfrage, wenn gesund
 
 
 class DienstAenderung(BaseModel):
@@ -60,6 +67,8 @@ class DienstAenderung(BaseModel):
     adresse: str | None = Field(default=None, max_length=255)
     zugang: str | None = Field(default=None, max_length=500)  # "" entfernt den Zugang, None lässt ihn
     plaetze: int | None = Field(default=None, ge=1, le=64)
+    anfragen_je_minute: int | None = Field(default=None, ge=0, le=100000)  # 0 entfernt die Grenze, None lässt sie
+    abgleich_s: float | None = Field(default=None, ge=0, le=86400)         # 0 heißt Vorgabe, None lässt ihn
 
 
 class AnwendungDaten(BaseModel):
@@ -147,14 +156,15 @@ class Verzeichnis:
     # ── Dienste ──────────────────────────────────────────────────────────
     async def erkennen(self, adresse: str, zugang: str | None = None, extern: bool = False) -> Erkennung:
         adresse = _adresse_pruefen(adresse, extern)
-        adapter = self.b.fabrik(Adapterart.OPENAI_KOMPATIBEL, adresse, zugang or None)
+        art = _art(extern)
+        adapter = self.b.fabrik(art, adresse, zugang or None, None)
         try:
             bericht = await adapter.zustand()
         finally:
             await adapter.schliessen()
         rechner = _rechnername(adresse)
         vorschlag = next((k.kennung for k in self.b.knoten.values() if k.adresse == rechner), None)
-        return Erkennung(erreichbar=bericht.erreichbar, steuerbar=bericht.steuerbar, meldung=bericht.meldung, art=Adapterart.OPENAI_KOMPATIBEL,
+        return Erkennung(erreichbar=bericht.erreichbar, steuerbar=bericht.steuerbar, meldung=bericht.meldung, art=art,
                          adresse=adresse, rechnername=rechner, knoten_vorschlag=vorschlag,
                          name_vorschlag=("Modell-Läufer " + (self.b.knoten[vorschlag].name if vorschlag else (rechner or adresse))) if not extern else (rechner or adresse),
                          modelle=bericht.modelle)
@@ -173,8 +183,9 @@ class Verzeichnis:
                 raise Ablehnung("knoten_fehlt", "Ein Dienst im eigenen Netz gehört zu einem Rechner; Rechner wählen oder neu einrichten.")
         rechner = _rechnername(adresse) or adresse
         e = DienstEintrag(kennung=uuid4().hex, name=d.name or ("Modell-Läufer " + (self.b.knoten[knoten].name if knoten else rechner)),
-                          art=Adapterart.OPENAI_KOMPATIBEL, adresse=adresse, knoten=knoten, extern=d.extern,
-                          zugang_geheim=self.b.tresor.verschluesseln(d.zugang) if d.zugang else None, plaetze=d.plaetze)
+                          art=_art(d.extern), adresse=adresse, knoten=knoten, extern=d.extern,
+                          zugang_geheim=self.b.tresor.verschluesseln(d.zugang) if d.zugang else None, plaetze=d.plaetze,
+                          anfragen_je_minute=d.anfragen_je_minute, abgleich_s=d.abgleich_s)
         await self.b.ablage.dienste.speichern(e)
         self.b.dienst_setzen(e)
         await self._pruefen(wer, "Dienst eingerichtet" + (" mit Zugang" if d.zugang else ""), e.name)
@@ -192,6 +203,10 @@ class Verzeichnis:
             neu.adresse = _adresse_pruefen(d.adresse, e.extern)
         if d.plaetze:
             neu.plaetze = d.plaetze
+        if d.anfragen_je_minute is not None:
+            neu.anfragen_je_minute = d.anfragen_je_minute or None
+        if d.abgleich_s is not None:
+            neu.abgleich_s = d.abgleich_s or None
         if d.zugang is not None:
             neu.zugang_geheim = self.b.tresor.verschluesseln(d.zugang) if d.zugang else None
         await self.b.ablage.dienste.speichern(neu)
