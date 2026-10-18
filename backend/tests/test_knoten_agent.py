@@ -318,3 +318,34 @@ def test_protokoll_von_agent_und_kern_ist_deckungsgleich():
             assert a.model_json_schema() == b.model_json_schema(), name
         else:
             assert [e.value for e in a] == [e.value for e in b], name
+
+
+async def test_a09_nach_dem_neustart_ist_ein_ungemeldeter_dienst_nur_gerade_weg(tmp_path):
+    """Vorfall vom 18.10.2026: Nach dem Neustart der Leitstelle kannte sie die Dienste des Mac erst, als sich sein
+    Maschinenraum wieder meldete; dazwischen hieß es "kein_modell" (endgültig) und ein echter Auftrag gab auf. Solange ein
+    eingetragener Maschinenraum sich nicht gemeldet hat, ist ein unbekannter Name nur vorübergehend nicht erreichbar."""
+    port = _freier_port()
+    (tmp_path / "hallo.txt").write_text("Grüße aus dem Dienst")
+    async with aufbau(tmp_path) as (c, url, knoten, schluessel):
+        app_schluessel = (await c.post("/api/anwendungen", json={"name": "Sprache", "faehigkeiten": ["stimme"]})).json()["schluessel"]
+        ordner = _agentenordner(tmp_path, url, schluessel, port)
+        async with agent_laeuft(ordner):
+            async def da():
+                return await _modell(c, "probe") is not None
+            await _warte_bis(da)
+    kopf = {"Authorization": f"Bearer {app_schluessel}"}
+    neu = erstellen(Konfig(daten=tmp_path / "daten", oberflaeche=None, dienst_takt_s=0.3))     # derselbe Bestand
+    async with laufend(neu) as url, httpx.AsyncClient(base_url=url, timeout=60) as anw:
+        r = await anw.get("/v1/dienste/probe/hallo.txt", headers=kopf)
+        assert r.status_code == 503 and r.json()["error"]["code"] == "dienst_nicht_erreichbar", r.text
+        assert "Mac Studio" in r.json()["error"]["message"] and r.headers["retry-after"]
+        r = await anw.post("/v1/chat/completions", headers=kopf, json={"model": "gibts-nicht", "messages": []})
+        assert r.json()["error"]["code"] != "kein_modell"                     # auch ein Modellwunsch wartet
+        (ordner.wurzel / "einstellungen.toml").write_text((ordner.wurzel / "einstellungen.toml").read_text().replace(
+            f'adresse = "{ordner.einstellungen().leitstelle.adresse}"', f'adresse = "{url}"'))   # neue Adresse nach dem Neustart
+        async with agent_laeuft(ordner):
+            async def wieder():
+                return (await anw.get("/v1/dienste/probe/hallo.txt", headers=kopf)).status_code == 200
+            await _warte_bis(wieder)
+            r = await anw.get("/v1/dienste/gibtsnicht/x", headers=kopf)
+            assert r.json()["error"]["code"] == "kein_modell"                 # gemeldet und trotzdem unbekannt: endgültig

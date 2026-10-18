@@ -64,7 +64,7 @@ class Vermittlung:
         if modellwunsch and modellwunsch not in ("auto", "leitstelle"):
             familie = self.betrieb.familie_fuer(modellwunsch)
             if familie is None:
-                raise Ablehnung("kein_modell", f"Modell {modellwunsch} ist im Verbund nicht bekannt.")
+                raise self.betrieb.unbekannt(modellwunsch)
         auftrag, lauf = self.betrieb.anlegen(anwendung, faehigkeit, familie, prioritaet, titel)
         v = Vorgang(auftrag=auftrag, lauf=lauf)
         if lauf.ende.is_set():                         # sofort abgelehnt (Rechte, Zone, kein Modell)

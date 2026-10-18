@@ -145,7 +145,8 @@ async def dienst(request: Request, name: str, pfad: str) -> Response:
     b, verm = betrieb(request), vermittlung(request)
     familie = b.familie_fuer(name)
     if familie is None:
-        return fehler_antwort("kein_modell", f"Den Dienst {name} kennt die Leitstelle nicht.")
+        a = b.unbekannt(name, "Dienst")
+        return fehler_antwort(a.grund, a.begruendung)
     try:
         faehigkeit = verm.faehigkeit_fuer(app.kennung, familie)
         v = verm.annehmen(app.kennung, faehigkeit, name, _prioritaet(request, app), _titel(request, faehigkeit))

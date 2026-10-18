@@ -539,6 +539,24 @@ class Betrieb:
     def ort(self, modell: str) -> ModellOrt:
         return self.orte.get(modell) or ModellOrt(schluessel=self.verbund.modelle[modell].familie)
 
+    def knoten_ohne_meldung(self) -> list[str]:
+        """Rechner mit eingetragenem Maschinenraum, dessen Dienste die Leitstelle (noch) nicht kennt: nach ihrem
+        Neustart, bis er sich meldet, oder solange er schläft. Ein Name, den sie dann nicht kennt, kann dort liegen."""
+        aus = []
+        for d in self.dienste.values():
+            if d.art == Adapterart.AGENT and not any(m.dienst == d.kennung for m in self.verbund.modelle.values()):
+                k = self.knoten.get(d.knoten) if d.knoten else None
+                aus.append(k.name if k else (d.knoten or d.name))
+        return aus
+
+    def unbekannt(self, name: str, was: str = "Modell") -> Ablehnung:
+        """Die Ablehnung für einen unbekannten Namen: endgültig (kein_modell) nur, wenn sich alle Maschinenräume gemeldet
+        haben; sonst "nicht erreichbar" mit Wartezeit, damit Apps nach dem Neustart der Leitstelle nicht aufgeben."""
+        if fehlend := self.knoten_ohne_meldung():
+            return Ablehnung("dienst_nicht_erreichbar", f"{was} {name} ist noch nicht gemeldet: der Maschinenraum auf "
+                                                        f"{', '.join(fehlend)} hat sich noch nicht gemeldet; gleich erneut versuchen.")
+        return Ablehnung("kein_modell", f"{was} {name} ist im Verbund nicht bekannt.")
+
     def familie_fuer(self, name: str) -> str | None:
         """Löst einen Modellnamen der Anwendung auf: eigener Alias, Schlüssel, Instanz, Name ohne Anbieter, Anzeigename."""
         if not name:
