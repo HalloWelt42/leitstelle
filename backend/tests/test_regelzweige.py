@@ -6,7 +6,7 @@ import pytest
 from leitstelle.kern.regeln import VORLAGEN, Kante, Knoten, Regelgraph, pruefen
 from leitstelle.kern.werte import Auftragszustand as Z, Automatik, Dienstzustand, Faehigkeit as F, Massnahmenart as A, Massnahmenzustand as MZ, Modellzustand, Zone
 
-from conftest import abschluesse, ausgefuehrt, entlade, lade, welt_mit
+from conftest import abschluesse, ausgefuehrt, entlade, gesperrt, lade, welt_mit
 
 
 # ── Umleiten ─────────────────────────────────────────────────────────────
@@ -301,6 +301,18 @@ def test_s27_verlagern_zeitfenster():
     w.verbund.stunde = 9
     w.laufen(6)
     assert w.verbund.hintergrund_knoten_bevorzugt is None
+
+
+
+def test_s27b_ueberschneidende_fenster_zweier_rechner():
+    """Zwei Rechner mit überschneidenden Fenstern: der Vorzug bleibt beim ersten, solange dessen Fenster gilt, statt im
+    Takt hin und her zu springen (Prüfung auf einen zweiten Mac, 18.10.2026)."""
+    w = welt_mit()
+    w.verbund.knoten["mac-128"].hintergrund_fenster = (22, 6)
+    w.verbund.stunde = 23
+    w.laufen(60)
+    assert len(ausgefuehrt(w, A.VERLAGERN)) == 1
+    assert not gesperrt(w), "kein Flattern, das den Schleifenschutz auslöst"
 
 
 # ── Doppel auflösen ──────────────────────────────────────────────────────

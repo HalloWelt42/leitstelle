@@ -38,8 +38,9 @@ def entladbar(verbund: Verbund, m: Modell, jetzt: float, nur_leerlauf: bool, lee
         return False, "rechnet, lädt oder ist schon zugeteilt"
     if m.geschuetzt(r.schutzgrenze_mrd):
         return False, "geschützt (vom Dienst vorgegeben, unter der Schutzgrenze oder Einbettung)"
-    if verbund.wartende_auf_familie(m.familie):
-        return False, "ein Auftrag wartet darauf"
+    knoten = verbund.dienste[m.dienst].knoten
+    if any(a.wartet_auf_knoten in (None, knoten) for a in verbund.wartende_auf_familie(m.familie)):
+        return False, "ein Auftrag wartet darauf"     # wartet er auf einem anderen Rechner, hält er diese Kopie nicht
     if (w := verbund.arbeit_haelt(m.kennung, ausser=fuer_arbeit)) is not None:
         return False, f"die begonnene Arbeit {w.titel} nutzt es (zuletzt vor {jetzt - w.modelle[m.kennung]:.0f} s)"
     if m.geladen_seit_s is not None and jetzt - m.geladen_seit_s < r.mindestverweildauer_s:

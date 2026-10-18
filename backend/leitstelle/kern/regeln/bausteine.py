@@ -153,17 +153,27 @@ def knoten_ausgefallen(k: Kontext) -> list[Kontext]:
     return aus
 
 
+def _im_fenster(kn, stunde: int) -> bool:
+    if not kn.hintergrund_fenster or not kn.erreichbar:
+        return False
+    von, bis = kn.hintergrund_fenster
+    return von <= stunde < bis if von < bis else (stunde >= von or stunde < bis)
+
+
 @baustein("zeitfenster_beginnt", "ausloeser", "Zeitfenster beginnt", "Ein Knoten hat ein Zeitfenster für Hintergrundarbeit, das jetzt gilt.")
 def zeitfenster_beginnt(k: Kontext) -> list[Kontext]:
+    """Höchstens ein bevorzugter Knoten: solange sein Fenster gilt, bleibt er es, auch wenn sich das Fenster eines
+    anderen überschneidet (sonst sprang der Vorzug mit zwei Rechnern in jedem Takt hin und her)."""
     aus = []
-    for kn in k.verbund.knoten.values():
-        f = kn.hintergrund_fenster
-        if not f or not kn.erreichbar:
+    bevorzugt = k.verbund.knoten.get(k.verbund.hintergrund_knoten_bevorzugt or "")
+    vergeben = bevorzugt is not None and _im_fenster(bevorzugt, k.verbund.stunde)
+    for kn in sorted(k.verbund.knoten.values(), key=lambda x: x.kennung):
+        if not kn.hintergrund_fenster or not kn.erreichbar:
             continue
-        von, bis = f
-        drin = von <= k.verbund.stunde < bis if von < bis else (k.verbund.stunde >= von or k.verbund.stunde < bis)
-        if drin and k.verbund.hintergrund_knoten_bevorzugt != kn.kennung:
+        drin = _im_fenster(kn, k.verbund.stunde)
+        if drin and not vergeben:
             aus.append(Kontext(verbund=k.verbund, messwerk=k.messwerk, instanz=kn.kennung, knoten_ziel=kn.kennung))
+            vergeben = True
         if not drin and k.verbund.hintergrund_knoten_bevorzugt == kn.kennung:
             aus.append(Kontext(verbund=k.verbund, messwerk=k.messwerk, instanz=kn.kennung + ":ende", knoten_ziel=None, werte={"fenster_ende": True}))
     return aus

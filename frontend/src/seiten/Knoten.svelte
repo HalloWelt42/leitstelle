@@ -16,7 +16,16 @@
   let bearbeiten = $state<string | null>(null);
   let entwurf = $state<KnotenDaten | null>(null);
   let loeschen = $state<string | null>(null);
-  arbeit.bearbeitung(() => bearbeiten !== null);
+  // Rechner ohne eigenen Modell-Läufer, etwa ein zweiter Mac nur mit Maschinenraum: anlegen, dann Schlüssel ausstellen
+  let neu = $state<{ name: string; adresse: string; speicher_gb: number | null; zone: Zone } | null>(null);
+  arbeit.bearbeitung(() => bearbeiten !== null || neu !== null);
+
+  async function anlegen() {
+    if (!neu || !neu.speicher_gb) return;
+    const n = neu;
+    if (await tun(() => api.knotenAnlegen({ name: n.name.trim(), adresse: n.adresse.trim(), speicher_gb: n.speicher_gb!, zone: n.zone, system_gb: 6 }),
+                  'Rechner angelegt; jetzt auf seiner Karte den Schlüssel für den Maschinenraum ausstellen')) neu = null;
+  }
 
   const erreichbar = $derived(bild.knoten.filter((k) => k.erreichbar));
   const mitAgent = $derived(bild.knoten.filter((k) => k.agent.verbunden));
@@ -48,6 +57,8 @@
     <div class="seitenkopf">
       <h1>Knoten</h1><span class="zahl">{bild.knoten.length}</span>
       <div class="aktionen">
+        <button class="knopf" onclick={() => (neu = { name: '', adresse: '', speicher_gb: null, zone: 'heim' })}
+                title="Einen Rechner ohne eigenen Modell-Läufer anlegen, etwa einen weiteren Mac nur mit Maschinenraum"><i class="fa-solid fa-server"></i> Rechner hinzufügen</button>
         <a class="knopf haupt" href={weg.pfad('anschluss')} onclick={(e) => weg.klick(e, 'anschluss')}
            title="Einen Dienst anschließen; ein neuer Rechner wird dabei mit eingerichtet"><i class="fa-solid fa-plus"></i> Anschluss hinzufügen</a>
       </div>
@@ -62,6 +73,21 @@
   </div>
 
   <div class="rollfeld">
+    {#if neu}
+      <div class="karte" style="margin-bottom: var(--ls-a4)">
+        <h3><i class="fa-solid fa-server"></i>Rechner hinzufügen</h3>
+        <div class="feldreihe">
+          <label class="feld-l"><span>Name</span><input class="eingabe" bind:value={neu.name} placeholder="zum Beispiel Mac mini" /></label>
+          <label class="feld-l"><span>Adresse <small>Rechnername oder IP im Netz</small></span><input class="eingabe" bind:value={neu.adresse} /></label>
+          <label class="feld-l"><span>Speicher <small>GB laut Hersteller</small></span><input class="eingabe" type="number" min="1" max="4096" bind:value={neu.speicher_gb} /></label>
+          <label class="feld-l"><span>Zone</span><select class="eingabe" bind:value={neu.zone}><option value="heim">Heimnetz</option><option value="fern">Über VPN</option></select></label>
+        </div>
+        <p class="leise klein">Danach auf der Karte des Rechners den Schlüssel für seinen Maschinenraum ausstellen; jeder Rechner braucht einen eigenen (einen kopierten Ordner mit Schlüssel erkennt die Leitstelle als denselben Rechner).</p>
+        <div class="tun" style="margin-top: var(--ls-a3); display: flex; gap: var(--ls-a2)">
+          <button class="knopf haupt" disabled={!neu.name.trim() || !neu.adresse.trim() || !neu.speicher_gb} onclick={anlegen}><i class="fa-solid fa-plus"></i> Anlegen</button>
+          <button class="knopf ohne" onclick={() => (neu = null)}>Abbrechen</button></div>
+      </div>
+    {/if}
     {#if !bild.knoten.length}
       <div class="leer"><i class="fa-solid fa-server"></i><h2>Noch kein Rechner</h2><p>Ein Rechner entsteht beim Anschließen seines ersten Dienstes: Adresse eingeben, Speicher angeben, fertig.</p></div>
     {/if}

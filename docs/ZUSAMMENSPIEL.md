@@ -69,6 +69,9 @@ umgesetzt; Vorrang und Wahl beim Entladen waren schon so (größtes ungenutztes 
 
 ### Stufe Z3: mehrere Instanzen kleiner Dienste
 
+Stand 18.10.2026: umgesetzt (Maschinenraum 0.11.0, Leitstelle 0.16.0, Appkern 0.33.0 mit Bindung); das Hören darf zwei
+Instanzen haben (Wartezeiten bis 75 s im Verlauf), alle Klangwerk-Dienste nehmen ihren Port aus `$MASCHINENRAUM_PORT`.
+
 - Der Maschinenraum kann einen Dienst mehrfach starten (Instanzen mit eigenem Port); die Leitstelle entscheidet: wartet
   ein kleiner Dienst und ist Speicher frei, lohnt sich eine weitere Instanz (gemessen am Verlauf); kommt ein großer
   Auftrag, gehen die zusätzlichen Instanzen bis auf eine zurück oder ganz.
@@ -139,6 +142,13 @@ Eine App fragt über `GET /v1/steckbriefe` (Fassade, mit `faehigkeit` und `eignu
 docs/PROTOKOLL.md Abschnitt 4.8.
 - **Zweiter Mac**: ein zweiter Maschinenraum meldet sich als eigener Knoten; Umleiten und Doppel-Auflösen gibt es schon.
   Vorher prüfen: nichts im Code darf einen einzigen Mac annehmen (Namen, Budget, Tondienst je Rechner).
+  Geprüft am 18.10.2026 (Suche über Leitstelle, Maschinenraum, Appkern und Apps): Adressen, Budget, Messwerte, Agenten
+  und Oberfläche gehen je Rechner. Behoben: zweistufige Aufrufe (Bindung an die Instanz), Vorzug für Hintergrund
+  flatterte bei überschneidenden Fenstern, Wartende hielten die Kopie auf dem anderen Rechner, ein Rechner nur mit
+  Maschinenraum ließ sich in der Oberfläche nicht anlegen, Angebot nannte den Rechner mit Kennung. Offen und bewusst so:
+  ein Name meint eine Familie (kein Wunschrechner), eine gemeinsame Reserve für alle Rechner (Ausweg: festes Budget je
+  Rechner), Messwerte der Steckbriefe je Familie über beide Rechner. Für den zweiten Mac: Maschinenraum installieren,
+  in der Leitstelle "Rechner hinzufügen", auf seiner Karte einen eigenen Schlüssel ausstellen.
 
 ## Entscheidungen (Dialog 18.10.2026)
 

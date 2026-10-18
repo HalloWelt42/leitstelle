@@ -249,6 +249,7 @@ async def modelle(request: Request):
         d = b.verbund.dienste[m.dienst]
         daten.append({"id": m.familie, "object": "model", "owned_by": "leitstelle",
                       "x-leitstelle": {"name": m.name, "geladen": m.zustand != Modellzustand.FREI, "knoten": d.knoten, "extern": d.extern,
+                                       "knoten_name": b.verbund.knoten[d.knoten].name if d.knoten in b.verbund.knoten else None,
                                        "faehigkeiten": sorted(f.value for f in m.faehigkeiten), "gb": m.gb,
                                        "steckbrief": b.steckbrief(m).model_dump(mode="json")}})
     return {"object": "list", "data": daten}
