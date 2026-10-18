@@ -3,7 +3,9 @@
 # Nutzung: ZIEL=benutzer@rechner tools/ausrollen.sh   (oder Werte in privat/ausrollen.env)
 #          ORDNER=/pfad DATEN=/pfad zusätzlich möglich
 # Ausgerollt wird nur, was im Repository liegt. Der Bau scheitert, wenn ein Test rot ist;
-# dann läuft der alte Stand weiter.
+# dann läuft der alte Stand weiter. Gebaut wird, während der alte Stand weiterläuft; neu gestartet erst, wenn
+# kein Auftrag mehr über die Leitstelle läuft (Lagebild: laeuft oder zugeteilt), damit keine Anfrage einer App
+# mitten im Rechnen abreißt. SOFORT=1 tools/ausrollen.sh startet ohne zu warten.
 set -euo pipefail
 HIER="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
 if [ -f "$HIER/privat/ausrollen.env" ]; then
@@ -26,9 +28,22 @@ ssh "$ZIEL" "set -e
   mkdir -p '$DATEN'
   if [ ! -d '$ORDNER/.git' ]; then rm -rf '$ORDNER' && git clone --quiet '$QUELLE' '$ORDNER'; fi
   cd '$ORDNER' && git fetch --quiet origin && git reset --quiet --hard origin/main
-  LEITSTELLE_DATENORDNER='$DATEN' docker compose build && LEITSTELLE_DATENORDNER='$DATEN' docker compose up -d && docker compose ps"
+  LEITSTELLE_DATENORDNER='$DATEN' docker compose build"
 
 PI_HOST="${ZIEL#*@}"
+laufend() {
+  curl -fsS -m 10 "http://$PI_HOST:8530/api/lage" 2>/dev/null | python3 -c 'import sys, json
+try:
+    print(sum(1 for a in json.load(sys.stdin).get("auftraege", []) if a.get("zustand") in ("laeuft", "zugeteilt")))
+except ValueError:
+    print(0)' || echo 0
+}
+if [ "${SOFORT:-}" != 1 ]; then
+  if [ "$(laufend)" != 0 ]; then echo "Wartet auf einen Moment ohne laufenden Auftrag ..."; fi
+  while [ "$(laufend)" != 0 ]; do sleep 1; done
+fi
+ssh "$ZIEL" "set -e; cd '$ORDNER' && LEITSTELLE_DATENORDNER='$DATEN' docker compose up -d && docker compose ps"
+
 for _ in $(seq 1 60); do
   if curl -fsS "http://$PI_HOST:8530/gesundheit" >/dev/null 2>&1 && curl -fsS "http://$PI_HOST:8535/gesundheit" >/dev/null 2>&1; then
     echo "Läuft: Leitstelle http://$PI_HOST:8530/  Entwürfe http://$PI_HOST:8535/  (Version $(curl -fsS "http://$PI_HOST:8530/gesundheit" | python3 -c 'import sys,json; print(json.load(sys.stdin)["version"])'))"
