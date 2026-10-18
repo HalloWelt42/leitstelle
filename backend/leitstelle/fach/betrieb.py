@@ -23,19 +23,22 @@ from pydantic import BaseModel
 from ..kern.leitstelle import Leitstelle
 from ..kern.messungen import Messwerk
 from ..kern.modelle import Anwendung, Auftrag, Dienst, Knoten, Massnahme, Modell, Verbund
-from ..kern.werte import WORT, Auftragszustand, Betriebsmodus, Dienstzustand, Faehigkeit, Massnahmenzustand, Modellzustand, Prioritaet
+from ..kern.werte import WORT, Auftragszustand, Betriebsmodus, Dienstzustand, Faehigkeit, Massnahmenzustand, Modellzustand, Prioritaet, Zone
 from ..konfig import Konfig
 from ..ports.ablage.eintraege import (Adapterart, AnwendungEintrag, AuftragEintrag, Ausgang, BetriebEinstellung, Bewegung, DienstEintrag, KnotenEintrag,
-                                      PruefEintrag, Richtung, Schritt)
+                                      PruefEintrag, Richtung, Schritt, SteckbriefEintrag)
 from ..ports.agenten import AgentVerbindung, Agentenvermittlung
 from ..ports.ablage.repositorien import Ablage
 from ..ports.dienste import AdapterFabrik, DienstAdapter, DienstFehler, ModellBericht, agent_adresse
 from ..ports.tresor import Tresor, fingerabdruck
 from ..ports.uhr import Uhr
+from ..protokoll.knoten import Selbstauskunft
+from ..protokoll.steckbrief import Messwerte, Steckbrief
 from ..protokoll.umschlag import umschlag
 from .ereignisse import Ereignisbus
 from .fehler import Ablehnung
 from .schreibfolge import Schreibfolge
+from .steckbrief import messwerte_aus, zusammensetzen
 from ..kern.text import komma
 
 log = logging.getLogger("leitstelle.betrieb")
@@ -136,6 +139,10 @@ class Betrieb:
         self.steuerbar: dict[str, bool] = {}
         self.dienst_meldung: dict[str, str] = {}
         self.pruefstand: dict[str, Pruefstand] = {}
+        self.auskunft: dict[str, Selbstauskunft] = {}            # je Modell: was der Dienst über es sagt
+        self.steckbriefe_hand: dict[str, SteckbriefEintrag] = {}  # je Familie: von Hand eingetragen
+        self.gemessen: dict[str, Messwerte] = {}                  # je Familie: aus dem Verlauf
+        self._letzte_messung = 0.0
         self.orte: dict[str, ModellOrt] = {}
         self.laeufe: dict[str, Lauf] = {}
         self.ladeversuche: dict[str, int] = {}
@@ -168,7 +175,9 @@ class Betrieb:
         for a in await self.ablage.anwendungen.alle():
             self.anwendung_setzen(a)
         self.aliasse = {a.alias: a.familie for a in await self.ablage.aliasse.alle()}
+        self.steckbriefe_hand = {e.familie: e for e in await self.ablage.steckbriefe.alle()}
         await self.abgleichen()
+        await self._messwerte_holen()
         if mit_schleife:
             self._schleife = asyncio.create_task(self._takt_schleife(), name="leitstelle-takt")
 
@@ -247,6 +256,7 @@ class Betrieb:
         for mk in [m.kennung for m in self.verbund.modelle.values() if m.dienst == kennung]:
             self.verbund.modelle.pop(mk, None)
             self.orte.pop(mk, None)
+            self.auskunft.pop(mk, None)
         self.geaendert()
 
     def anwendung_setzen(self, a: AnwendungEintrag) -> None:
@@ -363,6 +373,7 @@ class Betrieb:
             if not self.verbund.belegung(m.kennung):
                 self.verbund.modelle.pop(m.kennung, None)
                 self.orte.pop(m.kennung, None)
+                self.auskunft.pop(m.kennung, None)
         d.faehigkeiten = set().union(*(m.faehigkeiten for m in self.verbund.modelle_von(dienst))) if self.verbund.modelle_von(dienst) else set()
 
     def _gesund_vermerken(self, dienst: str) -> None:
@@ -406,6 +417,34 @@ class Betrieb:
         d.gesperrt_bis_s = self.verbund.zeit_s + warte_s
         self.melden(f"{d.name} meldet zu viele Anfragen; gesperrt für {komma(warte_s)} s")
 
+    # ── Steckbrief (PROTOKOLL 4.8) ───────────────────────────────────────
+    async def _messwerte_holen(self) -> None:
+        self.gemessen = messwerte_aus(await self.ablage.auftraege.fertige_mit_familie())
+        self._letzte_messung = self.uhr.jetzt()
+
+    def steckbrief(self, m: Modell) -> Steckbrief:
+        d = self.verbund.dienste[m.dienst]
+        zone = Zone.EXTERN if d.extern else (self.verbund.knoten[d.knoten].zone if d.knoten in self.verbund.knoten else Zone.HEIM)
+        gemessen = self.gemessen.get(m.familie, Messwerte()).model_copy()
+        lade = self.messwerk.ladezeiten.get(f"{m.familie}@{d.knoten}") if d.knoten else None
+        if lade and lade.anzahl:
+            gemessen.ladezeit_s = round(lade.wert, 1)
+        return zusammensetzen(m, self.auskunft.get(m.kennung, Selbstauskunft()), self.steckbriefe_hand.get(m.familie),
+                              self.ort(m.kennung).kontext, zone, d.anfragen_je_minute, gemessen)
+
+    async def steckbrief_setzen(self, e: SteckbriefEintrag, wer: str) -> None:
+        """Von Hand: ganz leer entfernt den Eintrag, dann gilt wieder nur die Auskunft des Dienstes."""
+        if not any(m.familie == e.familie for m in self.verbund.modelle.values()):
+            raise Ablehnung("unbekannt", "Dieses Modell gibt es im Verbund nicht.")
+        if e.zweck.strip() or e.eignung or e.sprachen:
+            await self.ablage.steckbriefe.speichern(e)
+            self.steckbriefe_hand[e.familie] = e
+        else:
+            await self.ablage.steckbriefe.loeschen(e.familie)
+            self.steckbriefe_hand.pop(e.familie, None)
+        await self.ablage.pruefung.anhaengen(PruefEintrag(zeit_s=self.uhr.jetzt(), wer=wer, was="Steckbrief von Hand geändert", gegenstand=e.familie))
+        self.geaendert()
+
     def _modell_abgleichen(self, kennung: str, d: Dienst, mb: ModellBericht, steuerbar: bool, jetzt: float) -> None:
         unbekannte_groesse = mb.parameter_mrd is None
         m = self.verbund.modelle.get(kennung)
@@ -421,6 +460,7 @@ class Betrieb:
             m.letzte_nutzung_s = jetzt      # arbeitet ohne Auftrag über die Leitstelle: gilt als genutzt, weicht nicht
         ort = self.orte.setdefault(kennung, ModellOrt(schluessel=mb.schluessel))
         ort.kontext = mb.kontext
+        self.auskunft[kennung] = mb.selbstauskunft
         if mb.instanzen or not steuerbar:
             ort.instanzen = list(mb.instanzen)
         if not steuerbar or d.extern:
@@ -466,6 +506,9 @@ class Betrieb:
         for a in self.verbund.auftraege.values():
             if a.zustand == Auftragszustand.LAEUFT and a.start_s is not None:
                 a.fortschritt_s = jetzt - a.start_s
+        if jetzt - self._letzte_messung >= self.konfig.steckbrief_takt_s:
+            self._letzte_messung = jetzt
+            self._nebenbei(self._messwerte_holen())
         self.bus.senden(umschlag("leitstelle.takt", {"zeit_s": jetzt}))
 
     def _zeit_setzen(self) -> None:
@@ -539,7 +582,7 @@ class Betrieb:
 
     # ── Aufträge ─────────────────────────────────────────────────────────
     def anlegen(self, anwendung: str, faehigkeit: Faehigkeit, festes_modell: str | None, prioritaet: Prioritaet | None, titel: str,
-                arbeit: str | None = None) -> tuple[Auftrag, Lauf]:
+                arbeit: str | None = None, extern: list[str] | None = None) -> tuple[Auftrag, Lauf]:
         app = self.anwendungen[anwendung]
         if self.verbund.betriebsmodus == Betriebsmodus.HALT:
             raise Ablehnung("halt", "Der Hauptregler steht auf Halt; es wird nichts gerechnet.")
@@ -548,7 +591,7 @@ class Betrieb:
         self._zeit_setzen()
         a = Auftrag(kennung=uuid4().hex, anwendung=anwendung, faehigkeit=faehigkeit, prioritaet=app.prioritaet if prioritaet is None else prioritaet,
                     eingang_s=self.verbund.zeit_s, festes_modell=festes_modell, anhaltbar=False, laufzeit_s=0.0,
-                    arbeit=f"{anwendung}:{arbeit}" if arbeit else None)
+                    arbeit=f"{anwendung}:{arbeit}" if arbeit else None, extern_familien=list(extern or []))
         self.verbund.arbeiten_aufraeumen()
         self.verbund.arbeit_zaehlen(a, titel)
         lauf = Lauf(a.kennung, titel)

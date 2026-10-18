@@ -47,7 +47,7 @@ def zone_erlaubt(verbund: Verbund, auftrag: Auftrag, modell: Modell) -> bool:
     dienst = verbund.dienste[modell.dienst]
     app = verbund.anwendungen[auftrag.anwendung]
     if dienst.extern:
-        return app.extern_erlaubt and Zone.EXTERN in app.zonen
+        return verbund.extern_erlaubt(auftrag, modell)
     knoten = verbund.knoten[dienst.knoten] if dienst.knoten else None
     return knoten is not None and knoten.erreichbar and knoten.zone in app.zonen
 

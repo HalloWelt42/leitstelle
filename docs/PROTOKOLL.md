@@ -172,6 +172,65 @@ Signale sind Zustandsmeldungen ohne Antwortpflicht. Eine Anwendung bekommt nur, 
 | `reservierung.freigeben` | Anwendung an Leitstelle | `reservierung` |
 | `reservierung.entzogen` | Leitstelle an Anwendung | `reservierung`, `grund` (dringend_vor, lage, nutzer) |
 
+### 4.8 Selbstauskunft: der Steckbrief je Modell
+
+Eine Anwendung soll keine Modellnamen kennen müssen. Sie fragt, wofür ein Modell gemacht ist, und wählt danach:
+"Welches Modell übersetzt lange Texte ins Deutsche?", "Was antwortet schnell?". Jedes Modell im Verbund hat dafür
+einen Steckbrief. Die Leitstelle setzt ihn aus drei Quellen zusammen und nennt je Angabe, woher sie stammt.
+
+**Felder**
+
+| Feld | Inhalt |
+|---|---|
+| `zweck` | ein Satz: wofür das Modell oder der Dienst gemacht oder optimiert ist; leer heißt: niemand sagt etwas |
+| `eignung` | Wörter (Tabelle unten): wofür es über seine Fähigkeiten hinaus besonders taugt |
+| `sprachen` | Kürzel nach ISO 639-1 (`de`, `en`); leer heißt nicht angegeben, nicht "keine" |
+| `faehigkeiten` | wie überall im Protokoll (`text`, `uebersetzen`, `stimme`, ...) |
+| `kontext` | größter Kontext in Token |
+| `parameter_mrd` | Parameter in Milliarden (Gesamtzahl, nicht die aktiven) |
+| `quantisierung` | wie der Dienst sie nennt (`4bit`, `FP8`) |
+| `zone` | `heim`, `fern` oder `extern`; extern heißt: Daten verlassen das Heimnetz |
+| `anfragen_je_minute` | Grenze des Anbieters, wenn er eine hat |
+| `gemessen` | `auftraege` (Grundlage), `rechenzeit_s`, `erstes_stueck_s`, `token_je_s` (Median der jüngsten 100 fertigen Aufträge), `ladezeit_s` (gleitender Mittelwert) |
+| `herkunft` | je Feld die Quelle: `dienst`, `hand`, `gemessen`, `abgeleitet` |
+
+**Eignung**
+
+| Wort | Bedeutung |
+|---|---|
+| `denken` | schließt schrittweise; für schwierige Fragen, dauert länger |
+| `programmieren` | für Quelltext |
+| `lange_texte` | großer Kontext; abgeleitet ab 100 000 Token, wenn niemand etwas anderes sagt |
+| `schnell` | kurze Wartezeit, auch auf Kosten der Tiefe |
+| `gruendlich` | beste Ergebnisse, auch auf Kosten der Zeit |
+
+**Quellen und Vorrang.** Von Hand Eingetragenes geht vor, dann die Auskunft des Dienstes, dann Abgeleitetes. Ein
+Eintrag von Hand gilt je Modellfamilie (dasselbe Modell auf zwei Rechnern teilt ihn); ein leeres Feld lässt die
+Auskunft des Dienstes stehen. Was die Dienste selbst sagen:
+
+| Dienst | Selbstauskunft |
+|---|---|
+| Modell-Läufer (`openai_kompatibel` mit nativer Schnittstelle) | Beschreibung der Modellkarte als Zweck, `capabilities.reasoning` als `denken`, Quantisierung, Kontext, Parameter, Bilder und Werkzeuge (als Fähigkeiten) |
+| Externer Anbieter (`extern_openai`) | Kontext (`max_model_len`), Parameter aus dem Namen; Zweck und Eignung trägt man von Hand ein |
+| Maschinenraum (Knoten-Agent) | aus der Dienstdatei: `beschreibung` als Zweck, `eignung`, `sprachen`; im Bericht `knoten.dienste` je Dienst als `selbstauskunft` |
+
+**Abfrage.** `GET /v1/steckbriefe` (Fassade, Schlüssel der Anwendung) mit den Filtern `faehigkeit`, `eignung` und
+`sprache` liefert nur Modelle, die die Anwendung nutzen darf (Fähigkeiten, Zonen, externe nur mit Erlaubnis).
+Fähigkeit und Eignung müssen passen; bei `sprache` kommen zuerst die Modelle, die sie ausdrücklich können, dann die
+ohne Angabe, darin geladene vor freien. `GET /v1/models` trägt denselben Steckbrief je Eintrag unter
+`x-leitstelle.steckbrief`. Von Hand eintragen: `PUT /api/steckbriefe` (Verwaltung, Heimnetz) mit `familie`, `zweck`,
+`eignung`, `sprachen`; alles leer entfernt den Eintrag.
+
+```json
+{"object": "list", "data": [{"id": "qwen/qwen3-next-80b", "name": "Qwen3 Next 80B", "geladen": true,
+  "steckbrief": {"zweck": "Übersetzen ins Deutsche", "eignung": ["denken", "lange_texte"], "sprachen": ["de", "en"],
+                 "faehigkeiten": ["text", "uebersetzen"], "kontext": 262144, "parameter_mrd": 80.0, "quantisierung": "4bit",
+                 "zone": "heim", "anfragen_je_minute": null,
+                 "gemessen": {"auftraege": 100, "rechenzeit_s": 6.4, "erstes_stueck_s": 0.9, "token_je_s": 41.2, "ladezeit_s": 38.0},
+                 "herkunft": {"zweck": "hand", "eignung": "dienst", "sprachen": "hand", "kontext": "dienst",
+                              "parameter_mrd": "dienst", "quantisierung": "dienst", "gemessen": "gemessen"}}}]}
+```
+
 ## 5. Eingabe und Ergebnis je Fähigkeit
 
 | Fähigkeit | `eingabe` | `ergebnis` |
@@ -198,7 +257,8 @@ Für Anwendungen ohne Umbau. Basisadresse mit oder ohne `/v1` wird angenommen.
 
 | Endpunkt | Wird zu | Besonderheiten |
 |---|---|---|
-| `GET /v1/models` | `frage.modelle` | listet Namen und Aliasse, die die Anwendung nutzen darf; Zustand im Feld `x-leitstelle` (geladen, Knoten, Zone) |
+| `GET /v1/models` | `frage.modelle` | listet Namen und Aliasse, die die Anwendung nutzen darf; Zustand im Feld `x-leitstelle` (geladen, Knoten, Zone) und dort der Steckbrief (4.8) |
+| `GET /v1/steckbriefe` | Selbstauskunft (4.8) | Steckbriefe der Modelle, die die Anwendung nutzen darf; Filter `faehigkeit`, `eignung`, `sprache` |
 | `POST /v1/chat/completions` | `auftrag.anlegen` (text) | Streaming als SSE im OpenAI-Format; `usage` am Ende; `model` darf Alias oder Kettenname sein; fehlt `model`, gilt die Kette der Anwendung |
 | `POST /v1/embeddings` | `auftrag.anlegen` (einbettung) | Modellname muss zur Kette passen (Einbettungen sind modellgebunden) |
 | `POST /v1/audio/transcriptions` | `auftrag.anlegen` (hoeren) | multipart; lange Dateien laufen als Hintergrund-Auftrag, Antwort erst am Ende |
@@ -215,8 +275,15 @@ die zugleich die Verbindung offen halten. In der Oberfläche heißen solche Nach
 
 Priorität der Fassaden-Aufträge: Vorgabe der Anwendung; ein Kopf `X-Leitstelle-Prioritaet` kann sie je
 Aufruf absenken (nie heben), ebenso `X-Leitstelle-Titel` für einen lesbaren Titel (prozentkodiert, weil HTTP-Köpfe nur
-ASCII tragen) und `X-Leitstelle-Arbeit` für die Arbeit, zu der die Anfrage gehört (ANBINDUNG). Mehr als diese drei
-Köpfe gibt es nicht; wer mehr will, nutzt das Protokoll.
+ASCII tragen), `X-Leitstelle-Arbeit` für die Arbeit, zu der die Anfrage gehört, und `X-Leitstelle-Extern` für die
+Erlaubnisliste externer Modelle (ANBINDUNG). Mehr als diese vier Köpfe gibt es nicht; wer mehr will, nutzt das
+Protokoll.
+
+Externe Modelle (Zone extern): eine Anfrage geht nur dorthin, wenn die Leitstelle der Anwendung die Zone extern
+erlaubt und die Anwendung das Modell selbst will, also ausdrücklich als `model` verlangt oder in
+`X-Leitstelle-Extern` nennt (Namen durch Komma getrennt, prozentkodiert). Ohne den Kopf weicht die Leitstelle für
+diese Anfrage nie nach extern aus. Die Liste führt die Anwendung in ihren eigenen Einstellungen; sie entscheidet, wo
+die Qualität reicht.
 
 ## 7. Fehler und Gründe
 

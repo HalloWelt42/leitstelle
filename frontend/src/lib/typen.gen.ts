@@ -49,6 +49,19 @@ export type Faehigkeit =
  */
 export type Modellzustand = 'frei' | 'laedt' | 'geladen' | 'rechnet';
 /**
+ * Wofür ein Modell oder Dienst besonders taugt, über seine Fähigkeiten hinaus (Selbstauskunft, PROTOKOLL 4.8 der Leitstelle).
+ *
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "Eignung".
+ */
+export type Eignung = 'denken' | 'programmieren' | 'lange_texte' | 'schnell' | 'gruendlich';
+export type Zone1 = 'heim' | 'fern' | 'extern';
+/**
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "Quelle".
+ */
+export type Quelle = 'dienst' | 'hand' | 'gemessen' | 'abgeleitet';
+/**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "Auftragszustand".
  */
@@ -85,9 +98,20 @@ export type Prioritaet = 0 | 1 | 2 | 3;
  * via the `definition` "Adapterart".
  */
 export type Adapterart = 'openai_kompatibel' | 'extern_openai' | 'agent';
-export type Zone1 = 'heim' | 'fern' | 'extern';
 export type Zone2 = 'heim' | 'fern' | 'extern';
+/**
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "Richtung".
+ */
+export type Richtung = 'laden' | 'entladen';
+export type Ausgang = 'ok' | 'abgelehnt' | 'gescheitert';
+export type Zone3 = 'heim' | 'fern' | 'extern';
 export type Prioritaet1 = 0 | 1 | 2 | 3;
+/**
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "Ausgang".
+ */
+export type Ausgang1 = 'ok' | 'abgelehnt' | 'gescheitert';
 
 export interface Leitstelle {
   Lagebild?: Lagebild;
@@ -99,10 +123,12 @@ export interface Leitstelle {
   PruefEintrag?: PruefEintrag;
   Kennzahlen?: Kennzahlen;
   Umschlag?: Umschlag;
+  Bewegung?: Bewegung;
   KnotenDaten?: KnotenDaten;
   DienstDaten?: DienstDaten;
   DienstAenderung?: DienstAenderung;
   AnwendungDaten?: AnwendungDaten;
+  SteckbriefEintrag?: SteckbriefEintrag;
 }
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
@@ -166,7 +192,7 @@ export interface AgentSicht {
  * `knoten.messwerte`: im Takt des Agenten.
  *
  * This interface was referenced by `Leitstelle`'s JSON-Schema
- * via the `definition` "Messwerte".
+ * via the `definition` "leitstelle__protokoll__knoten__Messwerte".
  */
 export interface Messwerte {
   speicher_gesamt_gb: number;
@@ -223,8 +249,41 @@ export interface ModellSicht {
   auftraege_aktiv: number;
   plaetze: number;
   gehalten_von: string | null;
+  steckbrief: Steckbrief;
   ladesperre_bis_s: number | null;
   ladesperre_grund: string;
+}
+/**
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "Steckbrief".
+ */
+export interface Steckbrief {
+  zweck?: string;
+  eignung?: Eignung[];
+  sprachen?: string[];
+  faehigkeiten?: Faehigkeit[];
+  kontext?: number | null;
+  parameter_mrd?: number | null;
+  quantisierung?: string | null;
+  zone?: Zone1;
+  anfragen_je_minute?: number | null;
+  gemessen?: Messwerte1;
+  herkunft?: {
+    [k: string]: Quelle;
+  };
+}
+/**
+ * Aus den jüngsten fertigen Aufträgen des Modells (Mittelwerte als Median, Ladezeit als gleitender Mittelwert).
+ *
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "leitstelle__protokoll__steckbrief__Messwerte".
+ */
+export interface Messwerte1 {
+  auftraege?: number;
+  rechenzeit_s?: number | null;
+  erstes_stueck_s?: number | null;
+  token_je_s?: number | null;
+  ladezeit_s?: number | null;
 }
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
@@ -372,6 +431,19 @@ export interface ModellBericht {
   gb_jetzt: number | null;
   schutz: boolean | null;
   aktiv: boolean;
+  selbstauskunft: Selbstauskunft;
+}
+/**
+ * Was ein Dienst über sich oder sein Modell sagt (PROTOKOLL 4.8): wofür er gemacht ist. Leer heißt: sagt nichts.
+ *
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "Selbstauskunft".
+ */
+export interface Selbstauskunft {
+  zweck?: string;
+  eignung?: Eignung[];
+  sprachen?: string[];
+  quantisierung?: string | null;
 }
 /**
  * Eine Zeile der Vorschau "Speicher freigeben".
@@ -394,7 +466,7 @@ export interface KnotenEintrag {
   kennung: string;
   name: string;
   adresse: string;
-  zone: Zone1;
+  zone: Zone2;
   speicher_gb: number;
   system_gb: number;
   budget_fest_gb: number | null;
@@ -445,6 +517,24 @@ export interface Umschlag {
   };
 }
 /**
+ * Ein Laden oder Entladen als Rohdatum, damit sich Fristen und Regeln aus dem Verlauf einstellen lassen
+ * (ZUSAMMENSPIEL Z2). `zeit_s` ist der Beginn beim Dienst, `dauer_s` bis zur Antwort.
+ *
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "Bewegung".
+ */
+export interface Bewegung {
+  zeit_s: number;
+  richtung: Richtung;
+  familie: string;
+  name: string;
+  knoten: string | null;
+  gb: number;
+  dauer_s: number;
+  ausgang: Ausgang;
+  meldung: string;
+}
+/**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "KnotenDaten".
  */
@@ -452,7 +542,7 @@ export interface KnotenDaten {
   name: string;
   adresse: string;
   speicher_gb: number;
-  zone?: Zone2;
+  zone?: Zone3;
   system_gb?: number;
   budget_fest_gb?: number | null;
   hintergrund_von?: number | null;
@@ -499,4 +589,17 @@ export interface AnwendungDaten {
   ketten?: {
     [k: string]: string[];
   };
+}
+/**
+ * Von Hand eingetragen, was ein Dienst nicht selbst über ein Modell sagt (PROTOKOLL 4.8); gilt je Modellfamilie
+ * und geht der Auskunft des Dienstes vor. Leere Felder lassen die Auskunft des Dienstes stehen.
+ *
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "SteckbriefEintrag".
+ */
+export interface SteckbriefEintrag {
+  familie: string;
+  zweck?: string;
+  eignung?: Eignung[];
+  sprachen?: string[];
 }

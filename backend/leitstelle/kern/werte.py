@@ -25,6 +25,16 @@ class Faehigkeit(str, Enum):
     TON = "ton"                       # Tonarbeit ohne Modell (wandeln, messen, mischen): rechnet auf dem Mac
 
 
+class Eignung(str, Enum):
+    """Wofür ein Modell oder Dienst besonders taugt, über seine Fähigkeiten hinaus (Selbstauskunft, PROTOKOLL 4.8 der Leitstelle)."""
+
+    DENKEN = "denken"                 # schließt schrittweise; für schwierige Fragen, dauert länger
+    PROGRAMMIEREN = "programmieren"
+    LANGE_TEXTE = "lange_texte"       # großer Kontext (ab 100 000 Token)
+    SCHNELL = "schnell"               # kurze Wartezeit, auch auf Kosten der Tiefe
+    GRUENDLICH = "gruendlich"         # beste Ergebnisse, auch auf Kosten der Zeit
+
+
 class Prioritaet(IntEnum):
     HINTERGRUND = 0
     NORMAL = 1
@@ -122,4 +132,5 @@ WORT: dict[str, str] = {
     "extern_ausweichen": "Extern ausweichen", "umverteilen": "Umverteilen", "verlagern": "Verlagern", "doppel_aufloesen": "Doppel auflösen",
     "hintergrund_lage": "Hintergrund bei Lage",
     "bereit": "Bereit", "aus": "Aus", "startet": "Startet", "nicht_erreichbar": "Nicht erreichbar", "ausfall": "Ausfall",
+    "denken": "Denkt schrittweise", "programmieren": "Programmieren", "lange_texte": "Lange Texte", "schnell": "Schnell", "gruendlich": "Gründlich",
 }

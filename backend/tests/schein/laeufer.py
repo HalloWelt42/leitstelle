@@ -26,6 +26,10 @@ class ScheinModell:
     params: str | None = "27B"
     vision: bool = False
     instanzen: list[str] = field(default_factory=list)
+    kontext: int = 32768
+    beschreibung: str | None = None   # wie die Modellkarte beim echten Läufer (description)
+    denken: bool = False              # capabilities.reasoning
+    quantisierung: str = "4bit"
 
 
 @dataclass
@@ -57,7 +61,8 @@ class Lage:
 
 def standard_modelle() -> dict[str, ScheinModell]:
     ms = [
-        ScheinModell("qwen/qwen3-next-80b", "Qwen3 Next 80B", gb=44.9, params="80B", instanzen=["qwen/qwen3-next-80b"]),
+        ScheinModell("qwen/qwen3-next-80b", "Qwen3 Next 80B", gb=44.9, params="80B", instanzen=["qwen/qwen3-next-80b"], kontext=262144,
+                     beschreibung="Großes Textmodell für Übersetzen und lange Texte", denken=True),
         ScheinModell("text-embedding-bge-m3", "Bge M3", typ="embedding", gb=0.6, params="567M", instanzen=["text-embedding-bge-m3"]),
         ScheinModell("zai-org/glm-4.6v-flash", "Glm 4.6v Flash", gb=11.8, params="9B", vision=True),
         ScheinModell("google/gemma-4-26b-a4b-qat", "Gemma 4 26B A4B QAT", gb=15.6, params="26B", vision=True),
@@ -78,8 +83,10 @@ def schein_laeufer(lage: Lage | None = None) -> FastAPI:
         aus = []
         for m in L().modelle.values():
             aus.append({"key": m.schluessel, "type": "embedding" if m.typ == "embedding" else "llm", "display_name": m.name,
-                        "params_string": m.params, "size_bytes": int(m.gb * 1e9), "max_context_length": 32768,
-                        "capabilities": None if m.typ == "embedding" else {"vision": m.vision, "trained_for_tool_use": True},
+                        "params_string": m.params, "size_bytes": int(m.gb * 1e9), "max_context_length": m.kontext,
+                        "description": m.beschreibung, "quantization": {"name": m.quantisierung, "bits_per_weight": 4},
+                        "capabilities": None if m.typ == "embedding" else {"vision": m.vision, "trained_for_tool_use": True,
+                                                                             **({"reasoning": {"allowed_options": ["off", "on"], "default": "on"}} if m.denken else {})},
                         "loaded_instances": [{"id": i, "config": {"context_length": 32768, "parallel": L().parallel}} for i in m.instanzen]})
         return {"models": aus}
 

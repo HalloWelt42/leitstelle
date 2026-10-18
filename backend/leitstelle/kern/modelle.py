@@ -139,6 +139,7 @@ class Auftrag(BaseModel):
     teilergebnis: bool = False
     grund: str | None = None          # Wort aus PROTOKOLL.md Abschnitt 7, wenn abgelehnt oder abgebrochen
     arbeit: str | None = None         # Arbeit der Anwendung, zu der die Anfrage gehört (Kopf X-Leitstelle-Arbeit)
+    extern_familien: list[str] = Field(default_factory=list)   # Erlaubnisliste der App für externe Modelle (Kopf X-Leitstelle-Extern)
 
     @property
     def offen(self) -> bool:
@@ -300,6 +301,14 @@ class Verbund(BaseModel):
     def belegung(self, modell: str) -> list[Auftrag]:
         """Aufträge, die das Modell halten: laufende und schon zugeteilte."""
         return [a for a in self.auftraege.values() if a.zustand in (Auftragszustand.LAEUFT, Auftragszustand.ZUGETEILT) and a.modell == modell]
+
+    def extern_erlaubt(self, auftrag: Auftrag, modell: Modell) -> bool:
+        """Daten verlassen das Heimnetz nur, wenn die Leitstelle der App die Zone extern erlaubt und die App das Modell
+        selbst will: ausdrücklich verlangt oder auf ihrer Erlaubnisliste (Nutzer 18.10.2026: "die apps selber entscheiden
+        per einstellungen welche dienste sie nutzen wollen")."""
+        app = self.anwendungen[auftrag.anwendung]
+        return (app.extern_erlaubt and Zone.EXTERN in app.zonen
+                and (auftrag.festes_modell == modell.familie or modell.familie in auftrag.extern_familien))
 
     def arbeit_haelt(self, modell: str, ausser: str | None = None) -> Arbeit | None:
         """Die begonnene Arbeit, die das Modell in der Frist genutzt hat; die fragende Arbeit selbst zählt nicht, sie

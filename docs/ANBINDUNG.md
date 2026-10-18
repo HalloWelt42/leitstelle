@@ -72,6 +72,12 @@ Die Anwendung ändert nur die Adresse ihres Modell-Läufers und bekommt einen Sc
   Vertonung; 1 bis 64 Zeichen aus `A-Z a-z 0-9 . _ : -`, sonst zählt die Anfrage für sich). Ab der zweiten Anfrage gilt
   die Arbeit als begonnen: Modelle, die sie in den letzten `arbeit_frist_s` (Vorgabe 300 s) genutzt hat, entlädt die
   Leitstelle nicht für andere, nur für die Arbeit selbst. Der Appkern setzt den Kopf in jedem Auftrag von selbst.
+- `X-Leitstelle-Extern`: Erlaubnisliste der Anwendung für externe Modelle (Namen durch Komma, prozentkodiert). Nur
+  Modelle auf dieser Liste oder ausdrücklich als `model` verlangte dürfen nach extern; ohne den Kopf weicht die
+  Leitstelle für die Anfrage nie nach extern aus. Zusätzlich muss die Leitstelle der Anwendung die Zone extern
+  erlauben. Der Appkern liest die Liste aus der Einstellung "Ausweichen nach extern" der App.
+- `GET /v1/steckbriefe` (Filter `faehigkeit`, `eignung`, `sprache`): wofür welches Modell gemacht ist
+  (PROTOKOLL 4.8); dieselben Steckbriefe stehen in `GET /v1/models` unter `x-leitstelle.steckbrief`.
 - Mehr gleichzeitige Aufträge als erlaubt warten in der Warteschlange statt abgelehnt zu werden.
 - Fehlt `model`, setzt die Leitstelle das erste passende Modell der Kette ein.
 - Reasoning-Modelle mit leerem Inhalt: die Leitstelle wiederholt mit größerem Budget und entfernt die

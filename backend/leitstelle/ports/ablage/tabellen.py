@@ -58,6 +58,14 @@ class AnwendungTabelle(Basis):
     angelegt_s: Mapped[float] = mapped_column(Float)
 
 
+class SteckbriefTabelle(Basis):
+    __tablename__ = "steckbriefe"
+    familie: Mapped[str] = mapped_column(String(255), primary_key=True)
+    zweck: Mapped[str] = mapped_column(Text, default="")
+    eignung: Mapped[list[str]] = mapped_column(JSON, default=list)
+    sprachen: Mapped[list[str]] = mapped_column(JSON, default=list)
+
+
 class AliasTabelle(Basis):
     __tablename__ = "modell_aliasse"
     alias: Mapped[str] = mapped_column(String(255), primary_key=True)

@@ -57,7 +57,7 @@ def test_s36_hoechstzahl_massnahmen_je_fenster():
     w.auftrag("zusage", F.TEXT, laufzeit_s=600)
     w.laufen(6)
     for i in range(6):
-        w.auftrag("fundus", F.TEXT, laufzeit_s=5, zeit_s=10 + i * 5)   # jede würde extern ausweichen
+        w.auftrag("fundus", F.TEXT, laufzeit_s=5, zeit_s=10 + i * 5, extern=["qwen-35b-extern"])   # jede würde extern ausweichen
     w.laufen(120)
     im_fenster = [m for m in ausgefuehrt(w) if m.zeit_s <= 600]
     assert len(im_fenster) <= 2
@@ -105,6 +105,7 @@ def _zufallslauf(saat: int, dauer_s: int = 3600):
                 assert v.knoten[a.knoten].zone in app.zonen, "Zone verletzt"
             if a.zustand == Z.LAEUFT and a.extern:
                 assert v.anwendungen[a.anwendung].extern_erlaubt, "extern ohne Erlaubnis"
+                assert a.festes_modell or v.modelle[a.modell].familie in a.extern_familien, "extern ohne Erlaubnisliste der App"
     return w
 
 

@@ -18,7 +18,7 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 
 from ..fach.fehler import Ablehnung
 from ..fach.vermittlung import Vorgang, Wartet
-from ..kern.werte import GIB, WORT, Auftragszustand, Faehigkeit, Modellzustand, Prioritaet, Zone
+from ..kern.werte import GIB, WORT, Auftragszustand, Eignung, Faehigkeit, Modellzustand, Prioritaet, Zone
 from ..ports.ablage.eintraege import AnwendungEintrag
 from ..ports.dienste import Durchleitung
 from .gemeinsam import betrieb, fehler_antwort, konfig, vermittlung
@@ -62,6 +62,14 @@ def _arbeit(request: Request) -> str | None:
     return roh if ARBEIT_ZEICHEN.fullmatch(roh) else None
 
 
+def _extern(request: Request) -> list[str]:
+    """X-Leitstelle-Extern: Erlaubnisliste der App für externe Modelle, durch Komma getrennt (prozentkodiert wie der Titel).
+    Ohne Kopf oder leer: die Anfrage geht nicht nach extern, außer die App verlangt ein externes Modell ausdrücklich."""
+    roh = unquote(request.headers.get("x-leitstelle-extern", ""))
+    b = betrieb(request)
+    return sorted({f for name in roh.split(",") if name.strip() and (f := b.familie_fuer(name.strip()))})
+
+
 def _bild_im_chat(koerper: dict[str, Any]) -> bool:
     for n in koerper.get("messages") or []:
         inhalt = n.get("content") if isinstance(n, dict) else None
@@ -97,7 +105,7 @@ async def _vermitteln(request: Request, pfad: str, faehigkeit: Faehigkeit) -> Re
     titel = _titel(request, faehigkeit)
     verm = vermittlung(request)
     try:
-        v = verm.annehmen(app.kennung, faehigkeit, koerper.get("model"), _prioritaet(request, app), titel, _arbeit(request))
+        v = verm.annehmen(app.kennung, faehigkeit, koerper.get("model"), _prioritaet(request, app), titel, _arbeit(request), _extern(request))
     except Ablehnung as a:
         return fehler_antwort(a.grund, a.begruendung)
 
@@ -143,7 +151,7 @@ async def einbettung(request: Request) -> Response:
 
 # Köpfe, die nur einer Verbindung gelten oder die Leitstelle selbst auswertet
 OHNE_KOPF = {"host", "authorization", "content-length", "connection", "keep-alive", "transfer-encoding", "te", "trailer", "upgrade",
-             "x-leitstelle-titel", "x-leitstelle-prioritaet", "x-leitstelle-arbeit"}
+             "x-leitstelle-titel", "x-leitstelle-prioritaet", "x-leitstelle-arbeit", "x-leitstelle-extern"}
 
 
 async def dienst(request: Request, name: str, pfad: str) -> Response:
@@ -160,7 +168,7 @@ async def dienst(request: Request, name: str, pfad: str) -> Response:
         return fehler_antwort(a.grund, a.begruendung)
     try:
         faehigkeit = verm.faehigkeit_fuer(app.kennung, familie)
-        v = verm.annehmen(app.kennung, faehigkeit, name, _prioritaet(request, app), _titel(request, faehigkeit), _arbeit(request))
+        v = verm.annehmen(app.kennung, faehigkeit, name, _prioritaet(request, app), _titel(request, faehigkeit), _arbeit(request), _extern(request))
     except Ablehnung as a:
         return fehler_antwort(a.grund, a.begruendung)
     anfrage = Durchleitung(methode=request.method, pfad=pfad, abfrage=request.url.query, inhalt=await request.body(),
@@ -226,8 +234,27 @@ async def modelle(request: Request):
         d = b.verbund.dienste[m.dienst]
         daten.append({"id": m.familie, "object": "model", "owned_by": "leitstelle",
                       "x-leitstelle": {"name": m.name, "geladen": m.zustand != Modellzustand.FREI, "knoten": d.knoten, "extern": d.extern,
-                                       "faehigkeiten": sorted(f.value for f in m.faehigkeiten), "gb": m.gb}})
+                                       "faehigkeiten": sorted(f.value for f in m.faehigkeiten), "gb": m.gb,
+                                       "steckbrief": b.steckbrief(m).model_dump(mode="json")}})
     return {"object": "list", "data": daten}
+
+
+@router.get("/v1/steckbriefe")
+async def steckbriefe(request: Request, faehigkeit: Faehigkeit | None = None, eignung: Eignung | None = None, sprache: str | None = None):
+    """Wofür welches Modell gemacht ist (PROTOKOLL 4.8), nur Modelle, die die Anwendung nutzen darf. Filter: Fähigkeit und
+    Eignung müssen passen; bei `sprache` zuerst die Modelle, die sie ausdrücklich können, dann die ohne Angabe."""
+    darf, app = _darf_lesen(request)
+    if not darf:
+        return fehler_antwort("unbekannter_schluessel", "Schlüssel fehlt oder ist unbekannt.")
+    b = betrieb(request)
+    aus = []
+    for m in _sichtbare_modelle(request, app):
+        s = b.steckbrief(m)
+        if (faehigkeit and faehigkeit not in s.faehigkeiten) or (eignung and eignung not in s.eignung) or (sprache and s.sprachen and sprache not in s.sprachen):
+            continue
+        aus.append((0 if sprache and sprache in s.sprachen else 1, m.zustand == Modellzustand.FREI, m.name.lower(),
+                    {"id": m.familie, "name": m.name, "geladen": m.zustand != Modellzustand.FREI, "steckbrief": s.model_dump(mode="json")}))
+    return {"object": "list", "data": [x[3] for x in sorted(aus, key=lambda x: x[:3])]}
 
 
 def _typ(m) -> str:

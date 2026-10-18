@@ -17,8 +17,9 @@ from typing import Any
 
 import httpx
 
-from ...kern.werte import GIB
+from ...kern.werte import GIB, Eignung
 from ...kern.werte import Faehigkeit as F
+from ...protokoll.knoten import Selbstauskunft
 from .schnittstelle import Dienstbericht, DienstFehler, Durchleitung, ModellBericht
 
 TEXT_FAEHIGKEITEN = {F.TEXT, F.UEBERSETZEN}
@@ -45,6 +46,15 @@ def _faehigkeiten(typ: str, faehig: dict | None) -> tuple[set[F], bool]:
     if faehig.get("trained_for_tool_use"):
         f.add(F.WERKZEUG)
     return f, False
+
+
+def _auskunft(m: dict[str, Any]) -> Selbstauskunft:
+    """Was der Modell-Läufer über ein Modell sagt: Beschreibung der Modellkarte, schrittweises Schließen (`reasoning`),
+    Quantisierung. Kontext, Parameter, Bilder und Werkzeuge stehen schon im Bericht."""
+    faehig = m.get("capabilities") or {}
+    quant = m.get("quantization") or {}
+    return Selbstauskunft(zweck=str(m.get("description") or "").strip(), eignung=[Eignung.DENKEN] if faehig.get("reasoning") else [],
+                          quantisierung=quant.get("name") if isinstance(quant, dict) else None)
 
 
 def _fehlertext(roh: bytes) -> str:
@@ -141,7 +151,7 @@ class OpenAIKompatibel:
             schluessel=m["key"], name=m.get("display_name") or m["key"], faehigkeiten=faehigkeiten,
             gb=round((m.get("size_bytes") or 0) / GIB, 2), parameter_mrd=_milliarden(m.get("params_string")),
             geladen=bool(instanzen), instanzen=[i["id"] for i in instanzen if i.get("id")], plaetze=max(parallel) if parallel else None,
-            kontext=m.get("max_context_length"), einbettung=einbettung)
+            kontext=m.get("max_context_length"), einbettung=einbettung, selbstauskunft=_auskunft(m))
 
     @staticmethod
     def _einfach(m: dict[str, Any]) -> ModellBericht:

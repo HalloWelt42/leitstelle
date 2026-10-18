@@ -45,12 +45,13 @@ class Welt:
 
     # ── Aufträge anlegen ─────────────────────────────────────────────────
     def auftrag(self, anwendung: str, faehigkeit: Faehigkeit, laufzeit_s: float = 20.0, zeit_s: float | None = None,
-                prioritaet: Prioritaet | None = None, festes_modell: str | None = None, kennung: str | None = None) -> Auftrag:
+                prioritaet: Prioritaet | None = None, festes_modell: str | None = None, kennung: str | None = None,
+                extern: list[str] | None = None) -> Auftrag:
         self.laufnummer += 1
         app = self.verbund.anwendungen[anwendung]
         a = Auftrag(kennung=kennung or f"a-{self.laufnummer:04d}", anwendung=anwendung, faehigkeit=faehigkeit,
                     prioritaet=app.prioritaet if prioritaet is None else prioritaet, eingang_s=self.verbund.zeit_s if zeit_s is None else zeit_s,
-                    laufzeit_s=laufzeit_s, festes_modell=festes_modell)
+                    laufzeit_s=laufzeit_s, festes_modell=festes_modell, extern_familien=list(extern or []))
         if zeit_s is None or zeit_s <= self.verbund.zeit_s:
             self.verbund.auftraege[a.kennung] = a
         else:

@@ -223,6 +223,10 @@
   .seite-modelle .modelltabelle .zweit .akzent { font-weight: 600; }
   .seite-modelle .modelltabelle td.zahl .zweit { text-align: right; }
   .seite-modelle .modelltabelle .dienst { font-size: var(--ls-gr-klein); }
+  .seite-modelle .modelltabelle .knopf.stift { min-width: 0; width: 26px; height: 26px; font-size: 12px; color: var(--ls-text-3); }
+  .seite-modelle .modelltabelle .steckbrief { margin-top: 5px; display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: baseline; font-size: var(--ls-gr-marke); cursor: help; }
+  .seite-modelle .modelltabelle .steckbrief .zweck { color: var(--ls-text-2); flex-basis: 100%; }
+  .seite-modelle .modelltabelle .steckbrief .eignung { padding: 1px 7px; border-radius: 999px; background: var(--ls-flaeche); color: var(--ls-text-2); white-space: nowrap; }
   .seite-modelle .modelltabelle .zustand { white-space: nowrap; }
   .seite-modelle .modelltabelle .knopf.klein { min-width: 92px; }
   .seite-modelle .modelltabelle tr.gewaehlt td { background: rgba(var(--ls-akzent-rgb), 0.08); border-top-color: rgba(var(--ls-akzent-rgb), 0.55); }

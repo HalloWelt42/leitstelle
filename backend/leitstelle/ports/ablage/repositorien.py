@@ -11,12 +11,13 @@ from ...kern.messungen import Messwerk, Mittel
 from ...kern.modelle import Massnahme, Regelwerk
 from ...kern.werte import Auftragszustand, Faehigkeit, Massnahmenart, Massnahmenzustand, OFFENE_ZUSTAENDE, Prioritaet, Zone
 from .datenbank import Datenbank
-from .eintraege import AliasEintrag, AnwendungEintrag, AuftragEintrag, BetriebEinstellung, Bewegung, DienstEintrag, Kennzahlen, KnotenEintrag, PruefEintrag
+from .eintraege import AliasEintrag, AnwendungEintrag, AuftragEintrag, BetriebEinstellung, Bewegung, DienstEintrag, Kennzahlen, KnotenEintrag, PruefEintrag, SteckbriefEintrag
 from .tabellen import (
     AliasTabelle,
     AnwendungTabelle,
     AuftragTabelle,
     BewegungTabelle,
+    SteckbriefTabelle,
     DienstTabelle,
     EinstellungTabelle,
     KnotenTabelle,
@@ -117,6 +118,24 @@ class AliasAblage:
             await s.execute(delete(AliasTabelle).where(AliasTabelle.alias == alias))
 
 
+class SteckbriefAblage:
+    def __init__(self, db: Datenbank) -> None:
+        self.db = db
+
+    async def alle(self) -> list[SteckbriefEintrag]:
+        async with self.db.sitzung() as s:
+            return [SteckbriefEintrag(familie=z.familie, zweck=z.zweck, eignung=list(z.eignung), sprachen=list(z.sprachen))
+                    for z in (await s.scalars(select(SteckbriefTabelle))).all()]
+
+    async def speichern(self, e: SteckbriefEintrag) -> None:
+        async with self.db.sitzung() as s, s.begin():
+            await s.merge(SteckbriefTabelle(**e.model_dump(mode="json")))
+
+    async def loeschen(self, familie: str) -> None:
+        async with self.db.sitzung() as s, s.begin():
+            await s.execute(delete(SteckbriefTabelle).where(SteckbriefTabelle.familie == familie))
+
+
 class AuftragAblage:
     FELDER = tuple(AuftragEintrag.model_fields)
 
@@ -149,6 +168,14 @@ class AuftragAblage:
             gesamt = await s.scalar(select(func.count()).select_from(AuftragTabelle).where(*bedingung)) or 0
             zeilen = (await s.scalars(select(AuftragTabelle).where(*bedingung).order_by(AuftragTabelle.eingang_s.desc()).offset(ab).limit(anzahl))).all()
             return [self._eintrag(z) for z in zeilen], gesamt
+
+    async def fertige_mit_familie(self, anzahl: int = 2000) -> list[AuftragEintrag]:
+        """Die jüngsten fertigen Aufträge mit bekanntem Modell: Grundlage der Messwerte im Steckbrief."""
+        async with self.db.sitzung() as s:
+            zeilen = (await s.scalars(select(AuftragTabelle).where(AuftragTabelle.zustand == Auftragszustand.FERTIG.value,
+                                                                    AuftragTabelle.familie.is_not(None), AuftragTabelle.start_s.is_not(None))
+                                      .order_by(AuftragTabelle.eingang_s.desc()).limit(anzahl))).all()
+            return [self._eintrag(z) for z in zeilen]
 
     async def kennzahlen(self, ab_s: float) -> Kennzahlen:
         """Abgeschlossene Aufträge seit `ab_s`: Anzahl je Ausgang, mittlere Wartezeit und Zeit bis zum ersten Stück."""
@@ -294,3 +321,4 @@ class Ablage:
         self.einstellungen = EinstellungAblage(db)
         self.pruefung = PruefAblage(db)
         self.bewegungen = BewegungsAblage(db)
+        self.steckbriefe = SteckbriefAblage(db)

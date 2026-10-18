@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from .. import version
 from ..kern.modelle import ANFRAGE_FENSTER_S, Massnahme
+from ..protokoll.steckbrief import Steckbrief
 from ..kern.werte import Auftragszustand, Automatik, Betriebsmodus, Dienstzustand, Faehigkeit, Lage, Modellzustand, Zone
 from ..ports.ablage.eintraege import Schritt
 from ..protokoll.knoten import Messwerte
@@ -80,6 +81,7 @@ class ModellSicht(BaseModel):
     auftraege_aktiv: int
     plaetze: int
     gehalten_von: str | None          # Titel der begonnenen Arbeit, für die es nicht weicht
+    steckbrief: Steckbrief             # wofür es gemacht ist, was es kann, wie es sich verhält (PROTOKOLL 4.8)
     ladesperre_bis_s: float | None
     ladesperre_grund: str
 
@@ -170,7 +172,7 @@ def lagebild(b: Betrieb) -> Lagebild:
                            faehigkeiten=sorted(m.faehigkeiten, key=lambda f: f.value), gb=m.gb, gb_jetzt=m.gb_jetzt, parameter_mrd=m.parameter_mrd, zustand=m.zustand,
                            geschuetzt=m.geschuetzt(r.schutzgrenze_mrd), geladen_seit_s=m.geladen_seit_s, letzte_nutzung_s=m.letzte_nutzung_s,
                            auftraege_aktiv=m.auftraege_aktiv, plaetze=v.plaetze(m),
-                           gehalten_von=w.titel if (w := v.arbeit_haelt(m.kennung)) else None, ladesperre_bis_s=m.ladesperre_bis_s, ladesperre_grund=m.ladesperre_grund)
+                           gehalten_von=w.titel if (w := v.arbeit_haelt(m.kennung)) else None, steckbrief=b.steckbrief(m), ladesperre_bis_s=m.ladesperre_bis_s, ladesperre_grund=m.ladesperre_grund)
                for m in sorted(v.modelle.values(), key=lambda x: (x.dienst, -x.gb))]
     auftraege = []
     for a in sorted(v.auftraege.values(), key=lambda x: x.eingang_s):

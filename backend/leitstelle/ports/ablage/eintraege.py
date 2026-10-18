@@ -8,9 +8,9 @@ from __future__ import annotations
 
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
-from ...kern.werte import Auftragszustand, Betriebsmodus, Faehigkeit, Prioritaet, Zone
+from ...kern.werte import Auftragszustand, Betriebsmodus, Eignung, Faehigkeit, Prioritaet, Zone
 
 
 class Adapterart(str, Enum):
@@ -62,6 +62,24 @@ class AnwendungEintrag(BaseModel):
     gesperrt: bool = False
     sperrgrund: str = ""
     angelegt_s: float = 0.0
+
+
+class SteckbriefEintrag(BaseModel):
+    """Von Hand eingetragen, was ein Dienst nicht selbst über ein Modell sagt (PROTOKOLL 4.8); gilt je Modellfamilie
+    und geht der Auskunft des Dienstes vor. Leere Felder lassen die Auskunft des Dienstes stehen."""
+
+    familie: str
+    zweck: str = Field(default="", max_length=300)
+    eignung: list[Eignung] = Field(default_factory=list)
+    sprachen: list[str] = Field(default_factory=list)
+
+    @field_validator("sprachen")
+    @classmethod
+    def _sprachkuerzel(cls, werte: list[str]) -> list[str]:
+        falsch = [w for w in werte if not (len(w) == 2 and w.isascii() and w.isalpha() and w.islower())]
+        if falsch:
+            raise ValueError(f"Sprachen als zwei Kleinbuchstaben nach ISO 639-1 (de, en, fr), nicht {', '.join(falsch)}")
+        return werte
 
 
 class AliasEintrag(BaseModel):

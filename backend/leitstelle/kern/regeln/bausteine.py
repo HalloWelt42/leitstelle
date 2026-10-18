@@ -331,12 +331,12 @@ def kette_hat_alternative(k: Kontext) -> bool:
     return False
 
 
-@baustein("anwendung_darf_extern", "pruefung", "Anwendung darf extern?", "Erlaubt die Anwendung die Zone extern?")
+@baustein("anwendung_darf_extern", "pruefung", "Anwendung darf extern?", "Erlaubt die Leitstelle der Anwendung die Zone extern, und nennt die Anfrage externe Modelle auf ihrer Erlaubnisliste?")
 def anwendung_darf_extern(k: Kontext) -> bool:
     a = k.auftrag
     assert a is not None
     app = k.verbund.anwendungen[a.anwendung]
-    return app.extern_erlaubt and Zone.EXTERN in app.zonen
+    return app.extern_erlaubt and Zone.EXTERN in app.zonen and bool(a.extern_familien)
 
 
 @baustein("wartezeit_ueber_schwelle", "pruefung", "Wartezeit über der Schwelle?", "Liegt die erwartete Wartezeit über der eingestellten Grenze für das Ausweichen?", schwelle_s=None)
@@ -357,7 +357,8 @@ def extern_dienst_vorhanden(k: Kontext) -> bool:
     treffer = []
     for m in k.verbund.modelle.values():
         d = k.verbund.dienste[m.dienst]
-        if d.extern and d.nutzbar and a.faehigkeit in m.faehigkeiten and a.faehigkeit in d.faehigkeiten and k.verbund.anfrage_frei_in_s(d.kennung) == 0:
+        if (d.extern and d.nutzbar and a.faehigkeit in m.faehigkeiten and a.faehigkeit in d.faehigkeiten and k.verbund.extern_erlaubt(a, m)
+                and k.verbund.anfrage_frei_in_s(d.kennung) == 0):
             rang = kette.index(m.familie) if m.familie in kette else len(kette)
             treffer.append((rang, m, d))
     if not treffer:

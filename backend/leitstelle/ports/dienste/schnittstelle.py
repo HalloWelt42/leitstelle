@@ -13,6 +13,7 @@ from typing import Any, Protocol
 from pydantic import BaseModel, Field
 
 from ...kern.werte import Faehigkeit
+from ...protokoll.knoten import Selbstauskunft
 
 
 class ModellBericht(BaseModel):
@@ -29,6 +30,7 @@ class ModellBericht(BaseModel):
     gb_jetzt: float | None = None       # tatsächlich belegt, wenn der Dienst es misst (sonst gilt gb)
     schutz: bool | None = None          # vom Dienst vorgegeben; None: Regel nach Parameterzahl
     aktiv: bool = False                 # arbeitet gerade, auch ohne Auftrag über die Leitstelle
+    selbstauskunft: Selbstauskunft = Field(default_factory=Selbstauskunft)   # was der Dienst über das Modell sagt
 
 
 class Dienstbericht(BaseModel):

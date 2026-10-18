@@ -13,6 +13,7 @@ from ..fach.fehler import Ablehnung
 from ..fach.lagebild import lagebild
 from ..fach.verzeichnis import AnwendungDaten, DienstAenderung, DienstDaten, KnotenDaten
 from ..kern.werte import Auftragszustand, Betriebsmodus
+from ..ports.ablage.eintraege import SteckbriefEintrag
 from .gemeinsam import ablehnung_als_fehler, betrieb, nur_heimnetz, verzeichnis, wer
 
 router = APIRouter(prefix="/api", dependencies=[Depends(nur_heimnetz)])
@@ -105,6 +106,13 @@ async def stoppen(kennung: str, daten: StoppDaten, request: Request):
 async def massnahmen(request: Request, ab: int = Query(0, ge=0), anzahl: int = Query(50, ge=1, le=200)):
     eintraege, gesamt = await betrieb(request).ablage.massnahmen.neueste(anzahl, ab)
     return {"eintraege": eintraege, "gesamt": gesamt, "ab": ab, "anzahl": anzahl}
+
+
+@router.put("/steckbriefe")
+async def steckbrief_setzen(daten: SteckbriefEintrag, request: Request):
+    """Von Hand, was der Dienst nicht selbst sagt; geht seiner Auskunft vor. Alles leer entfernt den Eintrag."""
+    await _fachlich(betrieb(request).steckbrief_setzen(daten, wer(request)))
+    return daten
 
 
 @router.get("/bewegungen")

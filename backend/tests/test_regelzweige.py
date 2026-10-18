@@ -228,9 +228,11 @@ def test_s24_extern_ausweichen_ueber_schwelle():
     w.messwerk.merke_laufzeit("zusage", "text", 300.0)
     w.auftrag("zusage", F.TEXT, laufzeit_s=300)
     w.laufen(6)
-    f = w.auftrag("fundus", F.TEXT, laufzeit_s=5)
+    ohne = w.auftrag("fundus", F.TEXT, laufzeit_s=5)                       # ohne Erlaubnisliste der App: nie extern
+    f = w.auftrag("fundus", F.TEXT, laufzeit_s=5, extern=["qwen-35b-extern"])
     w.laufen(20)
     v = w.verbund
+    assert not v.auftraege[ohne.kennung].extern
     assert ausgefuehrt(w, A.EXTERN_AUSWEICHEN)
     assert v.auftraege[f.kennung].extern and v.auftraege[f.kennung].dienst == "extern-anbieter"
     w.laufen_bis_fertig(60)
@@ -251,7 +253,7 @@ def test_s25_extern_nicht_erlaubt_und_unter_schwelle():
     w2.messwerk.merke_laufzeit("zusage", "text", 20.0)
     w2.auftrag("zusage", F.TEXT, laufzeit_s=20)
     w2.laufen(6)
-    w2.auftrag("fundus", F.TEXT, laufzeit_s=5)
+    w2.auftrag("fundus", F.TEXT, laufzeit_s=5, extern=["qwen-35b-extern"])
     w2.laufen(10)
     assert "Wartezeit unter der Schwelle" in abschluesse(w2, "extern_ausweichen")
     assert not ausgefuehrt(w2, A.EXTERN_AUSWEICHEN)
@@ -264,7 +266,7 @@ def test_s25b_extern_kein_dienst():
     w.messwerk.merke_laufzeit("zusage", "text", 300.0)
     w.auftrag("zusage", F.TEXT, laufzeit_s=300)
     w.laufen(6)
-    f = w.auftrag("fundus", F.TEXT, laufzeit_s=5)
+    f = w.auftrag("fundus", F.TEXT, laufzeit_s=5, extern=["qwen-35b-extern"])
     w.laufen(20)
     assert "kein externer Dienst" in abschluesse(w, "extern_ausweichen")
     assert not ausgefuehrt(w, A.EXTERN_AUSWEICHEN)

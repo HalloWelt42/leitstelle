@@ -1,5 +1,5 @@
 // Wörter, Symbole und Farben zu den Schlüsseln des Kerns. Gedruckt wird nie ein Schlüssel.
-import type { Auftragszustand, Betriebsmodus, Dienstzustand, Faehigkeit, Lage, Massnahmenart, Massnahmenzustand, Modellzustand, Zone } from './typen.gen';
+import type { Auftragszustand, Betriebsmodus, Dienstzustand, Eignung, Faehigkeit, Lage, Massnahmenart, Massnahmenzustand, Modellzustand, Quelle, Zone } from './typen.gen';
 
 export const FAEHIGKEIT: Record<Faehigkeit, { wort: string; symbol: string; farbe: string; rgb: string; klasse: string }> = {
   text: { wort: 'Text', symbol: 'fa-comment-dots', farbe: 'var(--ls-himmel)', rgb: 'var(--ls-himmel-rgb)', klasse: 'text' },
@@ -51,6 +51,14 @@ export const DIENSTZUSTAND: Record<Dienstzustand, Zustandsbild> = {
   pausiert: { wort: 'Pausiert', symbol: 'fa-circle-pause', klasse: 'pausiert' },
   nicht_erreichbar: { wort: 'Nicht erreichbar', symbol: 'fa-circle-xmark', klasse: 'fehler' },
   ausfall: { wort: 'Ausfall', symbol: 'fa-plug-circle-xmark', klasse: 'fehler' },
+};
+
+export const EIGNUNG: Record<Eignung, string> = {
+  denken: 'Denkt schrittweise', programmieren: 'Programmieren', lange_texte: 'Lange Texte', schnell: 'Schnell', gruendlich: 'Gründlich',
+};
+
+export const QUELLE: Record<Quelle, string> = {
+  dienst: 'sagt der Dienst', hand: 'von Hand eingetragen', gemessen: 'gemessen', abgeleitet: 'abgeleitet',
 };
 
 export const ZONE: Record<Zone, { wort: string; symbol: string }> = {

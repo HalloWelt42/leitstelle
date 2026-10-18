@@ -3,7 +3,8 @@
   import { gb, prozent, vor, zahl } from '../lib/format';
   import { kanal } from '../lib/kanal.svelte';
   import { tun } from '../lib/meldung.svelte';
-  import type { Lagebild, ModellSicht } from '../lib/typen.gen';
+  import type { Eignung, Lagebild, ModellSicht } from '../lib/typen.gen';
+  import { EIGNUNG, QUELLE } from '../lib/wort';
   import { weg } from '../lib/weg.svelte';
   import Faehigkeit from '../teile/Faehigkeit.svelte';
   import Speicherbalken from '../teile/Speicherbalken.svelte';
@@ -16,6 +17,37 @@
   let freigabeKnoten = $state<string | null>(null);
   let plan = $state<FreigabePlan | null>(null);
   let jetzt = $state(kanal.jetzt());
+  // Steckbrief von Hand: leere Felder lassen die Auskunft des Dienstes stehen (PROTOKOLL 4.8)
+  let steckbrief = $state<{ familie: string; zweck: string; eignung: Eignung[]; sprachen: string } | null>(null);
+  const EIGNUNGEN = Object.keys(EIGNUNG) as Eignung[];
+  const vonHand = (m: ModellSicht, feld: string) => m.steckbrief.herkunft?.[feld] === 'hand';
+
+  function steckbriefBeginnen(m: ModellSicht) {
+    const s = m.steckbrief;
+    steckbrief = { familie: m.familie, zweck: vonHand(m, 'zweck') ? s.zweck ?? '' : '', eignung: vonHand(m, 'eignung') ? [...(s.eignung ?? [])] : [],
+                   sprachen: vonHand(m, 'sprachen') ? (s.sprachen ?? []).join(', ') : '' };
+  }
+
+  async function steckbriefSpeichern(leeren = false) {
+    if (!steckbrief) return;
+    const e = leeren ? { familie: steckbrief.familie, zweck: '', eignung: [], sprachen: [] }
+      : { familie: steckbrief.familie, zweck: steckbrief.zweck.trim(), eignung: steckbrief.eignung,
+          sprachen: steckbrief.sprachen.split(/[\s,]+/).map((x) => x.trim().toLowerCase()).filter(Boolean) };
+    if (await tun(() => api.steckbriefSetzen(e), leeren ? 'Eintrag von Hand entfernt' : 'Steckbrief gespeichert')) steckbrief = null;
+  }
+
+  function gemessen(m: ModellSicht): string {
+    const g = m.steckbrief.gemessen;
+    if (!g || (!g.auftraege && g.ladezeit_s == null)) return 'Noch nichts gemessen';
+    const teile = [g.auftraege ? `aus ${g.auftraege} Aufträgen` : '', g.rechenzeit_s != null ? `Rechenzeit ${zahl(g.rechenzeit_s)} s` : '',
+                   g.erstes_stueck_s != null ? `erstes Stück nach ${zahl(g.erstes_stueck_s)} s` : '', g.token_je_s != null ? `${zahl(g.token_je_s)} Token je Sekunde` : '',
+                   g.ladezeit_s != null ? `Ladezeit ${zahl(g.ladezeit_s)} s` : ''];
+    return 'Gemessen ' + teile.filter(Boolean).join(', ');
+  }
+
+  function herkunft(m: ModellSicht): string {
+    return Object.entries(m.steckbrief.herkunft ?? {}).map(([feld, q]) => `${feld === 'parameter_mrd' ? 'Parameter' : feld[0].toUpperCase() + feld.slice(1)}: ${QUELLE[q]}`).join(' · ');
+  }
 
   $effect(() => {
     const t = setInterval(() => (jetzt = kanal.jetzt()), 5000);
@@ -116,8 +148,13 @@
             {#each sichtbar as m (m.kennung)}
               {@const warten = wartenAuf(m)}
               <tr>
-                <td><div class="n">{m.name}{#if m.geschuetzt}<i class="fa-solid fa-shield-halved schutz" title="Geschützt: unter der Schutzgrenze, Einbettung oder ohne bekannte Größe; die Leitstelle entlädt es nie von selbst. Von Hand geht es."></i>{/if}</div>
-                  <div class="zweit">{#if worte(m) === WORTE.prozess}Programm im Maschinenraum des Rechners{:else}<span class="zahl">{m.parameter_mrd ? `${zahl(m.parameter_mrd)} Milliarden` : 'Größe unbekannt'}</span> · zuletzt {vor(m.letzte_nutzung_s, jetzt)}{/if}</div></td>
+                <td><div class="n"><span title={gemessen(m)}>{m.name}</span>{#if m.geschuetzt}<i class="fa-solid fa-shield-halved schutz" title="Geschützt: unter der Schutzgrenze, Einbettung oder ohne bekannte Größe; die Leitstelle entlädt es nie von selbst. Von Hand geht es."></i>{/if}
+                  <button class="knopf ohne symbol stift" onclick={() => steckbriefBeginnen(m)} title="Steckbrief ergänzen: wofür das Modell gemacht ist (geht der Auskunft des Dienstes vor)"><i class="fa-solid fa-pen"></i></button></div>
+                  <div class="zweit">{#if worte(m) === WORTE.prozess}Programm im Maschinenraum des Rechners{:else}<span class="zahl">{m.parameter_mrd ? `${zahl(m.parameter_mrd)} Milliarden` : 'Größe unbekannt'}</span> · zuletzt {vor(m.letzte_nutzung_s, jetzt)}{/if}</div>
+                  {#if m.steckbrief.zweck || m.steckbrief.eignung?.length || m.steckbrief.sprachen?.length}<div class="steckbrief" title={herkunft(m)}>
+                    {#if m.steckbrief.zweck}<span class="zweck">{m.steckbrief.zweck}</span>{/if}
+                    {#each m.steckbrief.eignung ?? [] as e (e)}<span class="eignung">{EIGNUNG[e]}</span>{/each}
+                    {#if m.steckbrief.sprachen?.length}<span class="eignung sprache">{m.steckbrief.sprachen.join(', ')}</span>{/if}</div>{/if}</td>
                 <td><div class="marken">{#each m.faehigkeiten.filter((f) => f !== 'uebersetzen' && f !== 'werkzeug') as f (f)}<Faehigkeit wert={f} />{/each}</div></td>
                 <td><div class="dienst">{dienst(m.dienst)?.name}</div><div class="zweit">{knotenName(m.knoten)}</div></td>
                 <td class="zahl"><div style="text-align:right" title={m.gb_jetzt != null ? 'Bedarf, mit dem die Leitstelle plant; darunter der gerade gemessene Wert' : ''}>{m.gb ? gb(m.gb) : '-'}</div>
@@ -136,6 +173,22 @@
                   {:else}<button class="knopf klein" onclick={() => (frage = { modell: m, laden: true })} title="{worte(m).laden}: belegt {gb(m.gb)} auf {knotenName(m.knoten)}">{worte(m).laden}</button>{/if}
                 </td>
               </tr>
+              {#if steckbrief?.familie === m.familie}
+                <tr><td colspan="6">
+                  <div class="feldreihe">
+                    <label class="feld-l"><span>Zweck <small>{vonHand(m, 'zweck') ? 'von Hand' : m.steckbrief.zweck ? 'leer lässt die Auskunft des Dienstes' : 'der Dienst sagt nichts'}</small></span>
+                      <input class="eingabe" bind:value={steckbrief.zweck} maxlength="300" placeholder={vonHand(m, 'zweck') ? '' : m.steckbrief.zweck || 'wofür das Modell gemacht ist, ein Satz'} /></label>
+                    <label class="feld-l"><span>Sprachen <small>Kürzel, etwa de, en</small></span><input class="eingabe" bind:value={steckbrief.sprachen} placeholder={(m.steckbrief.sprachen ?? []).join(', ')} /></label>
+                  </div>
+                  <div class="feld-l" style="margin-top: var(--ls-a3)"><span>Eignung <small>{steckbrief.eignung.length ? 'ersetzt die Angabe des Dienstes' : 'keine gewählt: es gilt die Angabe des Dienstes'}</small></span>
+                    <div class="filter">{#each EIGNUNGEN as e (e)}<button class="chip" class:aktiv={steckbrief.eignung.includes(e)}
+                      onclick={() => (steckbrief!.eignung = steckbrief!.eignung.includes(e) ? steckbrief!.eignung.filter((x) => x !== e) : [...steckbrief!.eignung, e])}>{EIGNUNG[e]}</button>{/each}</div></div>
+                  <div class="tun" style="margin-top: var(--ls-a3); display: flex; gap: var(--ls-a2)">
+                    <button class="knopf haupt" onclick={() => steckbriefSpeichern()}><i class="fa-solid fa-floppy-disk"></i> Speichern</button>
+                    {#if Object.values(m.steckbrief.herkunft ?? {}).includes('hand')}<button class="knopf ohne" onclick={() => steckbriefSpeichern(true)} title="Nur noch die Auskunft des Dienstes">Eintrag von Hand entfernen</button>{/if}
+                    <button class="knopf ohne" onclick={() => (steckbrief = null)}>Abbrechen</button></div>
+                </td></tr>
+              {/if}
               {#if frage?.modell.kennung === m.kennung}
                 <tr><td colspan="6">
                   <div class="bestaetigen">

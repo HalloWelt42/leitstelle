@@ -11,7 +11,7 @@ from enum import Enum
 
 from pydantic import BaseModel, Field
 
-from ..kern.werte import Faehigkeit
+from ..kern.werte import Eignung, Faehigkeit
 
 
 class KnotenAnmeldung(BaseModel):
@@ -49,6 +49,15 @@ class Prozesszustand(str, Enum):
     GESTOERT = "gestoert"
 
 
+class Selbstauskunft(BaseModel):
+    """Was ein Dienst über sich oder sein Modell sagt (PROTOKOLL 4.8): wofür er gemacht ist. Leer heißt: sagt nichts."""
+
+    zweck: str = ""                                          # ein Satz: wofür gemacht oder optimiert
+    eignung: list[Eignung] = Field(default_factory=list)
+    sprachen: list[str] = Field(default_factory=list)        # ISO 639-1; leer: nicht angegeben
+    quantisierung: str | None = None                         # wie der Dienst sie nennt, etwa 4bit, FP8
+
+
 class ProzessBericht(BaseModel):
     """Ein Dienst, den der Agent verwaltet (eine Datei in seinem Ordner `dienste/`)."""
 
@@ -63,6 +72,7 @@ class ProzessBericht(BaseModel):
     aktiv: bool = False                 # arbeitet gerade (Prozessorlast über der Schwelle des Dienstes)
     anhalten_erlaubt: bool = True       # darf die Leitstelle ihn anhalten, um Speicher freizumachen
     plaetze: int = 1                    # so viele Anfragen nimmt er gleichzeitig an
+    selbstauskunft: Selbstauskunft = Field(default_factory=Selbstauskunft)   # aus seiner Dienstdatei
     meldung: str = ""
 
 

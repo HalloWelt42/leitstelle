@@ -94,8 +94,14 @@ mit gleichem `root` sind dasselbe Modell; keine Grenzwerte in den Antwortköpfen
   ausgenommen): nach jedem Fehlschlag verdoppelt sich der Abstand, von `pruefung_ab_s` (5 s) bis höchstens
   `pruefung_hoechstens_s` (1 Tag); ab dem fünften Fehlschlag in Folge heißt der Zustand **Ausfall** statt "nicht
   erreichbar". "Jetzt prüfen" in der Oberfläche prüft sofort und setzt den Abstand zurück, wenn der Dienst antwortet.
-- **Daten verlassen das Heimnetz nur mit Erlaubnis**: eine App nutzt einen externen Dienst nur mit `extern_erlaubt` und
-  Zone extern; ohne beides sieht sie ihn nicht.
+- **Daten verlassen das Heimnetz nur mit Erlaubnis, und die App entscheidet**: die Leitstelle erlaubt der App die
+  Zone extern (äußere Grenze); die App führt in ihren eigenen Einstellungen eine Erlaubnisliste externer Modelle und
+  schickt sie mit jeder Anfrage (`X-Leitstelle-Extern`). Nur was auf der Liste steht oder ausdrücklich verlangt ist,
+  darf nach extern; die Leitstelle weicht dorthin aus, wenn lokal länger als `extern_schwelle_s` (120 s) gewartet
+  würde, und entlastet so die lokale KI.
+
+Stand 18.10.2026: umgesetzt in Leitstelle 0.14.0 (Grenze, Abgleich, Ausfall, 429) und 0.15.0 (Erlaubnisliste,
+Steckbrief); Hetzner Experimental eingetragen (10 Anfragen je Minute, Abgleich alle 15 Minuten).
 
 ## Selbstauskunft: Steckbrief je Modell
 
@@ -123,3 +129,5 @@ docs/PROTOKOLL.md Abschnitt 4.8.
 | Lange Aufgaben | Begonnenes nicht wegnehmen: ein laufender langer Auftrag behält seine Modelle; kurze Anfragen anderer laden ihm nichts weg, sie warten oder weichen aus |
 | Wer weicht bei Speichermangel | das größte ungenutzte Modell (kleine werden länger geduldet); nie unter 10B, nie ein rechnendes, nur so viel wie nötig |
 | Mehrere Instanzen | bei Andrang, wenn Platz: wartet ein kleiner Dienst länger als eine gemessene Schwelle und ist genug frei, startet die Leitstelle eine weitere Instanz; ein großer Auftrag reduziert wieder |
+| Frist begonnener Arbeiten | bleibt: 300 s nach der letzten Nutzung, ab der zweiten Anfrage; Wert nach dem Verlauf prüfen |
+| Externe Anbieter | die Apps entscheiden selbst per Einstellung (Erlaubnisliste), nur wo die Qualität nicht leidet; freiwillig, entlastet die lokale KI; Vertonung, TubeVault, Transkription; txt2voice nicht (wird abgelöst) |

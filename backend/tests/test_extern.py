@@ -10,6 +10,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from leitstelle.api.app import erstellen
+from leitstelle.api.fassade import _extern
 from leitstelle.konfig import Konfig
 from leitstelle.ports.uhr import Stelluhr
 
@@ -75,6 +76,11 @@ async def test_e19_externer_anbieter_grenze_ausfall_und_ueberlast(tmp_path):
             assert sicht["naechste_pruefung_s"] == uhr.zeit + k.extern_abgleich_s, "gesund: selten fragen, jede Abfrage zählt"
             namen = sorted(m["name"] for m in (await c.get("/api/lage")).json()["modelle"] if m["dienst"] == dienst)
             assert namen == ["Qwen3.6-35B-A3B", "Qwen3.8-27B"], "Namen mit gleichem root sind ein Modell"
+
+            # Erlaubnisliste der App (Kopf X-Leitstelle-Extern): Namen und Aliasse zu Familien, Unbekanntes fällt weg
+            anfrage = Request({"type": "http", "app": app, "headers": [(b"x-leitstelle-extern", b"Qwen3.8-27B,%20Qwen/Qwen3.6-35B-A3B-FP8,%20gibt-es-nicht")]})
+            assert _extern(anfrage) == ["Qwen/Qwen3.6-35B-A3B", "Qwen/Qwen3.8-27B"]
+            assert _extern(Request({"type": "http", "app": app, "headers": []})) == [], "ohne Kopf nichts nach extern"
 
             await b.abgleichen()
             assert modell_abfragen(hetzner) == 1, "vor der Frist keine Abfrage"

@@ -16,13 +16,13 @@ from ..fach.betrieb import Freigabe
 from ..fach.lagebild import Lagebild
 from ..fach.verzeichnis import AnwendungDaten, DienstAenderung, DienstDaten, Erkennung, KnotenDaten
 from ..kern.modelle import Massnahme
-from ..ports.ablage.eintraege import AuftragEintrag, Kennzahlen, KnotenEintrag, PruefEintrag
+from ..ports.ablage.eintraege import AuftragEintrag, Bewegung, Kennzahlen, KnotenEintrag, PruefEintrag, SteckbriefEintrag
 from .umschlag import Umschlag
 
 # Antworten der Leitstelle: jedes Feld wird immer mitgeschickt, auch wenn es einen Vorgabewert hat
-AUSGABE: list[type[BaseModel]] = [Lagebild, AuftragEintrag, Massnahme, Erkennung, Freigabe, KnotenEintrag, PruefEintrag, Kennzahlen, Umschlag]
+AUSGABE: list[type[BaseModel]] = [Lagebild, AuftragEintrag, Massnahme, Erkennung, Freigabe, KnotenEintrag, PruefEintrag, Kennzahlen, Umschlag, Bewegung]
 # Eingaben an die Leitstelle: Felder mit Vorgabewert dürfen fehlen
-EINGABE: list[type[BaseModel]] = [KnotenDaten, DienstDaten, DienstAenderung, AnwendungDaten]
+EINGABE: list[type[BaseModel]] = [KnotenDaten, DienstDaten, DienstAenderung, AnwendungDaten, SteckbriefEintrag]
 
 
 def _alle_pflicht(defs: dict, namen: set[str]) -> None:
