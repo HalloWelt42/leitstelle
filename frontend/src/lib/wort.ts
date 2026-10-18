@@ -14,6 +14,7 @@ export const FAEHIGKEIT: Record<Faehigkeit, { wort: string; symbol: string; farb
   sprecher_trennen: { wort: 'Sprecher trennen', symbol: 'fa-people-arrows', farbe: 'var(--ls-minze)', rgb: 'var(--ls-minze-rgb)', klasse: 'hoeren' },
   musik: { wort: 'Musik', symbol: 'fa-music', farbe: 'var(--ls-violett)', rgb: 'var(--ls-violett-rgb)', klasse: 'musik' },
   werkzeug: { wort: 'Werkzeuge', symbol: 'fa-screwdriver-wrench', farbe: 'var(--ls-sand)', rgb: 'var(--ls-sand-rgb)', klasse: 'werkzeug' },
+  ton: { wort: 'Ton bearbeiten', symbol: 'fa-wave-square', farbe: 'var(--ls-minze)', rgb: 'var(--ls-minze-rgb)', klasse: 'hoeren' },
 };
 
 /** Hauptfähigkeit eines Modells für Farbe und Symbol: Bild vor Einbettung vor Text */

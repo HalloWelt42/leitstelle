@@ -18,6 +18,7 @@ class Faehigkeit(str, Enum):
     SPRECHER_TRENNEN = "sprecher_trennen"
     MUSIK = "musik"
     WERKZEUG = "werkzeug"
+    TON = "ton"                       # Tonarbeit ohne Modell (wandeln, messen, mischen): rechnet auf dem Mac
 
 
 class Prioritaet(IntEnum):
@@ -109,7 +110,7 @@ class Automatik(str, Enum):
 WORT: dict[str, str] = {
     "text": "Text", "einbettung": "Einbettung", "uebersetzen": "Übersetzen", "hoeren": "Hören",
     "bild_beschreiben": "Bild beschreiben", "bild_erzeugen": "Bild erzeugen", "stimme": "Stimme", "stimme_klonen": "Stimmklon", "sprecher_erkennen": "Sprecher erkennen",
-    "sprecher_trennen": "Sprecher trennen", "musik": "Musik", "werkzeug": "Werkzeuge",
+    "sprecher_trennen": "Sprecher trennen", "musik": "Musik", "werkzeug": "Werkzeuge", "ton": "Ton bearbeiten",
     "eingereiht": "Eingereiht", "wartet_speicher": "Wartet auf Speicher", "zugeteilt": "Zugeteilt", "laeuft": "Läuft", "pausiert": "Pausiert",
     "fertig": "Fertig", "abgebrochen": "Abgebrochen", "fehlgeschlagen": "Fehlgeschlagen", "abgelehnt": "Abgelehnt",
     "umleiten": "Umleiten", "leerlauf_raeumen": "Leerlauf räumen", "vorwaermen": "Vorwärmen", "kette_ausweichen": "Kette ausweichen",

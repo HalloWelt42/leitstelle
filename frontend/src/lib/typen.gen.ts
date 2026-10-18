@@ -41,7 +41,8 @@ export type Faehigkeit =
   | 'sprecher_erkennen'
   | 'sprecher_trennen'
   | 'musik'
-  | 'werkzeug';
+  | 'werkzeug'
+  | 'ton';
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "Modellzustand".
