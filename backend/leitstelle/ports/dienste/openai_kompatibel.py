@@ -107,6 +107,7 @@ class HttpStrom:
 
 class OpenAIKompatibel:
     meldet_sich_selbst = False           # die Leitstelle fragt nach dem Zustand (mit wachsenden Abständen bei Ausfall)
+    ueberlast_status = frozenset({429})
 
     def __init__(self, adresse: str, zugang: str | None = None, verbindung_s: float = 10.0, transport: httpx.AsyncBaseTransport | None = None,
                  beim_senden: Callable[[], None] | None = None) -> None:
@@ -267,6 +268,10 @@ class ExternOpenAI(OpenAIKompatibel):
     """Externer Anbieter im OpenAI-Format (zuerst Hetzner): nur `/v1/models`, nie Laden oder Entladen; mehrere Namen
     mit gleichem `root` sind ein Modell (Hetzner nennt jedes Modell zweimal). Jede Anfrage zählt für die Grenze je
     Minute, auch die Zustandsabfrage; die Leitstelle fragt deshalb selten (ZUSAMMENSPIEL Z4)."""
+
+    # Vorschaltrechner melden einen ausgelasteten Anbieter mit 5xx: Hetzner antwortet 504, wenn das Modell 300 s lang
+    # nicht anfängt (gemessen 19.10.2026); hat es angefangen, fließt der Strom beliebig lange
+    ueberlast_status = frozenset({429, 502, 503, 504})
 
     async def zustand(self) -> Dienstbericht:
         try:

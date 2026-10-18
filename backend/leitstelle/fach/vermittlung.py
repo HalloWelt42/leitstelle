@@ -21,7 +21,7 @@ from .betrieb import Betrieb, Lauf, Messung
 from .fehler import Ablehnung
 
 NEUVERSUCHE_NICHT_GELADEN = 2       # Dienst hat das Modell zwischen Abgleich und Anfrage selbst entladen
-NEUVERSUCHE_UEBERLAST = 3           # Dienst meldete zu viele Anfragen (429): gesperrt, Auftrag wartet oder weicht aus
+NEUVERSUCHE_UEBERLAST = 3           # Dienst meldete Überlast (429, extern auch 5xx): gesperrt, Auftrag wartet oder weicht aus
 UEBERLAST_WARTE_S = 60.0            # Sperre, wenn der Dienst kein Retry-After nennt
 
 
@@ -156,8 +156,8 @@ class Vermittlung:
             yield self._fehler(strom, f.grund, f.meldung)
             return
         try:
-            if antwort.status == 429 and v.neuversuche < NEUVERSUCHE_UEBERLAST:
-                b.dienst_ueberlastet(a.dienst or "", warte_s_aus(antwort.kopf))
+            if antwort.status in b.adapter[a.dienst or ""].ueberlast_status and v.neuversuche < NEUVERSUCHE_UEBERLAST:
+                b.dienst_ueberlastet(a.dienst or "", warte_s_aus(antwort.kopf), antwort.status)
                 self._zurueckstellen(v)
                 raise _Neuversuch()
             if antwort.status >= 400:

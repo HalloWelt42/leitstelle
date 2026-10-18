@@ -110,6 +110,12 @@ mit gleichem `root` sind dasselbe Modell; keine Grenzwerte in den Antwortköpfen
   60 s. Ist die Grenze erreicht, gilt der Dienst wie ein belegter Platz: der Auftrag wartet mit Frist (bis die älteste
   Anfrage aus dem Fenster fällt) oder weicht aus. Antwortet der Dienst trotzdem mit 429, sperrt die Leitstelle ihn für
   `Retry-After` (sonst 60 s).
+- **Überlast beim Anbieter ist kein Fehlschlag**: externe Anbieter melden ein ausgelastetes Modell über ihren
+  Vorschaltrechner mit 502, 503 oder 504. Die Leitstelle behandelt das wie 429: Sperre, der Auftrag geht zurück in die
+  Warteschlange (höchstens 3 Neuversuche) und wartet oder weicht auf ein erlaubtes Modell aus; der Zustand des Dienstes
+  bleibt bereit. Welche Antwortcodes Überlast bedeuten, weiß der Adapter (`ueberlast_status`).
+- **Immer als Strom**: zum Anbieter geht jede Anfrage als Strom, auch wenn die App keinen will; dann setzt der Adapter
+  die Antwort zusammen. Ohne Strom bricht der Vorschaltrechner lange Antworten ab.
 - **Seltener Abgleich**: externe Dienste werden im gesunden Zustand nur alle `abgleich_s` (Vorgabe 900 s) nach ihren
   Modellen gefragt, nur über `/v1/models`; Namen mit gleichem `root` werden zu einem Modell mit Aliassen.
 - **Prüfabstände bei Ausfall** (alle abgefragten Dienste; Dienste des Maschinenraums melden sich selbst und sind
@@ -124,6 +130,19 @@ mit gleichem `root` sind dasselbe Modell; keine Grenzwerte in den Antwortköpfen
 
 Stand 18.10.2026: umgesetzt in Leitstelle 0.14.0 (Grenze, Abgleich, Ausfall, 429) und 0.15.0 (Erlaubnisliste,
 Steckbrief); Hetzner Experimental eingetragen (10 Anfragen je Minute, Abgleich alle 15 Minuten).
+
+Grenzen von Hetzner Experimental (Doku des Anbieters, Stand 24.07.2026; je Schlüssel, gleitend 60 s): 10 Anfragen,
+4 Mio. Eingabe-Token, 100.000 Ausgabe-Token; darüber 429. Eine Zeitgrenze nennt die Doku nicht. Gemessen 19.10.2026:
+
+| Befund | Messung |
+|---|---|
+| Anfrage ohne Strom mit langem Denken | 504 nach 300 s (vor 0.17.1) |
+| Anfrage als Strom, Modell fängt an | Kopf nach 1 bis 2 s, danach beliebig lang (624 s und 20 min), Lücken höchstens 4,7 s |
+| Anfrage als Strom, Modell ausgelastet | kein Kopf, nach 300 s 504 vom Vorschaltrechner (2 von 3 Anfragen an Qwen 3.8 am Abend des 18.10.) |
+
+Umgesetzt in 0.17.2: 502, 503 und 504 externer Anbieter gelten als Überlast. Die Token-Grenzen je Minute sind nicht
+eingebaut; eine einzelne Anfrage bleibt weit darunter. Messungen zum Modellvergleich laufen mit den lokalen Modellen
+(Entscheidung 19.10.2026: dasselbe Modell ist lokal da), Hetzner bleibt Entlastung im Betrieb.
 
 ## Selbstauskunft: Steckbrief je Modell
 

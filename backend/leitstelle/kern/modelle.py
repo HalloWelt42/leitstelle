@@ -56,7 +56,7 @@ class Dienst(BaseModel):
     plaetze: int = 1                  # gleichzeitige Aufträge je Modell
     anfragen_je_minute: int | None = None   # Grenze des Anbieters; die Leitstelle hält sie ein
     anfragen_s: list[float] = Field(default_factory=list)   # Zeitpunkte gesendeter Anfragen im gleitenden Fenster
-    gesperrt_bis_s: float | None = None     # nach "zu viele Anfragen" des Dienstes (429)
+    gesperrt_bis_s: float | None = None     # nach Überlast des Dienstes (429, extern auch 5xx)
 
     @property
     def nutzbar(self) -> bool:
@@ -287,7 +287,7 @@ class Verbund(BaseModel):
             d.anfragen_s = [t for t in d.anfragen_s if zeit_s - t < ANFRAGE_FENSTER_S] + [zeit_s]
 
     def anfrage_frei_in_s(self, dienst: str, schon_vergeben: int = 0) -> float:
-        """Sekunden, bis der Dienst die nächste Anfrage annimmt (0: jetzt): Sperre nach 429 und Grenze je Minute. Es
+        """Sekunden, bis der Dienst die nächste Anfrage annimmt (0: jetzt): Sperre nach Überlast und Grenze je Minute. Es
         zählen die gesendeten Anfragen der letzten Minute, zugeteilte, die noch nicht gesendet sind, und `schon_vergeben`
         (in diesem Zuteillauf)."""
         d = self.dienste[dienst]

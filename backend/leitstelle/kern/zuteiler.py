@@ -167,7 +167,8 @@ def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> 
                     m = belegt[0]
                     if (frei_in := verbund.anfrage_frei_in_s(m.dienst, vergeben_anfragen.get(m.dienst, 0))) > 0:
                         d = verbund.dienste[m.dienst]
-                        grenze = f"Grenze von {d.anfragen_je_minute} Anfragen je Minute erreicht" if d.anfragen_je_minute else "Dienst meldete zu viele Anfragen"
+                        gesperrt = (d.gesperrt_bis_s or 0.0) > verbund.zeit_s
+                        grenze = "Dienst meldete Überlast" if gesperrt else f"Grenze von {d.anfragen_je_minute} Anfragen je Minute erreicht"
                         warte = Wartegrund(auftrag=a.kennung, zustand=Auftragszustand.EINGEREIHT, wartet_auf_familie=fam, wartet_auf_knoten=d.knoten,
                                            voraussichtlich_s=frei_in, begruendung=f"{d.name}: {grenze}, wieder frei in etwa {frei_in:.0f} s")
                         break

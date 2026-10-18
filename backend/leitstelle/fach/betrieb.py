@@ -408,14 +408,15 @@ class Betrieb:
         d.zustand = self._fehlschlag_vermerken(dienst)
         self.melden(f"{d.name}: {WORT[d.zustand.value]} ({meldung[:120]}); nächste Prüfung in {komma(self.pruefstand[dienst].naechste_s - self.uhr.jetzt())} s")
 
-    def dienst_ueberlastet(self, dienst: str, warte_s: float) -> None:
-        """Der Dienst meldete zu viele Anfragen (429): gesperrt für seine Wartezeit."""
+    def dienst_ueberlastet(self, dienst: str, warte_s: float, status: int) -> None:
+        """Der Dienst meldete Überlast (429, extern auch 5xx): gesperrt für seine Wartezeit, kein Fehlschlag."""
         d = self.verbund.dienste.get(dienst)
         if d is None:
             return
         self._zeit_setzen()
         d.gesperrt_bis_s = self.verbund.zeit_s + warte_s
-        self.melden(f"{d.name} meldet zu viele Anfragen; gesperrt für {komma(warte_s)} s")
+        was = "zu viele Anfragen" if status == 429 else f"Überlast (Antwort {status})"
+        self.melden(f"{d.name} meldet {was}; gesperrt für {komma(warte_s)} s")
 
     # ── Steckbrief (PROTOKOLL 4.8) ───────────────────────────────────────
     async def _messwerte_holen(self) -> None:

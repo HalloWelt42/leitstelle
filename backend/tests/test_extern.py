@@ -1,5 +1,6 @@
 """Externer Anbieter wie Hetzner (ZUSAMMENSPIEL Z4): seltener Abgleich, jede Anfrage zählt, wachsende Prüfabstände bis
-zum Ausfall, "jetzt prüfen", Sperre und Neueinreihen nach 429. Die Uhr steht, bis der Test sie stellt."""
+zum Ausfall, "jetzt prüfen", Sperre und Neueinreihen nach 429 und nach 504 des Vorschaltrechners (Anbieter ausgelastet).
+Die Uhr steht, bis der Test sie stellt."""
 
 from __future__ import annotations
 
@@ -8,10 +9,11 @@ import json
 
 import httpx
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
 from leitstelle.api.app import erstellen
 from leitstelle.api.fassade import _extern
+from leitstelle.fach.vermittlung import UEBERLAST_WARTE_S
 from leitstelle.konfig import Konfig
 from leitstelle.ports.uhr import Stelluhr
 
@@ -21,7 +23,7 @@ from test_adapter import HETZNER_MODELLE
 
 def schein_hetzner() -> FastAPI:
     app = FastAPI()
-    app.state.an, app.state.zu_viel, app.state.pfade = True, 0, []
+    app.state.an, app.state.zu_viel, app.state.ausgelastet, app.state.pfade = True, 0, 0, []
 
     @app.middleware("http")
     async def mitschreiben(anfrage: Request, weiter):
@@ -40,6 +42,9 @@ def schein_hetzner() -> FastAPI:
         if app.state.zu_viel:
             app.state.zu_viel -= 1
             return JSONResponse({"error": {"message": "rate limit"}}, status_code=429, headers={"Retry-After": "7"})
+        if app.state.ausgelastet:                       # wie Hetzner, wenn das Modell 300 s lang nicht anfängt
+            app.state.ausgelastet -= 1
+            return HTMLResponse("<title>504 - Gateway Timeout</title>", status_code=504)
         if not app.state.koerper.get("stream"):        # wie Hetzner bei langem Denken: still, dann 504 nach der Frist
             return JSONResponse({"error": "Gateway Timeout"}, status_code=504)
         stuecke = [{"choices": [{"index": 0, "delta": {"reasoning_content": "erst denken "}}]},
@@ -134,3 +139,25 @@ async def test_e19_externer_anbieter_grenze_ausfall_und_ueberlast(tmp_path):
             assert antwort.json()["choices"][0]["message"]["reasoning_content"] == "erst denken "
             assert antwort.json()["usage"]["completion_tokens"] == 7, "Verbrauch aus dem Strom"
             assert hetzner.state.pfade.count("/api/v1/chat/completions") == 2
+
+            # 504 des Vorschaltrechners (Anbieter ausgelastet): wie Überlast gesperrt, kein Fehlschlag, Auftrag kommt durch
+            hetzner.state.ausgelastet = 1
+            d = b.verbund.dienste[dienst]
+            async with httpx.AsyncClient(base_url=url + "/v1", timeout=30, headers={"Authorization": f"Bearer {schluessel}"}) as anw:
+                anfrage = asyncio.create_task(anw.post("/chat/completions", json={"model": "Qwen3.8-27B", "messages": []}))
+                for _ in range(200):
+                    if (d.gesperrt_bis_s or 0) > uhr.zeit:
+                        break
+                    await asyncio.sleep(0.02)
+                assert d.gesperrt_bis_s == uhr.zeit + UEBERLAST_WARTE_S, "ohne Retry-After die feste Sperre"
+                assert d.zustand.value == "bereit" and b.pruefstand[dienst].fehlschlaege == 0, "Überlast ist kein Fehlschlag"
+                b.anstossen()
+                await asyncio.sleep(0.2)
+                assert not anfrage.done(), "wartet, solange der Anbieter gesperrt ist"
+                wartend = [a for a in b.verbund.auftraege.values() if a.zustand.value == "eingereiht"]
+                assert len(wartend) == 1 and "Dienst meldete Überlast" in wartend[0].begruendung, wartend
+                uhr.zeit += UEBERLAST_WARTE_S + 1
+                b.anstossen()
+                antwort = await asyncio.wait_for(anfrage, 10)
+            assert antwort.status_code == 200 and antwort.json()["choices"][0]["message"]["content"] == "hallo"
+            assert hetzner.state.pfade.count("/api/v1/chat/completions") == 4
