@@ -1,11 +1,11 @@
 <script lang="ts">
   import { api } from '../lib/api';
   import { arbeit } from '../lib/arbeit.svelte';
-  import { gb, komma, prozent } from '../lib/format';
+  import { gb, komma, prozent, uhrzeit } from '../lib/format';
   import { tun } from '../lib/meldung.svelte';
   import type { KnotenDaten, KnotenSicht, Lagebild, Zone } from '../lib/typen.gen';
   import { weg } from '../lib/weg.svelte';
-  import { DIENSTZUSTAND } from '../lib/wort';
+  import { DIENSTZUSTAND, KNOTENZUSTAND } from '../lib/wort';
   import AgentFeld from '../teile/AgentFeld.svelte';
   import Ring from '../teile/Ring.svelte';
   import Speicherbalken from '../teile/Speicherbalken.svelte';
@@ -28,6 +28,8 @@
   }
 
   const erreichbar = $derived(bild.knoten.filter((k) => k.erreichbar));
+  const schlafend = $derived(bild.knoten.filter((k) => k.zustand === 'schlaeft'));
+  const unerreichbar = $derived(bild.knoten.filter((k) => k.zustand === 'nicht_erreichbar'));
   const mitAgent = $derived(bild.knoten.filter((k) => k.agent.verbunden));
   const anteil = (teil: number | null | undefined, ganz: number | null | undefined) => (teil != null && ganz ? (100 * teil) / ganz : null);
   const dienste = (k: string) => bild.dienste.filter((d) => d.knoten === k);
@@ -45,6 +47,10 @@
     const d = { ...entwurf, budget_fest_gb: entwurf.budget_fest_gb || null,
                 hintergrund_von: entwurf.hintergrund_von ?? null, hintergrund_bis: entwurf.hintergrund_bis ?? null };
     if (await tun(() => api.knotenAendern(bearbeiten!, d), 'Rechner gespeichert')) { bearbeiten = null; entwurf = null; }
+  }
+
+  async function nichtMehrWarten(k: KnotenSicht) {
+    await tun(() => api.schlafBeenden(k.kennung), `${k.name} gilt nicht mehr als schlafend; seine Dienste werden geprüft`);
   }
 
   async function entfernen(k: string) {
@@ -66,7 +72,8 @@
     <div class="kennzahlen">
       <div class="kennzahl"><b>{bild.knoten.length}</b><span>Knoten</span></div>
       <div class="kennzahl erfolg"><b>{erreichbar.length}</b><span>Erreichbar</span><small>mindestens ein Dienst antwortet</small></div>
-      {#if erreichbar.length < bild.knoten.length}<div class="kennzahl fehler"><b>{bild.knoten.length - erreichbar.length}</b><span>Nicht erreichbar</span></div>{/if}
+      {#if schlafend.length}<div class="kennzahl"><b>{schlafend.length}</b><span>Schläft</span><small>Aufträge warten, bis er wach ist</small></div>{/if}
+      {#if unerreichbar.length}<div class="kennzahl fehler"><b>{unerreichbar.length}</b><span>Nicht erreichbar</span></div>{/if}
       <div class="kennzahl"><b>{gb(bild.knoten.reduce((s, k) => s + k.geladen_gb, 0))}</b><span>Modelle im Speicher</span></div>
       <div class="kennzahl"><b>{mitAgent.length}</b><span>Mit Maschinenraum</span><small>Speicher gemessen statt geschätzt</small></div>
     </div>
@@ -93,9 +100,10 @@
     {/if}
     <div class="knoten-raster">
       {#each bild.knoten as k (k.kennung)}
-        <article class="knotenkarte" class:aus={!k.erreichbar}>
+        {@const zustand = KNOTENZUSTAND[k.zustand]}
+        <article class="knotenkarte" class:aus={k.zustand === 'nicht_erreichbar'}>
           <header class="kk-kopf"><h2>{k.name}</h2><ZoneMarke wert={k.zone} />
-            <span class="zustand {k.erreichbar ? 'fertig' : 'fehler'}"><i class="fa-solid {k.erreichbar ? 'fa-circle' : 'fa-circle-xmark'}"></i>{k.erreichbar ? 'Erreichbar' : 'Nicht erreichbar'}</span></header>
+            <span class="zustand {zustand.klasse}"><i class="fa-solid {zustand.symbol}"></i>{zustand.wort}{#if k.schlaeft_seit_s != null}&nbsp;seit {uhrzeit(k.schlaeft_seit_s)}{/if}</span></header>
           <div class="kk-meta"><span class="zahl" title="Adresse im Netz">{k.adresse}</span><span>{gb(k.speicher_gb)} Speicher</span>
             <span title="So viel dürfen Modelle zusammen belegen">Budget {gb(k.budget_gb)}{k.budget_fest_gb ? ' (fest)' : ''}</span>
             {#if k.hintergrund_von != null && k.hintergrund_bis != null}<span title="In diesem Fenster ist der Rechner für Hintergrundarbeit bevorzugt"><i class="fa-solid fa-moon"></i> {k.hintergrund_von} bis {k.hintergrund_bis} Uhr</span>{/if}</div>
@@ -141,6 +149,9 @@
                   {#if k.agent.messwerte?.last_1m != null}<span title="Durchschnittliche Last der letzten Minute (wartende und laufende Prozesse)"><i class="fa-solid fa-gauge"></i><b>{komma(k.agent.messwerte.last_1m, 1)}</b> Last</span>{/if}
                   {#if k.agent.messwerte?.platte_frei_gb != null}<span title="Freier Platz auf der Platte"><i class="fa-solid fa-hard-drive"></i><b>{gb(k.agent.messwerte.platte_frei_gb)}</b> frei</span>{/if}
                 </div>
+                {#if k.zustand === 'schlaeft'}
+                  <div class="hinweis klein"><i class="fa-solid fa-moon"></i><span>Schläft seit {uhrzeit(k.schlaeft_seit_s)}. Aufträge an ihn warten in den Apps, bis er wach ist; seine Dienste werden bis dahin nicht geprüft.</span></div>
+                {/if}
                 {#if wartenAufSpeicher(k.kennung)}
                   <div class="hinweis warnung klein"><i class="fa-solid fa-memory"></i><span>Wartet auf Speicher: <b class="zahl">{wartenAufSpeicher(k.kennung)}</b></span></div>
                 {/if}
@@ -162,6 +173,8 @@
                   <button class="knopf klein gefahr-voll" onclick={() => entfernen(k.kennung)}>Ja, entfernen</button></div></div>
             {/if}
             <footer class="kk-knoepfe">
+              {#if k.zustand === 'schlaeft'}<button class="knopf" onclick={() => nichtMehrWarten(k)}
+                      title="Der Rechner gilt nicht mehr als schlafend; Aufträge scheitern dann wieder, solange er nicht antwortet"><i class="fa-solid fa-sun"></i> Nicht mehr warten</button>{/if}
               <button class="knopf" onclick={() => beginnen(k)} title="Name, Adresse, Speicher, Budget und Zeitfenster ändern"><i class="fa-solid fa-pen"></i> Bearbeiten</button>
               <a class="knopf ohne" href={weg.pfad('modelle', 'freigeben')} onclick={(e) => weg.klick(e, 'modelle', 'freigeben')}
                  title="Speicher freigeben: zeigt zuerst, was entladen würde; nichts passiert ohne Bestätigung"><i class="fa-solid fa-broom"></i> Speicher freigeben</a>

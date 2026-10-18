@@ -3,7 +3,7 @@
   // Mitte, Rechner und Dienste rechts. Laufende Aufträge als laufende Linie mit Paket, wartende als leise Linie.
   import { prozent } from '../lib/format';
   import type { AuftragSicht, Lagebild } from '../lib/typen.gen';
-  import { AUFTRAGSZUSTAND, FAEHIGKEIT } from '../lib/wort';
+  import { AUFTRAGSZUSTAND, FAEHIGKEIT, KNOTENZUSTAND } from '../lib/wort';
 
   // kuerzlich: Anwendungen mit einer Auftragsbewegung in den letzten Sekunden (aus dem Kanal). Kurze Aufträge
   // sind fertig, bevor ein Lagebild sie als laufend zeigt; sie leuchten so trotzdem sichtbar nach.
@@ -25,7 +25,7 @@
     const mitAuftrag = new Set(offen.map((a) => a.anwendung));
     const apps = [...bild.anwendungen].sort((x, y) => Number(mitAuftrag.has(y.kennung)) - Number(mitAuftrag.has(x.kennung)) || x.name.localeCompare(y.name, 'de')).slice(0, 8);
     const rechts: Spalte[] = bild.knoten.map((k) => ({
-      kennung: k.kennung, name: k.name, zeile: k.erreichbar ? `${prozent(k.belegt_anteil)} Speicher belegt` : 'nicht erreichbar', extern: false, erreichbar: k.erreichbar,
+      kennung: k.kennung, name: k.name, zeile: k.erreichbar ? `${prozent(k.belegt_anteil)} Speicher belegt` : KNOTENZUSTAND[k.zustand].satz, extern: false, erreichbar: k.erreichbar,
       belegt: k.belegt_anteil, dienste: bild.dienste.filter((d) => d.knoten === k.kennung).map((d) => d.name),
     }));
     const extern = bild.dienste.filter((d) => d.extern);

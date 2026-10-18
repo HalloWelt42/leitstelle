@@ -22,9 +22,14 @@ export type Automatik = 'aus' | 'vorschlagen' | 'selbst';
 export type Zone = 'heim' | 'fern' | 'extern';
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "Knotenzustand".
+ */
+export type Knotenzustand = 'erreichbar' | 'nicht_erreichbar' | 'schlaeft';
+/**
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "Dienstzustand".
  */
-export type Dienstzustand = 'bereit' | 'aus' | 'startet' | 'pausiert' | 'nicht_erreichbar' | 'ausfall';
+export type Dienstzustand = 'bereit' | 'aus' | 'startet' | 'pausiert' | 'nicht_erreichbar' | 'ausfall' | 'schlaeft';
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "Faehigkeit".
@@ -168,6 +173,8 @@ export interface KnotenSicht {
   frei_gb: number;
   belegt_anteil: number;
   erreichbar: boolean;
+  zustand: Knotenzustand;
+  schlaeft_seit_s: number | null;
   budget_fest_gb: number | null;
   hintergrund_von: number | null;
   hintergrund_bis: number | null;

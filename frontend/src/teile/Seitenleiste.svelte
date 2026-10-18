@@ -10,7 +10,7 @@
     if (!bild) return p;
     const wartend = bild.auftraege.filter((a) => a.zustand === 'eingereiht' || a.zustand === 'wartet_speicher').length;
     if (wartend) p.auftraege = { zahl: wartend, klasse: 'warnung', satz: `${wartend} Aufträge warten` };
-    const aus = bild.knoten.filter((k) => !k.erreichbar);
+    const aus = bild.knoten.filter((k) => k.zustand === 'nicht_erreichbar');      // ein schlafender Rechner ist kein Ausfall
     if (aus.length) p.knoten = { zahl: aus.length, klasse: 'gefahr', satz: `Nicht erreichbar: ${aus.map((k) => k.name).join(', ')}` };
     const dienstAus = bild.dienste.filter((d) => d.zustand === 'nicht_erreichbar');
     if (dienstAus.length) p.dienste = { zahl: dienstAus.length, klasse: 'gefahr', satz: `Nicht erreichbar: ${dienstAus.map((d) => d.name).join(', ')}` };

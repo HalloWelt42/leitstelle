@@ -25,6 +25,7 @@
   });
 
   const bereit = $derived(bild.dienste.filter((d) => d.zustand === 'bereit'));
+  const schlafend = $derived(bild.dienste.filter((d) => d.zustand === 'schlaeft'));
   const knotenName = (k: string | null) => bild.knoten.find((x) => x.kennung === k)?.name ?? 'Extern';
   const knotenZone = (d: DienstSicht) => (d.extern ? 'extern' : bild.knoten.find((x) => x.kennung === d.knoten)?.zone ?? 'heim');
   const modelle = (d: string) => bild.modelle.filter((m) => m.dienst === d);
@@ -65,7 +66,8 @@
     <div class="kennzahlen">
       <div class="kennzahl"><b>{bild.dienste.length}</b><span>Dienste</span></div>
       <div class="kennzahl erfolg"><b>{bereit.length}</b><span>Bereit</span></div>
-      {#if bereit.length < bild.dienste.length}<div class="kennzahl fehler"><b>{bild.dienste.length - bereit.length}</b><span>Nicht erreichbar</span>{#if bild.dienste.some((d) => d.zustand === 'ausfall')}<small>davon {bild.dienste.filter((d) => d.zustand === 'ausfall').length} im Ausfall</small>{/if}</div>{/if}
+      {#if schlafend.length}<div class="kennzahl"><b>{schlafend.length}</b><span>Schläft</span><small>ihr Rechner schläft; keine Prüfung, bis er wach ist</small></div>{/if}
+      {#if bereit.length + schlafend.length < bild.dienste.length}<div class="kennzahl fehler"><b>{bild.dienste.length - bereit.length - schlafend.length}</b><span>Nicht erreichbar</span>{#if bild.dienste.some((d) => d.zustand === 'ausfall')}<small>davon {bild.dienste.filter((d) => d.zustand === 'ausfall').length} im Ausfall</small>{/if}</div>{/if}
       <div class="kennzahl"><b>{bild.dienste.filter((d) => d.steuerbar).length}</b><span>Steuerbar</span><small>Leitstelle lädt und entlädt</small></div>
     </div>
   </div>

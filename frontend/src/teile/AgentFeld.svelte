@@ -37,6 +37,9 @@
     <div class="zeile" title="Der Maschinenraum misst Speicher und Last und verwaltet die Dienste dieses Rechners">
       <span class="punkt lebt"></span><span>Meldet sich, Fassung <span class="zahl">{a.version}</span>, {a.betriebssystem}</span>
       <span class="leise">Messung {vor(a.messzeit_s, jetzt)}</span></div>
+  {:else if knoten.zustand === 'schlaeft'}
+    <div class="zeile leise" title="Der Maschinenraum hat sich beim Einschlafen abgemeldet und meldet sich beim Aufwachen von selbst wieder.">
+      <span class="punkt aus"></span><span>Schläft; meldet sich beim Aufwachen wieder</span></div>
   {:else if a.schluessel}
     <div class="zeile warnung" title="Ein Schlüssel ist vergeben, aber kein Maschinenraum verbunden. Bis er sich meldet, gelten die eingetragenen Speicherwerte.">
       <span class="punkt aus"></span><span>Nicht verbunden; es gelten die eingetragenen Speicherwerte</span></div>

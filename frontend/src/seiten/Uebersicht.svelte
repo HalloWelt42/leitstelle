@@ -5,7 +5,7 @@
   import { tun } from '../lib/meldung.svelte';
   import type { AuftragEintrag, AuftragSicht, Kennzahlen, Lagebild } from '../lib/typen.gen';
   import { weg } from '../lib/weg.svelte';
-  import { FAEHIGKEIT, LAGE, MASSNAHME, PRIORITAET } from '../lib/wort';
+  import { FAEHIGKEIT, KNOTENZUSTAND, LAGE, MASSNAHME, PRIORITAET } from '../lib/wort';
   import Faehigkeit from '../teile/Faehigkeit.svelte';
   import Netzbild from '../teile/Netzbild.svelte';
   import Speicherbalken from '../teile/Speicherbalken.svelte';
@@ -37,6 +37,7 @@
   const wartend = $derived(bild.auftraege.filter((a) => a.zustand !== 'laeuft'));
   const aufSpeicher = $derived(wartend.filter((a) => a.zustand === 'wartet_speicher').length);
   const erreichbar = $derived(bild.knoten.filter((k) => k.erreichbar));
+  const namen = (z: string) => bild.knoten.filter((k) => k.zustand === z).map((k) => k.name);
   const anwendung = (k: string) => bild.anwendungen.find((a) => a.kennung === k)?.name ?? 'unbekannt';
   const knotenName = (k: string | null) => bild.knoten.find((x) => x.kennung === k)?.name ?? (k ? 'Extern' : '');
   const lagesatz = $derived(bild.modus === 'normal' ? LAGE[bild.lage].wort : bild.modus === 'halt' ? 'Gestoppt' : 'Läuft aus');
@@ -45,7 +46,7 @@
   function meldungsart(text: string): string {
     if (/nicht erreichbar|abgelehnt|gescheitert|Fehler/i.test(text)) return 'gefahr';
     if (/Hauptregler|entladen|Flattern|Speicher/i.test(text)) return 'warnung';
-    if (/geladen in|wieder erreichbar|bereit/i.test(text)) return 'erfolg';
+    if (/geladen in|wieder erreichbar|bereit|aufgewacht/i.test(text)) return 'erfolg';
     return '';
   }
 </script>
@@ -70,7 +71,8 @@
         {#if kennzahlen?.wartezeit_mittel_s != null}<small>mittlere Wartezeit {dauer(kennzahlen.wartezeit_mittel_s)}</small>{/if}</div>
       <div class="kennzahl fehler"><b>{kennzahlen?.fehler ?? '-'}</b><span>Fehler heute</span>{#if kennzahlen?.abgebrochen}<small>{kennzahlen.abgebrochen} abgebrochen</small>{/if}</div>
       <div class="kennzahl"><b>{erreichbar.length}<span style="font-size: 18px; color: var(--ls-text-3)"> / {bild.knoten.length}</span></b><span>Knoten</span>
-        {#if erreichbar.length < bild.knoten.length}<small>{bild.knoten.filter((k) => !k.erreichbar).map((k) => k.name).join(', ')} nicht erreichbar</small>{/if}</div>
+        {#if namen('nicht_erreichbar').length}<small>{namen('nicht_erreichbar').join(', ')} nicht erreichbar</small>{/if}
+        {#if namen('schlaeft').length}<small>{namen('schlaeft').join(', ')} {namen('schlaeft').length === 1 ? 'schläft' : 'schlafen'}</small>{/if}</div>
     </div>
   </div>
 
@@ -133,7 +135,7 @@
         <h3><i class="fa-solid fa-memory"></i>Speicherlage <span class="rechts">Modelle im Speicher</span></h3>
         {#each bild.knoten as k (k.kennung)}
           <div class="zeile-sp"><span class="n">{k.name} <span class="leise klein">{gb(k.speicher_gb)}</span></span>
-            <span class="w" class:warn={k.belegt_anteil >= 0.92}>{k.erreichbar ? `${prozent(k.belegt_anteil)} belegt · ${gb(Math.max(0, k.frei_gb))} frei` : 'nicht erreichbar'}</span></div>
+            <span class="w" class:warn={k.belegt_anteil >= 0.92}>{k.erreichbar ? `${prozent(k.belegt_anteil)} belegt · ${gb(Math.max(0, k.frei_gb))} frei` : KNOTENZUSTAND[k.zustand].satz}</span></div>
           <div class="speicher-zeile"><Speicherbalken knoten={k} modelle={bild.modelle} /></div>
         {:else}
           <p class="leise klein">Noch kein Rechner eingerichtet.</p>

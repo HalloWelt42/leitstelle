@@ -1,5 +1,7 @@
 // Wörter, Symbole und Farben zu den Schlüsseln des Kerns. Gedruckt wird nie ein Schlüssel.
-import type { Auftragszustand, Betriebsmodus, Dienstzustand, Eignung, Faehigkeit, Lage, Massnahmenart, Massnahmenzustand, Modellzustand, Quelle, Zone } from './typen.gen';
+import type {
+  Auftragszustand, Betriebsmodus, Dienstzustand, Eignung, Faehigkeit, Knotenzustand, Lage, Massnahmenart, Massnahmenzustand, Modellzustand, Quelle, Zone,
+} from './typen.gen';
 
 export const FAEHIGKEIT: Record<Faehigkeit, { wort: string; symbol: string; farbe: string; rgb: string; klasse: string }> = {
   text: { wort: 'Text', symbol: 'fa-comment-dots', farbe: 'var(--ls-himmel)', rgb: 'var(--ls-himmel-rgb)', klasse: 'text' },
@@ -51,6 +53,14 @@ export const DIENSTZUSTAND: Record<Dienstzustand, Zustandsbild> = {
   pausiert: { wort: 'Pausiert', symbol: 'fa-circle-pause', klasse: 'pausiert' },
   nicht_erreichbar: { wort: 'Nicht erreichbar', symbol: 'fa-circle-xmark', klasse: 'fehler' },
   ausfall: { wort: 'Ausfall', symbol: 'fa-plug-circle-xmark', klasse: 'fehler' },
+  schlaeft: { wort: 'Schläft', symbol: 'fa-moon', klasse: 'wartet' },
+};
+
+/** Ein schlafender Rechner ist kein Ausfall: Aufträge warten in den Apps, bis er wach ist. satz: klein im Satz */
+export const KNOTENZUSTAND: Record<Knotenzustand, Zustandsbild & { satz: string }> = {
+  erreichbar: { wort: 'Erreichbar', satz: 'erreichbar', symbol: 'fa-circle', klasse: 'fertig' },
+  nicht_erreichbar: { wort: 'Nicht erreichbar', satz: 'nicht erreichbar', symbol: 'fa-circle-xmark', klasse: 'fehler' },
+  schlaeft: { wort: 'Schläft', satz: 'schläft', symbol: 'fa-moon', klasse: 'wartet' },
 };
 
 export const EIGNUNG: Record<Eignung, string> = {
@@ -106,7 +116,7 @@ export const MASSNAHMENZUSTAND: Record<Massnahmenzustand, string> = {
 /** Gründe aus PROTOKOLL.md Abschnitt 7 */
 export const GRUND: Record<string, string> = {
   nutzer: 'von Hand gestoppt', anwendung: 'Anwendung hat getrennt', halt: 'Hauptregler Halt', neustart: 'Neustart der Leitstelle',
-  dienst_fehler: 'Fehler des Dienstes', dienst_nicht_erreichbar: 'Dienst nicht erreichbar', modell_passt_nicht: 'Modell passt nicht in den Speicher',
+  dienst_fehler: 'Fehler des Dienstes', dienst_nicht_erreichbar: 'Dienst nicht erreichbar', rechner_schlaeft: 'Rechner schläft', modell_passt_nicht: 'Modell passt nicht in den Speicher',
   kein_modell: 'Modell unbekannt', kein_dienst: 'kein passender Dienst', faehigkeit_nicht_erlaubt: 'Fähigkeit nicht erlaubt',
   zone_nicht_erlaubt: 'Zone nicht erlaubt', gesperrt: 'Anwendung gesperrt', kontingent: 'Kontingent erreicht', wartung: 'Wartung',
 };

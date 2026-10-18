@@ -6,7 +6,7 @@
   import { kanal } from '../lib/kanal.svelte';
   import { tun } from '../lib/meldung.svelte';
   import type { Betriebsmodus } from '../lib/typen.gen';
-  import { FAEHIGKEIT, LAGE, MODUS } from '../lib/wort';
+  import { FAEHIGKEIT, KNOTENZUSTAND, LAGE, MODUS } from '../lib/wort';
   import Halteknopf from '../teile/Halteknopf.svelte';
   import NeueFassung from '../teile/NeueFassung.svelte';
   import Speicherbalken from '../teile/Speicherbalken.svelte';
@@ -85,7 +85,7 @@
       <div class="m-titel">Knoten</div>
       {#each bild.knoten as k (k.kennung)}
         <div class="m-karte">
-          <h3><i class="fa-solid fa-server"></i>{k.name}<span class="rechts">{k.erreichbar ? prozent(k.belegt_anteil) : 'nicht erreichbar'}</span></h3>
+          <h3><i class="fa-solid fa-server"></i>{k.name}<span class="rechts">{k.erreichbar ? prozent(k.belegt_anteil) : KNOTENZUSTAND[k.zustand].satz}</span></h3>
           <Speicherbalken knoten={k} modelle={bild.modelle} />
           <div class="m-hint">{gb(k.geladen_gb)} Modelle, {gb(Math.max(0, k.frei_gb))} frei</div>
         </div>
