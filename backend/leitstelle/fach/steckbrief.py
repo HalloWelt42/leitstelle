@@ -15,6 +15,7 @@ from ..protokoll.steckbrief import Messwerte, Quelle, Steckbrief
 LANGE_TEXTE_AB = 100_000              # Token Kontext, ab denen ein Modell für lange Texte taugt
 MESSUNG_JE_FAMILIE = 100              # jüngste fertige Aufträge je Modellfamilie
 TEMPO_AB_S = 0.2                      # kürzere Erzeugungszeiten taugen nicht für Token je Sekunde
+STROM_ANTEIL = 0.9                    # kam das erste Stück früher als bei diesem Anteil der Rechenzeit, war es ein Strom
 
 
 def _median(werte: list[float]) -> float | None:
@@ -33,7 +34,11 @@ def messwerte_aus(auftraege: list[AuftragEintrag]) -> dict[str, Messwerte]:
         tempo = []
         for a in xs:
             if a.token_aus and a.ende_s is not None and a.start_s is not None:
-                erzeugen = (a.ende_s - a.start_s) - (a.erstes_stueck_s or 0.0)
+                dauer_a = a.ende_s - a.start_s
+                # Mit Strom zählt die Zeit nach dem ersten Stück; ohne Strom kommt alles am Ende (erstes Stück so lang wie
+                # die Rechenzeit), dann gilt die ganze Rechenzeit
+                erst = a.erstes_stueck_s if a.erstes_stueck_s is not None and a.erstes_stueck_s < STROM_ANTEIL * dauer_a else 0.0
+                erzeugen = dauer_a - erst
                 if erzeugen > TEMPO_AB_S:
                     tempo.append(a.token_aus / erzeugen)
         aus[familie] = Messwerte(auftraege=len(xs), rechenzeit_s=_median(dauer), token_je_s=_median(tempo),

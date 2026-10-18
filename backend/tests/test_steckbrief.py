@@ -36,10 +36,12 @@ def _auftrag(i: int, familie: str, dauer: float, token: int | None = None, erste
 
 
 def test_messwerte_aus_dem_verlauf():
-    xs = [_auftrag(1, "a", 10, token=90, erstes=1), _auftrag(2, "a", 20, token=190, erstes=1), _auftrag(3, "a", 30), _auftrag(4, "b", 2)]
+    xs = [_auftrag(1, "a", 10, token=90, erstes=1), _auftrag(2, "a", 20, token=190, erstes=1), _auftrag(3, "a", 30), _auftrag(4, "b", 2),
+          _auftrag(5, "c", 8, token=40, erstes=8)]          # ohne Strom: alles kam am Ende
     m = messwerte_aus(xs)
     assert m["a"].auftraege == 3 and m["a"].rechenzeit_s == 20 and m["a"].token_je_s == 10 and m["a"].erstes_stueck_s == 1
     assert m["b"].token_je_s is None and m["b"].rechenzeit_s == 2
+    assert m["c"].token_je_s == 5, "ohne Strom gilt die ganze Rechenzeit"
 
 
 async def test_e20_steckbrief_ueber_fassade_und_von_hand(tmp_path):
