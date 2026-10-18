@@ -31,6 +31,8 @@ class ModellBericht(BaseModel):
     schutz: bool | None = None          # vom Dienst vorgegeben; None: Regel nach Parameterzahl
     aktiv: bool = False                 # arbeitet gerade, auch ohne Auftrag über die Leitstelle
     selbstauskunft: Selbstauskunft = Field(default_factory=Selbstauskunft)   # was der Dienst über das Modell sagt
+    familie: str | None = None          # weitere Instanz: Familie der Grundinstanz (sonst gilt der Schlüssel)
+    instanzen_hoechstens: int = 1       # so viele Instanzen darf die Leitstelle starten
 
 
 class Dienstbericht(BaseModel):

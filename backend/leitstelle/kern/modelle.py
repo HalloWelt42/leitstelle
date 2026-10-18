@@ -73,6 +73,8 @@ class Modell(BaseModel):
     parameter_mrd: float
     zustand: Modellzustand = Modellzustand.FREI
     geschuetzt_fest: bool = False     # Einbettungsmodelle und ausdrücklich geschützte
+    instanzen_hoechstens: int = 1     # so viele Instanzen darf die Leitstelle starten (Dienstdatei des Maschinenraums)
+    zusatz: bool = False              # weitere Instanz (<familie>.<n>): weicht bei Speichermangel vor allen anderen
     schutz_vorgabe: bool | None = None  # vom Dienst vorgegeben (zum Beispiel Maschinenraum); geht der Regel vor
     gb_jetzt: float | None = None     # tatsächlich belegt, wenn gemessen; sonst gilt gb
     geladen_seit_s: float | None = None
@@ -140,6 +142,7 @@ class Auftrag(BaseModel):
     grund: str | None = None          # Wort aus PROTOKOLL.md Abschnitt 7, wenn abgelehnt oder abgebrochen
     arbeit: str | None = None         # Arbeit der Anwendung, zu der die Anfrage gehört (Kopf X-Leitstelle-Arbeit)
     extern_familien: list[str] = Field(default_factory=list)   # Erlaubnisliste der App für externe Modelle (Kopf X-Leitstelle-Extern)
+    feste_instanz: str | None = None  # Folgeaufruf an genau diese Modellinstanz (Kopf X-Leitstelle-Instanz)
 
     @property
     def offen(self) -> bool:
@@ -301,6 +304,10 @@ class Verbund(BaseModel):
     def belegung(self, modell: str) -> list[Auftrag]:
         """Aufträge, die das Modell halten: laufende und schon zugeteilte."""
         return [a for a in self.auftraege.values() if a.zustand in (Auftragszustand.LAEUFT, Auftragszustand.ZUGETEILT) and a.modell == modell]
+
+    def instanzen(self, familie: str, knoten: str | None) -> list[Modell]:
+        """Alle Instanzen einer Familie auf einem Knoten (Grundinstanz und weitere, auch ladende)."""
+        return [m for m in self.modelle.values() if m.familie == familie and self.dienste[m.dienst].knoten == knoten]
 
     def extern_erlaubt(self, auftrag: Auftrag, modell: Modell) -> bool:
         """Daten verlassen das Heimnetz nur, wenn die Leitstelle der App die Zone extern erlaubt und die App das Modell

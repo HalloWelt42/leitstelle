@@ -149,7 +149,22 @@ HINTERGRUND = _graph("hintergrund_lage", "Hintergrund bei Lage anhalten", Massna
     E(von="k1", nach="e_fort"), E(von="k2", nach="e_halt"),
 ])
 
-VORLAGEN: list[Regelgraph] = [UMLEITEN, LEERLAUF, VORWAERMEN, KETTE, EXTERN, UMVERTEILEN, VERLAGERN, DOPPEL, HINTERGRUND]
+INSTANZ = _graph("weitere_instanz", "Weitere Instanz", Massnahmenart.WEITERE_INSTANZ, [
+    K(id="a", art="ausloeser", baustein="auftrag_wartet_auf_platz", parameter={"mindestens_s": 20.0}),
+    K(id="p1", art="pruefung", baustein="weitere_instanz_moeglich"),
+    K(id="p2", art="pruefung", baustein="gewinn_gegen_aufwand"),
+    K(id="k1", art="aktion", baustein="instanz_starten"),
+    K(id="k2", art="aktion", baustein="melden", parameter={"text": "Weitere Instanz auf {knoten}: {instanz}; gespart etwa {gewinn}"}),
+    K(id="e_ok", art="ende", titel="gestartet"),
+    K(id="e_nein", art="ende", titel="keine weitere Instanz möglich"),
+    K(id="e_lohnt", art="ende", titel="warten lohnt mehr"),
+], [
+    E(von="a", nach="p1"), E(von="p1", nach="p2", port="ja"), E(von="p1", nach="e_nein", port="nein"),
+    E(von="p2", nach="k1", port="ja"), E(von="p2", nach="e_lohnt", port="nein"),
+    E(von="k1", nach="k2"), E(von="k2", nach="e_ok"),
+])
+
+VORLAGEN: list[Regelgraph] = [UMLEITEN, LEERLAUF, VORWAERMEN, KETTE, EXTERN, UMVERTEILEN, VERLAGERN, DOPPEL, HINTERGRUND, INSTANZ]
 
 
 def vorlagen() -> list[Regelgraph]:

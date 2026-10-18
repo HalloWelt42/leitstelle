@@ -291,6 +291,11 @@ async def test_a08_anfrage_an_einen_dienst_nur_ueber_die_leitstelle(tmp_path):
                 assert r.status_code == 200, r.text
                 assert r.content.decode() == "Grüße aus dem Dienst" and r.headers["x-leitstelle-modell"] == "Probe"
                 auftrag = r.headers["x-leitstelle-auftrag"]
+                instanz = r.headers["x-leitstelle-instanz"]                           # für Folgeaufrufe an dieselbe Instanz
+                r = await anw.get("/v1/dienste/probe/hallo.txt", headers={"Authorization": f"Bearer {app_schluessel}", "X-Leitstelle-Instanz": instanz})
+                assert r.status_code == 200 and r.headers["x-leitstelle-instanz"] == instanz
+                r = await anw.get("/v1/dienste/probe/hallo.txt", headers={"Authorization": f"Bearer {app_schluessel}", "X-Leitstelle-Instanz": "gibt-es-nicht"})
+                assert r.status_code == 409 and r.json()["error"]["code"] == "instanz_weg"
                 assert _offen(port)                                                   # die Leitstelle hat ihn gestartet
 
                 r = await anw.get("/v1/dienste/probe/fehlt.txt", headers={"Authorization": f"Bearer {app_schluessel}"})

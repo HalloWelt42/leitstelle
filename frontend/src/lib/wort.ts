@@ -96,6 +96,7 @@ export const MASSNAHME: Record<Massnahmenart, { wort: string; symbol: string }> 
   verlagern: { wort: 'Verlagert', symbol: 'fa-moon' },
   doppel_aufloesen: { wort: 'Doppel aufgelöst', symbol: 'fa-clone' },
   hintergrund_lage: { wort: 'Hintergrund nach Lage', symbol: 'fa-layer-group' },
+  weitere_instanz: { wort: 'Weitere Instanz', symbol: 'fa-clone' },
 };
 
 export const MASSNAHMENZUSTAND: Record<Massnahmenzustand, string> = {

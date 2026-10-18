@@ -194,3 +194,21 @@ def test_grenze_je_minute_des_externen_anbieters(welt):
     assert "Grenze von 3 Anfragen je Minute erreicht" in w.begruendung and w.voraussichtlich_s == 10.0
     d.gesperrt_bis_s = v.zeit_s + 30                           # nach 429 des Anbieters
     assert v.anfrage_frei_in_s("extern-anbieter") == 30.0
+
+
+
+def test_folgeaufruf_an_dieselbe_instanz(welt):
+    """X-Leitstelle-Instanz: ein Folgeaufruf (Ergebnis abholen) geht nur an die genannte Instanz, auch wenn eine andere
+    frei ist; läuft sie nicht mehr, lehnt die Leitstelle mit "instanz_weg" ab."""
+    v = welt.verbund
+    grund = v.modelle["whisperm@32"]
+    zweite = grund.model_copy(update={"kennung": "whisper-mittel.2@hoerer-32", "zusatz": True})
+    v.modelle[zweite.kennung] = zweite
+    a = welt.auftrag("rufzeichen", F.HOEREN, festes_modell="whisper-mittel")
+    a.feste_instanz = zweite.kennung
+    e = zuteilen(v, Messwerk())
+    assert [(z.auftrag, z.modell) for z in e.zuteilungen] == [(a.kennung, zweite.kennung)]
+    weg = welt.auftrag("rufzeichen", F.HOEREN, festes_modell="whisper-mittel")
+    weg.feste_instanz = "whisper-mittel.3@hoerer-32"
+    e = zuteilen(v, Messwerk())
+    assert [(x.auftrag, x.grund) for x in e.abgelehnt] == [(weg.kennung, "instanz_weg")]

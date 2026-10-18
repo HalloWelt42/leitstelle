@@ -4,7 +4,7 @@ Reine Funktion über den Verbund. Regeln (aus txt2voice und Zusage zusammengefü
 Budget je Knoten; nie entladen: geschützte Modelle (unter der Schutzgrenze oder Einbettung),
 rechnende Modelle, Modelle mit wartenden Aufträgen, Modelle, die eine begonnene Arbeit einer Anwendung
 gerade nutzt (außer für diese Arbeit selbst), Modelle innerhalb der Mindestverweildauer;
-nur so viel wie nötig, größte zuerst; Leerlauf-Entladen nur, wenn Platz gebraucht wird.
+nur so viel wie nötig, weitere Instanzen zuerst, dann die größten; Leerlauf-Entladen nur, wenn Platz gebraucht wird.
 Der Plan ist zugleich die Vorschau ("Speicher freigeben").
 """
 
@@ -59,7 +59,9 @@ def planen(verbund: Verbund, knoten: str, benoetigt_gb: float, messwerk: Messwer
     if benoetigt_gb <= frei:
         return Speicherplan(knoten=knoten, benoetigt_gb=benoetigt_gb, frei_gb=frei, passt=True, aufwand_s=ladezeit,
                             begruendung=f"{komma(benoetigt_gb)} GB passen, {komma(frei)} GB frei")
-    kandidaten = sorted((m for m in verbund.modelle_auf(knoten) if entladbar(verbund, m, jetzt, nur_leerlauf, leerlauf_grenze_s, fuer_arbeit)[0]), key=lambda m: m.gb, reverse=True)
+    # weitere Instanzen weichen vor allen anderen, dann die größten (ZUSAMMENSPIEL Z3)
+    kandidaten = sorted((m for m in verbund.modelle_auf(knoten) if entladbar(verbund, m, jetzt, nur_leerlauf, leerlauf_grenze_s, fuer_arbeit)[0]),
+                        key=lambda m: (m.zusatz, m.gb), reverse=True)
     entladen: list[str] = []
     gewonnen = 0.0
     for m in kandidaten:

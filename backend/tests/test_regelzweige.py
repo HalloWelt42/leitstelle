@@ -396,3 +396,44 @@ def test_s41_graphpruefung_findet_fehler():
         from leitstelle.kern.regeln import auswerten
         from leitstelle.kern.messungen import Messwerk
         auswerten(g, welt_mit().verbund, Messwerk())
+
+
+
+# ── Weitere Instanz (ZUSAMMENSPIEL Z3) ───────────────────────────────────
+
+def test_weitere_instanz_bei_andrang():
+    """Ein kleiner Dienst erlaubt zwei Instanzen und ist belegt; ein zweiter Auftrag wartet länger als die Schwelle:
+    die Leitstelle startet die zweite Instanz, der Auftrag läuft dort. Mehr als die Höchstzahl gibt es nie."""
+    w = welt_mit()
+    v = w.verbund
+    grund = v.modelle["whisperm@32"]
+    grund.instanzen_hoechstens, grund.geschuetzt_fest, grund.plaetze = 2, False, 1
+    v.dienste["hoerer-32"].plaetze = 1
+    w.messwerk.merke_laufzeit("rufzeichen", "hoeren", 300.0)
+    erster = w.auftrag("rufzeichen", F.HOEREN, laufzeit_s=300, festes_modell="whisper-mittel")
+    w.laufen(3)
+    zweiter = w.auftrag("rufzeichen", F.HOEREN, laufzeit_s=10, festes_modell="whisper-mittel")
+    dritter = w.auftrag("rufzeichen", F.HOEREN, laufzeit_s=10, festes_modell="whisper-mittel")
+    w.laufen(60)
+    assert ausgefuehrt(w, A.WEITERE_INSTANZ), abschluesse(w, "weitere_instanz")
+    instanzen = v.instanzen("whisper-mittel", "mac-32")
+    assert len(instanzen) == 2 and sum(m.zusatz for m in instanzen) == 1
+    zusatz = next(m for m in instanzen if m.zusatz)
+    w.laufen_bis_fertig(900)
+    assert v.auftraege[zweiter.kennung].modell == zusatz.kennung or v.auftraege[dritter.kennung].modell == zusatz.kennung
+    assert "alle 2 Instanzen laufen" in abschluesse(w, "weitere_instanz") or len(ausgefuehrt(w, A.WEITERE_INSTANZ)) == 1
+    assert v.auftraege[erster.kennung].zustand == Z.FERTIG
+
+
+def test_weitere_instanz_weicht_zuerst():
+    """Bei Speichermangel weicht eine weitere Instanz vor allen anderen Modellen, auch vor größeren."""
+    from leitstelle.kern.messungen import Messwerk
+    from leitstelle.kern.speicherplaner import planen
+    w = welt_mit()
+    v = w.verbund
+    grund = v.modelle["qwen80@128"]
+    zusatz = grund.model_copy(update={"kennung": "kleiner.2@laeufer-128", "familie": "klein", "gb": 2.0, "zusatz": True,
+                                      "geschuetzt_fest": False, "parameter_mrd": 20})
+    v.modelle[zusatz.kennung] = zusatz
+    plan = planen(v, "mac-128", 11.8, Messwerk(), familie="glm-4.6v")
+    assert plan.entladen[0] == zusatz.kennung

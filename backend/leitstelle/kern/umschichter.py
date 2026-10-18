@@ -26,6 +26,7 @@ class Vollzug(Protocol):
 
     def dienst_starten(self, dienst: str) -> None: ...
     def modell_laden(self, modell: str) -> None: ...
+    def instanz_starten(self, dienst: str, familie: str, stufe: int, vorbild: str) -> None: ...
     def modell_entladen(self, modell: str) -> None: ...
     def auftrag_umleiten(self, auftrag: str, dienst: str, modell: str, knoten: str | None) -> None: ...
     def auftrag_extern(self, auftrag: str, dienst: str, modell: str) -> None: ...
@@ -136,7 +137,8 @@ class Umschichter:
 
     def _massnahme_aus_lauf(self, lauf: Lauf, verbund: Verbund) -> Massnahme:
         # Hauptrichtung: die erste Aktion des Laufs, die etwas bewegt (Leerlauf räumen = entladen, Umleiten = umleiten)
-        richtungen = {"modell_laden": "laden", "modell_entladen": "entladen", "auftrag_umleiten": "umleiten", "auftrag_extern": "umleiten"}
+        richtungen = {"modell_laden": "laden", "modell_entladen": "entladen", "auftrag_umleiten": "umleiten", "auftrag_extern": "umleiten",
+                      "instanz_starten": "laden"}
         richtung = next((richtungen[a.baustein] for a in lauf.aktionen if a.baustein in richtungen), None)
         fam = None
         if lauf.modell_ziel and lauf.modell_ziel in verbund.modelle:
@@ -190,6 +192,8 @@ class Umschichter:
                     vollzug.dienst_starten(w["dienst"])
                 case "modell_laden":
                     vollzug.modell_laden(w["modell"])
+                case "instanz_starten":
+                    vollzug.instanz_starten(w["dienst"], w["familie"], w["stufe"], w["vorbild"])
                 case "modell_entladen":
                     for mk in w["modelle"]:
                         vollzug.modell_entladen(mk)

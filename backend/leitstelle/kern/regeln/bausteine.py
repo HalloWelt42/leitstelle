@@ -305,6 +305,38 @@ def platz_ohne_entladen(k: Kontext, reserve_anteil: float = 0.05) -> bool:
     return False
 
 
+@baustein("weitere_instanz_moeglich", "pruefung", "Weitere Instanz möglich?", "Wartet der Auftrag auf eine freie Instanz eines Dienstes, der mehrere Instanzen erlaubt, ist die Höchstzahl nicht erreicht, startet keine gerade, und passt eine weitere ohne Entladen?", reserve_gb=1.0)
+def weitere_instanz_moeglich(k: Kontext, reserve_gb: float = 1.0) -> bool:
+    a = k.auftrag
+    assert a is not None
+    fam = a.wartet_auf_familie
+    if not fam or a.zustand != Auftragszustand.EINGEREIHT:
+        return False
+    alle = k.verbund.instanzen(fam, a.wartet_auf_knoten)
+    grund = next((m for m in alle if not m.zusatz), None)
+    if grund is None or grund.instanzen_hoechstens <= 1:
+        k.werte["instanz"] = "der Dienst erlaubt nur eine Instanz"
+        return False
+    if len(alle) >= grund.instanzen_hoechstens:
+        k.werte["instanz"] = f"alle {grund.instanzen_hoechstens} Instanzen laufen"
+        return False
+    if any(m.zustand == Modellzustand.LAEDT for m in alle):
+        k.werte["instanz"] = "eine Instanz startet gerade"
+        return False
+    d = k.verbund.dienste[grund.dienst]
+    if d.extern or d.knoten is None or not d.nutzbar:
+        return False
+    plan = planen(k.verbund, d.knoten, grund.gb + reserve_gb, k.messwerk, familie=fam)
+    if not plan.passt or plan.entladen:
+        k.werte["instanz"] = plan.begruendung
+        return False
+    stufe = next(n for n in range(2, grund.instanzen_hoechstens + 1) if not any(m.kennung.endswith(f".{n}") for m in alle))
+    k.dienst_ziel, k.knoten_ziel, k.modell_ziel = d.kennung, d.knoten, grund.kennung
+    k.werte |= {"familie": fam, "stufe": stufe, "instanz": f"Instanz {stufe} von höchstens {grund.instanzen_hoechstens}"}
+    k.aufwand_s = k.messwerk.ladezeit(fam, d.knoten, grund.gb).sekunden
+    return True
+
+
 @baustein("kette_hat_alternative", "pruefung", "Kette hat geladene Alternative?", "Ist ein anderes Modell der Kette des Auftrags auf einem erlaubten Knoten geladen und frei?")
 def kette_hat_alternative(k: Kontext) -> bool:
     a = k.auftrag
@@ -446,6 +478,11 @@ def modell_laden(k: Kontext) -> dict[str, Any]:
 @baustein("modell_entladen", "aktion", "Modell entladen", "Entlädt die geplanten Modelle.")
 def modell_entladen(k: Kontext) -> dict[str, Any]:
     return {"modelle": list(k.modelle_entladen)}
+
+
+@baustein("instanz_starten", "aktion", "Weitere Instanz starten", "Startet über den Maschinenraum eine weitere Instanz des Dienstes, auf den der Auftrag wartet.")
+def instanz_starten(k: Kontext) -> dict[str, Any]:
+    return {"dienst": k.dienst_ziel, "familie": k.werte.get("familie"), "stufe": k.werte.get("stufe"), "vorbild": k.modell_ziel}
 
 
 @baustein("auftrag_umleiten", "aktion", "Auftrag umleiten", "Teilt den Auftrag dem Zieldienst und Zielmodell zu.")

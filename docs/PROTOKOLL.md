@@ -275,9 +275,16 @@ die zugleich die Verbindung offen halten. In der Oberfläche heißen solche Nach
 
 Priorität der Fassaden-Aufträge: Vorgabe der Anwendung; ein Kopf `X-Leitstelle-Prioritaet` kann sie je
 Aufruf absenken (nie heben), ebenso `X-Leitstelle-Titel` für einen lesbaren Titel (prozentkodiert, weil HTTP-Köpfe nur
-ASCII tragen), `X-Leitstelle-Arbeit` für die Arbeit, zu der die Anfrage gehört, und `X-Leitstelle-Extern` für die
-Erlaubnisliste externer Modelle (ANBINDUNG). Mehr als diese vier Köpfe gibt es nicht; wer mehr will, nutzt das
-Protokoll.
+ASCII tragen), `X-Leitstelle-Arbeit` für die Arbeit, zu der die Anfrage gehört, `X-Leitstelle-Extern` für die
+Erlaubnisliste externer Modelle und `X-Leitstelle-Instanz` für Folgeaufrufe (ANBINDUNG). Mehr als diese fünf Köpfe
+gibt es nicht; wer mehr will, nutzt das Protokoll.
+
+Bindung an eine Instanz: läuft ein Dienst mehrfach (weitere Instanz auf demselben Rechner, ein zweiter Rechner),
+gehören zusammengehörige Aufrufe an dieselbe Instanz, etwa "rechnen" und danach "Ergebnis abholen". Jede Antwort einer
+Durchleitung (`/v1/dienste/...`) nennt im Kopf `X-Leitstelle-Instanz` die Instanz, die gerechnet hat; schickt die
+Anwendung diesen Wert bei einem Folgeaufruf mit, geht er nur dorthin. Läuft die Instanz nicht mehr, antwortet die
+Leitstelle mit 409 `instanz_weg`, und der Vorgang beginnt von vorn. Der Appkern bindet mit `async with
+dienst.gebunden():`.
 
 Externe Modelle (Zone extern): eine Anfrage geht nur dorthin, wenn die Leitstelle der Anwendung die Zone extern
 erlaubt und die Anwendung das Modell selbst will, also ausdrücklich als `model` verlangt oder in
@@ -291,7 +298,7 @@ Gründe sind Wörter aus Listen, die Oberfläche übersetzt sie:
 
 `unbekannter_schluessel`, `gesperrt`, `herkunft_nicht_erlaubt`, `faehigkeit_nicht_erlaubt`,
 `zone_nicht_erlaubt`, `kostengrenze`, `kontingent`, `kein_dienst`, `kein_modell`,
-`modell_passt_nicht`, `dienst_nicht_erreichbar`, `dienst_fehler`, `stillstand`, `nicht_anhaltbar`,
+`modell_passt_nicht`, `dienst_nicht_erreichbar`, `dienst_fehler`, `instanz_weg`, `stillstand`, `nicht_anhaltbar`,
 `nutzer`, `regel_hintergrund`, `lage`, `dringend_vor`, `wartung`.
 
 Jede Fehler- oder Ablehnungsnachricht trägt zusätzlich `begruendung` in einem Satz und, wenn

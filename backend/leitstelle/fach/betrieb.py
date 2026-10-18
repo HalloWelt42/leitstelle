@@ -370,7 +370,7 @@ class Betrieb:
             gesehen.add(kennung)
             self._modell_abgleichen(kennung, d, mb, bericht.steuerbar, jetzt)
         for m in [m for m in self.verbund.modelle.values() if m.dienst == dienst and m.kennung not in gesehen]:
-            if not self.verbund.belegung(m.kennung):
+            if not self.verbund.belegung(m.kennung) and m.kennung not in self.ladeaufgaben:   # eine startende Instanz meldet sich gleich
                 self.verbund.modelle.pop(m.kennung, None)
                 self.orte.pop(m.kennung, None)
                 self.auskunft.pop(m.kennung, None)
@@ -449,13 +449,14 @@ class Betrieb:
         unbekannte_groesse = mb.parameter_mrd is None
         m = self.verbund.modelle.get(kennung)
         if m is None:
-            m = Modell(kennung=kennung, name=mb.name, dienst=d.kennung, familie=mb.schluessel, faehigkeiten=set(mb.faehigkeiten), gb=mb.gb,
+            m = Modell(kennung=kennung, name=mb.name, dienst=d.kennung, familie=mb.familie or mb.schluessel, faehigkeiten=set(mb.faehigkeiten), gb=mb.gb,
                        parameter_mrd=mb.parameter_mrd or 0.0, geschuetzt_fest=mb.einbettung or unbekannte_groesse)
             self.verbund.modelle[kennung] = m
         else:
             m.name, m.faehigkeiten, m.gb = mb.name, set(mb.faehigkeiten), mb.gb
             m.parameter_mrd, m.geschuetzt_fest = mb.parameter_mrd or 0.0, mb.einbettung or unbekannte_groesse
         m.schutz_vorgabe, m.gb_jetzt, m.plaetze = mb.schutz, mb.gb_jetzt, mb.plaetze
+        m.instanzen_hoechstens, m.zusatz = mb.instanzen_hoechstens, mb.familie is not None
         if mb.aktiv:
             m.letzte_nutzung_s = jetzt      # arbeitet ohne Auftrag über die Leitstelle: gilt als genutzt, weicht nicht
         ort = self.orte.setdefault(kennung, ModellOrt(schluessel=mb.schluessel))
@@ -582,7 +583,7 @@ class Betrieb:
 
     # ── Aufträge ─────────────────────────────────────────────────────────
     def anlegen(self, anwendung: str, faehigkeit: Faehigkeit, festes_modell: str | None, prioritaet: Prioritaet | None, titel: str,
-                arbeit: str | None = None, extern: list[str] | None = None) -> tuple[Auftrag, Lauf]:
+                arbeit: str | None = None, extern: list[str] | None = None, instanz: str | None = None) -> tuple[Auftrag, Lauf]:
         app = self.anwendungen[anwendung]
         if self.verbund.betriebsmodus == Betriebsmodus.HALT:
             raise Ablehnung("halt", "Der Hauptregler steht auf Halt; es wird nichts gerechnet.")
@@ -591,7 +592,7 @@ class Betrieb:
         self._zeit_setzen()
         a = Auftrag(kennung=uuid4().hex, anwendung=anwendung, faehigkeit=faehigkeit, prioritaet=app.prioritaet if prioritaet is None else prioritaet,
                     eingang_s=self.verbund.zeit_s, festes_modell=festes_modell, anhaltbar=False, laufzeit_s=0.0,
-                    arbeit=f"{anwendung}:{arbeit}" if arbeit else None, extern_familien=list(extern or []))
+                    arbeit=f"{anwendung}:{arbeit}" if arbeit else None, extern_familien=list(extern or []), feste_instanz=instanz)
         self.verbund.arbeiten_aufraeumen()
         self.verbund.arbeit_zaehlen(a, titel)
         lauf = Lauf(a.kennung, titel)
@@ -785,6 +786,20 @@ class Betrieb:
         self.bus.senden(umschlag("signal.modell", {"modell": m.name, "zustand": "wird_geladen", "knoten": d.knoten,
                                                   "dauer_s": self.messwerk.ladezeit(m.familie, d.knoten or "", m.gb).sekunden}))
         self.geaendert()
+
+    def instanz_starten(self, dienst: str, familie: str, stufe: int, vorbild: str) -> None:
+        """Weitere Instanz (ZUSAMMENSPIEL Z3): im Verbund sofort als ladend eingeplant, damit ihr Speicher zählt; der
+        Maschinenraum startet sie unter `<familie>.<stufe>` und meldet sie danach selbst."""
+        v = self.verbund.modelle[vorbild]
+        schluessel = f"{familie}.{stufe}"
+        kennung = modell_kennung(dienst, schluessel)
+        if kennung in self.verbund.modelle:
+            return
+        self.verbund.modelle[kennung] = Modell(kennung=kennung, name=f"{v.name} ({stufe})", dienst=dienst, familie=familie, faehigkeiten=set(v.faehigkeiten),
+                                               gb=v.gb, parameter_mrd=v.parameter_mrd, geschuetzt_fest=False, schutz_vorgabe=v.schutz_vorgabe,
+                                               instanzen_hoechstens=v.instanzen_hoechstens, zusatz=True, plaetze=v.plaetze)
+        self.orte[kennung] = ModellOrt(schluessel=schluessel)
+        self.modell_laden(kennung)
 
     async def _laden(self, modell: str) -> None:
         m = self.verbund.modelle[modell]

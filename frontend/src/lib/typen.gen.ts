@@ -80,7 +80,8 @@ export type Massnahmenart =
   | 'umverteilen'
   | 'verlagern'
   | 'doppel_aufloesen'
-  | 'hintergrund_lage';
+  | 'hintergrund_lage'
+  | 'weitere_instanz';
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "Massnahmenzustand".
@@ -432,6 +433,8 @@ export interface ModellBericht {
   schutz: boolean | null;
   aktiv: boolean;
   selbstauskunft: Selbstauskunft;
+  familie: string | null;
+  instanzen_hoechstens: number;
 }
 /**
  * Was ein Dienst über sich oder sein Modell sagt (PROTOKOLL 4.8): wofür er gemacht ist. Leer heißt: sagt nichts.

@@ -18,13 +18,13 @@
   let plan = $state<FreigabePlan | null>(null);
   let jetzt = $state(kanal.jetzt());
   // Steckbrief von Hand: leere Felder lassen die Auskunft des Dienstes stehen (PROTOKOLL 4.8)
-  let steckbrief = $state<{ familie: string; zweck: string; eignung: Eignung[]; sprachen: string } | null>(null);
+  let steckbrief = $state<{ kennung: string; familie: string; zweck: string; eignung: Eignung[]; sprachen: string } | null>(null);
   const EIGNUNGEN = Object.keys(EIGNUNG) as Eignung[];
   const vonHand = (m: ModellSicht, feld: string) => m.steckbrief.herkunft?.[feld] === 'hand';
 
   function steckbriefBeginnen(m: ModellSicht) {
     const s = m.steckbrief;
-    steckbrief = { familie: m.familie, zweck: vonHand(m, 'zweck') ? s.zweck ?? '' : '', eignung: vonHand(m, 'eignung') ? [...(s.eignung ?? [])] : [],
+    steckbrief = { kennung: m.kennung, familie: m.familie, zweck: vonHand(m, 'zweck') ? s.zweck ?? '' : '', eignung: vonHand(m, 'eignung') ? [...(s.eignung ?? [])] : [],
                    sprachen: vonHand(m, 'sprachen') ? (s.sprachen ?? []).join(', ') : '' };
   }
 
@@ -173,7 +173,7 @@
                   {:else}<button class="knopf klein" onclick={() => (frage = { modell: m, laden: true })} title="{worte(m).laden}: belegt {gb(m.gb)} auf {knotenName(m.knoten)}">{worte(m).laden}</button>{/if}
                 </td>
               </tr>
-              {#if steckbrief?.familie === m.familie}
+              {#if steckbrief?.kennung === m.kennung}
                 <tr><td colspan="6">
                   <div class="feldreihe">
                     <label class="feld-l"><span>Zweck <small>{vonHand(m, 'zweck') ? 'von Hand' : m.steckbrief.zweck ? 'leer lässt die Auskunft des Dienstes' : 'der Dienst sagt nichts'}</small></span>

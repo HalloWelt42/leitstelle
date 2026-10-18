@@ -70,6 +70,18 @@ def _extern(request: Request) -> list[str]:
     return sorted({f for name in roh.split(",") if name.strip() and (f := b.familie_fuer(name.strip()))})
 
 
+def _instanz(request: Request, familie: str) -> str | None:
+    """X-Leitstelle-Instanz: ein Folgeaufruf (Ergebnis abholen) an dieselbe Instanz wie der erste; nur eine Instanz
+    dieser Familie zählt, sonst gilt der Kopf nicht."""
+    roh = request.headers.get("x-leitstelle-instanz", "").strip()[:200]
+    if not roh:
+        return None
+    m = betrieb(request).verbund.modelle.get(roh)
+    if m is None:
+        return roh                    # läuft nicht mehr: der Zuteiler lehnt mit "instanz_weg" ab, statt woanders zu suchen
+    return roh if m.familie == familie else None
+
+
 def _bild_im_chat(koerper: dict[str, Any]) -> bool:
     for n in koerper.get("messages") or []:
         inhalt = n.get("content") if isinstance(n, dict) else None
@@ -151,7 +163,7 @@ async def einbettung(request: Request) -> Response:
 
 # Köpfe, die nur einer Verbindung gelten oder die Leitstelle selbst auswertet
 OHNE_KOPF = {"host", "authorization", "content-length", "connection", "keep-alive", "transfer-encoding", "te", "trailer", "upgrade",
-             "x-leitstelle-titel", "x-leitstelle-prioritaet", "x-leitstelle-arbeit", "x-leitstelle-extern"}
+             "x-leitstelle-titel", "x-leitstelle-prioritaet", "x-leitstelle-arbeit", "x-leitstelle-extern", "x-leitstelle-instanz"}
 
 
 async def dienst(request: Request, name: str, pfad: str) -> Response:
@@ -168,7 +180,8 @@ async def dienst(request: Request, name: str, pfad: str) -> Response:
         return fehler_antwort(a.grund, a.begruendung)
     try:
         faehigkeit = verm.faehigkeit_fuer(app.kennung, familie)
-        v = verm.annehmen(app.kennung, faehigkeit, name, _prioritaet(request, app), _titel(request, faehigkeit), _arbeit(request), _extern(request))
+        v = verm.annehmen(app.kennung, faehigkeit, name, _prioritaet(request, app), _titel(request, faehigkeit), _arbeit(request), _extern(request),
+                          instanz=_instanz(request, familie))
     except Ablehnung as a:
         return fehler_antwort(a.grund, a.begruendung)
     anfrage = Durchleitung(methode=request.method, pfad=pfad, abfrage=request.url.query, inhalt=await request.body(),
@@ -183,6 +196,8 @@ async def dienst(request: Request, name: str, pfad: str) -> Response:
         fehler.headers.update(_kopf(request, v))
         return fehler
     kopf = {k: w for k, w in antwort.kopf.items() if k.lower() not in OHNE_KOPF} | _kopf(request, v) | {"X-Leitstelle-Modell": v.modellname}
+    if v.auftrag.modell:
+        kopf["X-Leitstelle-Instanz"] = v.auftrag.modell       # für Folgeaufrufe an dieselbe Instanz (Bindung)
     if v.knoten:
         kopf["X-Leitstelle-Knoten"] = v.knoten
     return StreamingResponse(verm.roh_strom(v, antwort), status_code=antwort.status, headers=kopf)

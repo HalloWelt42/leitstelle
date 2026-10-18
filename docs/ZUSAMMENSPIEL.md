@@ -73,6 +73,25 @@ umgesetzt; Vorrang und Wahl beim Entladen waren schon so (größtes ungenutztes 
   ein kleiner Dienst und ist Speicher frei, lohnt sich eine weitere Instanz (gemessen am Verlauf); kommt ein großer
   Auftrag, gehen die zusätzlichen Instanzen bis auf eine zurück oder ganz.
 
+Entwurf (18.10.2026):
+
+- **Dienstdatei**: `instanzen` (Vorgabe 1) sagt, wie viele Prozesse die Leitstelle höchstens starten darf. Jede
+  Instanz bekommt ihren Port in der Umgebung `MASCHINENRAUM_PORT` (Grundinstanz `port`, Instanz n `port + 100 (n-1)`),
+  der Befehl nimmt ihn als `$MASCHINENRAUM_PORT`. Weitere Instanzen heißen `<kennung>.<n>`, leben nur im Speicher des
+  Maschinenraums (nach seinem Neustart startet die Leitstelle sie bei Bedarf neu) und folgen Änderungen der Datei.
+- **Bericht**: je Instanz `instanz_von` (Grundinstanz) und `instanzen` (Höchstzahl). Für die Leitstelle sind alle
+  Instanzen eine Modellfamilie; die Durchleitung geht an die Instanz, die den Auftrag hat.
+- **Wann mehr**: wartet ein Auftrag länger als die Schwelle der Regel (Vorgabe 20 s) darauf, dass eine Instanz frei wird, ist die
+  Höchstzahl nicht erreicht, passt eine weitere Instanz ohne Entladen und spart sie mehr Wartezeit als ihr Start
+  kostet, startet die Leitstelle die nächste (Regel "Weitere Instanz", Maßnahme mit Begründung).
+- **Wann weniger**: zusätzliche Instanzen weichen bei Speichermangel vor allen anderen Modellen (nur bei Not, wie
+  jedes Entladen); die Grundinstanz bleibt nach den üblichen Regeln.
+- **Bindung** (Befund der Prüfung auf einen zweiten Mac, 18.10.2026): Tondienst, Sprechen und Stimmklon arbeiten in
+  zwei Schritten (rechnen, Ergebnis abholen); bei mehreren Instanzen derselben Familie konnte das Abholen bei einer
+  anderen landen. Die Antwort nennt deshalb die Instanz (`X-Leitstelle-Instanz`), der Folgeaufruf schickt sie mit
+  (Appkern `dienst.gebunden()`). Erst danach bekommen solche Dienste `instanzen > 1`; einstufige (Hören,
+  Sprechertrennung, Sprechermerkmal) gehen sofort.
+
 ### Stufe Z4: externe Anbieter und weitere Rechner
 
 - **Externe Anbieter** (zuerst Hetzner Experimental, OpenAI-kompatibel, etwa 10 Anfragen je Minute): Grenze je Dienst

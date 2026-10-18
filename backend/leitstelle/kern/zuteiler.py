@@ -59,6 +59,8 @@ def kandidaten(verbund: Verbund, auftrag: Auftrag, familie: str, mit_extern: boo
     for m in verbund.modelle.values():
         if m.familie != familie or auftrag.faehigkeit not in m.faehigkeiten:
             continue
+        if auftrag.feste_instanz and m.kennung != auftrag.feste_instanz:
+            continue                          # Folgeaufruf: nur die Instanz, die das Ergebnis hat
         d = verbund.dienste[m.dienst]
         if auftrag.faehigkeit not in d.faehigkeiten or not d.nutzbar:
             continue
@@ -72,6 +74,8 @@ def kandidaten(verbund: Verbund, auftrag: Auftrag, familie: str, mit_extern: boo
 
 def ablehnungsgrund(verbund: Verbund, auftrag: Auftrag, kette: list[str]) -> tuple[str, str]:
     """Warum es für den Auftrag keinen Kandidaten gibt, als Wort und Satz."""
+    if auftrag.feste_instanz and auftrag.feste_instanz not in verbund.modelle:
+        return "instanz_weg", "die Instanz, die das Ergebnis hat, läuft nicht mehr; der Aufruf muss von vorn beginnen"
     passende = [m for m in verbund.modelle.values() if m.familie in kette and auftrag.faehigkeit in m.faehigkeiten]
     if not passende:
         if auftrag.festes_modell:

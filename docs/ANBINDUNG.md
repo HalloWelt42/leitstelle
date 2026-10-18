@@ -76,6 +76,9 @@ Die Anwendung ändert nur die Adresse ihres Modell-Läufers und bekommt einen Sc
   Modelle auf dieser Liste oder ausdrücklich als `model` verlangte dürfen nach extern; ohne den Kopf weicht die
   Leitstelle für die Anfrage nie nach extern aus. Zusätzlich muss die Leitstelle der Anwendung die Zone extern
   erlauben. Der Appkern liest die Liste aus der Einstellung "Ausweichen nach extern" der App.
+- `X-Leitstelle-Instanz` (Antwort jeder Durchleitung und Folgeaufruf): an dieselbe Instanz wie der erste Aufruf,
+  wenn ein Dienst mehrfach läuft (PROTOKOLL 6, Bindung). Ohne Bindung kann "Ergebnis abholen" bei einer anderen
+  Instanz landen, die die Datei nicht hat.
 - `GET /v1/steckbriefe` (Filter `faehigkeit`, `eignung`, `sprache`): wofür welches Modell gemacht ist
   (PROTOKOLL 4.8); dieselben Steckbriefe stehen in `GET /v1/models` unter `x-leitstelle.steckbrief`.
 - Mehr gleichzeitige Aufträge als erlaubt warten in der Warteschlange statt abgelehnt zu werden.
