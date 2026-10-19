@@ -215,7 +215,7 @@ Budget = Speicher minus dem Größeren aus Reserve (18 GB) und System, oder ein 
 | S50 | Stimme liegt nur auf Mac Studio, der schläft | Ablehnung `rechner_schlaeft` mit dem Rechner und dem Satz "Mac Studio schläft; der Auftrag kann erst laufen, wenn er wach ist."; Knotenzustand `schlaeft`; Lage ruhig mit Hinweis, nicht "nicht erreichbar" |
 | S51 | Mac Studio unangekündigt weg (nicht schlafend) | `dienst_nicht_erreichbar` statt `zone_nicht_erlaubt`; ein externes Modell ohne Erlaubnis und eine Anwendung ohne Heimnetz bleiben `zone_nicht_erlaubt` |
 | S52 | Hören liegt auf Mac Studio (schläft) und MacBook | das MacBook rechnet; ist es nur weg, `dienst_nicht_erreichbar`; schlafen beide, `rechner_schlaeft` mit beiden Namen |
-| S53 | Laufender Auftrag auf einem schlafenden Rechner | kein Lauf "Umverteilen bei Ausfall", Lage ruhig; derselbe Fall ohne Schlaf: Ausfall und Engpass |
+| S53 | Laufender Auftrag auf einem schlafenden Rechner, GLM auf ihm und auf dem MacBook geladen | kein Lauf "Umverteilen bei Ausfall", kein Doppel, Lage ruhig; derselbe Fall ohne Schlaf: Ausfall, Doppel und Engpass |
 
 ## 3. Ende zu Ende (`test_ende_zu_ende.py`)
 

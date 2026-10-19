@@ -179,12 +179,13 @@ def zeitfenster_beginnt(k: Kontext) -> list[Kontext]:
     return aus
 
 
-@baustein("modell_doppelt_geladen", "ausloeser", "Modell doppelt im Speicher", "Dieselbe Modellfamilie liegt auf zwei Knoten im Speicher.")
+@baustein("modell_doppelt_geladen", "ausloeser", "Modell doppelt im Speicher", "Dieselbe Modellfamilie liegt auf zwei wachen Knoten im Speicher.")
 def modell_doppelt_geladen(k: Kontext) -> list[Kontext]:
+    """Eine Kopie auf einem schlafenden Rechner zählt nicht: sonst wiche womöglich die nutzbare auf dem wachen."""
     aus = []
     familien: dict[str, list[Modell]] = {}
     for m in k.verbund.modelle.values():
-        if m.im_speicher and not k.verbund.dienste[m.dienst].extern:
+        if m.im_speicher and not k.verbund.dienste[m.dienst].extern and not k.verbund.auf_schlafendem(m.dienst):
             familien.setdefault(m.familie, []).append(m)
     for fam, liste in familien.items():
         knoten = {k.verbund.dienste[m.dienst].knoten for m in liste}

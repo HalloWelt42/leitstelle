@@ -281,7 +281,8 @@ def test_s52_schlaf_nur_wenn_alle_passenden_rechner_schlafen(welt):
 
 
 def test_s53_schlafender_rechner_ist_kein_ausfall(welt):
-    """Auch mit einem offenen Auftrag auf ihm löst ein schlafender Rechner weder "Umverteilen bei Ausfall" noch Engpass aus."""
+    """Auch mit einem offenen Auftrag auf ihm löst ein schlafender Rechner weder "Umverteilen bei Ausfall" noch Engpass aus;
+    eine Kopie auf ihm ist kein Doppel (sonst wiche womöglich die nutzbare auf dem wachen Rechner)."""
     from leitstelle.kern.lage import beurteilen
     from leitstelle.kern.regeln.bausteine import BAUSTEINE, Kontext
     from leitstelle.kern.werte import Lage
@@ -292,6 +293,10 @@ def test_s53_schlafender_rechner_ist_kein_ausfall(welt):
     _einschlafen(v, "mac-128")
     assert BAUSTEINE["knoten_ausgefallen"].funktion(Kontext(verbund=v, messwerk=Messwerk(), instanz="")) == []
     assert beurteilen(v)[0] == Lage.RUHIG
+    lade(welt, "glm@128")
+    lade(welt, "glm@32")
+    assert BAUSTEINE["modell_doppelt_geladen"].funktion(Kontext(verbund=v, messwerk=Messwerk(), instanz="")) == []
     v.knoten["mac-128"].schlaeft_seit_s = None                        # derselbe Fall ohne Schlaf: Ausfall
     assert len(BAUSTEINE["knoten_ausgefallen"].funktion(Kontext(verbund=v, messwerk=Messwerk(), instanz=""))) == 1
+    assert len(BAUSTEINE["modell_doppelt_geladen"].funktion(Kontext(verbund=v, messwerk=Messwerk(), instanz=""))) == 1
     assert beurteilen(v)[0] == Lage.ENGPASS
