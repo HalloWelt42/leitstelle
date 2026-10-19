@@ -5,7 +5,7 @@
   import { tun } from '../lib/meldung.svelte';
   import type { KnotenDaten, KnotenSicht, Lagebild, Zone } from '../lib/typen.gen';
   import { weg } from '../lib/weg.svelte';
-  import { DIENSTZUSTAND, KNOTENZUSTAND } from '../lib/wort';
+  import { DIENSTZUSTAND, KNOTENZUSTAND, knotenzustand } from '../lib/wort';
   import AgentFeld from '../teile/AgentFeld.svelte';
   import Ring from '../teile/Ring.svelte';
   import Speicherbalken from '../teile/Speicherbalken.svelte';
@@ -28,8 +28,8 @@
   }
 
   const erreichbar = $derived(bild.knoten.filter((k) => k.erreichbar));
-  const schlafend = $derived(bild.knoten.filter((k) => k.zustand === 'schlaeft'));
-  const unerreichbar = $derived(bild.knoten.filter((k) => k.zustand === 'nicht_erreichbar'));
+  const schlafend = $derived(bild.knoten.filter((k) => knotenzustand(k) === 'schlaeft'));
+  const unerreichbar = $derived(bild.knoten.filter((k) => knotenzustand(k) === 'nicht_erreichbar'));
   const mitAgent = $derived(bild.knoten.filter((k) => k.agent.verbunden));
   const anteil = (teil: number | null | undefined, ganz: number | null | undefined) => (teil != null && ganz ? (100 * teil) / ganz : null);
   const dienste = (k: string) => bild.dienste.filter((d) => d.knoten === k);
@@ -100,8 +100,8 @@
     {/if}
     <div class="knoten-raster">
       {#each bild.knoten as k (k.kennung)}
-        {@const zustand = KNOTENZUSTAND[k.zustand]}
-        <article class="knotenkarte" class:aus={k.zustand === 'nicht_erreichbar'}>
+        {@const zustand = KNOTENZUSTAND[knotenzustand(k)]}
+        <article class="knotenkarte" class:aus={knotenzustand(k) === 'nicht_erreichbar'}>
           <header class="kk-kopf"><h2>{k.name}</h2><ZoneMarke wert={k.zone} />
             <span class="zustand {zustand.klasse}"><i class="fa-solid {zustand.symbol}"></i>{zustand.wort}{#if k.schlaeft_seit_s != null}&nbsp;seit {uhrzeit(k.schlaeft_seit_s)}{/if}</span></header>
           <div class="kk-meta"><span class="zahl" title="Adresse im Netz">{k.adresse}</span><span>{gb(k.speicher_gb)} Speicher</span>
@@ -149,7 +149,7 @@
                   {#if k.agent.messwerte?.last_1m != null}<span title="Durchschnittliche Last der letzten Minute (wartende und laufende Prozesse)"><i class="fa-solid fa-gauge"></i><b>{komma(k.agent.messwerte.last_1m, 1)}</b> Last</span>{/if}
                   {#if k.agent.messwerte?.platte_frei_gb != null}<span title="Freier Platz auf der Platte"><i class="fa-solid fa-hard-drive"></i><b>{gb(k.agent.messwerte.platte_frei_gb)}</b> frei</span>{/if}
                 </div>
-                {#if k.zustand === 'schlaeft'}
+                {#if knotenzustand(k) === 'schlaeft'}
                   <div class="hinweis klein"><i class="fa-solid fa-moon"></i><span>Schläft seit {uhrzeit(k.schlaeft_seit_s)}. Aufträge an ihn warten in den Apps, bis er wach ist; seine Dienste werden bis dahin nicht geprüft.</span></div>
                 {/if}
                 {#if wartenAufSpeicher(k.kennung)}
@@ -173,7 +173,7 @@
                   <button class="knopf klein gefahr-voll" onclick={() => entfernen(k.kennung)}>Ja, entfernen</button></div></div>
             {/if}
             <footer class="kk-knoepfe">
-              {#if k.zustand === 'schlaeft'}<button class="knopf" onclick={() => nichtMehrWarten(k)}
+              {#if knotenzustand(k) === 'schlaeft'}<button class="knopf" onclick={() => nichtMehrWarten(k)}
                       title="Der Rechner gilt nicht mehr als schlafend; Aufträge scheitern dann wieder, solange er nicht antwortet"><i class="fa-solid fa-sun"></i> Nicht mehr warten</button>{/if}
               <button class="knopf" onclick={() => beginnen(k)} title="Name, Adresse, Speicher, Budget und Zeitfenster ändern"><i class="fa-solid fa-pen"></i> Bearbeiten</button>
               <a class="knopf ohne" href={weg.pfad('modelle', 'freigeben')} onclick={(e) => weg.klick(e, 'modelle', 'freigeben')}

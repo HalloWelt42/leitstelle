@@ -1,14 +1,15 @@
 <script lang="ts">
   import { prozent } from '../lib/format';
   import { kanal } from '../lib/kanal.svelte';
+  import { knotenzustand } from '../lib/wort';
 
   const bild = $derived(kanal.lagebild);
   const laufend = $derived(bild?.auftraege.filter((a) => a.zustand === 'laeuft').length ?? 0);
   const wartend = $derived(bild ? bild.auftraege.length - laufend : 0);
   const vollster = $derived(bild?.knoten.filter((k) => k.erreichbar).sort((a, b) => b.belegt_anteil - a.belegt_anteil)[0]);
   const erreichbar = $derived(bild?.knoten.filter((k) => k.erreichbar).length ?? 0);
-  const unerreichbar = $derived(bild?.knoten.filter((k) => k.zustand === 'nicht_erreichbar').length ?? 0);
-  const schlafend = $derived(bild?.knoten.filter((k) => k.zustand === 'schlaeft').length ?? 0);
+  const unerreichbar = $derived(bild?.knoten.filter((k) => knotenzustand(k) === 'nicht_erreichbar').length ?? 0);
+  const schlafend = $derived(bild?.knoten.filter((k) => knotenzustand(k) === 'schlaeft').length ?? 0);
 </script>
 
 <footer class="fuss">

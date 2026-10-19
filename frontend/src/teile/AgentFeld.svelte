@@ -6,6 +6,7 @@
   import { arbeit } from '../lib/arbeit.svelte';
   import { vor } from '../lib/format';
   import { tun } from '../lib/meldung.svelte';
+  import { knotenzustand } from '../lib/wort';
   import type { KnotenSicht } from '../lib/typen.gen';
 
   let { knoten, jetzt }: { knoten: KnotenSicht; jetzt: number } = $props();
@@ -37,7 +38,7 @@
     <div class="zeile" title="Der Maschinenraum misst Speicher und Last und verwaltet die Dienste dieses Rechners">
       <span class="punkt lebt"></span><span>Meldet sich, Fassung <span class="zahl">{a.version}</span>, {a.betriebssystem}</span>
       <span class="leise">Messung {vor(a.messzeit_s, jetzt)}</span></div>
-  {:else if knoten.zustand === 'schlaeft'}
+  {:else if knotenzustand(knoten) === 'schlaeft'}
     <div class="zeile leise" title="Der Maschinenraum hat sich beim Einschlafen abgemeldet und meldet sich beim Aufwachen von selbst wieder.">
       <span class="punkt aus"></span><span>Schläft; meldet sich beim Aufwachen wieder</span></div>
   {:else if a.schluessel}

@@ -1,6 +1,7 @@
 // Wörter, Symbole und Farben zu den Schlüsseln des Kerns. Gedruckt wird nie ein Schlüssel.
 import type {
-  Auftragszustand, Betriebsmodus, Dienstzustand, Eignung, Faehigkeit, Knotenzustand, Lage, Massnahmenart, Massnahmenzustand, Modellzustand, Quelle, Zone,
+  Auftragszustand, Betriebsmodus, Dienstzustand, Eignung, Faehigkeit, KnotenSicht, Knotenzustand, Lage, Massnahmenart, Massnahmenzustand, Modellzustand,
+  Quelle, Zone,
 } from './typen.gen';
 
 export const FAEHIGKEIT: Record<Faehigkeit, { wort: string; symbol: string; farbe: string; rgb: string; klasse: string }> = {
@@ -62,6 +63,9 @@ export const KNOTENZUSTAND: Record<Knotenzustand, Zustandsbild & { satz: string 
   nicht_erreichbar: { wort: 'Nicht erreichbar', satz: 'nicht erreichbar', symbol: 'fa-circle-xmark', klasse: 'fehler' },
   schlaeft: { wort: 'Schläft', satz: 'schläft', symbol: 'fa-moon', klasse: 'wartet' },
 };
+
+/** Zustand eines Rechners. Eine Leitstelle vor 0.18 kennt das Feld nicht (Entwicklungsserver gegen den Pi): dann zählt erreichbar */
+export const knotenzustand = (k: KnotenSicht): Knotenzustand => k.zustand ?? (k.erreichbar ? 'erreichbar' : 'nicht_erreichbar');
 
 export const EIGNUNG: Record<Eignung, string> = {
   denken: 'Denkt schrittweise', programmieren: 'Programmieren', lange_texte: 'Lange Texte', schnell: 'Schnell', gruendlich: 'Gründlich',
