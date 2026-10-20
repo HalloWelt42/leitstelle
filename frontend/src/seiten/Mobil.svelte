@@ -109,11 +109,11 @@
 
 <style>
   .telefonansicht { height: 100dvh; display: flex; flex-direction: column; background: var(--ls-grund);
-                    padding: calc(env(safe-area-inset-top) + var(--oben-luft, 0px)) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+                    padding: calc(env(safe-area-inset-top) + var(--oben-luft, 0px)) env(safe-area-inset-right) 0 env(safe-area-inset-left); } /* kein Abstand über dem Home-Balken (Nutzervorgabe 20.10.2026) */
   /* Vom Home-Bildschirm (iOS 26): unter Uhr und Kamera-Insel fängt das System Berührungen ab, darum etwas Luft */
   @media (display-mode: standalone) and (pointer: coarse) { :global(.seite-mobil) { --oben-luft: 14px; } }
   :global(.seite-mobil .m-kopf) { padding-top: 14px; }
-  :global(.seite-mobil .m-fuss) { padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+  :global(.seite-mobil .m-fuss) { padding-bottom: 14px; }
   .m-schalter { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; font-weight: 600; min-height: 44px; }
   .m-meldung { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 8px; padding: 8px 0; border-top: 1px solid var(--ls-rand); font-size: 16px; }
   .m-meldung:first-child { border-top: 0; }
