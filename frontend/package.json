@@ -5,7 +5,7 @@
   "description": "Oberfläche der Leitstelle (Svelte 5); liefert auch Schriften und Symbole für die Entwürfe",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node symbol-einbetten.mjs dist",
     "pruefen": "svelte-check --tsconfig ./tsconfig.json",
     "typen": "node werkzeuge/typen.mjs"
   },
