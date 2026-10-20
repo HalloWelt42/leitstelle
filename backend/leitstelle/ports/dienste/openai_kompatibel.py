@@ -36,8 +36,18 @@ def _milliarden(params: str | None) -> float | None:
     return {"B": zahl, "M": zahl / 1000, "K": zahl / 1_000_000}[t.group(2)]
 
 
-def _faehigkeiten(typ: str, faehig: dict | None) -> tuple[set[F], bool]:
-    if typ.startswith("embedding"):
+EINBETTUNG_IM_NAMEN = re.compile(r"(?<![a-z])embed")
+
+
+def ist_einbettung(typ: str, *namen: str) -> bool:
+    """Einbettungsmodell nach Art oder Name. Der Läufer meldet Einbettungsmodelle im MLX-Format als `llm` (gesehen an
+    `qwen3-embedding-8b`, 20.10.2026, dazu `trained_for_tool_use`); ohne den Namen stünden sie in jeder Modellwahl für
+    Gespräche. Dieselbe Regel gilt für die einfache OpenAI-Liste und externe Anbieter, die gar keine Art nennen."""
+    return typ.startswith("embedding") or any(EINBETTUNG_IM_NAMEN.search(n.lower()) for n in namen if n)
+
+
+def _faehigkeiten(typ: str, faehig: dict | None, *namen: str) -> tuple[set[F], bool]:
+    if ist_einbettung(typ, *namen):
         return {F.EINBETTUNG}, True
     f = set(TEXT_FAEHIGKEITEN)
     faehig = faehig or {}
@@ -145,7 +155,7 @@ class OpenAIKompatibel:
 
     @staticmethod
     def _nativ(m: dict[str, Any]) -> ModellBericht:
-        faehigkeiten, einbettung = _faehigkeiten(str(m.get("type", "llm")), m.get("capabilities"))
+        faehigkeiten, einbettung = _faehigkeiten(str(m.get("type", "llm")), m.get("capabilities"), str(m["key"]), str(m.get("display_name") or ""))
         instanzen = m.get("loaded_instances") or []
         parallel = [int(i.get("config", {}).get("parallel")) for i in instanzen if i.get("config", {}).get("parallel")]
         return ModellBericht(
@@ -157,7 +167,7 @@ class OpenAIKompatibel:
     @staticmethod
     def _einfach(m: dict[str, Any]) -> ModellBericht:
         kennung = str(m["id"])
-        einbettung = "embed" in kennung.lower()
+        einbettung = ist_einbettung("", kennung)
         return ModellBericht(schluessel=kennung, name=kennung, faehigkeiten={F.EINBETTUNG} if einbettung else set(TEXT_FAEHIGKEITEN),
                              gb=0.0, geladen=True, instanzen=[kennung], einbettung=einbettung)
 
@@ -289,7 +299,7 @@ class ExternOpenAI(OpenAIKompatibel):
             # Hauptname: mit Anbieter vorn, sonst der kürzeste; die übrigen sind Aliasse (Instanzen tragen alle Namen)
             namen = sorted(namen, key=lambda m: ("/" not in str(m["id"]), len(str(m["id"])), str(m["id"])))
             haupt = str(namen[0]["id"])
-            einbettung = "embed" in haupt.lower()
+            einbettung = ist_einbettung("", haupt)
             modelle.append(ModellBericht(schluessel=haupt, name=haupt.split("/")[-1], gb=0.0, geladen=True, einbettung=einbettung,
                                          faehigkeiten={F.EINBETTUNG} if einbettung else set(TEXT_FAEHIGKEITEN),
                                          instanzen=[str(m["id"]) for m in namen], parameter_mrd=_milliarden_im_namen(haupt),

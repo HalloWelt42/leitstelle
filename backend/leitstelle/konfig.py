@@ -12,6 +12,8 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from .ports.dienste.bilder import BildablaufEinstellung, ComfyAblauf
+
 WURZEL = Path(__file__).resolve().parents[2]
 
 
@@ -36,6 +38,10 @@ class Konfig(BaseSettings):
     wieder_s: float = Field(default=30.0, description="Retry-After bei 429 und 503: wann ein neuer Versuch Sinn hat")
     schlaf_wieder_s: float = Field(default=60.0, description="Retry-After, wenn der Rechner des Dienstes schläft (rechner_schlaeft); "
                                                               "er wacht selten in Sekunden auf")
+    bildablaeufe: dict[str, BildablaufEinstellung] = Field(
+        default_factory=lambda: {"bildschmiede": ComfyAblauf()},
+        description="je Bilddienst (Kennung im Maschinenraum) der Ablauf, mit dem `/v1/images/generations` dort Bilder erzeugt; "
+                    "als JSON, zum Beispiel {\"bildschmiede\": {\"art\": \"comfyui\", \"checkpoint\": \"flux1-schnell-fp8.safetensors\"}}")
 
     @property
     def datenbank(self) -> Path:

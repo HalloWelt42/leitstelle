@@ -11,8 +11,8 @@
 
   let { bild }: { bild: Lagebild } = $props();
 
-  const ALLE: F[] = ['text', 'einbettung', 'uebersetzen', 'bild_beschreiben', 'werkzeug'];
-  const KETTEN: F[] = ['text', 'einbettung', 'bild_beschreiben'];
+  const ALLE = Object.keys(FAEHIGKEIT) as F[];
+  const KETTEN: F[] = ['text', 'einbettung', 'bild_beschreiben', 'bild_erzeugen'];
   const leer = (): AnwendungDaten => ({ name: '', prioritaet: 1, faehigkeiten: ['text', 'einbettung', 'uebersetzen', 'bild_beschreiben', 'werkzeug'], zonen: ['heim'], extern_erlaubt: false, gleichzeitig: 4, ketten: {} });
 
   let entwurf = $state<AnwendungDaten>(leer());

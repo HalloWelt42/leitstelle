@@ -8,6 +8,8 @@ Anwendungen genau diese Form lesen.
 
 from __future__ import annotations
 
+import asyncio
+import base64
 import json
 import re
 from typing import Any
@@ -15,12 +17,17 @@ from urllib.parse import unquote
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
+from pydantic import ValidationError
 
 from ..fach.fehler import Ablehnung, fehler_inhalt
-from ..fach.vermittlung import Vorgang, Wartet
-from ..kern.werte import GIB, WORT, Auftragszustand, Eignung, Faehigkeit, Modellzustand, Prioritaet, Zone
+from ..fach.vermittlung import Bilderzeugung, Vorgang, Wartet
+from ..kern.modelle import Modell
+from ..kern.werte import GIB, WORT, Auftragszustand, Dienstzustand, Eignung, Faehigkeit, Modellzustand, Prioritaet, Zone
+from ..ports.ablage.eintraege import Adapterart
 from ..ports.ablage.eintraege import AnwendungEintrag
 from ..ports.dienste import Durchleitung
+from ..ports.dienste.bilder import Bildauftrag
+from ..protokoll.fassade import Bereitschaft, BildAnfrage, BildAntwort, BildDaten, BildZusatz, DienstListe, DienstSicht
 from .gemeinsam import ablehnung_antwort, betrieb, fehler_antwort, konfig, vermittlung
 
 router = APIRouter()
@@ -161,6 +168,93 @@ async def einbettung(request: Request) -> Response:
     return await _vermitteln(request, "/v1/embeddings", Faehigkeit.EINBETTUNG)
 
 
+def _eingabefehler(text: str) -> JSONResponse:
+    return JSONResponse({"error": {"message": text, "type": "leitstelle", "code": "eingabe"}}, status_code=400)
+
+
+def _eingabe_text(fehler: ValidationError) -> str:
+    """Prüffehler der Anfrage auf Deutsch, je Feld ein Satz."""
+    saetze = []
+    for f in fehler.errors():
+        feld = ".".join(str(x) for x in f["loc"]) or "Körper"
+        if f["type"] == "value_error":
+            saetze.append(str(f["ctx"]["error"]))
+        elif f["type"] == "missing":
+            saetze.append(f"{feld} fehlt.")
+        elif f["type"] in ("greater_than", "greater_than_equal", "less_than", "less_than_equal", "string_too_short", "string_too_long"):
+            grenzen = ", ".join(f"{k} {w}" for k, w in (f.get("ctx") or {}).items())
+            saetze.append(f"{feld} liegt außerhalb der Grenzen ({grenzen}).")
+        else:
+            saetze.append(f"{feld} hat nicht die erwartete Form.")
+    return " ".join(saetze)
+
+
+def _bildantwort(request: Request, e: Bilderzeugung) -> bytes:
+    antwort = BildAntwort(created=int(betrieb(request).uhr.jetzt()), data=[BildDaten(b64_json=base64.b64encode(b).decode("ascii")) for b in e.ergebnis.bilder],
+                          x_leitstelle=BildZusatz(seed=e.ergebnis.seed, modell=e.familie, dauer_ms=round(e.dauer_s * 1000)))
+    return json.dumps(antwort.model_dump(mode="json", by_alias=True), ensure_ascii=False).encode()
+
+
+async def bilder(request: Request) -> Response:
+    """Bilder erzeugen im OpenAI-Format (PROTOKOLL 6): ein Auftrag mit der Fähigkeit bild_erzeugen. Den Ablauf des
+    Bilddienstes kennt nur sein Bildablauf; die Anwendung nennt Beschreibung, Größe, Anzahl und wahlweise Startwert."""
+    app = _anwendung(request)
+    if app is None:
+        return fehler_antwort(request, "unbekannter_schluessel", "Schlüssel fehlt oder ist unbekannt (Kopf Authorization: Bearer ...).")
+    try:
+        anfrage = BildAnfrage.model_validate(await request.json())
+    except ValueError as fehler:
+        return _eingabefehler(_eingabe_text(fehler) if isinstance(fehler, ValidationError) else "Der Körper ist kein JSON.")
+    b, verm = betrieb(request), vermittlung(request)
+    try:
+        if anfrage.model and (familie := b.familie_fuer(anfrage.model)):
+            verm.bildablauf_fuer(familie)            # ohne Bildablauf gar nicht erst einreihen (und keinen Dienst starten)
+        v = verm.annehmen(app.kennung, Faehigkeit.BILD_ERZEUGEN, anfrage.model, _prioritaet(request, app), _titel(request, Faehigkeit.BILD_ERZEUGEN),
+                          _arbeit(request), _extern(request))
+    except Ablehnung as a:
+        return ablehnung_antwort(request, a)
+    auftrag = Bildauftrag(beschreibung=anfrage.prompt, breite=anfrage.breite, hoehe=anfrage.hoehe, anzahl=anfrage.n, seed=verm.startwert(anfrage.seed))
+    if anfrage.stream:
+        return StreamingResponse(_bilder_strom(request, v, auftrag), media_type="text/event-stream", headers={**_kopf(request, v), "Cache-Control": "no-cache"})
+    try:
+        async for _ in verm.warten(v, getrennt=request.is_disconnected):
+            pass
+        erzeugung = await verm.bilder_erzeugen(v, auftrag)
+    except Ablehnung as a:
+        antwort = ablehnung_antwort(request, a)
+        antwort.headers.update(_kopf(request, v))
+        return antwort
+    finally:
+        verm.aufraeumen(v)
+    kopf = _kopf(request, v) | {"X-Leitstelle-Modell": v.modellname} | ({"X-Leitstelle-Knoten": v.knoten} if v.knoten else {})
+    return Response(_bildantwort(request, erzeugung), media_type="application/json", headers=kopf)
+
+
+async def _bilder_strom(request: Request, v: Vorgang, auftrag: Bildauftrag):
+    """Wie der Chat: Kommentare, solange der Auftrag wartet, und während der Dienst rechnet, damit die Verbindung offen
+    bleibt; dann genau ein `data:` mit der Antwort (oder dem Fehler) und `data: [DONE]`. Geht die Anwendung, endet der
+    Auftrag, und der Bilddienst nimmt ihn aus seiner Warteschlange."""
+    verm = vermittlung(request)
+    arbeit: asyncio.Future[Bilderzeugung] | None = None
+    try:
+        async for w in verm.warten(v):
+            yield _hinweis(w)
+        arbeit = asyncio.ensure_future(verm.bilder_erzeugen(v, auftrag))
+        seit = 0.0
+        while not (await asyncio.wait({arbeit}, timeout=konfig(request).hinweis_s))[0]:
+            seit += konfig(request).hinweis_s
+            yield f": rechnet seit {seit:.0f} s\n\n".encode()
+        yield b"data: " + _bildantwort(request, arbeit.result()) + b"\n\ndata: [DONE]\n\n"
+    except Ablehnung as a:
+        daten = json.dumps({"error": fehler_inhalt(a.grund, a.begruendung, a.zusatz)}, ensure_ascii=False)
+        yield f"data: {daten}\n\ndata: [DONE]\n\n".encode()
+    finally:
+        # ohne `await`: reißt die Anwendung ab, wird dieser Rest abgebrochen; der Auftrag braucht seinen Endzustand trotzdem
+        if arbeit is not None and not arbeit.done():
+            v.lauf.beenden_mit("anwendung", "Die Anwendung hat die Verbindung getrennt.")
+        verm.aufraeumen(v)
+
+
 # Köpfe, die nur einer Verbindung gelten oder die Leitstelle selbst auswertet
 OHNE_KOPF = {"host", "authorization", "content-length", "connection", "keep-alive", "transfer-encoding", "te", "trailer", "upgrade",
              "x-leitstelle-titel", "x-leitstelle-prioritaet", "x-leitstelle-arbeit", "x-leitstelle-extern", "x-leitstelle-instanz"}
@@ -207,12 +301,13 @@ router.add_api_route("/v1/dienste/{name}/{pfad:path}", dienst, methods=["GET", "
 for basis in ("/v1", ""):     # Basisadresse mit oder ohne /v1
     router.add_api_route(f"{basis}/chat/completions", chat, methods=["POST"], include_in_schema=basis == "/v1", name=f"chat{basis or '_ohne_v1'}")
     router.add_api_route(f"{basis}/embeddings", einbettung, methods=["POST"], include_in_schema=basis == "/v1", name=f"einbettung{basis or '_ohne_v1'}")
+    router.add_api_route(f"{basis}/images/generations", bilder, methods=["POST"], include_in_schema=basis == "/v1", name=f"bilder{basis or '_ohne_v1'}")
 
 
-def _sichtbare_modelle(request: Request, app: AnwendungEintrag | None):
-    """Modelle, die die Anwendung nutzen darf (Fähigkeit und Zone); ohne Schlüssel aus dem Heimnetz alle."""
+def _erlaubte_modelle(request: Request, app: AnwendungEintrag | None) -> list[Modell]:
+    """Alle Modellinstanzen, die die Anwendung nutzen darf (Fähigkeit und Zone); ohne Schlüssel aus dem Heimnetz alle."""
     b = betrieb(request)
-    gesehen: dict[str, Any] = {}
+    aus = []
     for m in b.verbund.modelle.values():
         d = b.verbund.dienste.get(m.dienst)
         if d is None:
@@ -223,6 +318,14 @@ def _sichtbare_modelle(request: Request, app: AnwendungEintrag | None):
             zone = Zone.EXTERN if d.extern else (b.verbund.knoten[d.knoten].zone if d.knoten in b.verbund.knoten else None)
             if zone not in app.zonen:
                 continue
+        aus.append(m)
+    return aus
+
+
+def _sichtbare_modelle(request: Request, app: AnwendungEintrag | None) -> list[Modell]:
+    """Je Familie eine Instanz der erlaubten Modelle, geladene vor freien."""
+    gesehen: dict[str, Modell] = {}
+    for m in _erlaubte_modelle(request, app):
         bisher = gesehen.get(m.familie)
         if bisher is None or (m.zustand != Modellzustand.FREI and bisher.zustand == Modellzustand.FREI):
             gesehen[m.familie] = m
@@ -270,6 +373,45 @@ async def steckbriefe(request: Request, faehigkeit: Faehigkeit | None = None, ei
         aus.append((0 if sprache and sprache in s.sprachen else 1, m.zustand == Modellzustand.FREI, m.name.lower(),
                     {"id": m.familie, "name": m.name, "geladen": m.zustand != Modellzustand.FREI, "steckbrief": s.model_dump(mode="json")}))
     return {"object": "list", "data": [x[3] for x in sorted(aus, key=lambda x: x[:3])]}
+
+
+# Fasst die Instanzen eines Dienstes zusammen: der beste Zustand zählt (eine laufende Instanz genügt)
+BEREITSCHAFT_VORRANG = [Bereitschaft.BEREIT, Bereitschaft.STARTET, Bereitschaft.AUS, Bereitschaft.SCHLAEFT, Bereitschaft.NICHT_ERREICHBAR]
+MODELL_BEREITSCHAFT = {Modellzustand.GELADEN: Bereitschaft.BEREIT, Modellzustand.RECHNET: Bereitschaft.BEREIT,
+                       Modellzustand.LAEDT: Bereitschaft.STARTET, Modellzustand.FREI: Bereitschaft.AUS}
+
+
+def _bereitschaft(request: Request, m: Modell) -> Bereitschaft:
+    v = betrieb(request).verbund
+    d = v.dienste[m.dienst]
+    if d.zustand == Dienstzustand.SCHLAEFT or v.auf_schlafendem(d.kennung):
+        return Bereitschaft.SCHLAEFT
+    if d.zustand in (Dienstzustand.NICHT_ERREICHBAR, Dienstzustand.AUSFALL):
+        return Bereitschaft.NICHT_ERREICHBAR
+    return MODELL_BEREITSCHAFT[m.zustand]
+
+
+@router.get("/v1/dienste")
+async def dienste(request: Request):
+    """Die Dienste im Maschinenraum, die die Anwendung nutzen darf (PROTOKOLL 6): Kennung, Name, Fähigkeiten, Zustand,
+    Rechner; je Dienst ein Eintrag, gleich wie viele Instanzen auf wie vielen Rechnern laufen."""
+    darf, app = _darf_lesen(request)
+    if not darf:
+        return fehler_antwort(request, "unbekannter_schluessel", "Schlüssel fehlt oder ist unbekannt.")
+    b = betrieb(request)
+    gruppen: dict[str, list[Modell]] = {}
+    for m in _erlaubte_modelle(request, app):
+        if b.verbund.dienste[m.dienst].art == Adapterart.AGENT.value:
+            gruppen.setdefault(m.familie, []).append(m)
+    aus = []
+    for familie, instanzen in sorted(gruppen.items()):
+        grund = next((m for m in instanzen if not m.zusatz), instanzen[0])
+        knoten = {b.verbund.dienste[m.dienst].knoten for m in instanzen}
+        faehig = set().union(*(m.faehigkeiten for m in instanzen)) & (app.faehigkeiten if app else set(Faehigkeit))
+        aus.append(DienstSicht(kennung=familie, name=grund.name, faehigkeiten=[f for f in Faehigkeit if f in faehig],
+                               zustand=min((_bereitschaft(request, m) for m in instanzen), key=BEREITSCHAFT_VORRANG.index),
+                               rechner=sorted(b.verbund.knoten[k].name for k in knoten if k in b.verbund.knoten)))
+    return DienstListe(data=aus).model_dump(mode="json")
 
 
 def _typ(m) -> str:

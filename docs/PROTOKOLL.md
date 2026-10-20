@@ -277,9 +277,73 @@ Für Anwendungen ohne Umbau. Basisadresse mit oder ohne `/v1` wird angenommen.
 | `POST /v1/embeddings` | `auftrag.anlegen` (einbettung) | Modellname muss zur Kette passen (Einbettungen sind modellgebunden) |
 | `POST /v1/audio/transcriptions` | `auftrag.anlegen` (hoeren) | multipart; lange Dateien laufen als Hintergrund-Auftrag, Antwort erst am Ende |
 | `POST /v1/audio/speech` | `auftrag.anlegen` (stimme) | Audio-Stream |
-| `POST /v1/images/generations` | `auftrag.anlegen` (bild_erzeugen) | Antwort mit Verweisen |
+| `POST /v1/images/generations` | `auftrag.anlegen` (bild_erzeugen) | Bilder als `b64_json`, mit und ohne Strom; den Ablauf des Bilddienstes kennt die Leitstelle (6.1) |
+| `GET /v1/dienste` | Liste der Dienste | die Dienste im Maschinenraum, die die Anwendung nutzen darf, mit Zustand und Rechner (6.2) |
 | `GET, POST, PUT, PATCH, DELETE /v1/dienste/<name>/<pfad>` | `auftrag.anlegen` (Fähigkeit, die Dienst und Anwendung teilen) | jeder Dienst mit eigener Schnittstelle (Sprache, Bild, Musik): die Leitstelle startet ihn bei Bedarf über den Maschinenraum seines Rechners, plant seinen Bedarf ein und reicht Anfrage und Antwort unverändert durch (auch Binärdaten). `<name>` ist die Kennung des Dienstes im Maschinenraum (Dateiname der Dienstdatei) |
 | `GET /api/v0/models`, `GET /api/v1/models` | `frage.modelle` | nachgebildete Form des Modell-Läufers (Feld `state`, `loaded_instances`), weil mehrere Anwendungen genau diese Form lesen |
+
+### 6.1 Bilder erzeugen
+
+`POST /v1/images/generations` mit dem Schlüssel einer Anwendung, die `bild_erzeugen` darf. Die Arbeit ist ein Auftrag
+wie jeder andere (Rechte, Zonen, Speicherplanung, Start des Dienstes bei Bedarf, Lage, Verlauf). Welcher Bilddienst
+rechnet, sagt `model` oder die Kette der Anwendung für `bild_erzeugen`; wie er rechnet (bei der Bildschmiede ein
+Arbeitsgraph mit Checkpoint, Sampler, Schritten), weiß nur sein Bildablauf in der Leitstelle (Einstellung
+`LEITSTELLE_BILDABLAEUFE`, je Dienst; Vorgabe: `bildschmiede` mit FLUX.1 schnell, 4 Schritte, cfg 1.0, euler/simple).
+
+| Feld | Pflicht | Bedeutung |
+|---|---|---|
+| `prompt` | ja | Beschreibung, 1 bis 8000 Zeichen |
+| `size` | nein | `BreitexHöhe`, je 256 bis 2048 und durch 16 teilbar; Vorgabe `1024x1024`, üblich auch `1344x768`, `768x1344` |
+| `n` | nein | Anzahl 1 bis 4, Vorgabe 1 |
+| `seed` | nein | Startwert 0 bis 2^53 - 1; fehlt er, zieht die Leitstelle einen und nennt ihn in der Antwort |
+| `model` | nein | Kennung des Bilddienstes (`GET /v1/dienste`); fehlt sie, gilt die Kette der Anwendung |
+| `response_format` | nein | nur `b64_json` |
+| `stream` | nein | `true`: Server-Sent Events wie beim Chat |
+
+Gleicher Startwert, gleiche Beschreibung, Größe und Anzahl beim selben Dienst ergeben dieselben Bilder ("dasselbe Bild,
+nur dunkler": Startwert behalten, Beschreibung ändern). Unbekannte Felder werden überlesen.
+
+```json
+{"created": 1792512802,
+ "data": [{"b64_json": "iVBORw0KGgo...", "revised_prompt": null}],
+ "x-leitstelle": {"seed": 42, "modell": "bildschmiede", "dauer_ms": 21400}}
+```
+
+`x-leitstelle.modell` ist die Kennung des Dienstes, der gerechnet hat (als `model` mitgeschickt rechnet derselbe
+wieder), `dauer_ms` die Rechenzeit im Dienst ohne das Warten auf Start oder Platz. Köpfe wie bei der übrigen Fassade
+(`X-Leitstelle-Auftrag`, `X-Leitstelle-Lage`, ohne Strom auch `X-Leitstelle-Modell`, `X-Leitstelle-Knoten`).
+
+Mit `"stream": true` (`text/event-stream`): solange der Auftrag wartet (Dienst startet, Platz belegt, Speicher) alle
+15 s ein Kommentar `: wartet, <grund>, etwa <n> s`, während der Dienst rechnet `: rechnet seit <n> s`; dann genau eine
+Zeile `data: <Antwort wie oben>` und `data: [DONE]`. Ein Fehler kommt als `data: {"error": {...}}` und `data: [DONE]`.
+Trennt die Anwendung die Verbindung, endet der Auftrag, und die Bildschmiede nimmt ihn aus ihrer Warteschlange.
+
+Fehler im Format der Fassade (7): 400 `eingabe` (Feld falsch, Satz in `error.message`), 401, 403
+`faehigkeit_nicht_erlaubt`, 404 `kein_modell` (Name unbekannt, oder weder `model` noch Kette), 503 `kein_dienst`
+(für diesen Dienst ist kein Bildablauf eingerichtet; er bleibt über `/v1/dienste/<name>/` roh erreichbar), 502
+`dienst_fehler` mit der Meldung der Bildschmiede, dazu alle Gründe der Warteschlange (`rechner_schlaeft`, `halt`, ...).
+
+### 6.2 Liste der Dienste
+
+`GET /v1/dienste` mit dem Schlüssel einer Anwendung: die Dienste im Maschinenraum (Sprache, Bild, Musik, ...), die
+sie nutzen darf (Fähigkeit und Zone). Je Dienst ein Eintrag, gleich wie viele Instanzen auf wie vielen Rechnern laufen;
+`faehigkeiten` nennt nur, was die Anwendung davon nutzen darf. Ohne Schlüssel aus dem Heimnetz: alle.
+
+```json
+{"object": "list", "data": [{"kennung": "bildschmiede", "name": "Bildschmiede", "faehigkeiten": ["bild_erzeugen"],
+                             "zustand": "aus", "rechner": ["Mac Studio"]}]}
+```
+
+| `zustand` | Bedeutung |
+|---|---|
+| `bereit` | läuft und nimmt Aufträge an |
+| `startet` | wird gerade gestartet |
+| `aus` | läuft nicht; der erste Auftrag startet ihn (Startzeit des Dienstes, die Bildschmiede etwa 180 s) |
+| `schlaeft` | sein Rechner schläft; Aufträge warten in der Anwendung, bis er wach ist |
+| `nicht_erreichbar` | sein Maschinenraum meldet sich nicht |
+
+Laufen mehrere Instanzen, zählt die beste (eine bereite genügt). `kennung` dient als `model` und für
+`/v1/dienste/<kennung>/<pfad>`.
 
 Hinweise an Fassaden-Anwendungen: Signale lassen sich über die Fassade nicht zustellen. Die Leitstelle
 legt deshalb Hinweise in die Antwort: Köpfe `X-Leitstelle-Lage`, `X-Leitstelle-Wartet-S` (geschätzte Wartezeit,

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import secrets
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -17,6 +18,7 @@ from ..kern.modelle import Auftrag
 from ..kern.werte import Auftragszustand, Faehigkeit, Modellzustand, Prioritaet
 from ..konfig import Konfig
 from ..ports.dienste import DienstFehler, Durchleitung, Strom
+from ..ports.dienste.bilder import SEED_GRENZE, Bildablauf, Bildauftrag, Bildergebnis, bildablauf
 from .betrieb import Betrieb, Lauf, Messung
 from .fehler import Ablehnung, fehler_inhalt
 
@@ -46,6 +48,13 @@ class _Neuversuch(Exception):
 class Wartet:
     begruendung: str
     voraussichtlich_s: float | None
+
+
+@dataclass
+class Bilderzeugung:
+    ergebnis: Bildergebnis
+    familie: str                      # Kennung des Dienstes, der gerechnet hat
+    dauer_s: float                    # Rechenzeit im Dienst, ohne Warten
 
 
 @dataclass
@@ -316,6 +325,50 @@ class Vermittlung:
             v.lauf.abbrecher = None
             self.aufraeumen(v)
             await antwort.schliessen()
+
+    # ── Bilder erzeugen (Fassade `/v1/images/generations`) ───────────────
+    def bildablauf_fuer(self, familie: str) -> Bildablauf:
+        """Wie dieser Bilddienst Bilder erzeugt (Einstellung `bildablaeufe`); ohne Eintrag kann die Leitstelle ihn nur roh
+        durchleiten."""
+        e = self.konfig.bildablaeufe.get(familie)
+        if e is None:
+            raise Ablehnung("kein_dienst", f"Für den Bilddienst {familie} ist kein Bildablauf eingerichtet; er ist nur über /v1/dienste/{familie}/ erreichbar.")
+        return bildablauf(e)
+
+    @staticmethod
+    def startwert(seed: int | None) -> int:
+        """Ohne Startwert zieht die Leitstelle einen; er steht in der Antwort, damit dasselbe Bild wieder entstehen kann."""
+        return seed if seed is not None else secrets.randbelow(SEED_GRENZE)
+
+    async def bilder_erzeugen(self, v: Vorgang, auftrag: Bildauftrag) -> Bilderzeugung:
+        """Nach der Freigabe: der Ablauf des zugeteilten Bilddienstes über dessen Durchleitung. Fehler und Abbruch
+        schließen den Auftrag ab und kommen als `Ablehnung`."""
+        b = self.betrieb
+        a = v.auftrag
+        modell = b.verbund.modelle.get(a.modell or "")
+        v.modellname, v.knoten = (modell.name if modell else ""), a.knoten
+        v.messung = Messung()
+        try:
+            ablauf = self.bildablauf_fuer(modell.familie if modell else "")
+        except Ablehnung as fehler:
+            self._abschliessen(v, Auftragszustand.FEHLGESCHLAGEN, fehler.grund, fehler.begruendung)
+            raise
+        adapter, schluessel = b.adapter[a.dienst or ""], b.ort(a.modell or "").schluessel
+        start = b.uhr.jetzt()
+        try:
+            ergebnis = await self._bis_ende(ablauf.erzeugen(lambda d: adapter.durchleiten(schluessel, d), auftrag), v.lauf)
+        except _Abbruch:
+            self._abschliessen(v, Auftragszustand.ABGEBROCHEN, v.lauf.grund or "nutzer", v.lauf.begruendung)
+            raise Ablehnung(v.lauf.grund or "nutzer", v.lauf.begruendung, v.lauf.zusatz) from None
+        except DienstFehler as f:
+            if f.grund == "dienst_nicht_erreichbar":
+                b.dienst_gestoert(a.dienst or "", f.meldung)
+            self._abschliessen(v, Auftragszustand.FEHLGESCHLAGEN, f.grund, f.meldung)
+            raise Ablehnung(f.grund, f.meldung) from None
+        dauer = b.uhr.jetzt() - start
+        v.messung.erstes_stueck_s = dauer
+        self._abschliessen(v, Auftragszustand.FERTIG)
+        return Bilderzeugung(ergebnis=ergebnis, familie=modell.familie if modell else "", dauer_s=dauer)
 
     async def ausfuehren(self, v: Vorgang, pfad: str, koerper: dict[str, Any], strom: bool,
                          getrennt: Callable[[], Awaitable[bool]] | None = None) -> AsyncIterator[bytes | Wartet]:

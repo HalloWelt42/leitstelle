@@ -13,6 +13,19 @@ from schein.laeufer import schein_laeufer
 from schein.server import laufend
 
 
+def test_einbettung_im_mlx_format_wird_am_namen_erkannt():
+    """L9: der Läufer meldet Einbettungsmodelle im MLX-Format als `llm` mit Werkzeugen (aufgezeichnet am 20.10.2026);
+    sie sind trotzdem nur Einbettung und geschützt, nie ein Gesprächsmodell."""
+    roh = {"type": "llm", "publisher": "mlx-community", "key": "qwen3-embedding-8b", "display_name": "Qwen3 Embedding 8B", "architecture": "qwen3",
+           "quantization": {"name": "MXFP8", "bits_per_weight": 8}, "size_bytes": 7818384967, "params_string": "8B", "loaded_instances": [],
+           "max_context_length": 40960, "format": "mlx", "capabilities": {"vision": False, "trained_for_tool_use": True}, "description": None}
+    m = OpenAIKompatibel._nativ(roh)
+    assert m.einbettung and m.faehigkeiten == {F.EINBETTUNG}
+    gespraech = OpenAIKompatibel._nativ({**roh, "key": "qwen/qwen3-next-80b", "display_name": "Qwen3 Next 80B"})
+    assert not gespraech.einbettung and gespraech.faehigkeiten == {F.TEXT, F.UEBERSETZEN, F.WERKZEUG}
+    assert OpenAIKompatibel._einfach({"id": "nomic-embed-text"}).einbettung and not OpenAIKompatibel._einfach({"id": "gemma-3-27b"}).einbettung
+
+
 def test_parameterzahl_lesen():
     assert _milliarden("80B") == 80 and _milliarden("567M") == 0.567 and _milliarden(None) is None and _milliarden("viel") is None
 

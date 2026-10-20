@@ -79,6 +79,13 @@ Die Anwendung ändert nur die Adresse ihres Modell-Läufers und bekommt einen Sc
 - `X-Leitstelle-Instanz` (Antwort jeder Durchleitung und Folgeaufruf): an dieselbe Instanz wie der erste Aufruf,
   wenn ein Dienst mehrfach läuft (PROTOKOLL 6, Bindung). Ohne Bindung kann "Ergebnis abholen" bei einer anderen
   Instanz landen, die die Datei nicht hat.
+- `POST /v1/images/generations` (`prompt`, `size`, `n` 1 bis 4, `seed`, `model`, `stream`): Bilder als `b64_json`, mit
+  dem genutzten Startwert unter `x-leitstelle.seed`; gleicher Startwert und gleiche Beschreibung ergeben dasselbe Bild.
+  Den Ablauf der Bildschmiede kennt nur die Leitstelle (PROTOKOLL 6.1). Die Anwendung braucht das Recht
+  `bild_erzeugen` und nennt den Dienst als `model` oder hat eine Kette für `bild_erzeugen`.
+- `GET /v1/dienste`: die Dienste im Maschinenraum, die die Anwendung nutzen darf, mit `kennung`, `name`,
+  `faehigkeiten`, `zustand` (`bereit`, `startet`, `aus`, `schlaeft`, `nicht_erreichbar`) und `rechner`
+  (PROTOKOLL 6.2); etwa für eine Auswahl "Bilder erzeugen mit".
 - `GET /v1/steckbriefe` (Filter `faehigkeit`, `eignung`, `sprache`): wofür welches Modell gemacht ist
   (PROTOKOLL 4.8); dieselben Steckbriefe stehen in `GET /v1/models` unter `x-leitstelle.steckbrief`.
 - Mehr gleichzeitige Aufträge als erlaubt warten in der Warteschlange statt abgelehnt zu werden.

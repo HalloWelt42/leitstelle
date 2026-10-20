@@ -344,6 +344,10 @@ immer die passende Verdichtung. Lange Listen liefert die Schnittstelle seitenwei
 
 - Neue Dienstart = neues Adapter-Modul in `ports/dienste/` plus Eintrag in der Registry; kein
   Sonderfall im Kern.
+- Neue Art eines Bilddienstes = neuer Bildablauf in `ports/dienste/bilder/` (Schnittstelle `Bildablauf`: Bildauftrag
+  rein, Bilder raus, gesprochen nur über die Durchleitung des Dienst-Adapters) plus Fall in der Registry; welcher
+  Dienst welchen Ablauf nutzt, steht in der Einstellung `LEITSTELLE_BILDABLAEUFE`. Die Fassade kennt nur das
+  OpenAI-Format, die Vermittlung nur Auftrag und Ablauf.
 - Neue Fähigkeit = Eintrag in der Fähigkeiten-Registry mit Wort, Symbol, Farbe; Oberfläche und
   Protokoll nehmen sie automatisch auf.
 - Neue Nachrichtenart = Schema in `protokoll/`, Bibliotheken ignorieren Unbekanntes.
