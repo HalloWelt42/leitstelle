@@ -109,7 +109,9 @@
 
 <style>
   .telefonansicht { height: 100dvh; display: flex; flex-direction: column; background: var(--ls-grund);
-                    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+                    padding: calc(env(safe-area-inset-top) + var(--oben-luft, 0px)) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  /* Vom Home-Bildschirm (iOS 26): unter Uhr und Kamera-Insel fängt das System Berührungen ab, darum etwas Luft */
+  @media (display-mode: standalone) and (pointer: coarse) { :global(.seite-mobil) { --oben-luft: 14px; } }
   :global(.seite-mobil .m-kopf) { padding-top: 14px; }
   :global(.seite-mobil .m-fuss) { padding-bottom: max(14px, env(safe-area-inset-bottom)); }
   .m-schalter { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; font-weight: 600; min-height: 44px; }
