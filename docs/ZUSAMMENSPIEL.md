@@ -190,7 +190,7 @@ Maschinenraum danach dem System zu.
   Familie (Grundinstanz trägt den Schlüssel, weitere sind `zusatz`); Einbettungsmodelle haben je Instanz einen Platz.
   Die Leitstelle verteilt so Stapel über die Instanzen: jeder geht an eine freie Instanz, sonst wartet er bei ihr.
 - **Eintrag des Dienstes** (Oberfläche: Dienste, bearbeiten): `Einbettung: Instanzen` (Höchstzahl je
-  Einbettungsmodell, Vorgabe 1, am Mac Studio 8 nach der Messung) und `Einbettung: Spielraum` (GB, die im Budget des
+  Einbettungsmodell, Vorgabe 1, am Mac Studio 2 nach der Messung im Betrieb, siehe unten) und `Einbettung: Spielraum` (GB, die im Budget des
   Rechners frei bleiben, Vorgabe 4: 8 Instanzen zu je 0,4 GB mehr als geplant plus Toleranz).
 - **Regel "Einbettung verstärken"**: warten Einbettungsaufträge länger als `einbettung_andrang_s` (10 s) auf eine
   Instanz, lädt die Leitstelle in einer Maßnahme so viele weitere, wie Aufträge warten (abzüglich ladender), bis zur
@@ -204,6 +204,25 @@ Maschinenraum danach dem System zu.
 - **Wirkung hängt an der App**: so viele Instanzen arbeiten, wie die App Stapel gleichzeitig schickt. Fundus schickt
   `gleichzeitig` Stapel (vorher 2), die Leitstelle begrenzt Fundus auf sein Kontingent (vorher 4); für 8 Instanzen
   müssen beide auf 8.
+
+**Messung im Betrieb** (24.10.2026, 00:45 bis 01:15, Leitstelle 0.20.0 mit der Regel; eigene Last über die Fassade:
+8 Ströme zu 64 Abschnitten, Fundus lief nebenher; je Stufe etwa 5 Minuten nach dem Anlauf; das 80B mit derselben
+kurzen Probefrage direkt am Läufer, ohne eigene Last 4,4 Token/s und 2,5 s bis zum ersten Stück):
+
+| Instanzen | Abschnitte/s | gegenüber einer | 80B Token/s | 80B erstes Stück | frei (GB, Maschinenraum) | Grafik | CPU | Watt |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 4,58 | 1,0 | 4,2 | 2,8 s | 21,1 | 26 % | 23 % | 32 |
+| 2 | 6,40 | 1,40 | 2,5 | 3,1 s | 18,9 | 27 % | 23 % | 32 |
+| 4 | 7,20 | 1,57 | 1,35 | 5,9 s | 14,9 | 26 % | 24 % | 33 |
+| 8 | 7,77 | 1,70 | 0,5 | 14 s | 9,5 | 26 % | 26 % | 33 |
+
+Urteil: lohnt sich höchstens bis 2 Instanzen. Zwei Instanzen bringen 40 % mehr Einbettung, das Gesprächsmodell
+verliert dabei schon rund 40 % Tempo; ab 4 kostet jede weitere Instanz das 80B mehr, als sie der Einbettung bringt
+(8 Instanzen: 1,7-fach, das 80B fast stehend). Speicher ist nicht die Grenze (1 GB je Instanz); Grafik- und
+Leistungsanzeige bleiben flach, die Instanzen teilen sich den Rechenweg des Läufers mit dem Gesprächsmodell. Vorgabe am
+Mac Studio deshalb 2. Befunde nebenbei: der Läufer reißt gelegentlich Verbindungen ab (ReadError, auch vorher und bei
+Fundus); die Leitstelle setzt ihn dann 5 s auf "nicht erreichbar" und lehnt solange alle Aufträge ab, mit mehr
+Instanzen häufiger (offen). Fundus schickte live nur einen Stapel gleichzeitig; mit einem Stapel entsteht kein Andrang.
 
 ## Selbstauskunft: Steckbrief je Modell
 
