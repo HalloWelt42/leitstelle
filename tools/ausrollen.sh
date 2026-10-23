@@ -5,7 +5,7 @@
 # Ausgerollt wird nur, was im Repository liegt. Der Bau scheitert, wenn ein Test rot ist;
 # dann läuft der alte Stand weiter. Gebaut wird, während der alte Stand weiterläuft; neu gestartet erst, wenn
 # kein Auftrag mehr über die Leitstelle läuft (Lagebild: laeuft oder zugeteilt), damit keine Anfrage einer App
-# mitten im Rechnen abreißt. SOFORT=1 tools/ausrollen.sh startet ohne zu warten.
+# mitten im Rechnen abreißt, höchstens WARTEN_S Sekunden (Vorgabe 600). SOFORT=1 tools/ausrollen.sh startet ohne zu warten.
 set -euo pipefail
 HIER="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
 if [ -f "$HIER/privat/ausrollen.env" ]; then
@@ -39,8 +39,11 @@ except ValueError:
     print(0)' || echo 0
 }
 if [ "${SOFORT:-}" != 1 ]; then
-  if [ "$(laufend)" != 0 ]; then echo "Wartet auf einen Moment ohne laufenden Auftrag ..."; fi
-  while [ "$(laufend)" != 0 ]; do sleep 1; done
+  # höchstens WARTEN_S (Vorgabe 600 s): Apps mit stetigem Strom lassen sonst nie einen ruhigen Moment; danach wird
+  # ausgerollt, die Apps warten über den Appkern und versuchen erneut
+  if [ "$(laufend)" != 0 ]; then echo "Wartet auf einen Moment ohne laufenden Auftrag (höchstens ${WARTEN_S:-600} s) ..."; fi
+  BIS=$(( $(date +%s) + ${WARTEN_S:-600} ))
+  while [ "$(laufend)" != 0 ] && [ "$(date +%s)" -lt "$BIS" ]; do sleep 1; done
 fi
 ssh "$ZIEL" "set -e; cd '$ORDNER' && LEITSTELLE_DATENORDNER='$DATEN' docker compose up -d && docker compose ps"
 
