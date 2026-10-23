@@ -531,3 +531,19 @@ def test_einbettung_spielraum_begrenzt_die_zahl():
     w.laufen(25)
     verstaerkt = ausgefuehrt(w, A.EINBETTUNG_VERSTAERKEN)
     assert len(verstaerkt) == 1 and "1 weitere, dann 2 von höchstens 8" in verstaerkt[0].grund
+
+
+def test_einbettung_zurueckbauen_in_schritten_ist_kein_flattern():
+    """Weitere Instanzen werden nach und nach frei; jeder Rückbau ist eine eigene Maßnahme. Das ist kein Flattern: die
+    Familie bleibt geladen. Am Ende ist nur die Grundinstanz übrig (gesehen 24.10.2026: der zweite Rückbau wurde als
+    Flattern für 30 Minuten gesperrt)."""
+    w, v = _einbettung_vorbereiten(hoechstens=4)
+    grund = v.modelle["bge@128"]
+    for n, zuletzt in ((2, -400.0), (3, 100.0), (4, 200.0)):
+        z = grund.model_copy(update={"kennung": f"bge-m3.{n}@laeufer-128", "name": f"bge-m3 ({n})", "zusatz": True,
+                                     "geladen_seit_s": -1000.0, "letzte_nutzung_s": zuletzt})
+        v.modelle[z.kennung] = z
+    w.laufen(v.regelwerk.einbettung_ruhe_s + 260)
+    assert len(ausgefuehrt(w, A.EINBETTUNG_ZURUECKBAUEN)) == 3
+    assert not [m for m in gesperrt(w) if m.art == A.EINBETTUNG_ZURUECKBAUEN]
+    assert [m.kennung for m in v.instanzen("bge-m3", "mac-128") if m.im_speicher] == ["bge@128"]

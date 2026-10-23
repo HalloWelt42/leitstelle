@@ -154,6 +154,8 @@ class Umschichter:
             if a.baustein == "modell_entladen":
                 for mk in a.werte.get("modelle", []):
                     mm = verbund.modelle[mk]
+                    if mm.zusatz:
+                        continue      # weitere Instanz: die Familie bleibt geladen, kein Hin und Her, das der Flatterschutz meint
                     bewegungen.append(f"entladen:{mm.familie}@{verbund.dienste[mm.dienst].knoten}")
         meldung = next((a for a in lauf.aktionen if a.baustein == "melden"), None)
         grund = _text_fuellen(meldung.parameter.get("text", ""), lauf.werte, verbund, lauf) if meldung else (lauf.abschluss or "")

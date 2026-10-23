@@ -402,3 +402,33 @@ async def test_e19_einbettung_verstaerken_mit_weiteren_instanzen_des_laeufers(tm
 async def _nur_grundinstanz(c) -> bool:
     modelle = [m for m in (await c.get("/api/lage")).json()["modelle"] if m["familie"] == "text-embedding-bge-m3"]
     return len(modelle) == 1 and not modelle[0]["zusatz"] and modelle[0]["zustand"] != "frei"
+
+
+async def test_e20_abgerissene_verbindung_wird_wiederholt_statt_den_dienst_zu_sperren(tmp_path):
+    """Der Läufer reißt gelegentlich eine Verbindung ab (ReadError, gemessen 24.10.2026). Ein einzelner Abriss: derselbe
+    Auftrag läuft nach kurzer Pause noch einmal und wird fertig, der Dienst bleibt bereit. Reißt es immer wieder ab,
+    scheitert der Auftrag, und erst nach drei Abrissen in Folge gilt der Dienst als gestört."""
+    from leitstelle.ports.dienste import DienstFehler
+    async with aufbau(tmp_path) as (c, anw, lage, app):
+        b = app.state.betrieb
+        dienst = next(iter(b.dienste))
+        adapter = b.adapter[dienst]
+        echt = adapter.anfrage
+        abrisse = {"noch": 1}
+
+        async def mit_abriss(pfad, koerper):
+            if abrisse["noch"] > 0:
+                abrisse["noch"] -= 1
+                raise DienstFehler("dienst_nicht_erreichbar", "ReadError", wiederholbar=True)
+            return await echt(pfad, koerper)
+
+        adapter.anfrage = mit_abriss
+        r = await anw.post("/embeddings", json={"model": "text-embedding-bge-m3", "input": ["a"]})
+        assert r.status_code == 200 and len(r.json()["data"]) == 1
+        assert b.verbund.dienste[dienst].zustand.value == "bereit" and not b.abrisse
+
+        abrisse["noch"] = 99
+        r = await anw.post("/embeddings", json={"model": "text-embedding-bge-m3", "input": ["a"]})
+        assert r.status_code >= 500 and r.json()["error"]["code"] == "dienst_nicht_erreichbar"
+        assert b.verbund.dienste[dienst].zustand.value == "nicht_erreichbar"
+        assert abrisse["noch"] == 96, "ein Auftrag: erster Versuch und zwei Neuversuche"

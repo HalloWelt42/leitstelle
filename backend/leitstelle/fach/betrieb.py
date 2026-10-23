@@ -45,6 +45,7 @@ log = logging.getLogger("leitstelle.betrieb")
 
 LADEPAUSEN_S = (10.0, 20.0, 40.0, 60.0)    # Pausen nach abgelehnten Ladeversuchen, wachsend
 LADEFEHLER_BIS_ABBRUCH = 3                  # so oft darf das Laden für einen Auftrag scheitern
+ABRISSE_BIS_STOERUNG = 3                    # so viele abgerissene Anfragen in Folge, bis ein Dienst als gestört gilt
 
 
 def _schlafdauer(s: float) -> str:
@@ -146,6 +147,7 @@ class Betrieb:
         self.steuerbar: dict[str, bool] = {}
         self.dienst_meldung: dict[str, str] = {}
         self.pruefstand: dict[str, Pruefstand] = {}
+        self.abrisse: dict[str, int] = {}                         # je Dienst: abgerissene Anfragen in Folge
         self.auskunft: dict[str, Selbstauskunft] = {}            # je Modell: was der Dienst über es sagt
         self.steckbriefe_hand: dict[str, SteckbriefEintrag] = {}  # je Familie: von Hand eingetragen
         self.gemessen: dict[str, Messwerte] = {}                  # je Familie: aus dem Verlauf
@@ -507,6 +509,20 @@ class Betrieb:
         self.anstossen()
         await self.ablage.pruefung.anhaengen(PruefEintrag(zeit_s=self.uhr.jetzt(), wer=wer, was="Dienst von Hand geprüft", gegenstand=self.dienste[dienst].name))
         return self.verbund.dienste[dienst].zustand
+
+    def verbindung_abgerissen(self, dienst: str, meldung: str) -> bool:
+        """Eine Anfrage erreichte den Dienst nicht oder riss ab. Erst nach `ABRISSE_BIS_STOERUNG` in Folge gilt er als
+        gestört (dann bekommt er bis zur nächsten erfolgreichen Prüfung keine Aufträge); liefert, ob es so weit ist."""
+        self.abrisse[dienst] = self.abrisse.get(dienst, 0) + 1
+        if self.abrisse[dienst] < ABRISSE_BIS_STOERUNG:
+            return False
+        self.abrisse[dienst] = 0
+        self.dienst_gestoert(dienst, meldung)
+        return True
+
+    def verbindung_gesund(self, dienst: str) -> None:
+        """Der Dienst hat geantwortet: die Reihe der Abrisse ist unterbrochen."""
+        self.abrisse.pop(dienst, None)
 
     def dienst_gestoert(self, dienst: str, meldung: str) -> None:
         """Eine Anfrage erreichte den Dienst nicht: bis zur nächsten erfolgreichen Prüfung bekommt er keine Aufträge."""

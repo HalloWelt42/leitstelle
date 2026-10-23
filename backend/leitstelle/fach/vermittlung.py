@@ -24,6 +24,8 @@ from .fehler import Ablehnung, fehler_inhalt
 
 NEUVERSUCHE_NICHT_GELADEN = 2       # Dienst hat das Modell zwischen Abgleich und Anfrage selbst entladen
 NEUVERSUCHE_UEBERLAST = 3           # Dienst meldete Überlast (429, extern auch 5xx): gesperrt, Auftrag wartet oder weicht aus
+NEUVERSUCHE_ABRISS = 2              # Verbindung zum Dienst abgerissen (etwa ReadError am Modell-Läufer): derselbe Auftrag noch einmal
+ABRISS_PAUSE_S = 1.0                # kurze Pause vor dem Neuversuch
 UEBERLAST_WARTE_S = 60.0            # Sperre, wenn der Dienst kein Retry-After nennt
 
 
@@ -155,11 +157,17 @@ class Vermittlung:
             yield self._abbruch_ende(v, strom)
             return
         except DienstFehler as f:
-            if f.grund == "dienst_nicht_erreichbar":
-                b.dienst_gestoert(a.dienst or "", f.meldung)
+            # Ein einzelner Abriss heißt nicht, dass der Dienst weg ist (der Läufer schließt gelegentlich Verbindungen,
+            # gemessen 24.10.2026): derselbe Auftrag noch einmal; gestört erst nach wiederholtem Abriss in Folge
+            gestoert = f.grund == "dienst_nicht_erreichbar" and b.verbindung_abgerissen(a.dienst or "", f.meldung)
+            if f.grund == "dienst_nicht_erreichbar" and f.wiederholbar and not gestoert and v.neuversuche < NEUVERSUCHE_ABRISS:
+                await asyncio.sleep(ABRISS_PAUSE_S)
+                self._zurueckstellen(v)
+                raise _Neuversuch()
             self._abschliessen(v, Auftragszustand.FEHLGESCHLAGEN, f.grund, f.meldung)
             yield self._fehler(strom, f.grund, f.meldung)
             return
+        b.verbindung_gesund(a.dienst or "")
         try:
             if antwort.status in b.adapter[a.dienst or ""].ueberlast_status and v.neuversuche < NEUVERSUCHE_UEBERLAST:
                 b.dienst_ueberlastet(a.dienst or "", warte_s_aus(antwort.kopf), antwort.status)
@@ -362,7 +370,7 @@ class Vermittlung:
             raise Ablehnung(v.lauf.grund or "nutzer", v.lauf.begruendung, v.lauf.zusatz) from None
         except DienstFehler as f:
             if f.grund == "dienst_nicht_erreichbar":
-                b.dienst_gestoert(a.dienst or "", f.meldung)
+                b.verbindung_abgerissen(a.dienst or "", f.meldung)
             self._abschliessen(v, Auftragszustand.FEHLGESCHLAGEN, f.grund, f.meldung)
             raise Ablehnung(f.grund, f.meldung) from None
         dauer = b.uhr.jetzt() - start
