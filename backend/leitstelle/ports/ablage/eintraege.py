@@ -46,6 +46,8 @@ class DienstEintrag(BaseModel):
     plaetze: int = 4                   # gleichzeitige Aufträge je geladenem Modell
     anfragen_je_minute: int | None = None   # Grenze des Anbieters (Hetzner etwa 10); die Leitstelle hält sie ein
     abgleich_s: float | None = None    # Abstand der Zustandsabfrage, wenn der Dienst gesund ist (None: Vorgabe der Konfig)
+    einbettung_instanzen: int = 1      # Modell-Läufer: so viele Instanzen je Einbettungsmodell bei Andrang (1: keine weiteren)
+    einbettung_spielraum_gb: float = 4.0   # so viel bleibt im Budget des Rechners frei, wenn weitere Einbettungsinstanzen laden
 
 
 class AnwendungEintrag(BaseModel):

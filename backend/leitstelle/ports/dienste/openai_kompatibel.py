@@ -144,7 +144,7 @@ class OpenAIKompatibel:
         try:
             r = await self._client.get("/api/v1/models", timeout=self._kurz)
             if r.status_code == 200 and isinstance(r.json(), dict) and "models" in r.json():
-                return Dienstbericht(erreichbar=True, steuerbar=True, modelle=[self._nativ(m) for m in r.json()["models"]])
+                return Dienstbericht(erreichbar=True, steuerbar=True, modelle=[b for m in r.json()["models"] for b in self._nativ(m)])
             r = await self._client.get("/v1/models", timeout=self._kurz)
             if r.status_code == 200:
                 return Dienstbericht(erreichbar=True, steuerbar=False, modelle=[self._einfach(m) for m in r.json().get("data", [])],
@@ -154,15 +154,24 @@ class OpenAIKompatibel:
             return Dienstbericht(erreichbar=False, meldung=f"nicht erreichbar: {type(fehler).__name__} {fehler}".strip())
 
     @staticmethod
-    def _nativ(m: dict[str, Any]) -> ModellBericht:
+    def _nativ(m: dict[str, Any]) -> list[ModellBericht]:
+        """Ein Modell mit seinen geladenen Instanzen. Jede Instanz ist ein eigener Speicherblock und rechnet für sich; die
+        Grundinstanz trägt den Schlüssel, jede weitere (`<schlüssel>:<n>`, vom Läufer beim Laden vergeben) erscheint als
+        weitere Instanz derselben Familie. Einbettungsmodelle haben je Instanz einen Platz: der Läufer rechnet ihre Anfragen
+        nacheinander (gemessen 23.10.2026: zwei gleichzeitige Anfragen an eine Instanz 2,42 Abschnitte/s, eine allein 2,41);
+        mehr Durchsatz bringen nur mehr Instanzen (ZUSAMMENSPIEL Z5)."""
         faehigkeiten, einbettung = _faehigkeiten(str(m.get("type", "llm")), m.get("capabilities"), str(m["key"]), str(m.get("display_name") or ""))
-        instanzen = m.get("loaded_instances") or []
+        name = m.get("display_name") or m["key"]
+        instanzen = [i for i in m.get("loaded_instances") or [] if i.get("id")]
+        instanzen.sort(key=lambda i: (i["id"] != m["key"], i["id"]))      # die Grundinstanz heißt wie der Schlüssel
         parallel = [int(i.get("config", {}).get("parallel")) for i in instanzen if i.get("config", {}).get("parallel")]
-        return ModellBericht(
-            schluessel=m["key"], name=m.get("display_name") or m["key"], faehigkeiten=faehigkeiten,
-            gb=round((m.get("size_bytes") or 0) / GIB, 2), parameter_mrd=_milliarden(m.get("params_string")),
-            geladen=bool(instanzen), instanzen=[i["id"] for i in instanzen if i.get("id")], plaetze=max(parallel) if parallel else None,
-            kontext=m.get("max_context_length"), einbettung=einbettung, selbstauskunft=_auskunft(m))
+        plaetze = 1 if einbettung else max(parallel) if parallel else None
+        gemeinsam = dict(faehigkeiten=faehigkeiten, gb=round((m.get("size_bytes") or 0) / GIB, 2), parameter_mrd=_milliarden(m.get("params_string")),
+                         plaetze=plaetze, kontext=m.get("max_context_length"), einbettung=einbettung, selbstauskunft=_auskunft(m))
+        grund = ModellBericht(schluessel=m["key"], name=name, geladen=bool(instanzen), instanzen=[instanzen[0]["id"]] if instanzen else [], **gemeinsam)
+        weitere = [ModellBericht(schluessel=i["id"], name=f"{name} ({i['id'].rsplit(':', 1)[-1]})", geladen=True, instanzen=[i["id"]], familie=m["key"],
+                                 **gemeinsam) for i in instanzen[1:]]
+        return [grund, *weitere]
 
     @staticmethod
     def _einfach(m: dict[str, Any]) -> ModellBericht:
@@ -184,6 +193,11 @@ class OpenAIKompatibel:
             raise DienstFehler("dienst_fehler", text)
         daten = r.json()
         return str(daten.get("instance_id") or schluessel)
+
+    async def instanz_laden(self, schluessel: str, stufe: int) -> str:
+        """Weitere Instanz: der Läufer lädt ein schon geladenes Modell ein weiteres Mal und vergibt die Kennung selbst
+        (`<schlüssel>:<n>`, eine eigene Kennung nimmt seine Schnittstelle nicht an); `stufe` bleibt ungenutzt."""
+        return await self.laden(schluessel)
 
     async def entladen(self, instanz: str) -> None:
         try:
@@ -322,6 +336,9 @@ class ExternOpenAI(OpenAIKompatibel):
         return GesammelteAntwort(json.dumps(antwort, ensure_ascii=False).encode())
 
     async def laden(self, schluessel: str) -> str:
+        raise DienstFehler("nicht_steuerbar", "Ein externer Anbieter lädt seine Modelle selbst.")
+
+    async def instanz_laden(self, schluessel: str, stufe: int) -> str:
         raise DienstFehler("nicht_steuerbar", "Ein externer Anbieter lädt seine Modelle selbst.")
 
     async def entladen(self, instanz: str) -> None:

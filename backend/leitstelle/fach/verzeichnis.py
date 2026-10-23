@@ -60,6 +60,8 @@ class DienstDaten(BaseModel):
     plaetze: int = Field(default=4, ge=1, le=64)
     anfragen_je_minute: int | None = Field(default=None, ge=1, le=100000)   # Grenze des Anbieters
     abgleich_s: float | None = Field(default=None, ge=1, le=86400)         # Abstand der Zustandsabfrage, wenn gesund
+    einbettung_instanzen: int = Field(default=1, ge=1, le=32)              # Instanzen je Einbettungsmodell bei Andrang
+    einbettung_spielraum_gb: float = Field(default=4.0, ge=0, le=512)      # bleibt im Budget frei
 
 
 class DienstAenderung(BaseModel):
@@ -69,6 +71,8 @@ class DienstAenderung(BaseModel):
     plaetze: int | None = Field(default=None, ge=1, le=64)
     anfragen_je_minute: int | None = Field(default=None, ge=0, le=100000)  # 0 entfernt die Grenze, None lässt sie
     abgleich_s: float | None = Field(default=None, ge=0, le=86400)         # 0 heißt Vorgabe, None lässt ihn
+    einbettung_instanzen: int | None = Field(default=None, ge=1, le=32)
+    einbettung_spielraum_gb: float | None = Field(default=None, ge=0, le=512)
 
 
 class AnwendungDaten(BaseModel):
@@ -185,7 +189,8 @@ class Verzeichnis:
         e = DienstEintrag(kennung=uuid4().hex, name=d.name or ("Modell-Läufer " + (self.b.knoten[knoten].name if knoten else rechner)),
                           art=_art(d.extern), adresse=adresse, knoten=knoten, extern=d.extern,
                           zugang_geheim=self.b.tresor.verschluesseln(d.zugang) if d.zugang else None, plaetze=d.plaetze,
-                          anfragen_je_minute=d.anfragen_je_minute, abgleich_s=d.abgleich_s)
+                          anfragen_je_minute=d.anfragen_je_minute, abgleich_s=d.abgleich_s,
+                          einbettung_instanzen=d.einbettung_instanzen, einbettung_spielraum_gb=d.einbettung_spielraum_gb)
         await self.b.ablage.dienste.speichern(e)
         self.b.dienst_setzen(e)
         await self._pruefen(wer, "Dienst eingerichtet" + (" mit Zugang" if d.zugang else ""), e.name)
@@ -207,6 +212,10 @@ class Verzeichnis:
             neu.anfragen_je_minute = d.anfragen_je_minute or None
         if d.abgleich_s is not None:
             neu.abgleich_s = d.abgleich_s or None
+        if d.einbettung_instanzen is not None:
+            neu.einbettung_instanzen = d.einbettung_instanzen
+        if d.einbettung_spielraum_gb is not None:
+            neu.einbettung_spielraum_gb = d.einbettung_spielraum_gb
         if d.zugang is not None:
             neu.zugang_geheim = self.b.tresor.verschluesseln(d.zugang) if d.zugang else None
         await self.b.ablage.dienste.speichern(neu)

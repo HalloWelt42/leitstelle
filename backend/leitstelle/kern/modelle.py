@@ -69,6 +69,8 @@ class Dienst(BaseModel):
     anfragen_je_minute: int | None = None   # Grenze des Anbieters; die Leitstelle hält sie ein
     anfragen_s: list[float] = Field(default_factory=list)   # Zeitpunkte gesendeter Anfragen im gleitenden Fenster
     gesperrt_bis_s: float | None = None     # nach Überlast des Dienstes (429, extern auch 5xx)
+    einbettung_instanzen: int = 1           # so viele Instanzen je Einbettungsmodell darf die Leitstelle laden (Modell-Läufer)
+    einbettung_spielraum_gb: float = 4.0    # so viel bleibt im Budget des Rechners frei, wenn sie Einbettungsinstanzen lädt
 
     @property
     def nutzbar(self) -> bool:
@@ -100,6 +102,8 @@ class Modell(BaseModel):
     def geschuetzt(self, schutzgrenze_mrd: float) -> bool:
         if self.schutz_vorgabe is not None:
             return self.schutz_vorgabe
+        if self.zusatz:
+            return False                  # eine weitere Instanz hat die Leitstelle selbst gestartet; sie weicht zuerst
         return self.geschuetzt_fest or self.parameter_mrd < schutzgrenze_mrd
 
     @property
@@ -203,6 +207,11 @@ class Regelwerk(BaseModel):
     max_umleitungen_je_auftrag: int = 1
     umschichter_takt_s: float = 5.0
     geladene_zuerst: bool = True
+    # Einbettung verstärken (ZUSAMMENSPIEL Z5): Andrang ab dieser Wartezeit, Schonfrist für Modelle, die dafür weichen
+    # müssten, Rückbau nach dieser Ruhe
+    einbettung_andrang_s: float = 10.0
+    einbettung_schonfrist_s: float = 1800.0
+    einbettung_ruhe_s: float = 300.0
 
 
 class Massnahme(BaseModel):

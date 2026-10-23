@@ -12,8 +12,9 @@
   let { bild }: { bild: Lagebild } = $props();
 
   let bearbeiten = $state<string | null>(null);
-  type Entwurf = { name: string; adresse: string; plaetze: number; zugang: string; zugangNeu: boolean; grenze: number | null; abgleich: number | null };
-  let entwurf = $state<Entwurf>({ name: '', adresse: '', plaetze: 4, zugang: '', zugangNeu: false, grenze: null, abgleich: null });
+  type Entwurf = { name: string; adresse: string; plaetze: number; zugang: string; zugangNeu: boolean; grenze: number | null; abgleich: number | null;
+                  instanzen: number; spielraum: number };
+  let entwurf = $state<Entwurf>({ name: '', adresse: '', plaetze: 4, zugang: '', zugangNeu: false, grenze: null, abgleich: null, instanzen: 1, spielraum: 4 });
   let loeschen = $state<string | null>(null);
   let aufgedeckt = $state<Record<string, string | null>>({});
   let jetzt = $state(kanal.jetzt());
@@ -32,7 +33,8 @@
 
   function beginnen(d: DienstSicht) {
     bearbeiten = d.kennung;
-    entwurf = { name: d.name, adresse: d.adresse, plaetze: d.plaetze, zugang: '', zugangNeu: false, grenze: d.anfragen_je_minute, abgleich: null };
+    entwurf = { name: d.name, adresse: d.adresse, plaetze: d.plaetze, zugang: '', zugangNeu: false, grenze: d.anfragen_je_minute, abgleich: null,
+                instanzen: d.einbettung_instanzen, spielraum: d.einbettung_spielraum_gb };
   }
 
   async function speichern() {
@@ -40,7 +42,8 @@
     const e = entwurf;
     // leere Grenze entfernt sie (0), leerer Abgleich lässt ihn
     const daten = { name: e.name, adresse: e.adresse, plaetze: e.plaetze, zugang: e.zugangNeu ? e.zugang : null,
-                    anfragen_je_minute: e.grenze ?? 0, abgleich_s: e.abgleich || null };
+                    anfragen_je_minute: e.grenze ?? 0, abgleich_s: e.abgleich || null,
+                    einbettung_instanzen: e.instanzen || 1, einbettung_spielraum_gb: e.spielraum ?? 4 };
     if (await tun(() => api.dienstAendern(bearbeiten!, daten), 'Dienst gespeichert')) bearbeiten = null;
   }
 
@@ -89,6 +92,8 @@
               <td class="klein" title={d.steuerbar ? 'Die Leitstelle liest den echten Ladezustand und lädt und entlädt selbst' : 'Der Dienst meldet nur seine Modelle; Laden und Entladen übernimmt er selbst'}>{d.steuerbar ? 'Leitstelle steuert' : 'Dienst lädt selbst'}</td>
               <td class="zahl">{ms.length} <span class="leise">({ms.filter((m) => m.zustand !== 'frei').length} geladen)</span></td>
               <td class="zahl" title="Gleichzeitige Aufträge je geladenem Modell">{d.plaetze}
+                {#if d.einbettung_instanzen > 1}<div class="klein" title="Bei Andrang lädt die Leitstelle weitere Instanzen je Einbettungsmodell (je Instanz ein Platz) und lässt den Spielraum im Budget frei; bei Ruhe baut sie zurück">
+                  Einbettung bis {d.einbettung_instanzen} Instanzen, {d.einbettung_spielraum_gb} GB Spielraum</div>{/if}
                 {#if d.anfragen_je_minute}<div class="klein" class:akzent={d.frei_in_s > 0} title="Grenze des Anbieters; jede Anfrage zählt, auch die Abfrage der Modelle">
                   {d.anfragen_letzte_minute} von {d.anfragen_je_minute} je Minute{#if d.frei_in_s > 0}, frei in {dauer(d.frei_in_s)}{/if}</div>{/if}</td>
               <td>{#if d.zugang}
@@ -107,6 +112,10 @@
                   <label class="feld-l"><span>Adresse</span><input class="eingabe" bind:value={entwurf.adresse} /></label>
                   <label class="feld-l"><span>Plätze <small>gleichzeitige Aufträge je Modell</small></span><input class="eingabe" type="number" min="1" max="64" bind:value={entwurf.plaetze} /></label>
                   <label class="feld-l"><span>Grenze <small>Anfragen je Minute, leer heißt keine</small></span><input class="eingabe" type="number" min="1" max="100000" bind:value={entwurf.grenze} /></label>
+                  {#if !d.extern && d.art === 'openai_kompatibel'}
+                    <label class="feld-l"><span>Einbettung: Instanzen <small>bei Andrang lädt die Leitstelle je Einbettungsmodell bis zu so viele; 1 heißt keine weiteren</small></span><input class="eingabe" type="number" min="1" max="32" bind:value={entwurf.instanzen} /></label>
+                    <label class="feld-l"><span>Einbettung: Spielraum <small>GB, die im Budget des Rechners frei bleiben</small></span><input class="eingabe" type="number" min="0" max="512" step="0.5" bind:value={entwurf.spielraum} /></label>
+                  {/if}
                   {#if d.extern}<label class="feld-l"><span>Abgleich <small>Sekunden zwischen zwei Abfragen der Modelle, leer lässt ihn</small></span><input class="eingabe" type="number" min="1" max="86400" bind:value={entwurf.abgleich} /></label>{/if}
                   <label class="feld-l"><span>Zugang <small>{entwurf.zugangNeu ? 'leer entfernt den Zugang' : 'bleibt, wie er ist'}</small></span>
                     <span class="feld-l zeile-feld"><input class="eingabe" type="password" bind:value={entwurf.zugang} disabled={!entwurf.zugangNeu} placeholder="neuer Schlüssel" />

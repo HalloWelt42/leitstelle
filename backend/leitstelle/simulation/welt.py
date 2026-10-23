@@ -76,12 +76,11 @@ class Welt:
             m.geladen_seit_s = self.verbund.zeit_s
             self.ladevorgaenge[modell] = (self.verbund.zeit_s, self.wahrheit.lade(m.familie, d.knoten or "", m.gb))
 
-    def instanz_starten(self, dienst: str, familie: str, stufe: int, vorbild: str) -> None:
+    def instanz_starten(self, dienst: str, familie: str, vorbild: str) -> None:
         """Wie der Maschinenraum: eine weitere Instanz als eigenes Modell derselben Familie, startet wie ein Laden."""
         v = self.verbund.modelle[vorbild]
+        stufe = next(n for n in range(2, 1000) if f"{familie}.{n}@{dienst}" not in self.verbund.modelle)
         kennung = f"{familie}.{stufe}@{dienst}"
-        if kennung in self.verbund.modelle:
-            return
         self.verbund.modelle[kennung] = v.model_copy(update={"kennung": kennung, "name": f"{v.name} ({stufe})", "zustand": Modellzustand.FREI,
                                                             "zusatz": True, "auftraege_aktiv": 0, "geladen_seit_s": None, "letzte_nutzung_s": None})
         self.modell_laden(kennung)

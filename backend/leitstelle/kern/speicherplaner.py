@@ -52,8 +52,11 @@ def entladbar(verbund: Verbund, m: Modell, jetzt: float, nur_leerlauf: bool, lee
 
 
 def planen(verbund: Verbund, knoten: str, benoetigt_gb: float, messwerk: Messwerk, familie: str | None = None, nur_leerlauf: bool = False,
-           leerlauf_grenze_s: float | None = None, fuer_arbeit: str | None = None) -> Speicherplan:
-    """Plant, ob benoetigt_gb auf dem Knoten Platz findet; entlädt nur so viel wie nötig, größte zuerst."""
+           leerlauf_grenze_s: float | None = None, fuer_arbeit: str | None = None, verschont: frozenset[str] = frozenset(),
+           kleinste_zuerst: bool = False) -> Speicherplan:
+    """Plant, ob benoetigt_gb auf dem Knoten Platz findet; entlädt nur so viel wie nötig, größte zuerst. `verschont`:
+    Familien, die für diesen Plan nicht weichen; `kleinste_zuerst`: für kleinen Bedarf (Einbettungsinstanzen) weichen erst
+    die kleinen ungenutzten Modelle, damit nicht ein großes für ein Gigabyte geht."""
     jetzt = verbund.zeit_s
     frei = verbund.frei_gb(knoten)
     ladezeit = messwerk.ladezeit(familie, knoten, benoetigt_gb).sekunden if familie else messwerk.ladezeit_schaetzung(benoetigt_gb)
@@ -61,8 +64,9 @@ def planen(verbund: Verbund, knoten: str, benoetigt_gb: float, messwerk: Messwer
         return Speicherplan(knoten=knoten, benoetigt_gb=benoetigt_gb, frei_gb=frei, passt=True, aufwand_s=ladezeit,
                             begruendung=f"{komma(benoetigt_gb)} GB passen, {komma(frei)} GB frei")
     # weitere Instanzen weichen vor allen anderen, dann die größten (ZUSAMMENSPIEL Z3)
-    kandidaten = sorted((m for m in verbund.modelle_auf(knoten) if entladbar(verbund, m, jetzt, nur_leerlauf, leerlauf_grenze_s, fuer_arbeit)[0]),
-                        key=lambda m: (m.zusatz, m.gb), reverse=True)
+    kandidaten = sorted((m for m in verbund.modelle_auf(knoten) if m.familie not in verschont
+                         and entladbar(verbund, m, jetzt, nur_leerlauf, leerlauf_grenze_s, fuer_arbeit)[0]),
+                        key=lambda m: (m.zusatz, -m.gb if kleinste_zuerst else m.gb), reverse=True)
     entladen: list[str] = []
     gewonnen = 0.0
     for m in kandidaten:

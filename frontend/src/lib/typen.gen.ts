@@ -86,7 +86,9 @@ export type Massnahmenart =
   | 'verlagern'
   | 'doppel_aufloesen'
   | 'hintergrund_lage'
-  | 'weitere_instanz';
+  | 'weitere_instanz'
+  | 'einbettung_verstaerken'
+  | 'einbettung_zurueckbauen';
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "Massnahmenzustand".
@@ -235,6 +237,8 @@ export interface DienstSicht {
   frei_in_s: number;
   fehlschlaege: number;
   naechste_pruefung_s: number | null;
+  einbettung_instanzen: number;
+  einbettung_spielraum_gb: number;
 }
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
@@ -574,6 +578,8 @@ export interface DienstDaten {
   plaetze?: number;
   anfragen_je_minute?: number | null;
   abgleich_s?: number | null;
+  einbettung_instanzen?: number;
+  einbettung_spielraum_gb?: number;
 }
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
@@ -586,6 +592,8 @@ export interface DienstAenderung {
   plaetze?: number | null;
   anfragen_je_minute?: number | null;
   abgleich_s?: number | null;
+  einbettung_instanzen?: number | null;
+  einbettung_spielraum_gb?: number | null;
 }
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema

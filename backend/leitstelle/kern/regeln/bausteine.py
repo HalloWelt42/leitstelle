@@ -14,7 +14,7 @@ from typing import Any, Callable
 from ..messungen import Messwerk
 from ..modelle import Auftrag, Modell, Verbund
 from ..speicherplaner import planen
-from ..werte import Auftragszustand, Dienstzustand, Lage, Modellzustand, Prioritaet, Zone
+from ..werte import Auftragszustand, Dienstzustand, Faehigkeit, Lage, Modellzustand, Prioritaet, Zone
 from .. import lage as lagebeurteilung
 from ..text import komma
 
@@ -179,6 +179,38 @@ def zeitfenster_beginnt(k: Kontext) -> list[Kontext]:
     return aus
 
 
+@baustein("einbettung_andrang", "ausloeser", "Andrang bei der Einbettung",
+          "Je Einbettungsmodell und Rechner ein Lauf, wenn Einbettungsaufträge länger als die Andrangsschwelle (Regelwerk) auf eine freie Instanz warten.")
+def einbettung_andrang(k: Kontext) -> list[Kontext]:
+    gruppen: dict[tuple[str, str], list[Auftrag]] = {}
+    for a in k.verbund.wartende_auftraege():
+        if (a.faehigkeit == Faehigkeit.EINBETTUNG and a.zustand == Auftragszustand.EINGEREIHT and a.wartet_auf_familie and a.wartet_auf_knoten
+                and k.verbund.zeit_s - a.eingang_s >= k.r.einbettung_andrang_s):
+            gruppen.setdefault((a.wartet_auf_familie, a.wartet_auf_knoten), []).append(a)
+    return [Kontext(verbund=k.verbund, messwerk=k.messwerk, instanz=f"{fam}@{knoten}", knoten_quelle=knoten,
+                    werte={"familie": fam, "wartende": len(liste), "auftraege": [a.kennung for a in liste]})
+            for (fam, knoten), liste in gruppen.items()]
+
+
+@baustein("einbettung_ruhe", "ausloeser", "Ruhe bei der Einbettung",
+          "Je Einbettungsmodell und Rechner ein Lauf, wenn weitere Instanzen länger als die Ruhezeit (Regelwerk) nichts zu tun hatten und kein Einbettungsauftrag wartet.")
+def einbettung_ruhe(k: Kontext) -> list[Kontext]:
+    v = k.verbund
+    gruppen: dict[tuple[str, str], list[Modell]] = {}
+    for m in v.modelle.values():
+        knoten = v.dienste[m.dienst].knoten
+        if (not m.zusatz or Faehigkeit.EINBETTUNG not in m.faehigkeiten or knoten is None or m.zustand != Modellzustand.GELADEN or v.belegung(m.kennung)
+                or (m.letzte_nutzung_s is not None and v.zeit_s - m.letzte_nutzung_s < k.r.einbettung_ruhe_s)):
+            continue
+        if any(a.faehigkeit == Faehigkeit.EINBETTUNG for a in v.wartende_auf_familie(m.familie)):
+            continue
+        gruppen.setdefault((m.familie, knoten), []).append(m)
+    return [Kontext(verbund=v, messwerk=k.messwerk, instanz=f"{fam}@{knoten}", knoten_quelle=knoten, knoten_ziel=knoten,
+                    modelle_entladen=[m.kennung for m in liste], aufwand_s=k.messwerk.entladezeit_s,
+                    werte={"familie": fam, "anzahl": len(liste), "ruhe": f"{k.r.einbettung_ruhe_s:.0f} s"})
+            for (fam, knoten), liste in gruppen.items()]
+
+
 @baustein("modell_doppelt_geladen", "ausloeser", "Modell doppelt im Speicher", "Dieselbe Modellfamilie liegt auf zwei wachen Knoten im Speicher.")
 def modell_doppelt_geladen(k: Kontext) -> list[Kontext]:
     """Eine Kopie auf einem schlafenden Rechner zählt nicht: sonst wiche womöglich die nutzbare auf dem wachen."""
@@ -341,11 +373,61 @@ def weitere_instanz_moeglich(k: Kontext, reserve_gb: float = 1.0) -> bool:
     if not plan.passt or plan.entladen:
         k.werte["instanz"] = plan.begruendung
         return False
-    stufe = next(n for n in range(2, grund.instanzen_hoechstens + 1) if not any(m.kennung.endswith(f".{n}") for m in alle))
     k.dienst_ziel, k.knoten_ziel, k.modell_ziel = d.kennung, d.knoten, grund.kennung
-    k.werte |= {"familie": fam, "stufe": stufe, "instanz": f"Instanz {stufe} von höchstens {grund.instanzen_hoechstens}"}
+    k.werte |= {"familie": fam, "anzahl": 1, "instanz": f"Instanz {len(alle) + 1} von höchstens {grund.instanzen_hoechstens}"}
     k.aufwand_s = k.messwerk.ladezeit(fam, d.knoten, grund.gb).sekunden
     return True
+
+
+def gespraechsmodelle(verbund: Verbund) -> frozenset[str]:
+    """Familien, die eine Anwendung für Text in ihrer Kette hat: sie weichen nie für weitere Einbettungsinstanzen (ein
+    Gespräch soll nicht auf das Neuladen warten, weil die Einbettung schneller sein wollte)."""
+    return frozenset(fam for app in verbund.anwendungen.values() for fam in app.ketten.get(Faehigkeit.TEXT, []))
+
+
+@baustein("einbettungsinstanzen_moeglich", "pruefung", "Weitere Einbettungsinstanzen möglich?",
+          "Wie viele weitere Instanzen des Einbettungsmodells fehlen (Wartende ohne ladende Instanz), erlaubt der Dienst (Höchstzahl), "
+          "und passen sie mit dem Spielraum des Dienstes ins Budget des Rechners? Dafür dürfen ungenutzte Modelle weichen, kleinste zuerst; "
+          "nie Gesprächsmodelle der Anwendungen, nie Modelle, die in der Schonfrist (Regelwerk) genutzt wurden.")
+def einbettungsinstanzen_moeglich(k: Kontext) -> bool:
+    v, fam, knoten = k.verbund, k.werte["familie"], k.knoten_quelle
+    alle = [m for m in v.instanzen(fam, knoten) if not m.zusatz or m.im_speicher]   # entladene weitere zählen nicht mehr
+    grund = next((m for m in alle if not m.zusatz), None)
+    if grund is None or grund.instanzen_hoechstens <= 1:
+        k.werte["instanz"] = "der Dienst erlaubt nur eine Instanz"
+        return False
+    d = v.dienste[grund.dienst]
+    if d.extern or not d.nutzbar or not grund.im_speicher:
+        k.werte["instanz"] = "die Grundinstanz ist nicht bereit"
+        return False
+    ladend = sum(1 for m in alle if m.zustand == Modellzustand.LAEDT)
+    anzahl = min(k.werte["wartende"] - ladend, grund.instanzen_hoechstens - len(alle))
+    if anzahl <= 0:
+        k.werte["instanz"] = (f"alle {grund.instanzen_hoechstens} Instanzen laufen" if len(alle) >= grund.instanzen_hoechstens
+                              else f"{ladend} Instanzen laden schon")
+        return False
+    verschont = gespraechsmodelle(v) | {fam}
+    while anzahl > 0:
+        plan = planen(v, knoten, anzahl * grund.gb + d.einbettung_spielraum_gb, k.messwerk, familie=fam, nur_leerlauf=True,
+                      leerlauf_grenze_s=k.r.einbettung_schonfrist_s, verschont=verschont, kleinste_zuerst=True)
+        if plan.passt:
+            break
+        anzahl -= 1
+    if anzahl <= 0:
+        k.werte["instanz"] = f"kein Platz mit {komma(d.einbettung_spielraum_gb)} GB Spielraum: {plan.begruendung}"
+        return False
+    k.dienst_ziel, k.knoten_ziel, k.modell_ziel = d.kennung, knoten, grund.kennung
+    k.modelle_entladen = list(plan.entladen)
+    k.aufwand_s = plan.aufwand_s
+    k.gewinn_s = sum(erwartete_wartezeit(k, v.auftraege[a]) for a in k.werte["auftraege"] if a in v.auftraege)
+    k.werte |= {"anzahl": anzahl, "instanz": f"{anzahl} weitere, dann {len(alle) + anzahl} von höchstens {grund.instanzen_hoechstens}",
+                "platz": plan.begruendung}
+    return True
+
+
+@baustein("muss_entladen", "pruefung", "Muss etwas weichen?", "Hat der Plan Modelle vorgemerkt, die vorher weichen müssen?")
+def muss_entladen(k: Kontext) -> bool:
+    return bool(k.modelle_entladen)
 
 
 @baustein("kette_hat_alternative", "pruefung", "Kette hat geladene Alternative?", "Ist ein anderes Modell der Kette des Auftrags auf einem erlaubten Knoten geladen und frei?")
@@ -491,9 +573,9 @@ def modell_entladen(k: Kontext) -> dict[str, Any]:
     return {"modelle": list(k.modelle_entladen)}
 
 
-@baustein("instanz_starten", "aktion", "Weitere Instanz starten", "Startet über den Maschinenraum eine weitere Instanz des Dienstes, auf den der Auftrag wartet.")
+@baustein("instanz_starten", "aktion", "Weitere Instanz starten", "Startet weitere Instanzen (so viele, wie die Prüfung ermittelt hat) des Modells oder Dienstes, auf den gewartet wird.")
 def instanz_starten(k: Kontext) -> dict[str, Any]:
-    return {"dienst": k.dienst_ziel, "familie": k.werte.get("familie"), "stufe": k.werte.get("stufe"), "vorbild": k.modell_ziel}
+    return {"dienst": k.dienst_ziel, "familie": k.werte.get("familie"), "vorbild": k.modell_ziel, "anzahl": int(k.werte.get("anzahl", 1))}
 
 
 @baustein("auftrag_umleiten", "aktion", "Auftrag umleiten", "Teilt den Auftrag dem Zieldienst und Zielmodell zu.")

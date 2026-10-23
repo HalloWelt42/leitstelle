@@ -113,6 +113,8 @@ class Massnahmenart(str, Enum):
     DOPPEL_AUFLOESEN = "doppel_aufloesen"
     HINTERGRUND_LAGE = "hintergrund_lage"
     WEITERE_INSTANZ = "weitere_instanz"
+    EINBETTUNG_VERSTAERKEN = "einbettung_verstaerken"
+    EINBETTUNG_ZURUECKBAUEN = "einbettung_zurueckbauen"
 
 
 class Massnahmenzustand(str, Enum):
@@ -139,6 +141,7 @@ WORT: dict[str, str] = {
     "umleiten": "Umleiten", "leerlauf_raeumen": "Leerlauf räumen", "vorwaermen": "Vorwärmen", "kette_ausweichen": "Kette ausweichen",
     "extern_ausweichen": "Extern ausweichen", "umverteilen": "Umverteilen", "verlagern": "Verlagern", "doppel_aufloesen": "Doppel auflösen",
     "hintergrund_lage": "Hintergrund bei Lage", "weitere_instanz": "Weitere Instanz",
+    "einbettung_verstaerken": "Einbettung verstärken", "einbettung_zurueckbauen": "Einbettung zurückbauen",
     "bereit": "Bereit", "aus": "Aus", "startet": "Startet", "nicht_erreichbar": "Nicht erreichbar", "ausfall": "Ausfall", "schlaeft": "Schläft", "erreichbar": "Erreichbar",
     "leerlauf": "nach Leerlauf", "angefordert": "von Hand",
     "denken": "Denkt schrittweise", "programmieren": "Programmieren", "lange_texte": "Lange Texte", "schnell": "Schnell", "gruendlich": "Gründlich",

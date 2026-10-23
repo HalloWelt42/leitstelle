@@ -39,6 +39,8 @@ class DienstTabelle(Basis):
     plaetze: Mapped[int] = mapped_column(Integer, default=4)
     anfragen_je_minute: Mapped[int | None] = mapped_column(Integer, nullable=True)
     abgleich_s: Mapped[float | None] = mapped_column(Float, nullable=True)
+    einbettung_instanzen: Mapped[int] = mapped_column(Integer, default=1)
+    einbettung_spielraum_gb: Mapped[float] = mapped_column(Float, default=4.0)
 
 
 class AnwendungTabelle(Basis):

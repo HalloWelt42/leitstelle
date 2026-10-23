@@ -449,3 +449,85 @@ def test_weitere_instanz_weicht_zuerst():
     v.modelle[zusatz.kennung] = zusatz
     plan = planen(v, "mac-128", 11.8, Messwerk(), familie="glm-4.6v")
     assert plan.entladen[0] == zusatz.kennung
+
+
+# ── Einbettung verstärken und zurückbauen (ZUSAMMENSPIEL Z5) ─────────────
+
+def _einbettung_vorbereiten(hoechstens: int = 4):
+    w = welt_mit()
+    v = w.verbund
+    v.modelle["bge@128"].instanzen_hoechstens = hoechstens
+    v.anwendungen["fundus"].gleichzeitig = 8
+    w.messwerk.merke_laufzeit("fundus", "einbettung", 30.0)
+    return w, v
+
+
+def test_einbettung_verstaerken_bei_andrang_und_zurueck_bei_ruhe():
+    """Fünf Stapel warten auf die eine Instanz: die Leitstelle lädt in einer Maßnahme so viele weitere, wie warten, bis zur
+    Höchstzahl; die Stapel verteilen sich. Nach der Ruhezeit baut sie die weiteren Instanzen zurück, die Grundinstanz bleibt."""
+    w, v = _einbettung_vorbereiten(hoechstens=4)
+    v.dienste["laeufer-128"].einbettung_spielraum_gb = 1.0     # 5,2 GB frei: drei weitere zu 1,1 GB passen
+    auftraege = [w.auftrag("fundus", F.EINBETTUNG, laufzeit_s=30) for _ in range(5)]
+    w.laufen(25)
+    verstaerkt = ausgefuehrt(w, A.EINBETTUNG_VERSTAERKEN)
+    assert len(verstaerkt) == 1, abschluesse(w, "einbettung_verstaerken")
+    assert "3 weitere, dann 4 von höchstens 4" in verstaerkt[0].grund
+    instanzen = v.instanzen("bge-m3", "mac-128")
+    assert len(instanzen) == 4 and sum(m.zusatz for m in instanzen) == 3
+    w.laufen_bis_fertig(600)
+    assert all(v.auftraege[a.kennung].zustand == Z.FERTIG for a in auftraege)
+    assert len({v.auftraege[a.kennung].modell for a in auftraege}) >= 3, "die Stapel liefen auf mehreren Instanzen"
+    assert v.modelle["qwen80@128"].zustand == Modellzustand.GELADEN
+    w.laufen(v.regelwerk.einbettung_ruhe_s + 30)
+    assert ausgefuehrt(w, A.EINBETTUNG_ZURUECKBAUEN)
+    im_speicher = [m for m in v.instanzen("bge-m3", "mac-128") if m.im_speicher]
+    assert [m.kennung for m in im_speicher] == ["bge@128"]
+
+
+def test_einbettung_verstaerken_entlaedt_ungenutzte_aber_nie_gespraechsmodell():
+    """Zu wenig Platz: ein ungenutztes Bildmodell weicht, das Gesprächsmodell einer Anwendung nie."""
+    w, v = _einbettung_vorbereiten(hoechstens=3)
+    v.knoten["mac-128"].budget_fest_gb = 104.0          # frei: 104 - 84,7 - 1,1 - 16,2 = 2,0 GB
+    gemma = v.modelle["gemma@128"]
+    gemma.zustand, gemma.geladen_seit_s, gemma.letzte_nutzung_s = Modellzustand.GELADEN, -100000.0, -100000.0
+    for _ in range(3):
+        w.auftrag("fundus", F.EINBETTUNG, laufzeit_s=30)
+    w.laufen(25)
+    verstaerkt = ausgefuehrt(w, A.EINBETTUNG_VERSTAERKEN)
+    assert len(verstaerkt) == 1 and "Gemma" in verstaerkt[0].grund
+    assert gemma.zustand == Modellzustand.FREI and v.modelle["qwen80@128"].zustand == Modellzustand.GELADEN
+    assert sum(m.zusatz and m.im_speicher for m in v.instanzen("bge-m3", "mac-128")) == 2
+
+
+def test_einbettung_verstaerken_schont_kuerzlich_genutzte():
+    """Ein Modell, das in der Schonfrist genutzt wurde, weicht nicht; ohne Platz bleibt es bei einer Instanz."""
+    w, v = _einbettung_vorbereiten(hoechstens=3)
+    v.knoten["mac-128"].budget_fest_gb = 104.0
+    gemma = v.modelle["gemma@128"]
+    gemma.zustand, gemma.geladen_seit_s, gemma.letzte_nutzung_s = Modellzustand.GELADEN, -100000.0, 0.0
+    for _ in range(3):
+        w.auftrag("fundus", F.EINBETTUNG, laufzeit_s=30)
+    w.laufen(25)
+    assert not ausgefuehrt(w, A.EINBETTUNG_VERSTAERKEN)
+    assert "keine weitere Instanz möglich" in abschluesse(w, "einbettung_verstaerken")
+    assert gemma.zustand == Modellzustand.GELADEN and v.modelle["qwen80@128"].zustand == Modellzustand.GELADEN
+
+
+def test_einbettung_ohne_freigabe_bleibt_eine_instanz():
+    """Höchstzahl 1 (Vorgabe eines Dienstes): nie eine weitere Instanz."""
+    w, v = _einbettung_vorbereiten(hoechstens=1)
+    for _ in range(4):
+        w.auftrag("fundus", F.EINBETTUNG, laufzeit_s=30)
+    w.laufen(60)
+    assert not ausgefuehrt(w, A.EINBETTUNG_VERSTAERKEN)
+    assert len(v.instanzen("bge-m3", "mac-128")) == 1
+
+
+def test_einbettung_spielraum_begrenzt_die_zahl():
+    """Mit dem Spielraum der Vorgabe (4 GB) passt bei 5,2 GB frei nur eine weitere Instanz, auch wenn mehr warten."""
+    w, v = _einbettung_vorbereiten(hoechstens=8)
+    for _ in range(6):
+        w.auftrag("fundus", F.EINBETTUNG, laufzeit_s=30)
+    w.laufen(25)
+    verstaerkt = ausgefuehrt(w, A.EINBETTUNG_VERSTAERKEN)
+    assert len(verstaerkt) == 1 and "1 weitere, dann 2 von höchstens 8" in verstaerkt[0].grund

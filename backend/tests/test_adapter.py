@@ -19,9 +19,9 @@ def test_einbettung_im_mlx_format_wird_am_namen_erkannt():
     roh = {"type": "llm", "publisher": "mlx-community", "key": "qwen3-embedding-8b", "display_name": "Qwen3 Embedding 8B", "architecture": "qwen3",
            "quantization": {"name": "MXFP8", "bits_per_weight": 8}, "size_bytes": 7818384967, "params_string": "8B", "loaded_instances": [],
            "max_context_length": 40960, "format": "mlx", "capabilities": {"vision": False, "trained_for_tool_use": True}, "description": None}
-    m = OpenAIKompatibel._nativ(roh)
+    m, = OpenAIKompatibel._nativ(roh)
     assert m.einbettung and m.faehigkeiten == {F.EINBETTUNG}
-    gespraech = OpenAIKompatibel._nativ({**roh, "key": "qwen/qwen3-next-80b", "display_name": "Qwen3 Next 80B"})
+    gespraech, = OpenAIKompatibel._nativ({**roh, "key": "qwen/qwen3-next-80b", "display_name": "Qwen3 Next 80B"})
     assert not gespraech.einbettung and gespraech.faehigkeiten == {F.TEXT, F.UEBERSETZEN, F.WERKZEUG}
     assert OpenAIKompatibel._einfach({"id": "nomic-embed-text"}).einbettung and not OpenAIKompatibel._einfach({"id": "gemma-3-27b"}).einbettung
 
@@ -133,3 +133,15 @@ async def test_externer_anbieter_wie_hetzner():
 def test_parameterzahl_im_namen():
     assert _milliarden_im_namen("Qwen/Qwen3.6-35B-A3B") == 35 and _milliarden_im_namen("Qwen3.8-27B") == 27
     assert _milliarden_im_namen("text-embedding-bge-m3") is None
+
+
+def test_weitere_instanzen_des_laeufers_sind_eigene_modelle():
+    """Aufgezeichnet am 23.10.2026: zweites Laden von bge-m3 legt `text-embedding-bge-m3:2` an, ohne `parallel`. Jede Instanz
+    wird ein eigenes Modell derselben Familie mit einem Platz; die Grundinstanz trägt den Schlüssel."""
+    roh = {"type": "embedding", "key": "text-embedding-bge-m3", "display_name": "Bge M3", "size_bytes": 634553760, "params_string": "567M",
+           "max_context_length": 8192, "loaded_instances": [{"id": "text-embedding-bge-m3:2", "config": {"context_length": 8192}},
+                                                            {"id": "text-embedding-bge-m3", "config": {"context_length": 8192}}]}
+    grund, weitere = OpenAIKompatibel._nativ(roh)
+    assert grund.schluessel == "text-embedding-bge-m3" and grund.instanzen == ["text-embedding-bge-m3"] and grund.familie is None
+    assert weitere.schluessel == "text-embedding-bge-m3:2" and weitere.familie == "text-embedding-bge-m3" and weitere.instanzen == ["text-embedding-bge-m3:2"]
+    assert weitere.name == "Bge M3 (2)" and grund.plaetze == weitere.plaetze == 1 and weitere.einbettung

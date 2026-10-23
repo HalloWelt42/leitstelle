@@ -5,6 +5,8 @@ OpenAI-Schnittstelle `/v1/chat/completions` (mit und ohne Strom) und `/v1/embedd
 wie ein Dienst mit eigener Schnittstelle für die Dienstfassade. Anders als der echte Läufer lädt er nie von
 selbst: wer ein nicht geladenes Modell anspricht, bekommt 400. So fällt auf, wenn die Leitstelle das Laden vergisst.
 Mit `aus` antwortet er auf alles mit 503, wie ein Läufer auf einem schlafenden Rechner; `aufrufe` zählt jede Anfrage.
+Wie gemessen (23.10.2026): ein schon geladenes Modell lädt ein weiteres Mal als neue Instanz `<schlüssel>:<n>`, wenn
+`weitere_instanzen` an ist; Einbettungsinstanzen melden kein `parallel` und rechnen je `einbettung_pause_s`.
 """
 
 from __future__ import annotations
@@ -51,9 +53,12 @@ class Lage:
     entladevorgaenge: list[str] = field(default_factory=list)
     aus: bool = False                # antwortet nicht (503), etwa weil sein Rechner schläft
     aufrufe: int = 0                 # alle Anfragen, auch die Zustandsabfragen der Leitstelle
+    weitere_instanzen: bool = False  # Laden eines geladenen Modells legt eine weitere Instanz an (echter Läufer)
+    einbettung_pause_s: float = 0.0  # Rechenzeit je Einbettungsanfrage
+    einbettung_je_instanz: dict[str, int] = field(default_factory=dict)
 
     def belegt(self) -> float:
-        return sum(m.gb for m in self.modelle.values() if m.instanzen)
+        return sum(m.gb * len(m.instanzen) for m in self.modelle.values())
 
     def modell_der_instanz(self, kennung: str) -> ScheinModell | None:
         for m in self.modelle.values():
@@ -107,7 +112,8 @@ def schein_laeufer(lage: Lage | None = None) -> FastAPI:
                         "description": m.beschreibung, "quantization": {"name": m.quantisierung, "bits_per_weight": 4},
                         "capabilities": None if m.typ == "embedding" else {"vision": m.vision, "trained_for_tool_use": True,
                                                                              **({"reasoning": {"allowed_options": ["off", "on"], "default": "on"}} if m.denken else {})},
-                        "loaded_instances": [{"id": i, "config": {"context_length": 32768, "parallel": L().parallel}} for i in m.instanzen]})
+                        "loaded_instances": [{"id": i, "config": {"context_length": 32768} if m.typ == "embedding" else {"context_length": 32768, "parallel": L().parallel}}
+                                             for i in m.instanzen]})
         return {"models": aus}
 
     @app.post("/api/v1/models/load")
@@ -116,15 +122,16 @@ def schein_laeufer(lage: Lage | None = None) -> FastAPI:
         m = L().modelle.get(koerper.get("model", ""))
         if m is None:
             return JSONResponse({"error": {"message": f"model {koerper.get('model')} not found"}}, status_code=404)
-        if m.instanzen:
+        if m.instanzen and not L().weitere_instanzen:
             return {"instance_id": m.instanzen[0], "status": "loaded", "load_time_seconds": 0}
         if L().belegt() + m.gb > L().speicher_gb:
             return JSONResponse({"error": {"message": "Model loading was stopped due to insufficient system resources"}}, status_code=400)
         start = time.monotonic()
         await asyncio.sleep(L().ladezeit_s)
-        m.instanzen.append(m.schluessel)
+        kennung = m.schluessel if m.schluessel not in m.instanzen else next(f"{m.schluessel}:{n}" for n in range(2, 1000) if f"{m.schluessel}:{n}" not in m.instanzen)
+        m.instanzen.append(kennung)
         L().ladevorgaenge.append(m.schluessel)
-        return {"instance_id": m.schluessel, "status": "loaded", "load_time_seconds": time.monotonic() - start}
+        return {"instance_id": kennung, "status": "loaded", "load_time_seconds": time.monotonic() - start}
 
     @app.post("/api/v1/models/unload")
     async def entladen(anfrage: Request):
@@ -209,6 +216,8 @@ def schein_laeufer(lage: Lage | None = None) -> FastAPI:
         m = L().modell_der_instanz(koerper.get("model", ""))
         if m is None or not m.instanzen:
             return JSONResponse({"error": {"message": f"Model {koerper.get('model')} is not loaded"}}, status_code=400)
+        L().einbettung_je_instanz[koerper["model"]] = L().einbettung_je_instanz.get(koerper["model"], 0) + 1
+        await asyncio.sleep(L().einbettung_pause_s)
         texte = koerper.get("input", [])
         texte = [texte] if isinstance(texte, str) else texte
         return {"object": "list", "model": koerper["model"], "data": [{"object": "embedding", "index": i, "embedding": [0.1, 0.2, 0.3]} for i, _ in enumerate(texte)],

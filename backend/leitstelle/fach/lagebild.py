@@ -64,6 +64,8 @@ class DienstSicht(BaseModel):
     frei_in_s: float                   # bis zur nächsten erlaubten Anfrage (0: jetzt)
     fehlschlaege: int                  # Prüfungen ohne Antwort in Folge
     naechste_pruefung_s: float | None  # Zeitpunkt der nächsten Zustandsabfrage (None: meldet sich selbst)
+    einbettung_instanzen: int          # Instanzen je Einbettungsmodell bei Andrang (1: keine weiteren)
+    einbettung_spielraum_gb: float     # bleibt im Budget des Rechners frei
 
 
 class ModellSicht(BaseModel):
@@ -171,7 +173,8 @@ def lagebild(b: Betrieb) -> Lagebild:
                            frei_in_s=v.anfrage_frei_in_s(d.kennung) if d.kennung in v.dienste else 0.0,
                            fehlschlaege=b.pruefstand[d.kennung].fehlschlaege if d.kennung in b.pruefstand else 0,
                            naechste_pruefung_s=None if d.kennung in b.adapter and b.adapter[d.kennung].meldet_sich_selbst
-                           else b.pruefstand[d.kennung].naechste_s if d.kennung in b.pruefstand else None) for d in b.dienste.values()]
+                           else b.pruefstand[d.kennung].naechste_s if d.kennung in b.pruefstand else None,
+                           einbettung_instanzen=d.einbettung_instanzen, einbettung_spielraum_gb=d.einbettung_spielraum_gb) for d in b.dienste.values()]
     modelle = [ModellSicht(kennung=m.kennung, name=m.name, familie=m.familie, dienst=m.dienst, knoten=v.dienste[m.dienst].knoten if m.dienst in v.dienste else None,
                            faehigkeiten=sorted(m.faehigkeiten, key=lambda f: f.value), gb=m.gb, gb_jetzt=m.gb_jetzt, parameter_mrd=m.parameter_mrd, zustand=m.zustand,
                            geschuetzt=m.geschuetzt(r.schutzgrenze_mrd), geladen_seit_s=m.geladen_seit_s, letzte_nutzung_s=m.letzte_nutzung_s,

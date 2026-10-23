@@ -64,6 +64,7 @@ class ModellOrt:
     schluessel: str
     instanzen: list[str] = field(default_factory=list)
     kontext: int | None = None
+    weitere: tuple[str, int] | None = None   # weitere Instanz, noch nicht geladen: Schlüssel der Grundinstanz und Stufe
 
     @property
     def anfragename(self) -> str:
@@ -252,7 +253,8 @@ class Betrieb:
         self.verbund.dienste[d.kennung] = Dienst(kennung=d.kennung, name=d.name, knoten=d.knoten, art=d.art.value,
                                                   faehigkeiten=alt.faehigkeiten if alt else set(), zustand=alt.zustand if alt else Dienstzustand.NICHT_ERREICHBAR,
                                                   installiert=False, extern=d.extern, plaetze=d.plaetze, anfragen_je_minute=d.anfragen_je_minute,
-                                                  anfragen_s=alt.anfragen_s if alt else [], gesperrt_bis_s=alt.gesperrt_bis_s if alt else None)
+                                                  anfragen_s=alt.anfragen_s if alt else [], gesperrt_bis_s=alt.gesperrt_bis_s if alt else None,
+                                                  einbettung_instanzen=d.einbettung_instanzen, einbettung_spielraum_gb=d.einbettung_spielraum_gb)
         self.geaendert()
 
     def dienst_entfernen(self, kennung: str) -> None:
@@ -454,7 +456,9 @@ class Betrieb:
         jetzt = self.uhr.jetzt()
         gesehen: set[str] = set()
         for mb in bericht.modelle:
-            kennung = modell_kennung(dienst, mb.schluessel)
+            kennung = self._kennung_fuer(dienst, mb)
+            if kennung not in self.verbund.modelle and self._startet_noch(dienst, mb):
+                continue                     # gehört zu einer weiteren Instanz, deren Laden gerade zurückkommt
             gesehen.add(kennung)
             self._modell_abgleichen(kennung, d, mb, bericht.steuerbar, jetzt)
         for m in [m for m in self.verbund.modelle.values() if m.dienst == dienst and m.kennung not in gesehen]:
@@ -463,6 +467,22 @@ class Betrieb:
                 self.orte.pop(m.kennung, None)
                 self.auskunft.pop(m.kennung, None)
         d.faehigkeiten = set().union(*(m.faehigkeiten for m in self.verbund.modelle_von(dienst))) if self.verbund.modelle_von(dienst) else set()
+
+    def _kennung_fuer(self, dienst: str, mb: ModellBericht) -> str:
+        """Eine weitere Instanz, die die Leitstelle gestartet hat, behält ihre Kennung: geplant wurde sie unter
+        `<familie>.<stufe>`, ihre Kennung beim Dienst vergibt der Dienst erst beim Laden (Modell-Läufer: `<schlüssel>:<n>`)."""
+        if mb.familie and mb.instanzen:
+            for kennung, ort in self.orte.items():
+                m = self.verbund.modelle.get(kennung)
+                if m is not None and m.dienst == dienst and m.zusatz and ort.instanzen[:1] == mb.instanzen[:1]:
+                    return kennung
+        return modell_kennung(dienst, mb.schluessel)
+
+    def _startet_noch(self, dienst: str, mb: ModellBericht) -> bool:
+        """Meldet der Dienst eine weitere Instanz, während die Leitstelle noch auf die Antwort ihres Ladens wartet?"""
+        return mb.familie is not None and any(
+            m.dienst == dienst and m.familie == mb.familie and m.zusatz and k in self.ladeaufgaben and not self.ort(k).instanzen
+            for k, m in self.verbund.modelle.items())
 
     def _gesund_vermerken(self, dienst: str) -> None:
         e = self.dienste.get(dienst)
@@ -545,7 +565,9 @@ class Betrieb:
             m.name, m.faehigkeiten, m.gb = mb.name, set(mb.faehigkeiten), mb.gb
             m.parameter_mrd, m.geschuetzt_fest = mb.parameter_mrd or 0.0, mb.einbettung or unbekannte_groesse
         m.schutz_vorgabe, m.gb_jetzt, m.plaetze = mb.schutz, mb.gb_jetzt, mb.plaetze
-        m.instanzen_hoechstens, m.zusatz = mb.instanzen_hoechstens, mb.familie is not None
+        # Einbettungsmodelle eines steuerbaren Läufers: Höchstzahl der Instanzen aus dem Eintrag des Dienstes (ZUSAMMENSPIEL Z5)
+        eigene = d.einbettung_instanzen if mb.einbettung and steuerbar and not d.extern else 1
+        m.instanzen_hoechstens, m.zusatz = max(mb.instanzen_hoechstens, eigene), mb.familie is not None
         if mb.aktiv:
             m.letzte_nutzung_s = jetzt      # arbeitet ohne Auftrag über die Leitstelle: gilt als genutzt, weicht nicht
         ort = self.orte.setdefault(kennung, ModellOrt(schluessel=mb.schluessel))
@@ -889,18 +911,18 @@ class Betrieb:
                                                   "dauer_s": self.messwerk.ladezeit(m.familie, d.knoten or "", m.gb).sekunden}))
         self.geaendert()
 
-    def instanz_starten(self, dienst: str, familie: str, stufe: int, vorbild: str) -> None:
-        """Weitere Instanz (ZUSAMMENSPIEL Z3): im Verbund sofort als ladend eingeplant, damit ihr Speicher zählt; der
-        Maschinenraum startet sie unter `<familie>.<stufe>` und meldet sie danach selbst."""
+    def instanz_starten(self, dienst: str, familie: str, vorbild: str) -> None:
+        """Weitere Instanz (ZUSAMMENSPIEL Z3, Z5): im Verbund sofort als ladend eingeplant, damit ihr Speicher zählt;
+        geplant unter `<familie>.<stufe>` (kleinste freie Stufe ab 2). Der Dienst startet sie (Maschinenraum unter diesem
+        Namen, Modell-Läufer mit eigener Kennung) und meldet sie danach selbst."""
         v = self.verbund.modelle[vorbild]
+        stufe = next(n for n in range(2, 1000) if modell_kennung(dienst, f"{familie}.{n}") not in self.verbund.modelle)
         schluessel = f"{familie}.{stufe}"
         kennung = modell_kennung(dienst, schluessel)
-        if kennung in self.verbund.modelle:
-            return
         self.verbund.modelle[kennung] = Modell(kennung=kennung, name=f"{v.name} ({stufe})", dienst=dienst, familie=familie, faehigkeiten=set(v.faehigkeiten),
                                                gb=v.gb, parameter_mrd=v.parameter_mrd, geschuetzt_fest=False, schutz_vorgabe=v.schutz_vorgabe,
                                                instanzen_hoechstens=v.instanzen_hoechstens, zusatz=True, plaetze=v.plaetze)
-        self.orte[kennung] = ModellOrt(schluessel=schluessel)
+        self.orte[kennung] = ModellOrt(schluessel=schluessel, weitere=(self.ort(vorbild).schluessel, stufe))
         self.modell_laden(kennung)
 
     async def _laden(self, modell: str) -> None:
@@ -911,7 +933,9 @@ class Betrieb:
             await asyncio.gather(*laufend, return_exceptions=True)
         start = self.uhr.jetzt()
         try:
-            instanz = await self.adapter[d.kennung].laden(self.ort(modell).schluessel)
+            ort = self.ort(modell)
+            adapter = self.adapter[d.kennung]
+            instanz = await (adapter.instanz_laden(*ort.weitere) if ort.weitere else adapter.laden(ort.schluessel))
         except DienstFehler as f:
             self._bewegung(modell, Richtung.LADEN, start, Ausgang.ABGELEHNT, f.meldung)
             self._laden_gescheitert(modell, f)

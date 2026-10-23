@@ -164,7 +164,35 @@ INSTANZ = _graph("weitere_instanz", "Weitere Instanz", Massnahmenart.WEITERE_INS
     E(von="k1", nach="k2"), E(von="k2", nach="e_ok"),
 ])
 
-VORLAGEN: list[Regelgraph] = [UMLEITEN, LEERLAUF, VORWAERMEN, KETTE, EXTERN, UMVERTEILEN, VERLAGERN, DOPPEL, HINTERGRUND, INSTANZ]
+# Einbettung verstärken (ZUSAMMENSPIEL Z5): eine Instanz des Modell-Läufers rechnet Einbettungen nacheinander; mehrere
+# Instanzen rechnen nebeneinander (gemessen 23.10.2026: 4 Instanzen 2,0-fach, 8 Instanzen 2,4-fach). Bei Andrang so viele
+# weitere, wie Aufträge warten, bis zur Höchstzahl des Dienstes und bis kurz vor die Speichergrenze; bei Ruhe zurück.
+EINBETTUNG_VERSTAERKEN = _graph("einbettung_verstaerken", "Einbettung verstärken", Massnahmenart.EINBETTUNG_VERSTAERKEN, [
+    K(id="a", art="ausloeser", baustein="einbettung_andrang"),
+    K(id="p1", art="pruefung", baustein="einbettungsinstanzen_moeglich"),
+    K(id="p2", art="pruefung", baustein="muss_entladen"),
+    K(id="k0", art="aktion", baustein="modell_entladen"),
+    K(id="k1", art="aktion", baustein="instanz_starten"),
+    K(id="k2", art="aktion", baustein="melden", parameter={"text": "Einbettung verstärkt: {modell} auf {knoten}, {instanz}; {platz}"}),
+    K(id="e_ok", art="ende", titel="verstärkt"),
+    K(id="e_nein", art="ende", titel="keine weitere Instanz möglich"),
+], [
+    E(von="a", nach="p1"), E(von="p1", nach="p2", port="ja"), E(von="p1", nach="e_nein", port="nein"),
+    E(von="p2", nach="k0", port="ja"), E(von="p2", nach="k1", port="nein"),
+    E(von="k0", nach="k1"), E(von="k1", nach="k2"), E(von="k2", nach="e_ok"),
+])
+
+EINBETTUNG_ZURUECKBAUEN = _graph("einbettung_zurueckbauen", "Einbettung zurückbauen", Massnahmenart.EINBETTUNG_ZURUECKBAUEN, [
+    K(id="a", art="ausloeser", baustein="einbettung_ruhe"),
+    K(id="k1", art="aktion", baustein="modell_entladen"),
+    K(id="k2", art="aktion", baustein="melden", parameter={"text": "Einbettung zurückgebaut: {anzahl} weitere Instanzen von {familie} auf {knoten}, {ruhe} ohne Arbeit"}),
+    K(id="e_ok", art="ende", titel="zurückgebaut"),
+], [
+    E(von="a", nach="k1"), E(von="k1", nach="k2"), E(von="k2", nach="e_ok"),
+])
+
+VORLAGEN: list[Regelgraph] = [UMLEITEN, LEERLAUF, VORWAERMEN, KETTE, EXTERN, UMVERTEILEN, VERLAGERN, DOPPEL, HINTERGRUND, INSTANZ,
+                              EINBETTUNG_VERSTAERKEN, EINBETTUNG_ZURUECKBAUEN]
 
 
 def vorlagen() -> list[Regelgraph]:

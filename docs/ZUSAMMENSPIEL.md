@@ -144,6 +144,67 @@ Umgesetzt in 0.17.2: 502, 503 und 504 externer Anbieter gelten als Überlast. Di
 eingebaut; eine einzelne Anfrage bleibt weit darunter. Messungen zum Modellvergleich laufen mit den lokalen Modellen
 (Entscheidung 19.10.2026: dasselbe Modell ist lokal da), Hetzner bleibt Entlastung im Betrieb.
 
+### Stufe Z5: Einbettung verstärken (mehrere Instanzen im Modell-Läufer)
+
+Auftrag des Nutzers (23.10.2026): "messen ob 2, 4, 8 parallele einbettungen was bringen. dafür muss die regelung
+ungenutzte modelle entladen, dynamisch die einbettungen in mehreren instanzen bis kurz vor speichergrenze einsetzen,
+mit etwas toleranz". Vorher lief `text-embedding-bge-m3` in einer Instanz; die Leitstelle gab ihr 4 Plätze (Plätze
+des Dienstes), Fundus schickte 2 Stapel zu 64 Abschnitten gleichzeitig. Fundus-Rate vorher: 2,17 Abschnitte/s.
+
+**Schnittstelle des Läufers** (gelesen und probiert, nicht geraten): `POST /api/v1/models/load` mit dem Schlüssel eines
+schon geladenen Modells lädt eine weitere Instanz; ihre Kennung vergibt der Läufer (`text-embedding-bge-m3:2`, `:3`
+...), eine eigene nimmt die Schnittstelle nicht an ("Unrecognized key(s) in object: 'identifier'"). Eine Anfrage
+erreicht eine bestimmte Instanz, wenn `model` deren Kennung nennt; Entladen per `instance_id`. Einbettungsinstanzen
+melden kein `parallel`. Laden einer Instanz: 47 bis 61 s (Rechner unter Last, 9,5 GB Auslagerung).
+
+**Messung** (23.10.2026 am Mac Studio, 128 GB; Abschnitte wie die Quelle "Entwicklung" des Fundus: Code und Doku,
+im Mittel 1700 Zeichen; je Instanz ein Strom; die Fundus-Einbettung lief auf der Grundinstanz weiter, in Lauf 2 dazu
+eine Transkription; Speicher aus der Maschinenraum-Messung):
+
+| Instanzen | Stapel | Lauf 1: Abschnitte/s | Lauf 2: Abschnitte/s | gegenüber einer | Anfrage im Mittel | Grafik |
+|---|---|---|---|---|---|---|
+| 1 | 64 | 3,10 | 2,58 | 1,0 | 21 bis 25 s | 24 % |
+| 2 | 64 | 4,87 | 4,04 | 1,6 | 26 bis 32 s | 23 bis 27 % |
+| 4 | 64 | 6,49 | 5,08 | 2,0 | 39 bis 49 s | 23 bis 36 % |
+| 6 | 64 | 5,62 | - | (Ausreißer, Transkription) | 66 s | 24 % |
+| 8 | 64 | 7,43 | 6,27 | 2,4 | 64 bis 80 s | 23 bis 25 % |
+
+| Eine Instanz, Stapel je Anfrage | Abschnitte/s |
+|---|---|
+| 8 | 2,58 |
+| 16 | 2,71 |
+| 64 | 2,41 |
+| 128 (eine Anfrage) | 1,29 |
+| 4 Instanzen, 16 / 64 / 128 | 6,00 / 6,49 / 5,77 |
+| 2 gleichzeitige Anfragen an eine Instanz (je 64) | 2,42 |
+
+Befund: Eine Instanz rechnet ihre Anfragen nacheinander (zwei gleichzeitige bringen nichts); größere Stapel bringen
+nichts, ab 128 wird es langsamer; mehr Instanzen bringen mehr, mit abnehmendem Gewinn (4: 2,0-fach, 8: 2,4-fach). Die
+Grafik bleibt bei einem Viertel, die Grenze liegt im Läufer, nicht im Speicher. Speicher je weiterer Instanz: 1,0 GB
+(8 Instanzen entladen gaben 7,9 GB frei), geplant mit der Größe der Gewichte 0,59 GiB; den Rest rechnet der
+Maschinenraum danach dem System zu.
+
+**Umsetzung** (Leitstelle 0.20.0):
+
+- **Instanzen als eigene Modelle**: der Adapter des Läufers meldet jede geladene Instanz als eigenes Modell derselben
+  Familie (Grundinstanz trägt den Schlüssel, weitere sind `zusatz`); Einbettungsmodelle haben je Instanz einen Platz.
+  Die Leitstelle verteilt so Stapel über die Instanzen: jeder geht an eine freie Instanz, sonst wartet er bei ihr.
+- **Eintrag des Dienstes** (Oberfläche: Dienste, bearbeiten): `Einbettung: Instanzen` (Höchstzahl je
+  Einbettungsmodell, Vorgabe 1, am Mac Studio 8 nach der Messung) und `Einbettung: Spielraum` (GB, die im Budget des
+  Rechners frei bleiben, Vorgabe 4: 8 Instanzen zu je 0,4 GB mehr als geplant plus Toleranz).
+- **Regel "Einbettung verstärken"**: warten Einbettungsaufträge länger als `einbettung_andrang_s` (10 s) auf eine
+  Instanz, lädt die Leitstelle in einer Maßnahme so viele weitere, wie Aufträge warten (abzüglich ladender), bis zur
+  Höchstzahl und nur so viele, wie mit dem Spielraum ins Budget passen. Fehlt Platz, weichen ungenutzte Modelle,
+  kleinste zuerst (nie ein Gesprächsmodell, das eine Anwendung für Text in ihrer Kette hat, nie ein Modell, das in der
+  Schonfrist `einbettung_schonfrist_s` von 30 Minuten genutzt wurde, nie ein rechnendes, geschütztes oder von einer
+  begonnenen Arbeit gehaltenes). Kein Abwägen Gewinn gegen Aufwand: der Strom der Einbettung ist stetig.
+- **Regel "Einbettung zurückbauen"**: weitere Einbettungsinstanzen, die `einbettung_ruhe_s` (300 s) nichts zu tun
+  hatten, während kein Einbettungsauftrag wartet, entlädt die Leitstelle in einer Maßnahme; die Grundinstanz bleibt.
+  Bei Speichermangel weichen weitere Instanzen wie bisher vor allen anderen (sie sind nie geschützt, auch unter 10B).
+- **Wirkung hängt an der App**: so viele Instanzen arbeiten, wie die App Stapel gleichzeitig schickt. Fundus schickt
+  `gleichzeitig` Stapel (vorher 2), die Leitstelle begrenzt Fundus auf sein Kontingent (vorher 4); für 8 Instanzen
+  müssen beide auf 8.
+
 ## Selbstauskunft: Steckbrief je Modell
 
 Nutzer 18.10.2026: "die modelle [können] auskunft über sich selber geben ... so kann eine anfrage einer software eine

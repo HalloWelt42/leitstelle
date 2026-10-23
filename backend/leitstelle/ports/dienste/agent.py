@@ -60,6 +60,10 @@ class AgentDienste:
         await self._befehl(Befehlsart.DIENST_STARTEN, schluessel)
         return schluessel
 
+    async def instanz_laden(self, schluessel: str, stufe: int) -> str:
+        """Weitere Instanz eines Dienstes: der Maschinenraum startet sie unter `<kennung>.<stufe>` mit eigenem Port."""
+        return await self.laden(f"{schluessel}.{stufe}")
+
     async def entladen(self, instanz: str) -> None:
         await self._befehl(Befehlsart.DIENST_ANHALTEN, instanz)
 

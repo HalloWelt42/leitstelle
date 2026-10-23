@@ -111,6 +111,8 @@ export const MASSNAHME: Record<Massnahmenart, { wort: string; symbol: string }> 
   doppel_aufloesen: { wort: 'Doppel aufgelöst', symbol: 'fa-clone' },
   hintergrund_lage: { wort: 'Hintergrund nach Lage', symbol: 'fa-layer-group' },
   weitere_instanz: { wort: 'Weitere Instanz', symbol: 'fa-clone' },
+  einbettung_verstaerken: { wort: 'Einbettung verstärkt', symbol: 'fa-layer-group' },
+  einbettung_zurueckbauen: { wort: 'Einbettung zurückgebaut', symbol: 'fa-compress' },
 };
 
 export const MASSNAHMENZUSTAND: Record<Massnahmenzustand, string> = {

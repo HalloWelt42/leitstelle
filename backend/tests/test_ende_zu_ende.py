@@ -367,3 +367,38 @@ async def test_e16_anwendung_trennt_waehrend_der_durchleitung(tmp_path, monkeypa
         m = next(m for m in b.verbund.modelle.values() if m.familie == "qwen/qwen3-next-80b")
         assert m.auftraege_aktiv == 0 and m.zustand.value == "geladen", "das Modell ist wieder frei"
         await _warte_bis(lambda: _wahr(lage.abgebrochen == 1), 3.0)      # auch die Antwort des Dienstes ist geschlossen
+
+
+async def test_e19_einbettung_verstaerken_mit_weiteren_instanzen_des_laeufers(tmp_path):
+    """ZUSAMMENSPIEL Z5 am Schein-Läufer, der sich wie der echte verhält: Einbettungsinstanzen haben je einen Platz;
+    warten Stapel, lädt die Leitstelle weitere Instanzen (Kennung vergibt der Läufer, `<schlüssel>:<n>`), verteilt die
+    Stapel darauf und baut sie nach der Ruhe wieder zurück. Die Grundinstanz bleibt."""
+    regeln = Regelwerk(umschichter_takt_s=0.2, einbettung_andrang_s=0.2, einbettung_ruhe_s=1.0)
+    async with aufbau(tmp_path, regelwerk=regeln) as (c, anw, lage, app):
+        lage.weitere_instanzen, lage.einbettung_pause_s = True, 1.5
+        dienst = (await c.get("/api/lage")).json()["dienste"][0]
+        r = await c.patch(f"/api/dienste/{dienst['kennung']}", json={"einbettung_instanzen": 3, "einbettung_spielraum_gb": 1.0})
+        assert r.status_code == 200, r.text
+        sicht = (await c.get("/api/lage")).json()
+        assert sicht["dienste"][0]["einbettung_instanzen"] == 3
+        bge = next(m for m in sicht["modelle"] if m["familie"] == "text-embedding-bge-m3")
+        assert bge["plaetze"] == 1 and bge["instanzen_hoechstens"] == 3
+
+        antworten = await asyncio.gather(*(anw.post("/embeddings", json={"model": "text-embedding-bge-m3", "input": [f"t{i}"]}) for i in range(4)))
+        assert all(r.status_code == 200 for r in antworten)
+        assert lage.modelle["text-embedding-bge-m3"].instanzen[:1] == ["text-embedding-bge-m3"]
+        assert {"text-embedding-bge-m3:2", "text-embedding-bge-m3:3"} <= set(lage.einbettung_je_instanz), lage.einbettung_je_instanz
+        massnahmen = (await c.get("/api/massnahmen")).json()
+        assert any(m["art"] == "einbettung_verstaerken" and m["zustand"] == "ausgefuehrt" for m in massnahmen["eintraege"]), massnahmen
+        weitere = [m for m in (await c.get("/api/lage")).json()["modelle"] if m["familie"] == "text-embedding-bge-m3" and m["zusatz"]]
+        assert len(weitere) == 2 and all(not m["geschuetzt"] for m in weitere)
+
+        async def zurueckgebaut() -> bool:
+            return lage.modelle["text-embedding-bge-m3"].instanzen == ["text-embedding-bge-m3"]
+        await _warte_bis(zurueckgebaut, 15)
+        await _warte_bis(lambda: _nur_grundinstanz(c), 5)
+
+
+async def _nur_grundinstanz(c) -> bool:
+    modelle = [m for m in (await c.get("/api/lage")).json()["modelle"] if m["familie"] == "text-embedding-bge-m3"]
+    return len(modelle) == 1 and not modelle[0]["zusatz"] and modelle[0]["zustand"] != "frei"
