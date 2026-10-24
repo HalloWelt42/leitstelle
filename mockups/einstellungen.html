@@ -142,7 +142,7 @@
     zeile('Adresse', 'Unter dieser Adresse erreichen Anwendungen und Agenten die Leitstelle; sie steht in jedem Einbau-Schnipsel.',
       `<input class="eingabe weit" value="http://leitstelle.local:8530" title="Öffentliche Adresse der Leitstelle; eine Änderung erfordert neue Einbau-Schnipsel in den Anwendungen." spellcheck="false">`) +
     zeile('Datenordner', 'Datenbank, Sicherungen und Prüfprotokoll liegen hier. Eine Änderung wirkt erst nach einem Neustart.',
-      `<input class="eingabe weit" value="/mnt/data/leitstelle" title="Ordner für Datenbank, Sicherungen und Prüfprotokoll; wirkt nach dem nächsten Neustart." spellcheck="false">`) +
+      `<input class="eingabe weit" value="/srv/leitstelle" title="Ordner für Datenbank, Sicherungen und Prüfprotokoll; wirkt nach dem nächsten Neustart." spellcheck="false">`) +
     zeile('Sicherung', `Letzter Stand heute ${z('03:00')}, ${z(48)} MB. Täglich um ${z('03:00')} automatisch.`,
       `<button class="knopf" title="Schreibt sofort eine vollständige Sicherung in den Datenordner; der Betrieb läuft dabei weiter."><i class="fa-solid fa-download"></i> Sicherung jetzt erstellen</button>`) +
     zeile('Version', 'Fragt die Freigabeliste ab und zeigt, was sich ändert. Nichts wird ohne Bestätigung eingespielt.',

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Leitstelle auf einen Rechner im Netz ausrollen: hochladen, dort holen, bauen, starten.
-# Nutzung: ZIEL=benutzer@rechner tools/ausrollen.sh   (oder Werte in privat/ausrollen.env)
-#          ORDNER=/pfad DATEN=/pfad zusätzlich möglich
+# Nutzung: tools/ausrollen.sh                        Ziel, Ordner und Datenordner des Hauses aus der privaten Wahrheit
+#                                                     (handbuch ziel leitstelle)
+#          ZIEL=benutzer@rechner tools/ausrollen.sh   ein anderer Rechner; ORDNER=/pfad DATEN=/pfad zusätzlich möglich
 # Ausgerollt wird nur, was im Repository liegt. Der Bau scheitert, wenn ein Test rot ist;
 # dann läuft der alte Stand weiter. Gebaut wird, während der alte Stand weiterläuft; neu gestartet erst, wenn
 # kein Auftrag mehr über die Leitstelle läuft (Lagebild: laeuft oder zugeteilt), damit keine Anfrage einer App
@@ -20,12 +21,16 @@ fi
 }
 # <<< handbuch
 HIER="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
-if [ -f "$HIER/privat/ausrollen.env" ]; then
-  # shellcheck disable=SC1091
-  . "$HIER/privat/ausrollen.env"
+ziel_wert() {
+  "$handbuch_befehl" ziel leitstelle "$1" || { echo "Abbruch: $1 fehlt im Ziel (handbuch ziel leitstelle)" >&2; exit 1; }
+}
+if [ -z "${ZIEL:-}" ]; then
+  ZIEL="$(ziel_wert rechner)"
+  ORDNER="${ORDNER:-$(ziel_wert wurzel)}"
+  DATEN="${DATEN:-$(ziel_wert LEITSTELLE_DATENORDNER)}"
 fi
-ZIEL="${ZIEL:?Ziel fehlt: ZIEL=benutzer@rechner tools/ausrollen.sh}"
 ORDNER="${ORDNER:-/home/${ZIEL%@*}/leitstelle}"
+DATEN="${DATEN:-$ORDNER/daten}"
 QUELLE="$(git -C "$HIER" remote get-url origin)"
 
 if [ -n "$(git -C "$HIER" status --porcelain)" ]; then
@@ -35,7 +40,6 @@ fi
 git -C "$HIER" push --quiet origin HEAD
 
 echo "Rolle aus: $(git -C "$HIER" log -1 --format='%h %s' | cut -c1-80)"
-DATEN="${DATEN:-$ORDNER/daten}"
 ssh "$ZIEL" "set -e
   mkdir -p '$DATEN'
   if [ ! -d '$ORDNER/.git' ]; then rm -rf '$ORDNER' && git clone --quiet '$QUELLE' '$ORDNER'; fi

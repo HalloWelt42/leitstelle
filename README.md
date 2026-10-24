@@ -95,10 +95,11 @@ Erwartung je Zweig steht in [docs/SZENARIEN.md](docs/SZENARIEN.md).
 ZIEL=benutzer@rechner tools/ausrollen.sh
 ```
 
-Lädt den eingecheckten Stand hoch, holt ihn auf dem Zielrechner (Vorgabe `/home/<benutzer>/leitstelle`), baut dort
-mit Docker und startet. Beim Bauen laufen alle Kern-Tests und die Typprüfung der Oberfläche; ist etwas rot, bricht
-der Bau ab und der alte Stand läuft weiter. Ziel, Ordner und Datenordner lassen sich in `privat/ausrollen.env`
-festhalten (nicht im Repository).
+Lädt den eingecheckten Stand hoch, holt ihn auf dem Zielrechner (Vorgabe `/home/<benutzer>/leitstelle`, mit
+`ORDNER=/pfad` und `DATEN=/pfad` einstellbar), baut dort mit Docker und startet. Beim Bauen laufen alle Kern-Tests
+und die Typprüfung der Oberfläche; ist etwas rot, bricht der Bau ab und der alte Stand läuft weiter. Ohne `ZIEL`
+fragt das Skript das Werkzeug handbuch nach Ziel, Ordner und Datenordner (`handbuch ziel leitstelle`); dort stehen
+sie privat, nicht im Repository.
 
 ## Gestaltung in Kürze
 

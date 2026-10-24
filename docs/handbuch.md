@@ -3,15 +3,14 @@ zweck: "Vermittelt alle KI-Arbeit im Haus: Apps geben Aufträge ab, die Leitstel
 geraet: [pi]
 abhaengigkeiten: []
 daten:
-  - "Pi: Datenordner der Leitstelle (DATEN in privat/ausrollen.env) mit `leitstelle.sqlite` (Rechner, Dienste, Modelle, Anwendungen, Regeln, Prüfprotokoll) und `tresor.schluessel`"
+  - "Pi: Datenordner der Leitstelle {{umgebung:LEITSTELLE_DATENORDNER}} mit `leitstelle.sqlite` (Rechner, Dienste, Modelle, Anwendungen, Regeln, Prüfprotokoll) und `tresor.schluessel`"
 sicherung:
   - "keine (Stand 24.10.2026): das Werkzeug Sicherungen führt die Leitstelle als Lücke; Sicherung von Hand wie im Abschnitt Sicherung"
 schluessel_orte:
   - "Pi: `tresor.schluessel` im Datenordner; ohne ihn sind die im Tresor gespeicherten Schlüssel und Zugänge nicht lesbar"
   - "Datenbank (verschlüsselt mit dem Tresor): Schlüssel der Anwendungen, der Knoten (Maschinenraum) und externer Anbieter"
-  - "Mac: Ziel, Ordner und Datenordner des Ausrollens in `privat/ausrollen.env` (Repo leitstelle-privat, kein Schlüssel)"
 einrichten: einrichten.sh
-stand: 0b34be5
+stand: 0926a5d
 ---
 
 # Leitstelle
@@ -37,8 +36,8 @@ aus privaten Netzen erreichbar.
   Tests) und dauert, weil dabei alle Tests laufen.
 - Mac nach [[Grundlage Mac]] mit LM Studio (Modell-Läufer auf Port 1234 im Heimnetz); später der [[Maschinenraum]] als
   Knoten-Agent des Macs.
-- Das Repo `leitstelle-privat` als Ordner `privat/` im Klon am Mac: darin `privat/ausrollen.env` mit `ZIEL`
-  (benutzer@rechner), `ORDNER` (Klon auf dem Zielrechner) und `DATEN` (Datenordner); `tools/ausrollen.sh` liest es.
+- Das Werkzeug handbuch am Mac ([[Grundlage Mac]]): `tools/ausrollen.sh` fragt es nach Ziel, Ordner und Datenordner
+  (`handbuch ziel leitstelle`); das Repo `leitstelle-privat` als Ordner `privat/` trägt die Unterlagen des Hauses.
 - Keine andere App des Verbunds; die Leitstelle kommt gleich nach der [[Kellerwolke]].
 
 ## Neu einrichten
@@ -55,23 +54,23 @@ git clone {{repo}} {{ordner}}
 git clone git@github.com:HalloWelt42/leitstelle-privat.git {{ordner}}/privat
 ```
 
-Probe: `grep -c '^ZIEL=' {{ordner}}/privat/ausrollen.env` meldet 1.
+Probe: `handbuch ziel leitstelle rechner` meldet `{{rechner}}`.
 
 ### 2. Datenordner auf dem Zielrechner
 
-Aus der Sicherung das Archiv in den Datenordner (`DATEN`) entpacken, Besitzer der Benutzer, der Docker startet
+Aus der Sicherung das Archiv in den Datenordner `{{umgebung:LEITSTELLE_DATENORDNER}}` entpacken, Besitzer der Benutzer, der Docker startet
 (Benutzer 1000 im Container). Frisch legt das Ausrollen den Ordner leer an; `tresor.schluessel` entsteht beim ersten
 Start.
 
-Probe: auf dem Zielrechner zeigt `ls <DATEN>` nach dem Zurückspielen `leitstelle.sqlite` und `tresor.schluessel`
+Probe: auf dem Zielrechner zeigt `ls {{umgebung:LEITSTELLE_DATENORDNER}}` nach dem Zurückspielen `leitstelle.sqlite` und `tresor.schluessel`
 (frisch: nichts, bis Schritt 3 gelaufen ist).
 
 ### 3. Ausrollen
 
-Am Mac `tools/ausrollen.sh`: lädt den eingecheckten Stand hoch, klont oder holt ihn auf dem Zielrechner nach `ORDNER`,
+Am Mac `tools/ausrollen.sh`: lädt den eingecheckten Stand hoch, klont oder holt ihn auf dem Zielrechner nach `{{wurzel}}`,
 baut dort mit Docker (alle Kern-Tests und die Typprüfung der Oberfläche; rot bricht ab und der alte Stand läuft
 weiter), wartet auf einen ruhigen Moment ohne laufenden Auftrag und startet beide Dienste. Auf dem Zielrechner selbst
-geht dasselbe mit `LEITSTELLE_DATENORDNER=<DATEN> ./einrichten.sh` im Klon.
+geht dasselbe mit `LEITSTELLE_DATENORDNER={{umgebung:LEITSTELLE_DATENORDNER}} ./einrichten.sh` im Klon.
 
 Probe: `curl -s http://<zielrechner>:{{port:docker-compose.yml/leitstelle}}/gesundheit` meldet `"version": "{{fassung}}"`,
 und `http://<zielrechner>:{{port:docker-compose.yml/entwuerfe}}/gesundheit` antwortet.

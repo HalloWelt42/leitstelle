@@ -39,7 +39,8 @@ docker compose stop leitstelle && tar -czf leitstelle_$(date +%Y%m%d_%H%M).tar.g
 ## Ausrollen auf einen anderen Rechner
 
 ```bash
-ZIEL=benutzer@rechner tools/ausrollen.sh
+tools/ausrollen.sh                        # Ziel des Hauses aus handbuch ziel leitstelle
+ZIEL=benutzer@rechner tools/ausrollen.sh  # ein anderer Rechner
 ```
 
 ## Maschinenraum (Knoten-Agent je Rechner)
