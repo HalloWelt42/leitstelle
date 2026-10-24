@@ -211,7 +211,6 @@
   .seite-modelle .speicher-legende .frei { color: var(--text-3); }
 
   /* Zwei Spalten, rechts schmaler als in der Vorgabe, damit die Tabelle Platz hat */
-  .seite-modelle .spalten.schmal-rechts { grid-template-columns: minmax(0, 1fr) 400px; }
 
   /* Modelltabelle: zwei Zeilen je Zelle, enge Spalten */
   .seite-modelle .modelltabelle th, .seite-modelle .modelltabelle td { padding-left: var(--a2); padding-right: var(--a2); }

@@ -140,10 +140,10 @@
   </div>
 
   <div class="spalten schmal-rechts">
-    <div class="rollfeld">
+    <div class="rollfeld tabellen-raum">
       {#if bild.modelle.length}
-        <table class="tabelle modelltabelle">
-          <thead><tr><th>Modell</th><th>Fähigkeiten</th><th>Dienst</th><th style="text-align:right">Größe</th><th>Zustand</th><th></th></tr></thead>
+        <table class="tabelle karten modelltabelle">
+          <thead><tr><th>Modell</th><th>Fähigkeiten</th><th>Dienst</th><th class="zahl">Größe</th><th>Zustand</th><th></th></tr></thead>
           <tbody>
             {#each sichtbar as m (m.kennung)}
               {@const warten = wartenAuf(m)}
@@ -155,11 +155,11 @@
                     {#if m.steckbrief.zweck}<span class="zweck">{m.steckbrief.zweck}</span>{/if}
                     {#each m.steckbrief.eignung ?? [] as e (e)}<span class="eignung">{EIGNUNG[e]}</span>{/each}
                     {#if m.steckbrief.sprachen?.length}<span class="eignung sprache">{m.steckbrief.sprachen.join(', ')}</span>{/if}</div>{/if}</td>
-                <td><div class="marken">{#each m.faehigkeiten.filter((f) => f !== 'uebersetzen' && f !== 'werkzeug') as f (f)}<Faehigkeit wert={f} />{/each}</div></td>
-                <td><div class="dienst">{dienst(m.dienst)?.name}</div><div class="zweit">{knotenName(m.knoten)}</div></td>
-                <td class="zahl"><div style="text-align:right" title={m.gb_jetzt != null ? 'Bedarf, mit dem die Leitstelle plant; darunter der gerade gemessene Wert' : ''}>{m.gb ? gb(m.gb) : '-'}</div>
-                  {#if m.gb_jetzt != null}<div class="zweit" style="text-align:right">jetzt {gb(m.gb_jetzt)}</div>{/if}</td>
-                <td><Zustand art="modell" wert={m.zustand} dreht />
+                <td data-titel="Fähigkeiten"><div class="marken">{#each m.faehigkeiten.filter((f) => f !== 'uebersetzen' && f !== 'werkzeug') as f (f)}<Faehigkeit wert={f} />{/each}</div></td>
+                <td data-titel="Dienst"><div class="dienst">{dienst(m.dienst)?.name}</div><div class="zweit">{knotenName(m.knoten)}</div></td>
+                <td data-titel="Größe" class="zahl"><div title={m.gb_jetzt != null ? 'Bedarf, mit dem die Leitstelle plant; darunter der gerade gemessene Wert' : ''}>{m.gb ? gb(m.gb) : '-'}</div>
+                  {#if m.gb_jetzt != null}<div class="zweit">jetzt {gb(m.gb_jetzt)}</div>{/if}</td>
+                <td data-titel="Zustand"><Zustand art="modell" wert={m.zustand} dreht />
                   <div class="zweit">{#if m.ladesperre_bis_s && m.ladesperre_bis_s > jetzt}<span class="akzent" title="Der Dienst hat das Laden abgelehnt; bis zum Ende der Pause plant die Leitstelle keinen neuen Versuch">abgelehnt: {m.ladesperre_grund}</span>
                     {:else if m.auftraege_aktiv}<span class="zahl">{m.auftraege_aktiv}</span> {m.auftraege_aktiv === 1 ? 'Auftrag läuft' : 'Aufträge laufen'}{#if m.plaetze > 1}<span title="So viele Aufträge rechnet der Dienst nebeneinander (Dienstdatei des Maschinenraums oder Eintrag des Dienstes)">, <span class="zahl">{m.plaetze}</span> Plätze</span>{/if}
                     {:else if warten}<span class="akzent"><span class="zahl">{warten}</span> {warten === 1 ? 'Auftrag wartet' : 'Aufträge warten'} darauf</span>

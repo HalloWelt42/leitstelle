@@ -75,28 +75,28 @@
     </div>
   </div>
 
-  <div class="rollfeld">
+  <div class="rollfeld tabellen-raum">
     {#if bild.dienste.length}
-      <table class="tabelle">
+      <table class="tabelle karten">
         <thead><tr><th>Dienst</th><th>Rechner</th><th>Zustand</th><th>Speicher</th><th>Modelle</th><th>Plätze</th><th>Zugang</th><th></th></tr></thead>
         <tbody>
           {#each bild.dienste as d (d.kennung)}
             {@const ms = modelle(d.kennung)}
             <tr>
               <td><b>{d.name}</b><div class="leise klein zahl">{d.adresse}</div></td>
-              <td>{knotenName(d.knoten)} <ZoneMarke wert={knotenZone(d)} /></td>
-              <td><Zustand art="dienst" wert={d.zustand} />{#if d.meldung}<div class="leise klein" title={d.meldung}>{d.meldung.length > 60 ? d.meldung.slice(0, 57) + '...' : d.meldung}</div>{/if}
+              <td data-titel="Rechner">{knotenName(d.knoten)} <ZoneMarke wert={knotenZone(d)} /></td>
+              <td data-titel="Zustand"><Zustand art="dienst" wert={d.zustand} />{#if d.meldung}<div class="leise klein" title={d.meldung}>{d.meldung.length > 60 ? d.meldung.slice(0, 57) + '...' : d.meldung}</div>{/if}
                 {#if d.fehlschlaege && d.naechste_pruefung_s}<div class="klein" title="Nach jedem Fehlschlag verdoppelt sich der Abstand, höchstens ein Tag; ab dem fünften Fehlschlag in Folge heißt es Ausfall">
                   <span class="zahl">{d.fehlschlaege}</span> {d.fehlschlaege === 1 ? 'Fehlschlag' : 'Fehlschläge'}, nächste Prüfung {d.naechste_pruefung_s > jetzt ? `in ${dauer(d.naechste_pruefung_s - jetzt)}` : 'gleich'}
                   <button class="knopf klein ohne" onclick={() => tun(() => api.dienstPruefen(d.kennung), 'Geprüft')} title="Sofort fragen, unabhängig von den Abständen"><i class="fa-solid fa-rotate"></i> Jetzt prüfen</button></div>{/if}</td>
-              <td class="klein" title={d.steuerbar ? 'Die Leitstelle liest den echten Ladezustand und lädt und entlädt selbst' : 'Der Dienst meldet nur seine Modelle; Laden und Entladen übernimmt er selbst'}>{d.steuerbar ? 'Leitstelle steuert' : 'Dienst lädt selbst'}</td>
-              <td class="zahl">{ms.length} <span class="leise">({ms.filter((m) => m.zustand !== 'frei').length} geladen)</span></td>
-              <td class="zahl" title="Gleichzeitige Aufträge je geladenem Modell">{d.plaetze}
+              <td data-titel="Speicher" class="klein" title={d.steuerbar ? 'Die Leitstelle liest den echten Ladezustand und lädt und entlädt selbst' : 'Der Dienst meldet nur seine Modelle; Laden und Entladen übernimmt er selbst'}>{d.steuerbar ? 'Leitstelle steuert' : 'Dienst lädt selbst'}</td>
+              <td data-titel="Modelle" class="zahl">{ms.length} <span class="leise">({ms.filter((m) => m.zustand !== 'frei').length} geladen)</span></td>
+              <td data-titel="Plätze" class="zahl" title="Gleichzeitige Aufträge je geladenem Modell">{d.plaetze}
                 {#if d.einbettung_instanzen > 1}<div class="klein" title="Bei Andrang lädt die Leitstelle weitere Instanzen je Einbettungsmodell (je Instanz ein Platz) und lässt den Spielraum im Budget frei; bei Ruhe baut sie zurück">
                   Einbettung bis {d.einbettung_instanzen} Instanzen, {d.einbettung_spielraum_gb} GB Spielraum</div>{/if}
                 {#if d.anfragen_je_minute}<div class="klein" class:akzent={d.frei_in_s > 0} title="Grenze des Anbieters; jede Anfrage zählt, auch die Abfrage der Modelle">
                   {d.anfragen_letzte_minute} von {d.anfragen_je_minute} je Minute{#if d.frei_in_s > 0}, frei in {dauer(d.frei_in_s)}{/if}</div>{/if}</td>
-              <td>{#if d.zugang}
+              <td data-titel="Zugang">{#if d.zugang}
                   <span class="zahl">{d.kennung in aufgedeckt ? (aufgedeckt[d.kennung] ?? '') : '••••••••'}</span>
                   <button class="knopf ohne symbol klein" onclick={() => zugangZeigen(d.kennung)} title="Zugang aufdecken; steht im Prüfprotokoll"><i class="fa-solid {d.kennung in aufgedeckt ? 'fa-eye-slash' : 'fa-eye'}"></i></button>
                 {:else}<span class="leise klein">keiner nötig</span>{/if}</td>

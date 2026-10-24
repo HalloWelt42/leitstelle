@@ -115,19 +115,19 @@
   </div>
 
   <div class="spalten breit-rechts">
-    <div class="rollfeld">
+    <div class="rollfeld tabellen-raum">
       {#if bild.anwendungen.length}
-        <table class="tabelle">
+        <table class="tabelle karten">
           <thead><tr><th>Anwendung</th><th>Zustand</th><th>Fähigkeiten</th><th>Priorität</th><th>Zonen</th></tr></thead>
           <tbody>
             {#each bild.anwendungen as a (a.kennung)}
               <tr class:gewaehlt={gewaehlt?.kennung === a.kennung} style="cursor: pointer" onclick={() => weg.gehe('anwendungen', a.kennung, true)}>
                 <td><div class="name"><a href={weg.pfad('anwendungen', a.kennung)} onclick={(e) => { e.stopPropagation(); weg.klick(e, 'anwendungen', a.kennung); }}>{a.name}</a></div>
                   <div class="wo klein leise">angelegt {uhrzeit(a.angelegt_s)}</div></td>
-                <td>{#if a.gesperrt}<span class="zustand fehler" title={a.sperrgrund}><i class="fa-solid fa-ban"></i>Gesperrt</span>{:else}<span class="zustand fertig"><i class="fa-solid fa-circle-check"></i>Frei</span>{/if}</td>
-                <td><div class="marken">{#each a.faehigkeiten.filter((f) => f !== 'uebersetzen' && f !== 'werkzeug') as f (f)}<Faehigkeit wert={f} />{/each}</div></td>
-                <td><span class="prio {PRIORITAET[a.prioritaet].klasse}">{PRIORITAET[a.prioritaet].wort}</span></td>
-                <td>{#each zonenWort(a) as z (z)}<ZoneMarke wert={z} /> {/each}</td>
+                <td data-titel="Zustand">{#if a.gesperrt}<span class="zustand fehler" title={a.sperrgrund}><i class="fa-solid fa-ban"></i>Gesperrt</span>{:else}<span class="zustand fertig"><i class="fa-solid fa-circle-check"></i>Frei</span>{/if}</td>
+                <td data-titel="Fähigkeiten"><div class="marken">{#each a.faehigkeiten.filter((f) => f !== 'uebersetzen' && f !== 'werkzeug') as f (f)}<Faehigkeit wert={f} />{/each}</div></td>
+                <td data-titel="Priorität"><span class="prio {PRIORITAET[a.prioritaet].klasse}">{PRIORITAET[a.prioritaet].wort}</span></td>
+                <td data-titel="Zonen">{#each zonenWort(a) as z (z)}<ZoneMarke wert={z} /> {/each}</td>
               </tr>
             {/each}
           </tbody>
