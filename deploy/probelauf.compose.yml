@@ -1,0 +1,14 @@
+# Probelauf des Handbuchs (einrichten.sh --probe), zusätzlich zu docker-compose.yml: eigene Namen statt der festen des
+# Betriebs, damit nichts mit einer laufenden Leitstelle zusammenstößt, und Ports nur an 127.0.0.1, verschoben um den
+# Versatz des Probelaufs (PROBE_PORT_* setzt das Einrichtungsskript in die .env des Probeordners).
+services:
+  leitstelle:
+    container_name: ${COMPOSE_PROJECT_NAME:?}-leitstelle
+    image: ${COMPOSE_PROJECT_NAME:?}-leitstelle
+    ports: !override
+      - "127.0.0.1:${PROBE_PORT_LEITSTELLE:?}:8530"
+  entwuerfe:
+    container_name: ${COMPOSE_PROJECT_NAME:?}-entwuerfe
+    image: ${COMPOSE_PROJECT_NAME:?}-entwuerfe
+    ports: !override
+      - "127.0.0.1:${PROBE_PORT_ENTWUERFE:?}:80"
