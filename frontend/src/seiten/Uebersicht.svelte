@@ -70,7 +70,7 @@
       <div class="kennzahl erfolg"><b>{kennzahlen?.fertig ?? '-'}</b><span>Heute fertig</span>
         {#if kennzahlen?.wartezeit_mittel_s != null}<small>mittlere Wartezeit {dauer(kennzahlen.wartezeit_mittel_s)}</small>{/if}</div>
       <div class="kennzahl fehler"><b>{kennzahlen?.fehler ?? '-'}</b><span>Fehler heute</span>{#if kennzahlen?.abgebrochen}<small>{kennzahlen.abgebrochen} abgebrochen</small>{/if}</div>
-      <div class="kennzahl"><b>{erreichbar.length}<span style="font-size: 18px; color: var(--ls-text-3)"> / {bild.knoten.length}</span></b><span>Knoten</span>
+      <div class="kennzahl"><b>{erreichbar.length}<span style="font-size: var(--gross); color: var(--text-3)"> / {bild.knoten.length}</span></b><span>Knoten</span>
         {#if namen('nicht_erreichbar').length}<small>{namen('nicht_erreichbar').join(', ')} nicht erreichbar</small>{/if}
         {#if namen('schlaeft').length}<small>{namen('schlaeft').join(', ')} {namen('schlaeft').length === 1 ? 'schläft' : 'schlafen'}</small>{/if}</div>
     </div>
@@ -94,7 +94,7 @@
         <div class="laufend">
           {#each laufend as a (a.kennung)}
             {@const f = FAEHIGKEIT[a.faehigkeit]}
-            <div class="lauf" style="--f:{f.farbe};--f-rgb:{f.rgb}" title="{a.titel}: läuft seit {dauer(jetzt - (a.start_s ?? jetzt))}">
+            <div class="lauf" style="--f:{f.farbe}" title="{a.titel}: läuft seit {dauer(jetzt - (a.start_s ?? jetzt))}">
               <div class="symbol"><i class="fa-solid {f.symbol}"></i></div>
               <div style="min-width:0">
                 <a class="titel" href={weg.pfad('auftraege', a.kennung)} onclick={(e) => weg.klick(e, 'auftraege', a.kennung)}>{a.titel}</a>
@@ -103,7 +103,7 @@
                 <div class="balken lebt unbestimmt"><b></b></div>
               </div>
               <div class="rest">Seit<b>{dauer(jetzt - (a.start_s ?? jetzt))}</b></div>
-              <div class="rest">Priorität<b style="font-family: var(--ls-schrift); font-weight: 600">{PRIORITAET[a.prioritaet].wort}</b></div>
+              <div class="rest">Priorität<b style="font-family: var(--schrift); font-weight: 600">{PRIORITAET[a.prioritaet].wort}</b></div>
               <div class="knoepfe">
                 <button class="knopf ohne symbol klein gefahr" onclick={() => (stoppen = a)} title="Stoppen: auslaufen lassen oder sofort abbrechen"><i class="fa-solid fa-stop"></i></button>
               </div>
@@ -116,7 +116,7 @@
           <a class="mehr" href={weg.pfad('auftraege')} onclick={(e) => weg.klick(e, 'auftraege')}>Verlauf</a></div>
         {#each zuletzt as e (e.kennung)}
           {@const f = FAEHIGKEIT[e.faehigkeit]}
-          <a class="lauf zuletzt" style="--f:{f.farbe};--f-rgb:{f.rgb}" href={weg.pfad('auftraege', e.kennung)} onclick={(ev) => weg.klick(ev, 'auftraege', e.kennung)}>
+          <a class="lauf zuletzt" style="--f:{f.farbe}" href={weg.pfad('auftraege', e.kennung)} onclick={(ev) => weg.klick(ev, 'auftraege', e.kennung)}>
             <div class="symbol"><i class="fa-solid {f.symbol}"></i></div>
             <div style="min-width:0"><div class="titel">{e.titel || f.wort}</div>
               <div class="zweit"><span class="app">{anwendung(e.anwendung)}</span>{#if e.modell_name}<span>{e.modell_name}</span>{/if}
@@ -141,10 +141,10 @@
           <p class="leise klein">Noch kein Rechner eingerichtet.</p>
         {/each}
         <div class="speicher-legende">
-          <span><i class="fa-solid fa-square" style="color: var(--ls-himmel)"></i>Text</span>
-          <span><i class="fa-solid fa-square" style="color: var(--ls-flieder)"></i>Bild</span>
-          <span><i class="fa-solid fa-square" style="color: var(--ls-petrol)"></i>Einbettung</span>
-          <span><i class="fa-solid fa-square" style="color: var(--ls-stahl)"></i>System</span>
+          <span><i class="fa-solid fa-square" style="color: var(--himmel)"></i>Text</span>
+          <span><i class="fa-solid fa-square" style="color: var(--flieder)"></i>Bild</span>
+          <span><i class="fa-solid fa-square" style="color: var(--petrol)"></i>Einbettung</span>
+          <span><i class="fa-solid fa-square" style="color: var(--stahl)"></i>System</span>
         </div>
       </div>
 
@@ -187,9 +187,9 @@
 {#if stoppen}<StoppDialog auftrag={stoppen} schliessen={() => (stoppen = null)} />{/if}
 
 <style>
-  .lagezeile b.ruhig { color: var(--ls-erfolg); }
+  .lagezeile b.ruhig { color: var(--gut); }
   .speicher-zeile { margin-top: 6px; }
-  :global(.seite-uebersicht .lauf .titel) { display: block; color: var(--ls-text); }
+  :global(.seite-uebersicht .lauf .titel) { display: block; color: var(--text); }
   :global(.seite-uebersicht .lauf.zuletzt) { grid-template-columns: 34px minmax(0, 1fr) 110px 90px; color: inherit; margin-top: 2px; }
-  :global(.seite-uebersicht .wartet-k .eintrag .t a) { color: var(--ls-text); }
+  :global(.seite-uebersicht .wartet-k .eintrag .t a) { color: var(--text); }
 </style>

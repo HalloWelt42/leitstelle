@@ -141,7 +141,7 @@
 
     <div class="rollfeld">
       {#if neuerSchluessel && gewaehlt}
-        <div class="hinweis warnung schluessel-neu" style="margin-bottom: var(--ls-a3)"><i class="fa-solid fa-key"></i>
+        <div class="hinweis warnung schluessel-neu" style="margin-bottom: var(--a3)"><i class="fa-solid fa-key"></i>
           <span>Schlüssel für <b>{neuerSchluessel.name}</b>: <code>{neuerSchluessel.schluessel}</code>. Er bleibt hier unter dem Auge abrufbar.</span>
           <button class="knopf klein" onclick={() => neuerSchluessel && kopieren(neuerSchluessel.schluessel)}><i class="fa-solid fa-copy"></i> Kopieren</button>
           <button class="knopf klein ohne" onclick={() => (neuerSchluessel = null)}>Schließen</button></div>
@@ -155,18 +155,18 @@
             <label class="feld-l"><span>Name</span><input class="eingabe" bind:value={entwurf.name} placeholder="zum Beispiel Codehilfe" /></label>
             <label class="feld-l"><span>Gleichzeitig höchstens <small>weitere Aufträge werden eingereiht</small></span><input class="eingabe" type="number" min="1" max="64" bind:value={entwurf.gleichzeitig} /></label>
           </div>
-          <div class="etikett" style="margin-top: var(--ls-a4)">Priorität (Vorgabe)</div>
+          <div class="etikett" style="margin-top: var(--a4)">Priorität (Vorgabe)</div>
           <span class="stufen" title="Gilt für jeden Auftrag dieser Anwendung; der Kopf X-Leitstelle-Prioritaet darf sie je Aufruf nur absenken">
             {#each [0, 1, 2, 3] as p (p)}<button class:an={entwurf.prioritaet === p} onclick={() => (entwurf.prioritaet = p as Prioritaet)}>{PRIORITAET[p].wort}</button>{/each}
           </span>
-          <div class="etikett" style="margin-top: var(--ls-a4)">Fähigkeiten</div>
+          <div class="etikett" style="margin-top: var(--a4)">Fähigkeiten</div>
           <div class="filter" style="margin: 6px 0 0">
             {#each ALLE as f (f)}
               <button class="chip" class:aktiv={entwurf.faehigkeiten?.includes(f)} onclick={() => (entwurf.faehigkeiten = umschalten(entwurf.faehigkeiten ?? [], f))}
                       title="{FAEHIGKEIT[f].wort} {entwurf.faehigkeiten?.includes(f) ? 'erlaubt; abwählen lehnt solche Aufträge ab' : 'nicht erlaubt'}"><i class="fa-solid {FAEHIGKEIT[f].symbol}"></i> {FAEHIGKEIT[f].wort}</button>
             {/each}
           </div>
-          <div class="etikett" style="margin-top: var(--ls-a4)">Zonen</div>
+          <div class="etikett" style="margin-top: var(--a4)">Zonen</div>
           <div class="filter" style="margin: 6px 0 0">
             <button class="chip aktiv" disabled title="Heimnetz ist immer erlaubt"><i class="fa-solid fa-house"></i> Heimnetz</button>
             <button class="chip" class:aktiv={entwurf.zonen?.includes('fern')} onclick={() => (entwurf.zonen = umschalten(entwurf.zonen ?? [], 'fern' as Zone))}
@@ -175,7 +175,7 @@
                     title="Externe Anbieter dürfen rechnen; Daten verlassen dann das Heimnetz"><i class="fa-solid fa-cloud"></i> Extern</button>
           </div>
 
-          <div class="etikett" style="margin-top: var(--ls-a4)">Modellketten <span class="leise" style="text-transform:none; letter-spacing:0; font-weight:500">gilt, wenn die Anwendung kein Modell nennt; erstes verfügbares gewinnt</span></div>
+          <div class="etikett" style="margin-top: var(--a4)">Modellketten <span class="leise" style="text-transform:none; letter-spacing:0; font-weight:500">gilt, wenn die Anwendung kein Modell nennt; erstes verfügbares gewinnt</span></div>
           {#each KETTEN.filter((f) => entwurf.faehigkeiten?.includes(f)) as f (f)}
             <div class="modellkette">
               <div><Faehigkeit wert={f} /></div>
@@ -195,7 +195,7 @@
             </div>
           {/each}
 
-          <div class="tun" style="margin-top: var(--ls-a4); display: flex; gap: var(--ls-a2); flex-wrap: wrap">
+          <div class="tun" style="margin-top: var(--a4); display: flex; gap: var(--a2); flex-wrap: wrap">
             <button class="knopf haupt" onclick={speichern} disabled={!entwurf.name.trim()}><i class="fa-solid fa-floppy-disk"></i> {anlegen ? 'Anlegen und Schlüssel erzeugen' : 'Speichern'}</button>
             {#if gewaehlt}
               {#if gewaehlt.gesperrt}<button class="knopf" onclick={() => tun(() => api.freigeben(gewaehlt.kennung), 'Freigegeben')}><i class="fa-solid fa-unlock"></i> Freigeben</button>
@@ -234,10 +234,10 @@
                 <div class="rechts"><button class="knopf klein ohne" onclick={() => (frage = null)}>Abbrechen</button>
                   <button class="knopf klein gefahr-voll" onclick={neuErzeugen}><i class="fa-solid fa-rotate"></i> Ja, neu erzeugen</button></div></div>
             {/if}
-            <div class="etikett" style="margin-top: var(--ls-a4)">Einbau (Stufe 1, nur die gewöhnliche Schnittstelle)</div>
+            <div class="etikett" style="margin-top: var(--a4)">Einbau (Stufe 1, nur die gewöhnliche Schnittstelle)</div>
             <div class="einbau"><code>Basisadresse {basis}</code><button class="knopf ohne symbol klein" onclick={() => kopieren(basis)} title="Basisadresse kopieren"><i class="fa-solid fa-copy"></i></button></div>
             <div class="einbau"><code>Authorization: Bearer &lt;Schlüssel&gt;</code></div>
-            <p class="leise klein" style="margin-top: var(--ls-a2)">Modellname darf bleiben, wie er ist; ohne Modell gilt die Kette. Lese-Zeitgrenzen in der Anwendung entfernen; während des Wartens kommen Kommentarzeilen.</p>
+            <p class="leise klein" style="margin-top: var(--a2)">Modellname darf bleiben, wie er ist; ohne Modell gilt die Kette. Lese-Zeitgrenzen in der Anwendung entfernen; während des Wartens kommen Kommentarzeilen.</p>
           </div>
         {/if}
       {:else}

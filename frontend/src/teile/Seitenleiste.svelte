@@ -31,7 +31,7 @@
     ['Modelle', 'fa-brain', 'modelle'],
     ['Anwendungen', 'fa-cubes', 'anwendungen'],
   ];
-  const SYSTEM: [string, string, Seite][] = [['Protokoll', 'fa-terminal', 'protokoll']];
+  const SYSTEM: [string, string, Seite][] = [['Protokoll', 'fa-terminal', 'protokoll'], ['Gestaltung', 'fa-swatchbook', 'gestaltung']];
   const aktiv = (s: Seite) => weg.seite === s || (s === 'dienste' && weg.seite === 'anschluss');
 </script>
 

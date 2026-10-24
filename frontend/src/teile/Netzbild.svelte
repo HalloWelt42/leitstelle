@@ -111,7 +111,7 @@
 
   <g class="knoten aktiv" transform="translate({MITTE_X},{plan.mitteY - 103})">
     <rect width={MITTE_B} height="206" rx="3"></rect>
-    <text x="18" y="32" style="font-weight:700;font-size:20px">Leitstelle</text>
+    <text x="18" y="32" style="font-weight:700;font-size:calc(var(--gross) + 2px)">Leitstelle</text>
     <text x="18" y="55" class="klein">Vermittlung und Warteschlange</text>
     <text x="18" y="92" class="klein">Laufen</text><text x={MITTE_B - 18} y="92" class="zahl" text-anchor="end" style="font-weight:700">{laufend.length}</text>
     <text x="18" y="118" class="klein">Warten</text><text x={MITTE_B - 18} y="118" class="zahl" text-anchor="end" style="font-weight:700">{wartend.length}</text>
@@ -120,7 +120,7 @@
     {#each wartend.slice(0, 13) as a, i (a.kennung)}
       <rect x={18 + i * 15} y="164" width="11" height="9" rx="1" fill={FAEHIGKEIT[a.faehigkeit].farbe}><title>{a.titel}: {a.begruendung}</title></rect>
     {/each}
-    <text x="18" y="192" class="klein" style="font-size:15px">Warteschlange</text>
+    <text x="18" y="192" class="klein" style="font-size:calc(var(--klein) - 1px)">Warteschlange</text>
   </g>
 
   {#each plan.rechts as k (k.kennung)}
@@ -133,7 +133,7 @@
       <text x="14" y="42" class="klein">{k.zeile}</text>
       {#if rechnet}<circle class="herz" cx={RECHTS_B - 18} cy="19" r="5"></circle>{/if}
       {#each k.dienste as d, i (d + i)}
-        <text x="22" y={66 + i * 23} class="klein" style="font-size:15px">• {d.length > 24 ? d.slice(0, 22) + '...' : d}</text>
+        <text x="22" y={66 + i * 23} class="klein" style="font-size:calc(var(--klein) - 1px)">• {d.length > 24 ? d.slice(0, 22) + '...' : d}</text>
       {/each}
       {#if k.belegt != null}
         {@const yy = 60 + k.dienste.length * 23}
@@ -143,6 +143,6 @@
     </g>
   {/each}
 
-  <text x={LINKS_X} y="22" class="klein" style="font-size:15px;letter-spacing:.08em;text-transform:uppercase;font-weight:700">Anwendungen</text>
-  <text x={RECHTS_X} y="22" class="klein" style="font-size:15px;letter-spacing:.08em;text-transform:uppercase;font-weight:700">Knoten und Dienste</text>
+  <text x={LINKS_X} y="22" class="klein" style="font-size:calc(var(--klein) - 1px);letter-spacing:.08em;text-transform:uppercase;font-weight:700">Anwendungen</text>
+  <text x={RECHTS_X} y="22" class="klein" style="font-size:calc(var(--klein) - 1px);letter-spacing:.08em;text-transform:uppercase;font-weight:700">Knoten und Dienste</text>
 </svg>

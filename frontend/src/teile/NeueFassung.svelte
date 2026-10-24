@@ -16,7 +16,7 @@
 {/if}
 
 <style>
-  .neue-fassung { flex: none; align-items: center; margin: var(--ls-a3) var(--ls-a6) 0; }
+  .neue-fassung { flex: none; align-items: center; margin: var(--a3) var(--a6) 0; }
   .neue-fassung > i { margin-top: 0; }
   /* nicht "telefon": so heißt in den Seitenstilen der Mobilseite der gezeichnete Telefonrahmen */
   .neue-fassung.knapp { margin: 0; flex-wrap: wrap; }

@@ -53,5 +53,5 @@
 </div>
 
 <style>
-  :global(.seite-protokoll .zeile-log) { grid-template-columns: 110px 200px 24px minmax(0, 1fr); border-top: 1px solid var(--ls-rand); }
+  :global(.seite-protokoll .zeile-log) { grid-template-columns: 110px 200px 24px minmax(0, 1fr); border-top: 1px solid var(--rand); }
 </style>

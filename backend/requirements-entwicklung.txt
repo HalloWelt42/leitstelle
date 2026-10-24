@@ -1,0 +1,3 @@
+# Werkzeuge der Entwicklung (nicht im Abbild): Prüfungen des Appkerns für den Git-Haken (Zeichen, Stil, Marken der
+# Gestaltung). Derselbe Commit wie appkern-oberflaeche in frontend/package-lock.json.
+appkern @ https://github.com/HalloWelt42/appkern/archive/5bd5db3fa7fac8921c95119bc8a3a718c974a2d1.tar.gz

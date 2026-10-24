@@ -1,5 +1,5 @@
-// Ansicht je Gerät: Thema und Schriftstufe, gemerkt im Browser. Farbwelt und Blauart sind
-// Entscheidungen des Nutzers (Kräftig, Königsblau) und stehen fest in index.html.
+// Ansicht je Gerät: Thema und Schriftstufe, gemerkt im Browser. Die Farben (Kräftig, Königsblau, Nutzerwahl) stehen
+// fest in den Marken des Appkerns.
 
 export type Thema = 'dunkel' | 'hell';
 export type Schrift = 'klein' | 'mittel' | 'gross';

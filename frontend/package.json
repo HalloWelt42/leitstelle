@@ -2,7 +2,7 @@
   "name": "leitstelle-frontend",
   "private": true,
   "type": "module",
-  "description": "Oberfläche der Leitstelle (Svelte 5); liefert auch Schriften und Symbole für die Entwürfe",
+  "description": "Oberfläche der Leitstelle (Svelte 5), Gestaltung aus dem Appkern (Marken, Bausteine des Leitstands); liefert auch Schriften und Symbole für die Entwürfe",
   "scripts": {
     "dev": "vite",
     "build": "vite build && node symbol-einbetten.mjs dist",
@@ -12,7 +12,8 @@
   "dependencies": {
     "@fontsource/barlow": "^5.2.5",
     "@fontsource/chakra-petch": "^5.2.5",
-    "@fortawesome/fontawesome-free": "^7.0.0"
+    "@fortawesome/fontawesome-free": "^7.0.0",
+    "appkern-oberflaeche": "github:HalloWelt42/appkern"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.3.1",

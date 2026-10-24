@@ -2,7 +2,9 @@
 """Übernimmt die Stilblöcke der Entwürfe (mockups/*.html) in frontend/src/stil/seiten.css.
 
 Jede Regel bekommt das Präfix ihrer Seite (.seite-<name>), damit gleichnamige Bausteine verschiedener
-Entwürfe sich nicht überschreiben. Aufruf aus der Projektwurzel: python3 tools/seitenstile.py
+Entwürfe sich nicht überschreiben. Die Entwürfe rechnen mit ihren eigenen Marken (--ls-* in mockups/stil.css);
+die Oberfläche nutzt die Marken des Appkerns: beim Übernehmen werden die Namen übersetzt und Mischungen aus
+RGB-Werten (rgba(var(--ls-x-rgb), a)) zu color-mix. Aufruf aus der Projektwurzel: python3 tools/seitenstile.py
 """
 
 import pathlib
@@ -16,10 +18,47 @@ SEITEN = [("uebersicht", "uebersicht"), ("auftraege", "auftraege"), ("auftrag-st
 KOPF = """/*
  * Seitenstile der Oberfläche, übernommen aus den Stilblöcken der Entwürfe (mockups/*.html).
  * Jede Regel trägt das Präfix ihrer Seite (.seite-<name>), damit gleichnamige Bausteine
- * verschiedener Entwürfe sich nicht überschreiben. Erzeugt mit tools/seitenstile.py;
- * Änderungen an der Optik zuerst im Entwurf, dann neu erzeugen.
+ * verschiedener Entwürfe sich nicht überschreiben. Erzeugt mit tools/seitenstile.py, mit den Marken des Appkerns
+ * statt denen der Entwürfe; Änderungen an der Optik zuerst im Entwurf, dann neu erzeugen.
  */
 """
+
+
+# Marken der Entwürfe -> Marken des Appkerns (oberflaeche/stil/marken.css im Appkern)
+MARKEN = {
+    "--ls-schrift-zahl": "--schrift-zahl", "--ls-schrift-code": "--schrift-code", "--ls-schrift": "--schrift",
+    "--ls-gr-seite": "--seitentitel", "--ls-gr-titel": "--titel", "--ls-gr-text": "--gross", "--ls-gr-klein": "--klein",
+    "--ls-gr-marke": "--marke", "--ls-gr-kennzahl": "--kennzahl", "--ls-ecke-klein": "--r1", "--ls-ecke": "--r2",
+    "--ls-kopf-hoehe": "--kopf-hoehe", "--ls-seite-breite": "--nav-breite", "--ls-fuss-hoehe": "--fuss-hoehe",
+    "--ls-schnell": "--schnell", "--ls-ruhig": "--ruhig", "--ls-grund": "--hg", "--ls-leiste": "--leiste",
+    "--ls-flaeche": "--bereich", "--ls-karte-2": "--karte-2", "--ls-karte-3": "--karte-3", "--ls-karte": "--karte",
+    "--ls-mulde": "--mulde", "--ls-text-2": "--text-2", "--ls-text-3": "--text-3", "--ls-text": "--text",
+    "--ls-akzent-schrift": "--akzent", "--ls-akzent-text": "--auf-akzent", "--ls-akzent": "--akzent-flaeche",
+    "--ls-erfolg": "--gut", "--ls-warnung": "--warn", "--ls-gefahr": "--gefahr", "--ls-info": "--info",
+    "--ls-rand-stark": "--rand-stark", "--ls-rand": "--rand", "--ls-schleier": "--schleier",
+    "--ls-schatten": "--schatten-schwebend", "--ls-diagrammlinie": "--diagrammlinie", "--ls-tint": "--toenung",
+    **{f"--ls-a{i}": f"--a{i}" for i in range(1, 8)},
+    **{f"--ls-{f}": f"--{f}" for f in ("himmel", "petrol", "tuerkis", "minze", "flieder", "violett", "rose", "koralle",
+                                        "honig", "sand", "stahl")},
+}
+
+
+def marken_des_appkerns(css: str) -> str:
+    """Marken der Entwürfe in die des Appkerns übersetzen; RGB-Mischungen werden color-mix."""
+    def ziel(name: str) -> str:
+        return MARKEN.get(name, name.replace("--ls-", "--"))
+    css = re.sub(r"rgba\(var\((--[\w-]+?)-rgb\),\s*var\(--ls-tint\)\)",
+                 lambda m: f"color-mix(in srgb, var({ziel(m.group(1))}) var(--toenung), transparent)", css)
+    css = re.sub(r"rgba\(var\((--[\w-]+?)-rgb\),\s*([\d.]+)\)",
+                 lambda m: f"color-mix(in srgb, var({ziel(m.group(1))}) {float(m.group(2)) * 100:g}%, transparent)", css)
+    css = re.sub(r";\s*--[\w-]+-rgb:\s*var\(--ls-[\w-]+-rgb\);", ";", css)
+    for alt in sorted(MARKEN, key=len, reverse=True):
+        css = re.sub(re.escape(alt) + r"(?![\w-])", MARKEN[alt], css)
+    css = re.sub(r"color: #fff\b", "color: var(--auf-farbe)", css)
+    rest = sorted(set(re.findall(r"--ls-[\w-]+", css)))
+    if rest:
+        raise SystemExit(f"Marken der Entwürfe ohne Gegenstück im Appkern: {', '.join(rest)}")
+    return css
 
 
 def stil(datei: str) -> str:
@@ -56,7 +95,7 @@ def main() -> None:
     for datei, seite in SEITEN:
         css = stil(datei)
         if css.strip():
-            teile.append(f"\n/* ═══ {datei}.html ═══ */\n" + praefix(css, seite).strip() + "\n")
+            teile.append(f"\n/* ═══ {datei}.html ═══ */\n" + marken_des_appkerns(praefix(css, seite)).strip() + "\n")
     ziel = WURZEL / "frontend" / "src" / "stil" / "seiten.css"
     ziel.write_text("".join(teile), encoding="utf-8")
     print(f"{ziel.relative_to(WURZEL)}: {len(ziel.read_text(encoding='utf-8').splitlines())} Zeilen")

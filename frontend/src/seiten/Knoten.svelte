@@ -81,7 +81,7 @@
 
   <div class="rollfeld">
     {#if neu}
-      <div class="karte" style="margin-bottom: var(--ls-a4)">
+      <div class="karte" style="margin-bottom: var(--a4)">
         <h3><i class="fa-solid fa-server"></i>Rechner hinzufügen</h3>
         <div class="feldreihe">
           <label class="feld-l"><span>Name</span><input class="eingabe" bind:value={neu.name} placeholder="zum Beispiel Mac mini" /></label>
@@ -90,7 +90,7 @@
           <label class="feld-l"><span>Zone</span><select class="eingabe" bind:value={neu.zone}><option value="heim">Heimnetz</option><option value="fern">Über VPN</option></select></label>
         </div>
         <p class="leise klein">Danach auf der Karte des Rechners den Schlüssel für seinen Maschinenraum ausstellen; jeder Rechner braucht einen eigenen (einen kopierten Ordner mit Schlüssel erkennt die Leitstelle als denselben Rechner).</p>
-        <div class="tun" style="margin-top: var(--ls-a3); display: flex; gap: var(--ls-a2)">
+        <div class="tun" style="margin-top: var(--a3); display: flex; gap: var(--a2)">
           <button class="knopf haupt" disabled={!neu.name.trim() || !neu.adresse.trim() || !neu.speicher_gb} onclick={anlegen}><i class="fa-solid fa-plus"></i> Anlegen</button>
           <button class="knopf ohne" onclick={() => (neu = null)}>Abbrechen</button></div>
       </div>

@@ -66,7 +66,7 @@
       <div class="m-karte">
         {#each [...laufend, ...wartend] as a (a.kennung)}
           {@const f = FAEHIGKEIT[a.faehigkeit]}
-          <div class="m-auftrag" style="--f:{f.farbe};--f-rgb:{f.rgb}">
+          <div class="m-auftrag" style="--f:{f.farbe}">
             <div class="symbol"><i class="fa-solid {f.symbol}"></i></div>
             <div style="min-width:0"><div class="t">{a.titel}</div>
               <div class="z"><span>{anwendung(a.anwendung)}</span><span>{a.zustand === 'laeuft' ? `seit ${dauer(jetzt - (a.start_s ?? jetzt))}` : 'wartet'}</span></div>
@@ -108,14 +108,14 @@
 </div>
 
 <style>
-  .telefonansicht { height: 100dvh; display: flex; flex-direction: column; background: var(--ls-grund);
+  .telefonansicht { height: 100dvh; display: flex; flex-direction: column; background: var(--hg);
                     padding: calc(env(safe-area-inset-top) + var(--oben-luft, 0px)) env(safe-area-inset-right) 0 env(safe-area-inset-left); } /* kein Abstand über dem Home-Balken (Nutzervorgabe 20.10.2026) */
   /* Vom Home-Bildschirm (iOS 26): unter Uhr und Kamera-Insel fängt das System Berührungen ab, darum etwas Luft */
   @media (display-mode: standalone) and (pointer: coarse) { :global(.seite-mobil) { --oben-luft: 14px; } }
   :global(.seite-mobil .m-kopf) { padding-top: 14px; }
   :global(.seite-mobil .m-fuss) { padding-bottom: 14px; }
   .m-schalter { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; font-weight: 600; min-height: 44px; }
-  .m-meldung { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 8px; padding: 8px 0; border-top: 1px solid var(--ls-rand); font-size: 16px; }
+  .m-meldung { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 8px; padding: 8px 0; border-top: 1px solid var(--rand); font-size: var(--klein); }
   .m-meldung:first-child { border-top: 0; }
-  .m-meldung .zahl { color: var(--ls-text-3); }
+  .m-meldung .zahl { color: var(--text-3); }
 </style>

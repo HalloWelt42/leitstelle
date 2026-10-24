@@ -18,6 +18,9 @@ RUN pip install --no-cache-dir -e "backend[test]" "$MASCHINENRAUM" \
 # ── Oberfläche: prüfen und bauen ─────────────────────────────────────────
 FROM node:22-alpine AS oberflaeche
 WORKDIR /app/frontend
+# Die Gestaltung (Marken, Bausteine des Leitstands) kommt als Paket aus dem Repo des Appkerns auf GitHub
+RUN apk add --no-cache git && git config --global url."https://github.com/".insteadOf "ssh://git@github.com/" \
+ && git config --global --add url."https://github.com/".insteadOf "git@github.com:"
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY frontend/ ./

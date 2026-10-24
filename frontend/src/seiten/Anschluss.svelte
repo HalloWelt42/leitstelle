@@ -90,14 +90,14 @@
              title="Ein Programm, das Aufträge abgeben will"><i class="fa-solid fa-cubes"></i><b>Anwendung</b><span>Name und Rechte; der Schlüssel wird erzeugt.</span></a>
         </div>
 
-        <div class="feldreihe" style="margin-top: var(--ls-a4)">
+        <div class="feldreihe" style="margin-top: var(--a4)">
           <label class="feld-l"><span>Adresse <small>{art === 'extern' ? 'zum Beispiel https://anbieter.example/v1' : 'zum Beispiel 192.168.1.20:1234 oder mac-studio.local:1234'}</small></span>
             <input class="eingabe" bind:value={adresse} onkeydown={(e) => e.key === 'Enter' && erkennen()} placeholder={art === 'extern' ? 'https://' : 'Rechner:Port'} /></label>
           <label class="feld-l"><span>Zugang <small>Schlüssel oder Token, nur wenn der Dienst einen verlangt</small></span>
             <span class="feld-l zeile-feld"><input class="eingabe" type={zugangSehen ? 'text' : 'password'} bind:value={zugang} placeholder="leer lassen, wenn nicht nötig" />
               <button class="knopf symbol" onclick={() => (zugangSehen = !zugangSehen)} title="Eingabe aufdecken oder verdecken"><i class="fa-solid {zugangSehen ? 'fa-eye-slash' : 'fa-eye'}"></i></button></span></label>
         </div>
-        <div class="tun" style="margin-top: var(--ls-a3); display: flex; gap: var(--ls-a2)">
+        <div class="tun" style="margin-top: var(--a3); display: flex; gap: var(--a2)">
           <button class="knopf" onclick={erkennen} disabled={!adresse.trim() || erkennt} title="Prüft die Adresse und liest Modelle und Fähigkeiten; verändert nichts">
             <i class="fa-solid {erkennt ? 'fa-rotate fa-spin' : 'fa-magnifying-glass'}"></i> {erkennung ? 'Erneut erkennen' : 'Erkennen'}</button>
         </div>
@@ -140,7 +140,7 @@
                 <span class="v"><input class="eingabe" type="number" min="1" max="100000" style="height:34px; width: 90px" bind:value={grenze} title="So viele Anfragen je Minute nimmt der Anbieter an; leer heißt keine Grenze" /> <span class="leise">Anfragen je Minute (leer: keine)</span></span></div>{/if}
             {/if}
           </div>
-          <div class="tun" style="margin-top: var(--ls-a4); display: flex; gap: var(--ls-a2)">
+          <div class="tun" style="margin-top: var(--a4); display: flex; gap: var(--a2)">
             <button class="knopf haupt" disabled={!bereit} onclick={anschliessen} title="Dienst anlegen; er erscheint sofort und bekommt Aufträge nach den Regeln">
               <i class="fa-solid fa-plug-circle-check"></i> Anschließen</button>
             <a class="knopf ohne" href={weg.pfad('dienste')} onclick={(e) => weg.klick(e, 'dienste')}>Abbrechen</a>

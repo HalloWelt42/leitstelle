@@ -119,16 +119,16 @@
           <span class="n">{k.name} <span class="leise klein">{gb(k.speicher_gb)}</span></span>
           <span class="w" class:warn={k.frei_gb < 0}><span class="zahl">{prozent(k.belegt_anteil)}</span> belegt · <span class="zahl">{gb(Math.max(0, k.frei_gb))}</span> frei im Budget{k.frei_gb < 0 ? ' · über dem Budget' : ''}</span>
           <div class="speicher-legende">
-            <span><i class="fa-solid fa-square" style="color: var(--ls-himmel)"></i>Text</span>
-            <span><i class="fa-solid fa-square" style="color: var(--ls-flieder)"></i>Bild</span>
-            <span><i class="fa-solid fa-square" style="color: var(--ls-petrol)"></i>Einbettung</span>
-            <span><i class="fa-solid fa-square" style="color: var(--ls-stahl)"></i>System <span class="zahl">{gb(k.system_gb)}</span></span>
+            <span><i class="fa-solid fa-square" style="color: var(--himmel)"></i>Text</span>
+            <span><i class="fa-solid fa-square" style="color: var(--flieder)"></i>Bild</span>
+            <span><i class="fa-solid fa-square" style="color: var(--petrol)"></i>Einbettung</span>
+            <span><i class="fa-solid fa-square" style="color: var(--stahl)"></i>System <span class="zahl">{gb(k.system_gb)}</span></span>
           </div>
         </div>
         <Speicherbalken knoten={k} modelle={bild.modelle} budgetmarke />
       </div>
     {/each}
-    <div class="filter" style="margin-top: var(--ls-a3); margin-bottom: 0">
+    <div class="filter" style="margin-top: var(--a3); margin-bottom: 0">
       <span class="etikett">Knoten</span>
       <button class="chip" class:aktiv={filterKnoten === 'alle'} onclick={() => (filterKnoten = 'alle')} title="Alle Modelle aller Knoten">Alle <span class="zaehler">{bild.modelle.length}</span></button>
       {#each knotenMit as k (k.kennung)}
@@ -180,10 +180,10 @@
                       <input class="eingabe" bind:value={steckbrief.zweck} maxlength="300" placeholder={vonHand(m, 'zweck') ? '' : m.steckbrief.zweck || 'wofür das Modell gemacht ist, ein Satz'} /></label>
                     <label class="feld-l"><span>Sprachen <small>Kürzel, etwa de, en</small></span><input class="eingabe" bind:value={steckbrief.sprachen} placeholder={(m.steckbrief.sprachen ?? []).join(', ')} /></label>
                   </div>
-                  <div class="feld-l" style="margin-top: var(--ls-a3)"><span>Eignung <small>{steckbrief.eignung.length ? 'ersetzt die Angabe des Dienstes' : 'keine gewählt: es gilt die Angabe des Dienstes'}</small></span>
+                  <div class="feld-l" style="margin-top: var(--a3)"><span>Eignung <small>{steckbrief.eignung.length ? 'ersetzt die Angabe des Dienstes' : 'keine gewählt: es gilt die Angabe des Dienstes'}</small></span>
                     <div class="filter">{#each EIGNUNGEN as e (e)}<button class="chip" class:aktiv={steckbrief.eignung.includes(e)}
                       onclick={() => (steckbrief!.eignung = steckbrief!.eignung.includes(e) ? steckbrief!.eignung.filter((x) => x !== e) : [...steckbrief!.eignung, e])}>{EIGNUNG[e]}</button>{/each}</div></div>
-                  <div class="tun" style="margin-top: var(--ls-a3); display: flex; gap: var(--ls-a2)">
+                  <div class="tun" style="margin-top: var(--a3); display: flex; gap: var(--a2)">
                     <button class="knopf haupt" onclick={() => steckbriefSpeichern()}><i class="fa-solid fa-floppy-disk"></i> Speichern</button>
                     {#if Object.values(m.steckbrief.herkunft ?? {}).includes('hand')}<button class="knopf ohne" onclick={() => steckbriefSpeichern(true)} title="Nur noch die Auskunft des Dienstes">Eintrag von Hand entfernen</button>{/if}
                     <button class="knopf ohne" onclick={() => (steckbrief = null)}>Abbrechen</button></div>
@@ -215,7 +215,7 @@
       <div class="karte vorschau">
         <h3><i class="fa-solid fa-broom"></i>Speicher freigeben</h3>
         <p class="satz">Entlädt auf einem Rechner alles, was weichen darf: geladen, ohne Auftrag, nicht geschützt, Mindestverweildauer vorbei, und niemand wartet darauf. Erst die Vorschau, dann die Bestätigung.</p>
-        <div class="filter" style="margin: var(--ls-a3) 0 0">
+        <div class="filter" style="margin: var(--a3) 0 0">
           {#each bild.knoten.filter((k) => k.erreichbar) as k (k.kennung)}
             <button class="chip" class:aktiv={freigabeKnoten === k.kennung} onclick={() => vorschau(k.kennung)} title="Vorschau für {k.name}; nichts wird verändert">{k.name}</button>
           {/each}

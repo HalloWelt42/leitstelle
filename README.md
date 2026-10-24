@@ -83,8 +83,11 @@ Bilder aller Seiten: `tools/screenshots.sh .run/shots`.
 ## Kern prüfen
 
 ```bash
-cd backend && python3 -m venv .venv && .venv/bin/pip install -e ".[test]" && .venv/bin/python -m pytest
+cd backend && python3 -m venv .venv && .venv/bin/pip install -e ".[test]" -r requirements-entwicklung.txt && .venv/bin/python -m pytest
 ```
+
+`requirements-entwicklung.txt` bringt die Werkzeuge des Appkerns für den Git-Haken (Zeichen, Stil, Marken der
+Gestaltung); derselbe Commit wie `appkern-oberflaeche` in `frontend/package-lock.json`.
 
 Alle Tests laufen gegen den Schein-Verbund, nie gegen echte Modelle. Der Katalog der Szenarien mit
 Erwartung je Zweig steht in [docs/SZENARIEN.md](docs/SZENARIEN.md).
@@ -103,11 +106,18 @@ sie privat, nicht im Repository.
 
 ## Gestaltung in Kürze
 
+Die Gestaltung kommt aus dem [Appkern](https://github.com/HalloWelt42/appkern), der einen Wahrheit für alle eigenen
+Apps: Marken (Farben, Schriften, Größen) und die Bausteine des Leitstands (`appkern-oberflaeche/leitstand.css`, in
+`frontend/src/main.ts`). Hier steht nur Eigenes (`frontend/src/stil/app.css`, Netzbild; Seitenstile aus den Entwürfen
+in `seiten.css`, erzeugt mit `tools/seitenstile.py`, das die Marken der Entwürfe in die des Appkerns übersetzt). Der
+Git-Haken lässt im Stil nur Marken zu (`gestaltung.toml`). Die Seite Gestaltung (System, Gestaltung) zeigt Marken und
+Bausteine hell und dunkel.
+
 Bläuliche Flächen, Bernstein (gelb-orange) als einzige Hervorhebung, Zwischenfarben mit je einer
 Bedeutung (Himmel: Text, Petrol: Einbettung, Türkis: Übersetzen, Minze: Hören, Flieder: Bild,
 Violett: Musik, Rose: Stimme, Koralle: extern, Honig: pausiert, Sand: Werkzeuge und Wartung, Stahl:
 Heimnetz). Sanftes Dunkel und mildes Hell mit geprüften Kontrasten. Grundschrift 18 Pixel, nichts
-unter 14 Pixel, Zahlen in der Zahlenschrift. Jede Farbe steht mit einem Wort.
+unter 15 Pixel, Zahlen in der Zahlenschrift. Jede Farbe steht mit einem Wort.
 
 ## Version
 

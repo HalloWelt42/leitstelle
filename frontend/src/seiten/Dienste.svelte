@@ -121,7 +121,7 @@
                     <span class="feld-l zeile-feld"><input class="eingabe" type="password" bind:value={entwurf.zugang} disabled={!entwurf.zugangNeu} placeholder="neuer Schlüssel" />
                       <button class="knopf klein ohne" onclick={() => (entwurf.zugangNeu = !entwurf.zugangNeu)}>{entwurf.zugangNeu ? 'Doch nicht' : 'Ändern'}</button></span></label>
                 </div>
-                <div class="tun" style="margin-top: var(--ls-a3); display: flex; gap: var(--ls-a2)">
+                <div class="tun" style="margin-top: var(--a3); display: flex; gap: var(--a2)">
                   <button class="knopf haupt" onclick={speichern}><i class="fa-solid fa-floppy-disk"></i> Speichern</button>
                   <button class="knopf ohne" onclick={() => (bearbeiten = null)}>Abbrechen</button></div>
               </td></tr>

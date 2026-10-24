@@ -123,7 +123,7 @@
   {@const f = FAEHIGKEIT[a.faehigkeit]}
   {@const laeuft = a.zustand === 'laeuft'}
   {@const modell = 'modell_name' in a ? a.modell_name : (a as AuftragSicht).modell}
-  <div class="auftrag" class:gewaehlt={weg.teil === a.kennung} style="--f:{f.farbe};--f-rgb:{f.rgb}" role="button" tabindex="0"
+  <div class="auftrag" class:gewaehlt={weg.teil === a.kennung} style="--f:{f.farbe}" role="button" tabindex="0"
        onclick={() => waehlen(a.kennung)} onkeydown={(e) => e.key === 'Enter' && waehlen(a.kennung)}>
     <div class="symbol" title={f.wort}><i class="fa-solid {f.symbol}"></i></div>
     <div style="min-width:0">
@@ -204,13 +204,13 @@
         <div class="karte einzel">
           <h2>{einzel.titel || FAEHIGKEIT[einzel.faehigkeit].wort}<Zustand art="auftrag" wert={einzel.zustand} dreht /></h2>
           <div class="unter">{anwendung(einzel.anwendung)} · Auftrag <span class="zahl">{einzel.kennung.slice(0, 8)}</span> · angenommen {uhrzeit(einzel.eingang_s, true)} · Priorität {PRIORITAET[einzel.prioritaet].wort}{einzel.auslaufend ? ' · läuft aus, danach gesperrt' : ''}</div>
-          <div class="kette" style="margin-top: var(--ls-a4)">
+          <div class="kette" style="margin-top: var(--a4)">
             {#each kette as g, i (g.wort)}
               <span class="schritt {g.stand}"><i class={g.stand === 'erledigt' ? 'fa-solid fa-check' : g.stand === 'jetzt' ? `fa-solid ${g.symbol} fa-spin` : 'fa-regular fa-circle'}></i>{g.wort}</span>
               {#if i < kette.length - 1}<span class="pfeil" class:erledigt={g.stand === 'erledigt' && kette[i + 1].stand === 'erledigt'} class:laeuft={g.stand === 'erledigt' && kette[i + 1].stand === 'jetzt'}></span>{/if}
             {/each}
           </div>
-          {#if einzel.zustand === 'laeuft'}<div class="balken lebt dick unbestimmt" style="margin-top: var(--ls-a4)"><b></b></div>{/if}
+          {#if einzel.zustand === 'laeuft'}<div class="balken lebt dick unbestimmt" style="margin-top: var(--a4)"><b></b></div>{/if}
           <dl class="angaben">
             <dt>Fähigkeit</dt><dd><Faehigkeit wert={einzel.faehigkeit} /></dd>
             {#if einzel.modell}<dt>Modell</dt><dd>{einzel.modell}</dd>{/if}

@@ -77,11 +77,11 @@
 </div>
 
 <style>
-  .agentfeld { display: flex; flex-direction: column; gap: var(--ls-a2); }
-  .zeile { display: flex; align-items: center; gap: var(--ls-a2); flex-wrap: wrap; font-size: var(--ls-gr-klein); }
+  .agentfeld { display: flex; flex-direction: column; gap: var(--a2); }
+  .zeile { display: flex; align-items: center; gap: var(--a2); flex-wrap: wrap; font-size: var(--klein); }
   .zeile .punkt { margin: 0; }
-  .zeile.warnung { color: var(--ls-warnung); }
-  .knoepfe { display: flex; gap: var(--ls-a2); flex-wrap: wrap; }
-  .einrichten { display: grid; gap: var(--ls-a2); }
-  .einrichten p { margin: 0; font-size: var(--ls-gr-klein); }
+  .zeile.warnung { color: var(--warn); }
+  .knoepfe { display: flex; gap: var(--a2); flex-wrap: wrap; }
+  .einrichten { display: grid; gap: var(--a2); }
+  .einrichten p { margin: 0; font-size: var(--klein); }
 </style>

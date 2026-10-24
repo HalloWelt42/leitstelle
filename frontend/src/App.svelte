@@ -8,6 +8,7 @@
   import Anwendungen from './seiten/Anwendungen.svelte';
   import Auftraege from './seiten/Auftraege.svelte';
   import Dienste from './seiten/Dienste.svelte';
+  import Gestaltung from './seiten/Gestaltung.svelte';
   import Knoten from './seiten/Knoten.svelte';
   import Mobil from './seiten/Mobil.svelte';
   import Modelle from './seiten/Modelle.svelte';
@@ -44,6 +45,7 @@
       {:else if weg.seite === 'anschluss'}<Anschluss bild={kanal.lagebild} />
       {:else if weg.seite === 'anwendungen'}<Anwendungen bild={kanal.lagebild} />
       {:else if weg.seite === 'protokoll'}<Protokoll bild={kanal.lagebild} />
+      {:else if weg.seite === 'gestaltung'}<Gestaltung />
       {/if}
     </main>
     <Fuss />

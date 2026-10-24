@@ -68,9 +68,9 @@
   .fm-zeile .g { color: var(--ls-text-3); }
 
   /* Zustand der letzten 24 Stunden als Streifen: Farbe immer mit Wort in der Legende */
-  .streifen { display: flex; height: 26px; border-radius: 1px; overflow: hidden; background: var(--ls-mulde); }
+  /* Fugen zwischen den Abschnitten als Lücke statt Strich an einer Seite */
+  .streifen { display: flex; gap: 1px; height: 26px; border-radius: 1px; overflow: hidden; background: var(--ls-mulde); }
   .streifen span { height: 100%; display: block; }
-  .streifen span + span { box-shadow: inset 1px 0 0 var(--ls-grund); }
   .streifen .bereit { background: var(--ls-erfolg); opacity: 0.7; }
   .streifen .rechnet { background: var(--ls-akzent); }
   .streifen .pausiert { background: var(--ls-honig); }

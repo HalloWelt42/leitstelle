@@ -33,17 +33,21 @@
   .modelltabelle th { line-height: 1.3; }
   .modelltabelle td { padding-top: 9px; padding-bottom: 9px; }
   .modelltabelle .n { font-weight: 600; display: flex; align-items: center; gap: 7px; }
-  .modelltabelle .n .schutz { color: var(--ls-text-2); font-size: 14px; cursor: help; }
+  .modelltabelle .n i.schutz { color: var(--ls-text-2); font-size: 14px; cursor: help; }
   .modelltabelle .zweit { font-size: var(--ls-gr-marke); color: var(--ls-text-3); margin-top: 3px; white-space: nowrap; }
   .modelltabelle .zweit .akzent { font-weight: 600; }
   .modelltabelle td.zahl .zweit { text-align: right; }
   .modelltabelle .dienst { font-size: var(--ls-gr-klein); }
+  .modelltabelle .knopf.stift { min-width: 0; width: 26px; height: 26px; color: var(--ls-text-3); }
+  .modelltabelle .knopf.stift i { font-size: 12px; }
+  .modelltabelle .steckbrief { margin-top: 5px; display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: baseline; font-size: var(--ls-gr-marke); cursor: help; }
+  .modelltabelle .steckbrief .zweck { color: var(--ls-text-2); flex-basis: 100%; }
+  .modelltabelle .steckbrief .eignung { padding: 1px 7px; border-radius: 999px; background: var(--ls-flaeche); color: var(--ls-text-2); white-space: nowrap; }
   .modelltabelle .zustand { white-space: nowrap; }
   .modelltabelle .knopf.klein { min-width: 92px; }
-  .modelltabelle tr.gewaehlt td { background: rgba(var(--ls-akzent-rgb), 0.08); border-top-color: rgba(var(--ls-akzent-rgb), 0.55); }
-  .modelltabelle tr.gewaehlt + tr td { border-top-color: rgba(var(--ls-akzent-rgb), 0.55); }
-  .modelltabelle tr.gewaehlt td:first-child { box-shadow: inset 1px 0 0 rgba(var(--ls-akzent-rgb), 0.55); }
-  .modelltabelle tr.gewaehlt td:last-child { box-shadow: inset -1px 0 0 rgba(var(--ls-akzent-rgb), 0.55); }
+  /* gewählte Zeile: Rahmen rundum um die ganze Zeile statt Linien an einzelnen Zellen */
+  .modelltabelle tr.gewaehlt { outline: 1px solid rgba(var(--ls-akzent-rgb), 0.55); outline-offset: -1px; }
+  .modelltabelle tr.gewaehlt td { background: rgba(var(--ls-akzent-rgb), 0.08); }
 
   /* Rechts: Vorschau des Freigebens */
   .vorschau .satz { color: var(--ls-text-2); font-size: var(--ls-gr-klein); }
@@ -62,7 +66,7 @@
   .angaben dd .laeufer { display: grid; gap: 2px; justify-items: start; }
   .angaben dd .laeufer + .laeufer { margin-top: 6px; }
   .angaben dd .laeufer .etikett { letter-spacing: 0.06em; }
-  .angaben dd code { font-size: 14px; }
+  .angaben dd code { font-size: var(--ls-gr-marke); }
   .angaben dd .erkl { font-size: var(--ls-gr-marke); color: var(--ls-text-3); margin-top: 6px; }
   .nutzung { margin-top: var(--ls-a3); }
   .nutzung .verlauf { height: 52px; }

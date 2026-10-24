@@ -25,7 +25,7 @@
     {app} · {laeuft ? `läuft seit ${dauer(kanal.jetzt() - (auftrag.start_s ?? kanal.jetzt()))}` : `wartet seit ${dauer(kanal.jetzt() - auftrag.eingang_s)}`}
     {#if auftrag.modell} · {auftrag.modell}{/if}
   </p>
-  <div class="wahl" style="margin-top: var(--ls-a3)">
+  <div class="wahl" style="margin-top: var(--a3)">
     <label class:an={modus === 'auslaufen'} title="Der Auftrag rechnet zu Ende; danach nimmt die Leitstelle von {app} nichts Neues an, bis du freigibst">
       <input class="versteckt" type="radio" bind:group={modus} value="auslaufen" />
       <span class="kreis"></span>
@@ -39,7 +39,7 @@
         <span>Die Rechnung bricht ab. {app} bekommt den bisherigen Text und als Abschluss <code>leitstelle_abbruch</code> mit Grund; Speicher und Platz sind sofort frei.</span></div>
     </label>
   </div>
-  <div class="feld-l" style="margin-top: var(--ls-a4)">
+  <div class="feld-l" style="margin-top: var(--a4)">
     <span>Grund für die Anwendung und das Prüfprotokoll <small>optional</small></span>
     <textarea class="eingabe" rows="2" bind:value={grund} title="Wird bei Sofort der Anwendung mitgeschickt und steht im Prüfprotokoll"></textarea>
   </div>

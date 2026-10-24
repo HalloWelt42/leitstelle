@@ -4,20 +4,20 @@ import type {
   Quelle, Zone,
 } from './typen.gen';
 
-export const FAEHIGKEIT: Record<Faehigkeit, { wort: string; symbol: string; farbe: string; rgb: string; klasse: string }> = {
-  text: { wort: 'Text', symbol: 'fa-comment-dots', farbe: 'var(--ls-himmel)', rgb: 'var(--ls-himmel-rgb)', klasse: 'text' },
-  einbettung: { wort: 'Einbettung', symbol: 'fa-diagram-project', farbe: 'var(--ls-petrol)', rgb: 'var(--ls-petrol-rgb)', klasse: 'einbettung' },
-  uebersetzen: { wort: 'Übersetzen', symbol: 'fa-language', farbe: 'var(--ls-tuerkis)', rgb: 'var(--ls-tuerkis-rgb)', klasse: 'uebersetzen' },
-  hoeren: { wort: 'Hören', symbol: 'fa-ear-listen', farbe: 'var(--ls-minze)', rgb: 'var(--ls-minze-rgb)', klasse: 'hoeren' },
-  bild_beschreiben: { wort: 'Bild beschreiben', symbol: 'fa-image', farbe: 'var(--ls-flieder)', rgb: 'var(--ls-flieder-rgb)', klasse: 'bild' },
-  bild_erzeugen: { wort: 'Bild erzeugen', symbol: 'fa-palette', farbe: 'var(--ls-flieder)', rgb: 'var(--ls-flieder-rgb)', klasse: 'bild' },
-  stimme: { wort: 'Stimme', symbol: 'fa-microphone-lines', farbe: 'var(--ls-rose)', rgb: 'var(--ls-rose-rgb)', klasse: 'stimme' },
-  stimme_klonen: { wort: 'Stimmklon', symbol: 'fa-clone', farbe: 'var(--ls-rose)', rgb: 'var(--ls-rose-rgb)', klasse: 'stimme' },
-  sprecher_erkennen: { wort: 'Sprecher erkennen', symbol: 'fa-fingerprint', farbe: 'var(--ls-minze)', rgb: 'var(--ls-minze-rgb)', klasse: 'hoeren' },
-  sprecher_trennen: { wort: 'Sprecher trennen', symbol: 'fa-people-arrows', farbe: 'var(--ls-minze)', rgb: 'var(--ls-minze-rgb)', klasse: 'hoeren' },
-  musik: { wort: 'Musik', symbol: 'fa-music', farbe: 'var(--ls-violett)', rgb: 'var(--ls-violett-rgb)', klasse: 'musik' },
-  werkzeug: { wort: 'Werkzeuge', symbol: 'fa-screwdriver-wrench', farbe: 'var(--ls-sand)', rgb: 'var(--ls-sand-rgb)', klasse: 'werkzeug' },
-  ton: { wort: 'Ton bearbeiten', symbol: 'fa-wave-square', farbe: 'var(--ls-minze)', rgb: 'var(--ls-minze-rgb)', klasse: 'hoeren' },
+export const FAEHIGKEIT: Record<Faehigkeit, { wort: string; symbol: string; farbe: string; klasse: string }> = {
+  text: { wort: 'Text', symbol: 'fa-comment-dots', farbe: 'var(--himmel)', klasse: 'text' },
+  einbettung: { wort: 'Einbettung', symbol: 'fa-diagram-project', farbe: 'var(--petrol)', klasse: 'einbettung' },
+  uebersetzen: { wort: 'Übersetzen', symbol: 'fa-language', farbe: 'var(--tuerkis)', klasse: 'uebersetzen' },
+  hoeren: { wort: 'Hören', symbol: 'fa-ear-listen', farbe: 'var(--minze)', klasse: 'hoeren' },
+  bild_beschreiben: { wort: 'Bild beschreiben', symbol: 'fa-image', farbe: 'var(--flieder)', klasse: 'bild' },
+  bild_erzeugen: { wort: 'Bild erzeugen', symbol: 'fa-palette', farbe: 'var(--flieder)', klasse: 'bild' },
+  stimme: { wort: 'Stimme', symbol: 'fa-microphone-lines', farbe: 'var(--rose)', klasse: 'stimme' },
+  stimme_klonen: { wort: 'Stimmklon', symbol: 'fa-clone', farbe: 'var(--rose)', klasse: 'stimme' },
+  sprecher_erkennen: { wort: 'Sprecher erkennen', symbol: 'fa-fingerprint', farbe: 'var(--minze)', klasse: 'hoeren' },
+  sprecher_trennen: { wort: 'Sprecher trennen', symbol: 'fa-people-arrows', farbe: 'var(--minze)', klasse: 'hoeren' },
+  musik: { wort: 'Musik', symbol: 'fa-music', farbe: 'var(--violett)', klasse: 'musik' },
+  werkzeug: { wort: 'Werkzeuge', symbol: 'fa-screwdriver-wrench', farbe: 'var(--sand)', klasse: 'werkzeug' },
+  ton: { wort: 'Ton bearbeiten', symbol: 'fa-wave-square', farbe: 'var(--minze)', klasse: 'hoeren' },
 };
 
 /** Hauptfähigkeit eines Modells für Farbe und Symbol: Bild vor Einbettung vor Text */

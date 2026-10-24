@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Vor jedem Commit: Version hochzählen (oder nur neue Kennung, wenn version.json schon bewusst
-# geändert und vorgemerkt ist) und version.json mit vormerken. Dazu Prüfung auf typografische
-# Sonderzeichen in Texten und Code (Gedankenstriche, geschwungene Anführungszeichen).
-# Die Zeichenprüfung läuft in Python, weil die mitgelieferte Bash auf dem Mac keine \u-Escapes kennt.
+# geändert und vorgemerkt ist) und version.json mit vormerken. Dazu die Prüfungen des Appkerns (Zeichen, Stil,
+# Marken der Gestaltung) für die vorgemerkten Dateien.
 set -euo pipefail
 # >>> handbuch: Seite und Einrichtungsskript prüfen (eingesetzt von "handbuch einbinden", nicht von Hand ändern)
 handbuch_befehl="$(command -v handbuch || true)"
@@ -23,24 +22,16 @@ else
 fi
 git add version.json
 
-git diff --cached --name-only --diff-filter=ACM | python3 -c '
-import sys, pathlib, re
-muster = re.compile("[–—“”„‘’]")
-endungen = (".md", ".html", ".js", ".ts", ".svelte", ".py", ".css", ".json", ".sh", ".toml")
-fehler = []
-for zeile in sys.stdin:
-    name = zeile.strip()
-    if not name.endswith(endungen) or "node_modules" in name:
-        continue
-    p = pathlib.Path(name)
-    if not p.is_file():
-        continue
-    for nr, text in enumerate(p.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
-        if muster.search(text):
-            fehler.append(f"{name}:{nr}: {text.strip()[:100]}")
-if fehler:
-    print("Abbruch: typografische Sonderzeichen gefunden (nur gerade Zeichen erlaubt):", file=sys.stderr)
-    print("\n".join(fehler[:10]), file=sys.stderr)
-    sys.exit(1)
-'
+# Prüfungen des Appkerns, eine Stelle für alle eigenen Apps: nur gerade Zeichen; Stil ohne !important und ohne
+# einseitige Streifen; im Stil nur Marken des Appkerns (scharf nach gestaltung.toml). Die Werkzeuge kommen mit
+# backend/requirements-entwicklung.txt in die Umgebung des Backends (README, Kern prüfen).
+PYTHON="$HIER/backend/.venv/bin/python"
+if ! "$PYTHON" -c "import appkern.werkzeuge" 2>/dev/null; then
+  echo "Abbruch: die Werkzeuge des Appkerns fehlen (cd backend && .venv/bin/pip install -r requirements-entwicklung.txt)" >&2
+  exit 1
+fi
+dateien="$(git diff --cached --name-only --diff-filter=ACM)"
+if [ -n "$dateien" ]; then
+  printf '%s\n' "$dateien" | tr '\n' '\0' | xargs -0 "$PYTHON" -m appkern.werkzeuge pruefen || exit 1
+fi
 exit 0

@@ -2,11 +2,11 @@
 // Ein Seitenwechsel ist der ruhige Moment für eine neue Fassung (die Adresse steht schon, das Neuladen landet dort).
 import { nachOrtswechsel } from './fassung.svelte';
 
-export type Seite = 'uebersicht' | 'auftraege' | 'modelle' | 'knoten' | 'dienste' | 'anschluss' | 'anwendungen' | 'protokoll' | 'mobil';
+export type Seite = 'uebersicht' | 'auftraege' | 'modelle' | 'knoten' | 'dienste' | 'anschluss' | 'anwendungen' | 'protokoll' | 'gestaltung' | 'mobil';
 
 const PFADE: Record<Seite, string> = {
   uebersicht: '/', auftraege: '/auftraege', modelle: '/modelle', knoten: '/knoten', dienste: '/dienste', anschluss: '/anschluss',
-  anwendungen: '/anwendungen', protokoll: '/protokoll', mobil: '/mobil',
+  anwendungen: '/anwendungen', protokoll: '/protokoll', gestaltung: '/gestaltung', mobil: '/mobil',
 };
 
 function lesen(): { seite: Seite; teil: string | null } {

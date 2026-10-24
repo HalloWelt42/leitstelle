@@ -10,7 +10,7 @@ schluessel_orte:
   - "Pi: `tresor.schluessel` im Datenordner; ohne ihn sind die im Tresor gespeicherten Schlüssel und Zugänge nicht lesbar"
   - "Datenbank (verschlüsselt mit dem Tresor): Schlüssel der Anwendungen, der Knoten (Maschinenraum) und externer Anbieter"
 einrichten: einrichten.sh
-stand: 0926a5d
+stand: 383d2d7
 ---
 
 # Leitstelle
@@ -33,7 +33,7 @@ aus privaten Netzen erreichbar.
 ## Was sie braucht
 
 - Pi nach [[Grundlage Pi]] mit Docker. Der Bau braucht Netz (Pakete, der Maschinenraum als echter Knoten in den
-  Tests) und dauert, weil dabei alle Tests laufen.
+  Tests, die Gestaltung aus dem Repo des [[Appkern]] auf GitHub) und dauert, weil dabei alle Tests laufen.
 - Mac nach [[Grundlage Mac]] mit LM Studio (Modell-Läufer auf Port 1234 im Heimnetz); später der [[Maschinenraum]] als
   Knoten-Agent des Macs.
 - Das Werkzeug handbuch am Mac ([[Grundlage Mac]]): `tools/ausrollen.sh` fragt es nach Ziel, Ordner und Datenordner

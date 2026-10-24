@@ -15,30 +15,30 @@
   .kopfzeile { max-width: 1320px; margin: 0 auto var(--ls-a5); }
   .kopfzeile p { color: var(--ls-text-2); max-width: 900px; margin-top: 6px; }
   .telefone { display: flex; gap: var(--ls-a6); flex-wrap: wrap; justify-content: center; }
-  .telefon { width: 390px; height: 844px; border-radius: 44px; background: var(--ls-grund); border: 10px solid #0b0f15; box-shadow: var(--ls-schatten);
+  .telefon { width: 390px; height: 844px; border-radius: 44px; background: var(--ls-grund); border: 10px solid #0b0f15; box-shadow: var(--ls-schatten); /* Ausnahme: Rahmen des Telefons in der Vorschau, Farbe des Geräts */
              display: flex; flex-direction: column; overflow: hidden; position: relative; }
-  .telefon .aussparung { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: 120px; height: 30px; border-radius: 16px; background: #0b0f15; }
+  .telefon .aussparung { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: 120px; height: 30px; border-radius: 16px; background: #0b0f15; } /* Ausnahme: Kamera-Aussparung des Geräts in der Vorschau */
   .m-kopf { flex: none; display: flex; align-items: center; gap: 10px; padding: 54px 18px 12px; }
   .m-kopf img { width: 30px; height: 30px; }
-  .m-kopf b { font-size: 20px; }
-  .m-kopf .lage { margin-left: auto; margin-right: 0; height: 36px; font-size: 15px; }
+  .m-kopf b { font-size: calc(var(--ls-gr-text) + 2px); }
+  .m-kopf .lage { margin-left: auto; margin-right: 0; height: 36px; font-size: calc(var(--ls-gr-klein) - 1px); }
   .m-inhalt { flex: 1; min-height: 0; overflow-y: auto; padding: 0 16px 16px; display: flex; flex-direction: column; gap: 14px; }
   .m-fuss { flex: none; display: flex; justify-content: space-around; align-items: center; height: 76px; padding-bottom: 14px; background: var(--ls-leiste); border-top: 1px solid var(--ls-rand); }
-  .m-fuss a { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 64px; min-height: 44px; justify-content: center; color: var(--ls-text-3); font-size: 13px; font-weight: 700; }
+  .m-fuss a { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 64px; min-height: 44px; justify-content: center; color: var(--ls-text-3); font-size: calc(var(--ls-gr-klein) - 3px); font-weight: 700; }
   .m-fuss a i { font-size: 20px; }
   .m-fuss a.aktiv { color: var(--ls-akzent-schrift); }
   .m-fuss a .pille { position: absolute; margin-left: 34px; margin-top: -30px; }
   .m-fuss a { position: relative; }
-  .m-titel { font-size: 24px; font-weight: 700; margin: 4px 0 0; }
+  .m-titel { font-size: calc(var(--ls-gr-titel) + 2px); font-weight: 700; margin: 4px 0 0; }
   .m-karte { background: var(--ls-karte); border-radius: var(--ls-ecke); padding: 14px 16px; }
-  .m-karte h3 { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 17px; }
+  .m-karte h3 { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: calc(var(--ls-gr-text) - 1px); }
   .m-karte h3 i { color: var(--ls-akzent-schrift); }
-  .m-karte h3 .rechts { margin-left: auto; font-weight: 500; color: var(--ls-text-3); font-size: 15px; }
+  .m-karte h3 .rechts { margin-left: auto; font-weight: 500; color: var(--ls-text-3); font-size: calc(var(--ls-gr-klein) - 1px); }
 
   /* Hauptregler am Telefon: drei große Flächen, Halt und Auslaufen nur mit Drücken und Halten */
   .m-regler { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
   .m-regler button { height: 84px; border: 1px solid var(--ls-rand-stark); border-radius: var(--ls-ecke); background: var(--ls-karte-2); color: var(--ls-text);
-                     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; font-weight: 700; font-size: 15px; position: relative; }
+                     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; font-weight: 700; font-size: calc(var(--ls-gr-klein) - 1px); position: relative; }
   .m-regler button i { font-size: 22px; }
   .m-regler button.an.normal { color: var(--ls-erfolg); border-color: rgba(var(--ls-erfolg-rgb), 0.6); background: rgba(var(--ls-erfolg-rgb), var(--ls-tint)); }
   .m-regler button.auslaufen i { color: var(--ls-warnung); }
@@ -48,37 +48,39 @@
   .m-regler .ring::before { display: none; }
   .m-regler .ring svg { position: absolute; inset: 0; width: 100%; height: 100%; }
   .m-regler .ring rect { fill: none; stroke: var(--ls-gefahr); stroke-width: 3; stroke-dasharray: 440; stroke-dashoffset: 180; }
-  .m-regler .halten { font-size: 13px; color: var(--ls-text-3); font-weight: 500; }
-  .m-hint { font-size: 15px; color: var(--ls-text-2); margin-top: 10px; }
+  .m-regler .halten { font-size: var(--ls-gr-marke); color: var(--ls-text-3); font-weight: 500; }
+  .m-hint { font-size: calc(var(--ls-gr-klein) - 1px); color: var(--ls-text-2); margin-top: 10px; }
   .m-kenn { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
   .m-kenn .kennzahl { min-width: 0; padding: 10px 14px; }
-  .m-kenn .kennzahl b { font-size: 28px; }
+  .m-kenn .kennzahl b { font-size: calc(var(--ls-gr-kennzahl) - 2px); }
 
   /* Aufträge am Telefon: eine Zeile je Auftrag, große Berührflächen */
   .m-auftrag { display: grid; grid-template-columns: 40px minmax(0, 1fr) 44px; gap: 12px; align-items: center; padding: 12px 0; border-top: 1px solid var(--ls-rand); }
   .m-auftrag:first-of-type { border-top: 0; padding-top: 4px; }
-  .m-auftrag .symbol { width: 40px; height: 40px; border-radius: var(--ls-ecke); display: grid; place-items: center; background: rgba(var(--f-rgb), var(--ls-tint)); color: var(--f); font-size: 17px; }
+  .m-auftrag .symbol { width: 40px; height: 40px; border-radius: var(--ls-ecke); display: grid; place-items: center; background: rgba(var(--f-rgb), var(--ls-tint)); color: var(--f); }
+  .m-auftrag .symbol i { font-size: 17px; }
   .m-auftrag .t { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .m-auftrag .z { font-size: 15px; color: var(--ls-text-2); margin-top: 2px; display: flex; gap: 8px; }
+  .m-auftrag .z { font-size: calc(var(--ls-gr-klein) - 1px); color: var(--ls-text-2); margin-top: 2px; display: flex; gap: 8px; }
   .m-auftrag .balken { margin-top: 8px; height: 6px; }
-  .m-auftrag .stopp { width: 44px; height: 44px; border-radius: var(--ls-ecke); border: 1px solid var(--ls-rand-stark); background: var(--ls-karte-2); color: var(--ls-gefahr); font-size: 16px; }
+  .m-auftrag .stopp { width: 44px; height: 44px; border-radius: var(--ls-ecke); border: 1px solid var(--ls-rand-stark); background: var(--ls-karte-2); color: var(--ls-gefahr); }
+  .m-auftrag .stopp i { font-size: 16px; }
   .m-auftrag.offen { grid-template-columns: 40px minmax(0, 1fr); }
   .m-wahl { grid-column: 1 / -1; display: grid; gap: 8px; margin-top: 4px; }
-  .m-wahl button { height: 56px; border-radius: var(--ls-ecke); border: 1px solid var(--ls-rand-stark); background: var(--ls-karte-2); color: var(--ls-text); font-weight: 600; font-size: 16px;
+  .m-wahl button { height: 56px; border-radius: var(--ls-ecke); border: 1px solid var(--ls-rand-stark); background: var(--ls-karte-2); color: var(--ls-text); font-weight: 600; font-size: var(--ls-gr-klein);
                    display: flex; align-items: center; gap: 10px; padding: 0 14px; text-align: left; }
-  .m-wahl button small { display: block; font-weight: 500; font-size: 14px; color: var(--ls-text-2); }
+  .m-wahl button small { display: block; font-weight: 500; font-size: calc(var(--ls-gr-klein) - 2px); color: var(--ls-text-2); }
   .m-wahl button.warnung i { color: var(--ls-warnung); }
   .m-wahl button.gefahr i { color: var(--ls-gefahr); }
-  .m-wahl .halten { font-size: 13px; color: var(--ls-text-3); margin-left: auto; }
+  .m-wahl .halten { font-size: var(--ls-gr-marke); color: var(--ls-text-3); margin-left: auto; }
 
   /* Knoten am Telefon: Name, Speicher, ein Ring */
   .m-knoten { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 14px; align-items: center; padding: 12px 0; border-top: 1px solid var(--ls-rand); }
   .m-knoten:first-of-type { border-top: 0; padding-top: 4px; }
   .m-knoten .n { font-weight: 600; display: flex; align-items: center; gap: 8px; }
   .m-knoten .n .punkt { margin: 0; }
-  .m-knoten .w { font-size: 15px; color: var(--ls-text-2); margin-top: 2px; }
+  .m-knoten .w { font-size: calc(var(--ls-gr-klein) - 1px); color: var(--ls-text-2); margin-top: 2px; }
   .m-knoten .speicher { margin-top: 8px; height: 10px; }
-  .m-meldung { display: grid; grid-template-columns: 54px 22px minmax(0, 1fr); gap: 8px; padding: 8px 0; border-top: 1px solid var(--ls-rand); font-size: 15px; align-items: baseline; }
+  .m-meldung { display: grid; grid-template-columns: 54px 22px minmax(0, 1fr); gap: 8px; padding: 8px 0; border-top: 1px solid var(--ls-rand); font-size: calc(var(--ls-gr-klein) - 1px); align-items: baseline; }
   .m-meldung:first-of-type { border-top: 0; }
   .m-meldung .zeit { color: var(--ls-text-3); min-width: 0; }
   .m-meldung i { color: var(--ls-text-3); text-align: center; }
