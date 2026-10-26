@@ -7,6 +7,7 @@
   import { weg } from '../lib/weg.svelte';
   import { DIENSTZUSTAND, KNOTENZUSTAND, knotenzustand } from '../lib/wort';
   import AgentFeld from '../teile/AgentFeld.svelte';
+  import AmLeitstandVorbei from '../teile/AmLeitstandVorbei.svelte';
   import Ring from '../teile/Ring.svelte';
   import Speicherbalken from '../teile/Speicherbalken.svelte';
   import ZoneMarke from '../teile/ZoneMarke.svelte';
@@ -31,6 +32,7 @@
   const schlafend = $derived(bild.knoten.filter((k) => knotenzustand(k) === 'schlaeft'));
   const unerreichbar = $derived(bild.knoten.filter((k) => knotenzustand(k) === 'nicht_erreichbar'));
   const mitAgent = $derived(bild.knoten.filter((k) => k.agent.verbunden));
+  const umgehungen = $derived(bild.knoten.reduce((s, k) => s + k.fremde.umgehungen, 0));
   const anteil = (teil: number | null | undefined, ganz: number | null | undefined) => (teil != null && ganz ? (100 * teil) / ganz : null);
   const dienste = (k: string) => bild.dienste.filter((d) => d.knoten === k);
   const rechnend = (k: string) => bild.auftraege.filter((a) => a.knoten === k && a.zustand === 'laeuft').length;
@@ -76,6 +78,7 @@
       {#if unerreichbar.length}<div class="kennzahl fehler"><b>{unerreichbar.length}</b><span>Nicht erreichbar</span></div>{/if}
       <div class="kennzahl"><b>{gb(bild.knoten.reduce((s, k) => s + k.geladen_gb, 0))}</b><span>Modelle im Speicher</span></div>
       <div class="kennzahl"><b>{mitAgent.length}</b><span>Mit Maschinenraum</span><small>Speicher gemessen statt geschätzt</small></div>
+      {#if umgehungen}<div class="kennzahl fehler"><b>{umgehungen}</b><span>Am Leitstand vorbei</span><small>Zugriffe auf Modelle ohne die Leitstelle</small></div>{/if}
     </div>
   </div>
 
@@ -167,6 +170,7 @@
                 <AgentFeld knoten={k} jetzt={bild.zeit_s} />
               </div>
             </div>
+            <AmLeitstandVorbei fremde={k.fremde} verbunden={k.agent.verbunden} />
             {#if loeschen === k.kennung}
               <div class="bestaetigen"><i class="fa-solid fa-triangle-exclamation"></i><span>{k.name} entfernen? Geht nur, wenn keine Dienste mehr darauf eingerichtet sind.</span>
                 <div class="rechts"><button class="knopf klein ohne" onclick={() => (loeschen = null)}>Abbrechen</button>

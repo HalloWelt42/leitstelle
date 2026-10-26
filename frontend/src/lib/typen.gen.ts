@@ -27,6 +27,16 @@ export type Zone = 'heim' | 'fern' | 'extern';
 export type Knotenzustand = 'erreichbar' | 'nicht_erreichbar' | 'schlaeft';
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "Fremdart".
+ */
+export type Fremdart = 'laeufer' | 'speicher';
+/**
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "Fremddeutung".
+ */
+export type Fremddeutung = 'umgehung' | 'rechner_der_leitstelle' | 'leitstelle_direkt';
+/**
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "Dienstzustand".
  */
 export type Dienstzustand = 'bereit' | 'aus' | 'startet' | 'pausiert' | 'nicht_erreichbar' | 'ausfall' | 'schlaeft';
@@ -181,6 +191,7 @@ export interface KnotenSicht {
   hintergrund_von: number | null;
   hintergrund_bis: number | null;
   agent: AgentSicht;
+  fremde: FremdeSicht;
 }
 /**
  * Knoten-Agent: Schlüssel vergeben, verbunden, und was er zuletzt gemessen hat.
@@ -217,6 +228,34 @@ export interface Messwerte {
   leistung_w?: number | null;
 }
 /**
+ * Am Leitstand vorbei (`knoten.fremde`): ohne verbundenen Maschinenraum oder ohne seine Beobachtung nicht beobachtet.
+ *
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "FremdeSicht".
+ */
+export interface FremdeSicht {
+  beobachtet: boolean;
+  zugriffe: FremdzugriffSicht[];
+  umgehungen: number;
+}
+/**
+ * Ein Zugriff am Leitstand vorbei, wie der Maschinenraum ihn meldet, mit der Deutung der Leitstelle.
+ *
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "FremdzugriffSicht".
+ */
+export interface FremdzugriffSicht {
+  art: Fremdart;
+  wer: string;
+  pid: number | null;
+  befehl: string;
+  ordner: string;
+  verbindungen: number;
+  gb: number | null;
+  vom_rechner_der_leitstelle: boolean;
+  deutung: Fremddeutung;
+}
+/**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "DienstSicht".
  */
@@ -239,6 +278,7 @@ export interface DienstSicht {
   naechste_pruefung_s: number | null;
   einbettung_instanzen: number;
   einbettung_spielraum_gb: number;
+  ueber_maschinenraum: boolean;
 }
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
@@ -594,6 +634,7 @@ export interface DienstAenderung {
   abgleich_s?: number | null;
   einbettung_instanzen?: number | null;
   einbettung_spielraum_gb?: number | null;
+  ueber_maschinenraum?: boolean | null;
 }
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema

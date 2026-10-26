@@ -20,6 +20,7 @@ import httpx
 from ...kern.werte import GIB, Eignung
 from ...kern.werte import Faehigkeit as F
 from ...protokoll.knoten import Selbstauskunft
+from .laeuferweg import OhneMaschinenraum
 from .schnittstelle import Dienstbericht, DienstFehler, Durchleitung, ModellBericht
 
 TEXT_FAEHIGKEITEN = {F.TEXT, F.UEBERSETZEN}
@@ -68,14 +69,26 @@ def _auskunft(m: dict[str, Any]) -> Selbstauskunft:
 
 
 def _fehlertext(roh: bytes) -> str:
+    """Wortlaut einer Absage: im OpenAI-Format (`error.message`) oder vom Maschinenraum (`meldung`), sonst roh."""
     try:
         daten = json.loads(roh)
     except ValueError:
         return roh.decode("utf-8", "replace")[:500]
+    if isinstance(daten, dict) and "error" not in daten and isinstance(daten.get("meldung"), str):
+        return daten["meldung"][:500]
     fehler = daten.get("error") if isinstance(daten, dict) else None
     if isinstance(fehler, dict):
         return str(fehler.get("message", fehler))
     return str(fehler or daten)[:500]
+
+
+def _ursache(fehler: Exception) -> str:
+    """Wortlaut eines Verbindungsfehlers; ein verschlossener Weg über den Maschinenraum erklärt sich selbst."""
+    return str(fehler) if isinstance(fehler, OhneMaschinenraum) else f"{type(fehler).__name__} {fehler}".strip()
+
+
+def _nicht_erreichbar(fehler: Exception) -> str:
+    return _ursache(fehler) if isinstance(fehler, OhneMaschinenraum) else f"nicht erreichbar: {_ursache(fehler)}"
 
 
 class HttpStrom:
@@ -151,7 +164,7 @@ class OpenAIKompatibel:
                                      meldung="nur OpenAI-Liste: Laden und Entladen übernimmt der Dienst selbst")
             return Dienstbericht(erreichbar=False, meldung=f"Antwort {r.status_code}: {_fehlertext(r.content)}")
         except (httpx.HTTPError, ValueError) as fehler:
-            return Dienstbericht(erreichbar=False, meldung=f"nicht erreichbar: {type(fehler).__name__} {fehler}".strip())
+            return Dienstbericht(erreichbar=False, meldung=_nicht_erreichbar(fehler))
 
     @staticmethod
     def _nativ(m: dict[str, Any]) -> list[ModellBericht]:
@@ -185,7 +198,7 @@ class OpenAIKompatibel:
         try:
             r = await self._client.post("/api/v1/models/load", json={"model": schluessel})
         except httpx.HTTPError as fehler:
-            raise DienstFehler("dienst_nicht_erreichbar", f"{type(fehler).__name__} {fehler}".strip(), wiederholbar=True) from fehler
+            raise DienstFehler("dienst_nicht_erreichbar", _ursache(fehler), wiederholbar=True) from fehler
         if r.status_code >= 400:
             text = _fehlertext(r.content)
             if "insufficient" in text.lower() or "memory" in text.lower():
@@ -203,7 +216,7 @@ class OpenAIKompatibel:
         try:
             r = await self._client.post("/api/v1/models/unload", json={"instance_id": instanz}, timeout=self._kurz)
         except httpx.HTTPError as fehler:
-            raise DienstFehler("dienst_nicht_erreichbar", f"{type(fehler).__name__} {fehler}".strip(), wiederholbar=True) from fehler
+            raise DienstFehler("dienst_nicht_erreichbar", _ursache(fehler), wiederholbar=True) from fehler
         if r.status_code >= 400:
             raise DienstFehler("dienst_fehler", _fehlertext(r.content))
 
@@ -212,7 +225,7 @@ class OpenAIKompatibel:
         try:
             antwort = await self._client.send(self._client.build_request("POST", pfad, json=koerper), stream=True)
         except httpx.HTTPError as fehler:
-            raise DienstFehler("dienst_nicht_erreichbar", f"{type(fehler).__name__} {fehler}".strip(), wiederholbar=True) from fehler
+            raise DienstFehler("dienst_nicht_erreichbar", _ursache(fehler), wiederholbar=True) from fehler
         return HttpStrom(antwort)
 
     async def durchleiten(self, schluessel: str, d: Durchleitung) -> HttpStrom:
@@ -221,7 +234,7 @@ class OpenAIKompatibel:
         try:
             antwort = await self._client.send(self._client.build_request(d.methode, url, headers=d.kopf, content=d.inhalt), stream=True)
         except httpx.HTTPError as fehler:
-            raise DienstFehler("dienst_nicht_erreichbar", f"{type(fehler).__name__} {fehler}".strip(), wiederholbar=True) from fehler
+            raise DienstFehler("dienst_nicht_erreichbar", _ursache(fehler), wiederholbar=True) from fehler
         return HttpStrom(antwort)
 
 
@@ -304,7 +317,7 @@ class ExternOpenAI(OpenAIKompatibel):
                 return Dienstbericht(erreichbar=False, meldung=f"Antwort {r.status_code}: {_fehlertext(r.content)}")
             daten = r.json().get("data", [])
         except (httpx.HTTPError, ValueError, AttributeError) as fehler:
-            return Dienstbericht(erreichbar=False, meldung=f"nicht erreichbar: {type(fehler).__name__} {fehler}".strip())
+            return Dienstbericht(erreichbar=False, meldung=_nicht_erreichbar(fehler))
         gruppen: dict[str, list[dict[str, Any]]] = {}
         for m in daten:
             gruppen.setdefault(str(m.get("root") or m["id"]), []).append(m)

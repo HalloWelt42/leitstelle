@@ -25,6 +25,7 @@
   const wartend = $derived(bild?.auftraege.filter((a) => a.zustand !== 'laeuft') ?? []);
   const lage = $derived(!bild ? { klasse: 'aus', wort: 'Getrennt' } : bild.modus !== 'normal' ? { klasse: bild.modus, wort: MODUS[bild.modus].lage } : LAGE[bild.lage]);
   const anwendung = (k: string) => bild?.anwendungen.find((a) => a.kennung === k)?.name ?? '';
+  const umgehungen = $derived(bild?.knoten.reduce((s, k) => s + k.fremde.umgehungen, 0) ?? 0);
 
   const stellen = (m: Betriebsmodus) => bild && tun(() => api.hauptregler(m, bild.hintergrund_erlaubt), `Hauptregler: ${MODUS[m].wort}`);
   const stoppen = (k: string, m: 'sofort' | 'auslaufen') => tun(() => api.stoppen(k, m, 'vom Telefon'), m === 'sofort' ? 'Gestoppt' : 'Läuft aus').then(() => (wahl = null));
@@ -42,6 +43,10 @@
       <div class="m-karte"><p>Verbinde mit der Leitstelle ...</p></div>
     {:else if blatt === 'lage'}
       <div class="m-titel">Lage</div>
+      {#if umgehungen}
+        <div class="hinweis warnung"><i class="fa-solid fa-user-secret"></i>
+          <span><b>{umgehungen} {umgehungen === 1 ? 'Zugriff' : 'Zugriffe'} am Leitstand vorbei</b>; Einzelheiten in der großen Ansicht unter Knoten.</span></div>
+      {/if}
       <div class="m-karte">
         <h3><i class="fa-solid fa-sliders"></i>Hauptregler</h3>
         <div class="m-regler">

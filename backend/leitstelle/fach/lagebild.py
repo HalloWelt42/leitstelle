@@ -10,8 +10,9 @@ from ..kern.modelle import ANFRAGE_FENSTER_S, Massnahme
 from ..protokoll.steckbrief import Steckbrief
 from ..kern.werte import Auftragszustand, Automatik, Betriebsmodus, Dienstzustand, Faehigkeit, Knotenzustand, Lage, Modellzustand, Zone
 from ..ports.ablage.eintraege import Schritt
-from ..protokoll.knoten import Messwerte
+from ..protokoll.knoten import Fremdzugriff, Fremdzugriffe, Messwerte
 from .betrieb import Betrieb
+from .umgehungen import Fremddeutung, deuten
 
 
 class AgentSicht(BaseModel):
@@ -25,6 +26,26 @@ class AgentSicht(BaseModel):
     messwege: list[str]
     messzeit_s: float | None
     messwerte: Messwerte | None
+
+
+class FremdzugriffSicht(Fremdzugriff):
+    """Ein Zugriff am Leitstand vorbei, wie der Maschinenraum ihn meldet, mit der Deutung der Leitstelle."""
+
+    deutung: Fremddeutung
+
+
+class FremdeSicht(BaseModel):
+    """Am Leitstand vorbei (`knoten.fremde`): ohne verbundenen Maschinenraum oder ohne seine Beobachtung nicht beobachtet."""
+
+    beobachtet: bool
+    zugriffe: list[FremdzugriffSicht]
+    umgehungen: int                    # echte Umgehungen: alle Zugriffe ohne die Leitstelle selbst auf dem direkten Weg
+
+
+def fremde_sicht(f: Fremdzugriffe, laeufer_direkt: bool) -> FremdeSicht:
+    zugriffe = [FremdzugriffSicht(**z.model_dump(), deutung=deuten(z, laeufer_direkt)) for z in f.zugriffe] if f.beobachtet else []
+    return FremdeSicht(beobachtet=f.beobachtet, zugriffe=zugriffe,
+                       umgehungen=sum(1 for z in zugriffe if z.deutung != Fremddeutung.LEITSTELLE_DIREKT))
 
 
 class KnotenSicht(BaseModel):
@@ -45,6 +66,7 @@ class KnotenSicht(BaseModel):
     hintergrund_von: int | None
     hintergrund_bis: int | None
     agent: AgentSicht
+    fremde: FremdeSicht                # was am Leitstand vorbei auf Modelle dieses Rechners zugreift
 
 
 class DienstSicht(BaseModel):
@@ -66,6 +88,7 @@ class DienstSicht(BaseModel):
     naechste_pruefung_s: float | None  # Zeitpunkt der nächsten Zustandsabfrage (None: meldet sich selbst)
     einbettung_instanzen: int          # Instanzen je Einbettungsmodell bei Andrang (1: keine weiteren)
     einbettung_spielraum_gb: float     # bleibt im Budget des Rechners frei
+    ueber_maschinenraum: bool          # Modell-Läufer: Weg über den Maschinenraum seines Rechners statt direkt an die Adresse
 
 
 class ModellSicht(BaseModel):
@@ -164,7 +187,8 @@ def lagebild(b: Betrieb) -> Lagebild:
         knoten.append(KnotenSicht(kennung=k.kennung, name=k.name, adresse=e.adresse, zone=k.zone, speicher_gb=k.speicher_gb, system_gb=k.system_gb,
                                   budget_gb=round(k.budget_gb(r.budget_reserve_gb), 2), geladen_gb=round(v.geladen_gb(k.kennung), 2),
                                   frei_gb=round(v.frei_gb(k.kennung), 2), belegt_anteil=round(v.belegt_anteil(k.kennung), 3), erreichbar=k.erreichbar,
-                                  zustand=k.zustand, schlaeft_seit_s=k.schlaeft_seit_s, budget_fest_gb=k.budget_fest_gb, hintergrund_von=e.hintergrund_von, hintergrund_bis=e.hintergrund_bis, agent=agent))
+                                  zustand=k.zustand, schlaeft_seit_s=k.schlaeft_seit_s, budget_fest_gb=k.budget_fest_gb, hintergrund_von=e.hintergrund_von, hintergrund_bis=e.hintergrund_bis, agent=agent,
+                                  fremde=fremde_sicht(av.fremde if av else Fremdzugriffe(beobachtet=False), b.laeufer_direkt(k.kennung))))
     dienste = [DienstSicht(kennung=d.kennung, name=d.name, art=d.art.value, adresse=d.adresse, knoten=d.knoten, extern=d.extern,
                            zustand=v.dienste[d.kennung].zustand if d.kennung in v.dienste else Dienstzustand.NICHT_ERREICHBAR,
                            steuerbar=b.steuerbar.get(d.kennung, False), meldung=b.dienst_meldung.get(d.kennung, ""), plaetze=d.plaetze,
@@ -174,7 +198,8 @@ def lagebild(b: Betrieb) -> Lagebild:
                            fehlschlaege=b.pruefstand[d.kennung].fehlschlaege if d.kennung in b.pruefstand else 0,
                            naechste_pruefung_s=None if d.kennung in b.adapter and b.adapter[d.kennung].meldet_sich_selbst
                            else b.pruefstand[d.kennung].naechste_s if d.kennung in b.pruefstand else None,
-                           einbettung_instanzen=d.einbettung_instanzen, einbettung_spielraum_gb=d.einbettung_spielraum_gb) for d in b.dienste.values()]
+                           einbettung_instanzen=d.einbettung_instanzen, einbettung_spielraum_gb=d.einbettung_spielraum_gb,
+                           ueber_maschinenraum=d.ueber_maschinenraum) for d in b.dienste.values()]
     modelle = [ModellSicht(kennung=m.kennung, name=m.name, familie=m.familie, dienst=m.dienst, knoten=v.dienste[m.dienst].knoten if m.dienst in v.dienste else None,
                            faehigkeiten=sorted(m.faehigkeiten, key=lambda f: f.value), gb=m.gb, gb_jetzt=m.gb_jetzt, parameter_mrd=m.parameter_mrd, zustand=m.zustand,
                            geschuetzt=m.geschuetzt(r.schutzgrenze_mrd), geladen_seit_s=m.geladen_seit_s, letzte_nutzung_s=m.letzte_nutzung_s,

@@ -23,6 +23,12 @@ Webapps (Stellwerk)  ->  Leitstelle  ->  Modell-Läufer      (Sprachmodelle)
                                      ->  Maschinenraum      (übrige KI-Dienste, je Rechner)
 ```
 
+Den Läufer spricht die Leitstelle wahlweise direkt oder über die Durchleitung des Maschinenraums seines Rechners an
+(Schalter "über den Maschinenraum" beim Läufer). Auf diesem Weg kommt jede Verbindung der Leitstelle zum Läufer vom
+Maschinenraum, und alles, was an ihr vorbei auf Modelle des Rechners zugreift, sieht der Maschinenraum und meldet es
+(Knoten, "Am Leitstand vorbei"; Übersicht mit Anzahl). Fehlt der Maschinenraum, ist der Läufer nicht erreichbar statt
+still direkt angesprochen; der Rückfall ist der Schalter von Hand.
+
 ## Was sie kann
 
 - **Fassade im OpenAI-Format** (`/v1/chat/completions` mit und ohne Strom, `/v1/embeddings`, `/v1/models`, dazu

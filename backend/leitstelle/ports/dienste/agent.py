@@ -75,10 +75,10 @@ class AgentDienste:
         """Über die Durchleitung des Maschinenraums an den Dienst `schluessel`; Ziel ist die Adresse, von der sich der
         Maschinenraum verbunden hat, mit seinem eigenen Schlüssel."""
         v = self.agenten.verbindung(self.knoten)
-        if v is None or not v.adresse or not v.anmeldung.durchleitung_port:
+        basis = v.durchleitung if v else None
+        if v is None or basis is None:
             raise DienstFehler("dienst_nicht_erreichbar", "Maschinenraum nicht verbunden oder ohne Durchleitung", wiederholbar=True)
-        host = f"[{v.adresse}]" if ":" in v.adresse else v.adresse
-        url = httpx.URL(f"http://{host}:{v.anmeldung.durchleitung_port}/{schluessel}/{d.pfad.lstrip('/')}", query=d.abfrage.encode())
+        url = httpx.URL(f"{basis}/{schluessel}/{d.pfad.lstrip('/')}", query=d.abfrage.encode())
         kopf = {**d.kopf, "authorization": f"Bearer {v.schluessel}"}
         try:
             antwort = await self._client.send(self._client.build_request(d.methode, url, headers=kopf, content=d.inhalt), stream=True)

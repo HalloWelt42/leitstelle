@@ -1,7 +1,7 @@
 // Wörter, Symbole und Farben zu den Schlüsseln des Kerns. Gedruckt wird nie ein Schlüssel.
 import type {
-  Auftragszustand, Betriebsmodus, Dienstzustand, Eignung, Faehigkeit, KnotenSicht, Knotenzustand, Lage, Massnahmenart, Massnahmenzustand, Modellzustand,
-  Quelle, Zone,
+  Auftragszustand, Betriebsmodus, Dienstzustand, Eignung, Faehigkeit, Fremdart, Fremddeutung, KnotenSicht, Knotenzustand, Lage, Massnahmenart,
+  Massnahmenzustand, Modellzustand, Quelle, Zone,
 } from './typen.gen';
 
 export const FAEHIGKEIT: Record<Faehigkeit, { wort: string; symbol: string; farbe: string; klasse: string }> = {
@@ -66,6 +66,19 @@ export const KNOTENZUSTAND: Record<Knotenzustand, Zustandsbild & { satz: string 
 
 /** Zustand eines Rechners. Eine Leitstelle vor 0.18 kennt das Feld nicht (Entwicklungsserver gegen den Pi): dann zählt erreichbar */
 export const knotenzustand = (k: KnotenSicht): Knotenzustand => k.zustand ?? (k.erreichbar ? 'erreichbar' : 'nicht_erreichbar');
+
+/** Zugriffe am Leitstand vorbei (knoten.fremde): was der Maschinenraum sieht */
+export const FREMDART: Record<Fremdart, { wort: string; symbol: string }> = {
+  laeufer: { wort: 'Verbindung zum Läufer', symbol: 'fa-plug' },
+  speicher: { wort: 'Speicher', symbol: 'fa-memory' },
+};
+
+/** Wie die Leitstelle einen Zugriff deutet (welche zählen, sagt der Kern in fremde.umgehungen) */
+export const FREMDDEUTUNG: Record<Fremddeutung, string> = {
+  umgehung: 'am Leitstand vorbei',
+  rechner_der_leitstelle: 'anderes Programm auf dem Rechner der Leitstelle',
+  leitstelle_direkt: 'vermutlich die Leitstelle selbst (direkter Weg)',
+};
 
 export const EIGNUNG: Record<Eignung, string> = {
   denken: 'Denkt schrittweise', programmieren: 'Programmieren', lange_texte: 'Lange Texte', schnell: 'Schnell', gruendlich: 'Gründlich',

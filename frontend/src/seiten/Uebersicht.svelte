@@ -41,11 +41,14 @@
   const anwendung = (k: string) => bild.anwendungen.find((a) => a.kennung === k)?.name ?? 'unbekannt';
   const knotenName = (k: string | null) => bild.knoten.find((x) => x.kennung === k)?.name ?? (k ? 'Extern' : '');
   const lagesatz = $derived(bild.modus === 'normal' ? LAGE[bild.lage].wort : bild.modus === 'halt' ? 'Gestoppt' : 'Läuft aus');
+  // Zugriffe am Leitstand vorbei: nur echte Umgehungen (die Leitstelle selbst auf dem direkten Weg zählt der Kern nicht mit)
+  const vorbei = $derived(bild.knoten.filter((k) => k.fremde.umgehungen > 0));
+  const umgehungen = $derived(vorbei.reduce((s, k) => s + k.fremde.umgehungen, 0));
   const ausgefuehrt = $derived(bild.massnahmen.filter((m) => m.zustand === 'ausgefuehrt' || m.zustand === 'gesperrt' || m.zustand === 'geplant').slice(0, 6));
 
   function meldungsart(text: string): string {
     if (/nicht erreichbar|abgelehnt|gescheitert|Fehler/i.test(text)) return 'gefahr';
-    if (/Hauptregler|entladen|Flattern|Speicher/i.test(text)) return 'warnung';
+    if (/Hauptregler|entladen|Flattern|Speicher|Leitstand vorbei/i.test(text)) return 'warnung';
     if (/geladen in|wieder erreichbar|bereit|aufgewacht/i.test(text)) return 'erfolg';
     return '';
   }
@@ -78,6 +81,13 @@
 
   <div class="spalten">
     <div class="rollfeld">
+      {#if umgehungen}
+        <div class="hinweis warnung vorbei-hinweis"><i class="fa-solid fa-user-secret"></i>
+          <span><b>{umgehungen} {umgehungen === 1 ? 'Zugriff' : 'Zugriffe'} am Leitstand vorbei</b> auf {vorbei.map((k) => k.name).join(', ')}:
+            Programme greifen auf Modelle zu, ohne über die Leitstelle zu gehen.</span>
+          <span class="rechts"><a class="knopf klein" href={weg.pfad('knoten')} onclick={(e) => weg.klick(e, 'knoten')}
+                                  title="Unter Knoten steht je Rechner, wer, mit welchem Prozess und aus welchem Ordner">Ansehen</a></span></div>
+      {/if}
       {#if bild.knoten.length === 0}
         <div class="leer"><i class="fa-solid fa-plug-circle-plus"></i><h2>Noch kein Anschluss</h2>
           <p>Richte den ersten Modell-Läufer ein: Adresse eingeben, die Leitstelle erkennt Modelle und Fähigkeiten selbst.</p>
@@ -189,6 +199,7 @@
 <style>
   .lagezeile b.ruhig { color: var(--gut); }
   .speicher-zeile { margin-top: 6px; }
+  .vorbei-hinweis { margin-bottom: var(--a4); }
   :global(.seite-uebersicht .lauf .titel) { display: block; color: var(--text); }
   :global(.seite-uebersicht .lauf.zuletzt) { grid-template-columns: 34px minmax(0, 1fr) 110px 90px; color: inherit; margin-top: 2px; }
   :global(.seite-uebersicht .wartet-k .eintrag .t a) { color: var(--text); }

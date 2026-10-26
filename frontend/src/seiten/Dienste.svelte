@@ -13,8 +13,9 @@
 
   let bearbeiten = $state<string | null>(null);
   type Entwurf = { name: string; adresse: string; plaetze: number; zugang: string; zugangNeu: boolean; grenze: number | null; abgleich: number | null;
-                  instanzen: number; spielraum: number };
-  let entwurf = $state<Entwurf>({ name: '', adresse: '', plaetze: 4, zugang: '', zugangNeu: false, grenze: null, abgleich: null, instanzen: 1, spielraum: 4 });
+                  instanzen: number; spielraum: number; ueber: boolean };
+  let entwurf = $state<Entwurf>({ name: '', adresse: '', plaetze: 4, zugang: '', zugangNeu: false, grenze: null, abgleich: null, instanzen: 1, spielraum: 4,
+                                  ueber: false });
   let loeschen = $state<string | null>(null);
   let aufgedeckt = $state<Record<string, string | null>>({});
   let jetzt = $state(kanal.jetzt());
@@ -30,20 +31,27 @@
   const knotenName = (k: string | null) => bild.knoten.find((x) => x.kennung === k)?.name ?? 'Extern';
   const knotenZone = (d: DienstSicht) => (d.extern ? 'extern' : bild.knoten.find((x) => x.kennung === d.knoten)?.zone ?? 'heim');
   const modelle = (d: string) => bild.modelle.filter((m) => m.dienst === d);
+  // Ein Modell-Läufer auf einem eigenen Rechner: nur er kann wahlweise über den Maschinenraum seines Rechners gehen
+  const laeufer = (d: DienstSicht) => d.art === 'openai_kompatibel' && !d.extern && d.knoten !== null;
+  const maschinenraumDa = (k: string | null) => bild.knoten.find((x) => x.kennung === k)?.agent.verbunden ?? false;
+  // Zugang nach dem Speichern: über den Maschinenraum geht keiner mit (der Kern lehnt das ab)
+  const zugangDanach = (d: DienstSicht) => (entwurf.zugangNeu ? entwurf.zugang !== '' : d.zugang);
 
   function beginnen(d: DienstSicht) {
     bearbeiten = d.kennung;
     entwurf = { name: d.name, adresse: d.adresse, plaetze: d.plaetze, zugang: '', zugangNeu: false, grenze: d.anfragen_je_minute, abgleich: null,
-                instanzen: d.einbettung_instanzen, spielraum: d.einbettung_spielraum_gb };
+                instanzen: d.einbettung_instanzen, spielraum: d.einbettung_spielraum_gb, ueber: d.ueber_maschinenraum };
   }
 
   async function speichern() {
     if (!bearbeiten) return;
     const e = entwurf;
-    // leere Grenze entfernt sie (0), leerer Abgleich lässt ihn
+    const d = bild.dienste.find((x) => x.kennung === bearbeiten);
+    // leere Grenze entfernt sie (0), leerer Abgleich lässt ihn; den Weg gibt es nur beim Läufer
     const daten = { name: e.name, adresse: e.adresse, plaetze: e.plaetze, zugang: e.zugangNeu ? e.zugang : null,
                     anfragen_je_minute: e.grenze ?? 0, abgleich_s: e.abgleich || null,
-                    einbettung_instanzen: e.instanzen || 1, einbettung_spielraum_gb: e.spielraum ?? 4 };
+                    einbettung_instanzen: e.instanzen || 1, einbettung_spielraum_gb: e.spielraum ?? 4,
+                    ueber_maschinenraum: d && laeufer(d) ? e.ueber : null };
     if (await tun(() => api.dienstAendern(bearbeiten!, daten), 'Dienst gespeichert')) bearbeiten = null;
   }
 
@@ -83,7 +91,11 @@
           {#each bild.dienste as d (d.kennung)}
             {@const ms = modelle(d.kennung)}
             <tr>
-              <td><b>{d.name}</b><div class="leise klein zahl">{d.adresse}</div></td>
+              <td><b>{d.name}</b><div class="leise klein zahl">{d.adresse}</div>
+                {#if laeufer(d)}<div class="klein dk-weg" class:ueber={d.ueber_maschinenraum}
+                     title={d.ueber_maschinenraum ? 'Die Leitstelle spricht den Läufer über die Durchleitung des Maschinenraums an; jede andere Verbindung zum Läufer erscheint beim Knoten unter Am Leitstand vorbei. Die Adresse bleibt für den Rückfall: Schalter aus (Bearbeiten) heißt sofort wieder direkt.'
+                                                  : 'Die Leitstelle spricht den Läufer direkt unter dieser Adresse an. Über den Maschinenraum (Bearbeiten) werden Umgehungen sichtbar.'}>
+                  <i class="fa-solid {d.ueber_maschinenraum ? 'fa-shield-halved' : 'fa-arrow-right-long'}"></i>{d.ueber_maschinenraum ? 'über den Maschinenraum' : 'direkter Weg'}</div>{/if}</td>
               <td data-titel="Rechner">{knotenName(d.knoten)} <ZoneMarke wert={knotenZone(d)} /></td>
               <td data-titel="Zustand"><Zustand art="dienst" wert={d.zustand} />{#if d.meldung}<div class="leise klein" title={d.meldung}>{d.meldung.length > 60 ? d.meldung.slice(0, 57) + '...' : d.meldung}</div>{/if}
                 {#if d.fehlschlaege && d.naechste_pruefung_s}<div class="klein" title="Nach jedem Fehlschlag verdoppelt sich der Abstand, höchstens ein Tag; ab dem fünften Fehlschlag in Folge heißt es Ausfall">
@@ -121,6 +133,20 @@
                     <span class="feld-l zeile-feld"><input class="eingabe" type="password" bind:value={entwurf.zugang} disabled={!entwurf.zugangNeu} placeholder="neuer Schlüssel" />
                       <button class="knopf klein ohne" onclick={() => (entwurf.zugangNeu = !entwurf.zugangNeu)}>{entwurf.zugangNeu ? 'Doch nicht' : 'Ändern'}</button></span></label>
                 </div>
+                {#if laeufer(d)}
+                  <div class="dk-wegwahl">
+                    <button class="schalter" class:an={entwurf.ueber} onclick={() => (entwurf.ueber = !entwurf.ueber)} disabled={!entwurf.ueber && zugangDanach(d)}
+                            aria-label="Über den Maschinenraum"></button>
+                    <div class="text"><b>Über den Maschinenraum</b>
+                      <span>Die Leitstelle spricht den Läufer über die Durchleitung des Maschinenraums auf {knotenName(d.knoten)} an. Dann kommt jede ihrer
+                        Verbindungen zum Läufer von dort, und jede andere zeigt der Knoten unter Am Leitstand vorbei. Rückfall: Schalter aus, dann gilt sofort
+                        wieder der direkte Weg an die Adresse oben, ohne Neueingabe.</span>
+                      {#if zugangDanach(d)}<span class="warn">Geht nur ohne Zugang: die Durchleitung reicht keinen Zugang zum Läufer weiter.</span>{/if}
+                      {#if entwurf.ueber && !maschinenraumDa(d.knoten)}<span class="warn">Auf {knotenName(d.knoten)} ist gerade kein Maschinenraum verbunden; so lange
+                        ist der Läufer nicht erreichbar (kein stiller Rückfall).</span>{/if}
+                    </div>
+                  </div>
+                {/if}
                 <div class="tun" style="margin-top: var(--a3); display: flex; gap: var(--a2)">
                   <button class="knopf haupt" onclick={speichern}><i class="fa-solid fa-floppy-disk"></i> Speichern</button>
                   <button class="knopf ohne" onclick={() => (bearbeiten = null)}>Abbrechen</button></div>

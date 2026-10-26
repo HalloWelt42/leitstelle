@@ -261,6 +261,10 @@ Prozessdienst.
 | A09 | Agent oder Rechner startet neu | Sollzustand bleibt; eigene Gruppen werden innerhalb derselben Systemlaufzeit wiedererkannt, nach Rechnerneustart wird gestartet, was laufen soll |
 | A10 | Dienst wird in der Startzeit nicht erreichbar | Versuch wird beendet, Meldung mit der letzten Protokollzeile |
 | A11 | Der echte Kanal des Maschinenraums schläft ein und wacht auf | Leitstelle vermerkt sofort (unter 2 s), Dienstfassade 503 `rechner_schlaeft` mit Rechner; die Verbindung ruht; nach dem Aufwachen Anmeldung, Rechner erreichbar, Durchleitung wieder 200 |
+| A12 | Läufer über den Maschinenraum (Schalter an), danach Maschinenraum weg, dann Schalter aus | Chat mit und ohne Strom über die Durchleitung `/laeufer` des echten Maschinenraums; ohne ihn Läufer nicht erreichbar mit der Meldung "Maschinenraum nicht verbunden; Rückfall: ...", Chat 503 `dienst_nicht_erreichbar`, keine Anfrage am Läufer; Schalter aus: sofort wieder direkt, ohne Neueingabe der Adresse; beides im Prüfprotokoll |
+
+Die Beobachtung am Leitstand vorbei ist in diesen Tests aus: sie liest Prozesse und Verbindungen des Rechners, auf dem
+der Test läuft (je Takt Sekunden), und hielte damit die Dienstmeldungen auf.
 
 ## 3b. Schlaf eines Rechners (`test_schlaf.py`)
 
@@ -276,6 +280,23 @@ demselben Rechner, wie LM Studio neben dem Maschinenraum.
 | R05 | Neustart der Leitstelle während des Schlafs | Rechner und Dienste weiter `schlaeft`; ein danach unbekannter Name auf ihm gibt `rechner_schlaeft`; nach dem Aufwachen geht der Chat |
 | R06 | Agent verschwindet ohne Meldung, Läufer antwortet nicht | 503 `dienst_nicht_erreichbar` (früher 403 `zone_nicht_erlaubt`), Retry-After 30, ohne Rechner |
 | R07 | "Nicht mehr warten" von Hand | Dienste geprüft, Rechner nicht erreichbar, Aufrufe `dienst_nicht_erreichbar`; Prüfprotokoll; ein zweites Mal 404 |
+
+## 3c. Am Leitstand vorbei (`test_am_leitstand_vorbei.py`)
+
+Weg zum Läufer über den Maschinenraum (Transport mit Mitschnitt) und `knoten.fremde` mit Leitstelle, Schein-Läufer und
+Schein-Agent auf echten Ports.
+
+| Nr | Szenario | Erwartung |
+|---|---|---|
+| U01 | Läufer-Adapter über den Maschinenraum | jede Anfrage (Zustand, Arbeit, Durchleitung mit Abfrage) landet unter `http://<agent>:<durchleitung_port>/laeufer/<pfad>` mit dem Schlüssel des Maschinenraums als Bearer; Körper unverändert |
+| U02 | Kein Agent verbunden oder keine Durchleitung gemeldet | Zustand nicht erreichbar mit der Meldung "Maschinenraum nicht verbunden; Rückfall: Schalter 'über den Maschinenraum' aus", Arbeit `dienst_nicht_erreichbar`; keine Anfrage an die eingetragene Adresse |
+| U03 | Weg über den Maschinenraum für einen externen Anbieter oder den Agent-Dienst | die Adapter-Fabrik lehnt ab |
+| U04 | Schalter an, Agent ohne Durchleitung | Läufer nicht erreichbar mit Meldung, Chat 503, der Läufer bekommt keine Anfrage; Meldung "Weg zum Läufer jetzt über den Maschinenraum"; Schalter aus: sofort bereit, Chat 200 |
+| U05 | Schalter mit Zugang oder beim Agent-Dienst | 400 mit Grund `weg` |
+| U06 | `knoten.fremde` mit Programm, Speicherverbraucher und Verbindung vom Rechner der Leitstelle (direkter Weg) | Lagebild `fremde` mit Deutung je Zugriff, `umgehungen` 2; die Leitstelle selbst nicht gemeldet; je Umgehung genau eine Meldung, auch nach weiteren Takten und kurzem Fehlen im Nachlauf |
+| U07 | Dieselbe Verbindung, Schalter an | sofort `rechner_der_leitstelle`, zählt als Umgehung, eine Meldung |
+| U08 | Umgehungen verschwinden; dazwischen eine Meldung ohne Beobachtung | ohne Beobachtung weder weg noch da (Lagebild "nicht beobachtet"); nach dem Verschwinden je eine Meldung "nicht mehr gesehen", danach keine mehr |
+| U09 | Nachlauf | kurz fehlend und wieder da: nichts; erst nach dem Nachlauf seit dem letzten Sehen einmal weg; nach dem Trennen des Maschinenraums wird neu gemeldet |
 
 ## 4. Zweige je Vorlage
 

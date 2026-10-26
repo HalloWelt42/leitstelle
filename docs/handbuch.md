@@ -34,8 +34,8 @@ aus privaten Netzen erreichbar.
 
 - Pi nach [[Grundlage Pi]] mit Docker. Der Bau braucht Netz (Pakete, der Maschinenraum als echter Knoten in den
   Tests, die Gestaltung aus dem Repo des [[Appkern]] auf GitHub) und dauert, weil dabei alle Tests laufen.
-- Mac nach [[Grundlage Mac]] mit LM Studio (Modell-Läufer auf Port 1234 im Heimnetz); später der [[Maschinenraum]] als
-  Knoten-Agent des Macs.
+- Mac nach [[Grundlage Mac]] mit dem Modell-Läufer (Port 1234) und dem [[Maschinenraum]] als Knoten-Agent; für den
+  Weg zum Läufer über den Maschinenraum dessen Fassung ab 0.14.0.
 - Das Werkzeug handbuch am Mac ([[Grundlage Mac]]): `tools/ausrollen.sh` fragt es nach Ziel, Ordner und Datenordner
   (`handbuch ziel leitstelle`); das Repo `leitstelle-privat` als Ordner `privat/` trägt die Unterlagen des Hauses.
 - Keine andere App des Verbunds; die Leitstelle kommt gleich nach der [[Kellerwolke]].
@@ -78,11 +78,16 @@ und `http://<zielrechner>:{{port:docker-compose.yml/entwuerfe}}/gesundheit` antw
 ### 4. Läufer und Knoten
 
 Aus der Sicherung stehen sie schon da. Frisch in der Oberfläche unter Dienste den Modell-Läufer des Macs per Adresse
-anschließen (LM Studio, Port 1234; Rechner mit Name und Speicher), dann unter Knoten beim Mac "Maschinenraum verbinden"
-und Adresse und Schlüssel in der Oberfläche des [[Maschinenraum]] unter Leitstelle eintragen.
+anschließen (Port 1234; Rechner mit Name und Speicher), dann unter Knoten beim Mac "Maschinenraum verbinden" und
+Adresse und Schlüssel in der Oberfläche des [[Maschinenraum]] unter Leitstelle eintragen. Danach unter Dienste beim
+Läufer (Bearbeiten) den Schalter "Über den Maschinenraum" einschalten: die Leitstelle spricht den Läufer dann über die
+Durchleitung des Maschinenraums an (dort Einstellung `nachbar.modell_laeufer`, Vorgabe `http://127.0.0.1:1234`), und
+jeder Zugriff am Leitstand vorbei erscheint beim Knoten unter "Am Leitstand vorbei" und in der Übersicht. Die Adresse
+des Läufers bleibt eingetragen; Schalter aus heißt sofort wieder direkt (Rückfall von Hand, nie von selbst).
 
-Probe: unter Dienste stehen die Modelle des Läufers mit Größe und Ladezustand, unter Knoten ist der Mac verbunden und
-meldet seinen Speicher.
+Probe: unter Dienste stehen die Modelle des Läufers mit Größe und Ladezustand, beim Läufer steht "über den
+Maschinenraum" und er ist bereit; unter Knoten ist der Mac verbunden, meldet seinen Speicher und zeigt unter "Am
+Leitstand vorbei" eine Liste oder "Nichts gefunden".
 
 ### 5. Anwendungen
 
@@ -110,6 +115,15 @@ Dienst anhalten, Archiv in den Datenordner entpacken, starten; Probe wie in Schr
   `SOFORT=1 tools/ausrollen.sh` startet ohne zu warten.
 - Apps melden "Leitstelle nicht erreichbar": Container prüfen (`docker compose ps`, `docker logs -f leitstelle`); der
   Appkern der Apps wartet eine Weile und versucht es erneut.
-- Modelle laden nicht: der Läufer am Mac schläft oder lauscht nur lokal (LM Studio, Netzwerk, siehe [[Grundlage Mac]]),
-  oder das Budget des Rechners reicht nicht (Oberfläche, Modelle).
+- Modelle laden nicht: der Läufer am Mac schläft oder lauscht auf dem direkten Weg nur lokal (Netzwerk des Läufers,
+  siehe [[Grundlage Mac]]; über den Maschinenraum genügt lokal), oder das Budget des Rechners reicht nicht (Oberfläche,
+  Modelle).
+- Der Läufer ist nicht erreichbar mit "Maschinenraum nicht verbunden; Rückfall: Schalter 'über den Maschinenraum' aus":
+  der Schalter ist an, aber der Maschinenraum des Macs meldet sich nicht. Antwortet er mit "Diesen Dienst gibt es hier
+  für die Leitstelle nicht: laeufer", ist er älter als 0.14.0; mit "keinen Modell-Läufer eingetragen" fehlt dort
+  `nachbar.modell_laeufer`. Rückfall von Hand: unter Dienste beim Läufer den Schalter aus.
+- In der Übersicht steht "Zugriffe am Leitstand vorbei": ein Programm spricht ein Modell des Rechners ohne die Leitstelle
+  an oder hält ein eigenes Modell im Speicher. Unter Knoten stehen Wer, Prozess und Arbeitsordner; das Programm auf die
+  Leitstelle umstellen. "Vermutlich die Leitstelle selbst (direkter Weg)" zählt nicht; der Schalter "über den
+  Maschinenraum" macht auch diesen Fall eindeutig.
 - Gespeicherte Schlüssel sind unlesbar: `tresor.schluessel` fehlt oder gehört zu einer anderen Datenbank.

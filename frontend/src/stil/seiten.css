@@ -335,6 +335,12 @@
   .seite-dienste .dk-faehig { display: flex; align-items: center; gap: var(--a1) var(--a3); flex-wrap: wrap; font-size: var(--klein); color: var(--text-2); }
   .seite-dienste .dk-faehig .marken { display: inline-flex; gap: var(--a1); flex-wrap: wrap; }
   .seite-dienste .dk-faehig b { font-family: var(--schrift-zahl); color: var(--text); font-weight: 600; }
+  .seite-dienste .dk-weg { display: inline-flex; align-items: center; gap: var(--a1); margin-top: 2px; color: var(--text-3); }
+  .seite-dienste .dk-weg.ueber { color: var(--gut); }
+  .seite-dienste .dk-wegwahl { display: flex; align-items: flex-start; gap: var(--a3); margin-top: var(--a3); }
+  .seite-dienste .dk-wegwahl .text { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: var(--klein); }
+  .seite-dienste .dk-wegwahl .text span { color: var(--text-2); }
+  .seite-dienste .dk-wegwahl .text .warn { color: var(--warn); }
   .seite-dienste .dk-hinweis { display: flex; gap: var(--a2); align-items: baseline; font-size: var(--klein); color: var(--text-3); min-width: 0; }
   .seite-dienste .dk-hinweis i { flex: none; }
   .seite-dienste .dk-hinweis span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }   /* eine Zeile, voller Satz im title */

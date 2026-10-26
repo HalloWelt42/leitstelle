@@ -98,6 +98,7 @@ gilt dann nicht als ausgefallen, sondern als schlafend, bis sich sein Agent wied
 | `knoten.angemeldet` | Leitstelle an Agent, mit `bezug` | `knoten` (Kennung), `name` |
 | `knoten.messwerte` | Agent an Leitstelle, im Takt (Vorgabe 5 s); nicht im Nachrichtenverkehr der Oberfläche | `speicher_gesamt_gb`, `speicher_belegt_gb`, `swap_belegt_gb`, `swap_gesamt_gb`, `cpu_prozent`, `last_1m`, `platte_frei_gb`, `grafik_prozent`, `temperatur_c`, `leistung_w`; alles in GiB; fehlende Werte sind null, nie genullt |
 | `knoten.dienste` | Agent an Leitstelle, bei jeder Änderung und spätestens alle zehn Takte | `dienste`: je Dienst `kennung`, `name`, `faehigkeiten`, `port`, `zustand` (aus, startet, laeuft, stoppt, gestoert), `fremd` (läuft, aber nicht vom Agenten gestartet), `gb_jetzt` (gerade gemessen, sonst null), `bedarf_gb` (was er laufend braucht: höchster gemessener Wert, mindestens die Schätzung; damit plant die Leitstelle), `aktiv` (arbeitet gerade, nach Prozessorlast), `anhalten_erlaubt` (darf die Leitstelle ihn anhalten), `meldung` |
+| `knoten.fremde` | Agent an Leitstelle, im Takt der Messung; nicht im Nachrichtenverkehr der Oberfläche | Zugriffe am Leitstand vorbei auf die Modelle dieses Rechners: `beobachtet` (falsch, wenn der Agent es nicht messen kann oder die Beobachtung aus ist; dann sagt die Liste nichts), `zugriffe`: je Zugriff `art` (`laeufer`: Verbindung zum Modell-Läufer, die nicht über die Durchleitung kommt; `speicher`: Programm mit viel Speicher, das weder Dienst noch Läufer ist), `wer` (Programmname oder Adresse im Netz), `pid` (nur auf diesem Rechner), `befehl` (Befehlszeile, gekürzt), `ordner` (Arbeitsordner), `verbindungen` (bei `laeufer`), `gb` (bei `speicher`), `vom_rechner_der_leitstelle` (Adresse im Netz ist die des Rechners der Leitstelle) |
 | `knoten.befehl` | Leitstelle an Agent | `befehl` (dienst_starten, dienst_anhalten), `ziel` (Kennung des Dienstes); Befehle sind auf die Dienstverwaltung begrenzt |
 | `knoten.befehl_ergebnis` | Agent an Leitstelle, mit `bezug` auf den Befehl | `befehl`, `ziel`, `erfolg`, `meldung`; ein Start antwortet erst, wenn der Dienst erreichbar ist oder seine Startzeit verstrichen ist |
 | `knoten.schlaeft` | Agent an Leitstelle, unmittelbar vor dem Einschlafen des Rechners | `grund` (`leerlauf`: nach der Leerlaufzeit, `angefordert`: von Hand, Deckel, Ein-Taste), `meldung`; danach schließt der Agent die Verbindung mit Code 1000 und Grund `schlaeft` und meldet sich erst nach dem Aufwachen wieder an |
@@ -108,6 +109,26 @@ gilt dann nicht als ausgefallen, sondern als schlafend, bis sich sein Agent wied
 Durchleitung: der Agent meldet in `knoten.anmelden` den Port `durchleitung_port`. Die Leitstelle ruft dort
 `/<dienst>/<pfad>` mit demselben Schlüssel als Bearer auf; der Agent reicht an den Dienst weiter, der nur auf seinem
 Rechner lauscht. Ziel ist die Adresse, von der aus sich der Agent verbunden hat.
+
+`/laeufer/<pfad>` reicht an den Modell-Läufer des Rechners (beim Maschinenraum Einstellung `nachbar.modell_laeufer`);
+kein Dienst darf `laeufer` heißen. Die Leitstelle nimmt diesen Weg, wenn beim Läufer der Schalter "über den
+Maschinenraum" an ist (`ueber_maschinenraum`, `PATCH /api/dienste/<kennung>`): jede ihrer Anfragen an den Läufer
+(Zustand, Laden, Entladen, Arbeit) geht dann an die Durchleitung, Adresse und Schlüssel bei jeder Anfrage aus der
+Verbindung des Agenten. Damit kommt jede ihrer Verbindungen zum Läufer vom Maschinenraum, und jede andere meldet er als
+Umgehung (`knoten.fremde`). Ist der Agent nicht verbunden, ist der Läufer nicht erreichbar ("Maschinenraum nicht
+verbunden; Rückfall: Schalter 'über den Maschinenraum' aus"); einen stillen Rückfall auf den direkten Weg gibt es
+nicht. Die Adresse des Läufers bleibt eingetragen: Schalter aus heißt sofort wieder direkt. Einen Zugang zum Läufer
+reicht die Durchleitung nicht weiter (sie trägt den Schlüssel des Maschinenraums); mit Zugang lehnt die Leitstelle den
+Schalter ab (Grund `weg`).
+
+Am Leitstand vorbei: die Leitstelle deutet jeden Zugriff aus `knoten.fremde`. Eine Verbindung zum Läufer aus dem Netz
+von der Adresse der Leitstelle ist, solange sie den Läufer dieses Rechners direkt anspricht, vermutlich sie selbst
+(`leitstelle_direkt`, keine Umgehung); geht ihr Weg über den Maschinenraum, ist es ein anderes Programm auf ihrem Rechner
+(`rechner_der_leitstelle`); alles andere heißt `umgehung`. Das Lagebild trägt je Knoten `fremde` (`beobachtet`,
+`zugriffe` mit `deutung`, `umgehungen` als Zahl der echten Umgehungen). Jede Umgehung (Schlüssel aus Art, wer und
+Prozess) steht einmal in den Meldungen, wenn sie auftaucht, und einmal, wenn sie verschwunden ist; verschwunden heißt
+seit `LEITSTELLE_FREMDE_NACHLAUF_S` (Vorgabe 60 s) nicht mehr gemeldet, damit Programme, die den Läufer immer wieder kurz
+ansprechen, nicht flackern.
 
 Schlaf: nach `knoten.schlaeft` führt die Leitstelle den Rechner als schlafend (Zustand `schlaeft`, mit Zeitpunkt; der
 Vermerk übersteht ihren Neustart). Seine Dienste heißen `schlaeft`, werden nicht geprüft und zählen keine Fehlschläge;

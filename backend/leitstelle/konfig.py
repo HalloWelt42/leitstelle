@@ -38,6 +38,8 @@ class Konfig(BaseSettings):
     wieder_s: float = Field(default=30.0, description="Retry-After bei 429 und 503: wann ein neuer Versuch Sinn hat")
     schlaf_wieder_s: float = Field(default=60.0, description="Retry-After, wenn der Rechner des Dienstes schläft (rechner_schlaeft); "
                                                               "er wacht selten in Sekunden auf")
+    fremde_nachlauf_s: float = Field(default=60.0, description="so lange muss ein Zugriff am Leitstand vorbei fehlen, bis er als weg gemeldet wird; "
+                                                                "ein Programm, das den Läufer immer wieder kurz anspricht, gilt so als ein Zugriff")
     bildablaeufe: dict[str, BildablaufEinstellung] = Field(
         default_factory=lambda: {"bildschmiede": ComfyAblauf()},
         description="je Bilddienst (Kennung im Maschinenraum) der Ablauf, mit dem `/v1/images/generations` dort Bilder erzeugt; "

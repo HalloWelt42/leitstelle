@@ -3,7 +3,8 @@
 Meldet sich mit seinem Schlüssel an, meldet Messwerte und eine feste Dienstliste, legt sich schlafen wie der echte vor
 dem Einschlafen (`knoten.schlaeft`, wartet höchstens 3 s auf `knoten.schlaf_vermerkt`, schließt mit dem Grund
 `schlaeft`) und wacht wieder auf (neue Anmeldung). `trennen` reißt die Verbindung ohne Abmeldung ab, wie ein Rechner,
-der unangekündigt verschwindet. Befehle lehnt er ab; er startet nichts.
+der unangekündigt verschwindet. `fremde_melden` schickt, was seine Beobachtung am Leitstand vorbei sähe. Befehle lehnt er
+ab; er startet nichts.
 """
 
 from __future__ import annotations
@@ -15,8 +16,8 @@ import websockets
 from pydantic import BaseModel
 
 from leitstelle.kern.werte import Faehigkeit
-from leitstelle.protokoll.knoten import (Befehl, BefehlErgebnis, Dienstliste, KnotenAnmeldung, KnotenSchlaeft, Messwerte, ProzessBericht,
-                                         Prozesszustand, Schlafgrund)
+from leitstelle.protokoll.knoten import (Befehl, BefehlErgebnis, Dienstliste, Fremdzugriffe, KnotenAnmeldung, KnotenSchlaeft, Messwerte,
+                                         ProzessBericht, Prozesszustand, Schlafgrund)
 from leitstelle.protokoll.umschlag import Umschlag
 
 VERMERK_S = 3.0
@@ -51,6 +52,10 @@ class ScheinAgent:
         await asyncio.wait_for(self._angemeldet.wait(), 10)
         await self._senden("knoten.messwerte", Messwerte(speicher_gesamt_gb=64.0, speicher_belegt_gb=20.0))
         await self._senden("knoten.dienste", self.dienste)
+
+    async def fremde_melden(self, fremde: Fremdzugriffe) -> None:
+        """`knoten.fremde`, wie der Maschinenraum es im Takt der Messung schickt."""
+        await self._senden("knoten.fremde", fremde)
 
     async def wecken(self) -> None:
         """Aufgewacht: wie der Maschinenraum meldet er sich neu an."""

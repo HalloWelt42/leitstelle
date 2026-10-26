@@ -1,9 +1,10 @@
 """Knoten-Agent Ende zu Ende: echte Leitstelle auf einem Port, als Agent der Maschinenraum (eigenes Repo,
-Paket `maschinenraum`) mit einem kleinen HTTP-Server als Prozessdienst. Szenarien A01 bis A11 aus docs/SZENARIEN.md."""
+Paket `maschinenraum`) mit einem kleinen HTTP-Server als Prozessdienst. Szenarien A01 bis A12 aus docs/SZENARIEN.md."""
 
 from __future__ import annotations
 
 import asyncio
+import json
 import socket
 import sys
 from contextlib import asynccontextmanager
@@ -17,6 +18,7 @@ import websockets
 from leitstelle.api.app import erstellen
 from leitstelle.konfig import Konfig
 
+from schein.laeufer import schein_laeufer
 from schein.server import laufend
 
 pytest.importorskip("maschinenraum")
@@ -46,10 +48,14 @@ async def _warte_bis(bedingung, sekunden: float = 15.0):
     raise AssertionError("Bedingung nicht erreicht")
 
 
-def _agentenordner(tmp: Path, url: str, schluessel: str, port: int, mehr: str = "") -> Ordner:
+def _agentenordner(tmp: Path, url: str, schluessel: str, port: int, mehr: str = "", laeufer: str = "") -> Ordner:
+    """Ordner eines Maschinenraums mit dem Dienst Probe. Die Beobachtung am Leitstand vorbei bleibt aus: sie liest die
+    Prozesse und Verbindungen des Rechners, auf dem der Test läuft (lsof, je Takt Sekunden), und hielte damit die
+    Dienstmeldungen auf. `laeufer` ist die Adresse eines Modell-Läufers für die Durchleitung `/laeufer`."""
     o = tmp / "maschinenraum"
     (o / "dienste").mkdir(parents=True)
-    (o / "einstellungen.toml").write_text(f'[leitstelle]\nadresse = "{url}"\nwiederverbindung_max_s = 1\n[messung]\ntakt_s = 1\nmacmon = false\n')
+    (o / "einstellungen.toml").write_text(f'[leitstelle]\nadresse = "{url}"\nwiederverbindung_max_s = 1\n[messung]\ntakt_s = 1\nmacmon = false\n'
+                                          f'[beobachtung]\naktiv = false\n[nachbar]\nmodell_laeufer = "{laeufer}"\n')
     (o / "schluessel").write_text(schluessel)
     (o / "dienste" / "probe.toml").write_text(
         f'name = "Probe"\nordner = "{tmp}"\nbefehl = ["{sys.executable}", "-m", "http.server", "{port}", "--bind", "127.0.0.1"]\n'
@@ -319,7 +325,7 @@ def test_protokoll_von_agent_und_kern_ist_deckungsgleich():
     import leitstelle.protokoll.knoten as kern
     import maschinenraum.protokoll as spiegel
     for name in ("KnotenAnmeldung", "Messwerte", "Prozesszustand", "Selbstauskunft", "ProzessBericht", "Dienstliste", "Befehlsart", "Befehl",
-                 "BefehlErgebnis", "Faehigkeit", "Eignung", "Schlafgrund", "KnotenSchlaeft"):
+                 "BefehlErgebnis", "Faehigkeit", "Eignung", "Schlafgrund", "KnotenSchlaeft", "Fremdart", "Fremdzugriff", "Fremdzugriffe"):
         a, b = getattr(kern, name, None) or getattr(__import__("leitstelle.kern.werte", fromlist=[name]), name), getattr(spiegel, name)
         if hasattr(a, "model_json_schema"):
             assert a.model_json_schema() == b.model_json_schema(), name
@@ -390,3 +396,57 @@ async def test_a11_schlaf_ende_zu_ende_mit_dem_echten_maschinenraum(tmp_path):
             await _warte_bis(wach)
             r = await anw.get("/v1/dienste/probe/hallo.txt", headers=kopf)
             assert r.status_code == 200 and r.content.decode() == "Grüße aus dem Dienst", r.text
+
+
+async def test_a12_laeufer_ueber_den_maschinenraum_und_rueckfall_von_hand(tmp_path):
+    """Grundsatz: alles KI nur über die Leitstelle. Mit dem Schalter "über den Maschinenraum" spricht die Leitstelle den
+    Läufer über die Durchleitung `/laeufer` des echten Maschinenraums an; ohne Maschinenraum ist er nicht erreichbar, mit
+    klarer Meldung und ohne stillen Rückfall auf den direkten Weg. Schalter aus heißt sofort wieder direkt."""
+    laeufer = schein_laeufer()
+    frage = {"model": "qwen/qwen3-next-80b", "messages": [{"role": "user", "content": "hallo"}]}
+    async with laufend(laeufer) as laeufer_url, aufbau(tmp_path) as (c, url, knoten, schluessel):
+        r = await c.post("/api/dienste", json={"adresse": laeufer_url, "knoten": knoten})
+        assert r.status_code == 200 and r.json()["ueber_maschinenraum"] is False, r.text
+        dienst = r.json()["kennung"]
+        app_schluessel = (await c.post("/api/anwendungen", json={"name": "Codehilfe"})).json()["schluessel"]
+
+        async def sicht() -> dict:
+            return next(d for d in (await c.get("/api/lage")).json()["dienste"] if d["kennung"] == dienst)
+
+        async with httpx.AsyncClient(base_url=url, timeout=30, headers={"Authorization": f"Bearer {app_schluessel}"}) as anw:
+            async with agent_laeuft(_agentenordner(tmp_path, url, schluessel, _freier_port(), laeufer=laeufer_url)):
+                async def verbunden():
+                    return (await _knoten(c, knoten))["agent"]["verbunden"]
+                await _warte_bis(verbunden)
+                r = await c.patch(f"/api/dienste/{dienst}", json={"ueber_maschinenraum": True})
+                assert r.status_code == 200 and r.json()["ueber_maschinenraum"] is True and r.json()["adresse"] == laeufer_url, r.text
+                d = await sicht()
+                assert d["ueber_maschinenraum"] is True and d["zustand"] == "bereit", d["meldung"]
+                r = await anw.post("/v1/chat/completions", json=frage)
+                assert r.status_code == 200, r.text
+                assert r.json()["choices"][0]["message"]["content"] == "Stück0 Stück1 Stück2 Stück3 Stück4 "
+                r = await anw.post("/v1/chat/completions", json={**frage, "stream": True})
+                stuecke = [json.loads(z[6:]) for z in r.text.splitlines() if z.startswith("data: {")]
+                assert r.status_code == 200 and r.text.rstrip().endswith("data: [DONE]"), r.text
+                assert "".join(s["choices"][0]["delta"].get("content", "") for s in stuecke if s.get("choices")) == "Stück0 Stück1 Stück2 Stück3 Stück4 "
+
+            async def zu():
+                return (await sicht())["zustand"] == "nicht_erreichbar"
+            await _warte_bis(zu)
+            d = await sicht()
+            assert d["meldung"] == "Maschinenraum nicht verbunden; Rückfall: Schalter 'über den Maschinenraum' aus"
+            vorher = laeufer.state.lage.aufrufe
+            r = await anw.post("/v1/chat/completions", json=frage)
+            assert r.status_code == 503 and r.json()["error"]["code"] == "dienst_nicht_erreichbar", r.text
+            assert laeufer.state.lage.aufrufe == vorher                           # kein stiller Rückfall auf den direkten Weg
+
+            r = await c.patch(f"/api/dienste/{dienst}", json={"ueber_maschinenraum": False})
+            assert r.status_code == 200 and r.json()["ueber_maschinenraum"] is False, r.text
+
+            async def direkt():
+                return (await sicht())["zustand"] == "bereit"
+            await _warte_bis(direkt)
+            r = await anw.post("/v1/chat/completions", json=frage)
+            assert r.status_code == 200 and laeufer.state.lage.aufrufe > vorher, r.text
+        pruef = [e["was"] for e in (await c.get("/api/pruefprotokoll")).json()["eintraege"]]
+        assert "Dienst geändert (Weg zum Läufer über den Maschinenraum)" in pruef and "Dienst geändert (Weg zum Läufer direkt)" in pruef

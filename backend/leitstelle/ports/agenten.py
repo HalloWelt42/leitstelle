@@ -10,7 +10,9 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable
 
-from ..protokoll.knoten import Befehl, BefehlErgebnis, Dienstliste, KnotenAnmeldung, Messwerte
+import httpx
+
+from ..protokoll.knoten import Befehl, BefehlErgebnis, Dienstliste, Fremdzugriffe, KnotenAnmeldung, Messwerte
 from ..protokoll.umschlag import Umschlag, umschlag
 
 Senden = Callable[[Umschlag], Awaitable[None]]
@@ -34,7 +36,16 @@ class AgentVerbindung:
         self.messwerte: Messwerte | None = None
         self.messzeit_s: float | None = None
         self.dienste = Dienstliste()
+        self.fremde = Fremdzugriffe(beobachtet=False)   # bis zur ersten Meldung `knoten.fremde` (ein älterer Agent sendet keine)
         self.offen: dict[str, asyncio.Future[BefehlErgebnis]] = {}
+
+    @property
+    def durchleitung(self) -> httpx.URL | None:
+        """Basis der Durchleitung: die Adresse, von der sich der Agent verbunden hat, mit dem Port aus seiner Anmeldung.
+        None, solange er keine Durchleitung meldet."""
+        if not self.adresse or not self.anmeldung.durchleitung_port:
+            return None
+        return httpx.URL(scheme="http", host=self.adresse, port=self.anmeldung.durchleitung_port)
 
     def trennen(self) -> None:
         for f in self.offen.values():
