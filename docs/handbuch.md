@@ -10,7 +10,7 @@ schluessel_orte:
   - "Pi: `tresor.schluessel` im Datenordner; ohne ihn sind die im Tresor gespeicherten Schlüssel und Zugänge nicht lesbar"
   - "Datenbank (verschlüsselt mit dem Tresor): Schlüssel der Anwendungen, der Knoten (Maschinenraum) und externer Anbieter"
 einrichten: einrichten.sh
-stand: 36fb81c
+stand: 45b824d
 ---
 
 # Leitstelle
@@ -18,14 +18,16 @@ stand: 36fb81c
 ## Zweck
 
 Die Leitstelle steht zwischen den Apps und allen KI-Diensten. Apps sprechen nur mit ihr, über die gewöhnliche
-Schnittstelle im OpenAI-Format (`/v1/chat/completions`, `/v1/embeddings`, `/v1/models`) und über Fassadenwege zu den
-Diensten (`/v1/dienste/<name>/...`). Sie wählt je Auftrag Dienst, Modell und Rechner, reiht nach Priorität ein, plant
+Schnittstelle im OpenAI-Format (`/v1/chat/completions`, `/v1/embeddings`, `/v1/images/generations`, `/v1/models`) und
+über Fassadenwege zu den Diensten (`/v1/dienste/<name>/...`). Sie wählt je Auftrag Dienst, Modell und Rechner, reiht nach Priorität ein, plant
 den Speicher, lädt und entlädt Modelle und hält Dienste über den [[Maschinenraum]] des Rechners an oder startet sie.
 Die Oberfläche zeigt live, wer was rechnet und wer wartet. In Kopfzeile und Tab-Titel heißt sie "Leitstelle ·
 KI-Vermittlung".
 
 Ohne Leitstelle bekommen [[Fundus]], [[Assistent]], [[Vertonung]], [[Transkription]] und die übrigen Apps keine KI:
-keine Antworten, keine Einbettung, keine Stimme, kein Hören.
+keine Antworten, keine Einbettung, keine Stimme, kein Hören, keine Bilder. Die Bilddienste des [[Bildwerk]] (je
+Bildmodell ein Programm im Maschinenraum) startet sie, wenn eine App ein Bild verlangt, und prüft jede Anfrage vorher
+mit dem Steckbrief des Modells (Größen, Schritte, Anzahl).
 
 Auf dem Pi laufen zwei Container aus `docker-compose.yml`: der Kern mit Fassade und Oberfläche auf Port
 {{port:docker-compose.yml/leitstelle}} und die Entwürfe auf Port {{port:docker-compose.yml/entwuerfe}}. Beide sind nur
@@ -40,6 +42,9 @@ aus privaten Netzen erreichbar.
   für den Docker-Rechner ab 0.16.0, für die Apps des [[Stellwerk]] ab 0.17.0 (das Stellwerk mit Prozessnummern je Teil).
 - Das Werkzeug handbuch am Mac ([[Grundlage Mac]]): `tools/ausrollen.sh` fragt es nach Ziel, Ordner und Datenordner
   (`handbuch ziel leitstelle`); das Repo `leitstelle-privat` als Ordner `privat/` trägt die Unterlagen des Hauses.
+- Für Bilder: die Dienste des [[Bildwerk]] im Maschinenraum des Macs. Die Leitstelle braucht dafür keinen Eintrag: jeder
+  Bilddienst ohne eigenen Eintrag spricht das übliche Bildformat (Einstellung `LEITSTELLE_BILDABLAUF_VORGABE`); nur die
+  Bildschmiede hat ab Werk einen eigenen Ablauf (`LEITSTELLE_BILDABLAEUFE`).
 - Keine andere App des Verbunds; die Leitstelle kommt gleich nach der [[Kellerwolke]].
 
 ## Neu einrichten
@@ -103,6 +108,18 @@ Docker-Projekte: solange sie Hintergrundarbeit hat, zählt deren Last nicht zur 
 Probe: die App meldet unter ihren Verbindungen die Leitstelle als verbunden, und ihr erster Auftrag erscheint in der
 Oberfläche der Leitstelle.
 
+### 6. Bilddienste
+
+Nichts einzurichten: die Leitstelle sieht die Bilddienste, sobald der Maschinenraum sie meldet. Darf eine App Bilder
+erzeugen, braucht sie die Fähigkeit "Bild erzeugen". Das Bildmodell wählt die App selbst (`model`, etwa
+`bildwerk-moss-image`, dazu wahlweise Alternativen in ihrer Reihenfolge); soll sie ohne Angabe ein festes Bildmodell
+nutzen, steht das als ihre Wahl in ihrer Kette für Bilder. Die Leitstelle sucht nie selbst ein Modell aus. Der erste Auftrag startet den Dienst (MOSS-Image bis 5 Minuten); danach liest die
+Leitstelle seinen Steckbrief und behält ihn.
+
+Probe: unter Dienste steht bei "Dienste auf <Mac>" das Programm "Bildwerk MOSS-Image · Bild erzeugen"; nach dem ersten
+Bild stehen dort und unter Modelle seine Grenzen (Modell, Kanten, Schritte, Bilder je Anfrage, Lizenz), und im Verlauf
+"Steckbrief von Bildwerk MOSS-Image gelesen".
+
 ## Sicherung und Rückspielen
 
 Es gibt keine regelmäßige Sicherung (Stand 24.10.2026); das Werkzeug Sicherungen am Mac führt die Leitstelle als
@@ -146,6 +163,18 @@ Dienst anhalten, Archiv in den Datenordner entpacken, starten; Probe wie in Schr
   stehen je Modell Anfragen und Token der letzten 60 Sekunden neben den Grenzen des Schlüssels; die Grenzen dort an die
   des Anbieters anpassen. Ob ein externes Modell Bilder versteht, belegt "Fähigkeiten prüfen" am Dienst (zählt gegen die
   Grenzen).
+- Eine App bekommt bei einem Bild 400 `modell_fehlt`: sie nennt kein Bildmodell und hat in der Leitstelle keine Kette
+  für Bilder; die Antwort nennt die Bildmodelle zur Wahl. In der App das Modell einstellen (oder bei der Anwendung eine
+  Kette für Bilder hinterlegen).
+- Eine App bekommt bei einem Bild 400 `eingabe`: Größe, Anzahl oder Schritte passen nicht zum Modell; der Satz nennt
+  die Grenze (MOSS-Image: Kanten 256 bis 2048, durch 16 teilbar, Fläche mindestens 512x512, 1 bis 218 Schritte). Bis
+  der Dienst einmal lief, prüft die Leitstelle mit den Vorgabegrenzen, danach mit seinem Steckbrief.
+- Das erste Bild dauert Minuten: der Bilddienst startet und lädt sein Modell (Hinweis "startet auf ... seit"); ab dem
+  zweiten Start nennt der Hinweis die gemessene Restzeit. 503 `dienst_nicht_bereit` heißt: der Dienst läuft, sein Modell
+  ist aber nicht bereit (Protokoll des Dienstes im Maschinenraum). 503 `kein_dienst` gibt es nur, wenn die Vorgabe für
+  Bilddienste abgeschaltet ist und der Dienst keinen eigenen Eintrag hat.
+- Ein abgebrochenes Bild rechnet im Bilddienst zu Ende (der Maschinenraum reicht das Schließen erst weiter, wenn der
+  Dienst antwortet); das nächste Bild wartet dort so lange.
 - Eine Maßnahme der Selbststeuerung stört: unter Regeln abschalten oder ihre Werte ändern (wirkt sofort, steht im
   Prüfprotokoll); "von Hand" zeigt, was von der Vorgabe abweicht, der Pfeil daneben stellt sie wieder her.
 - Gespeicherte Schlüssel sind unlesbar: `tresor.schluessel` fehlt oder gehört zu einer anderen Datenbank.

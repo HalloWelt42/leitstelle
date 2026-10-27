@@ -127,7 +127,10 @@ class HttpStrom:
             raise DienstFehler("dienst_nicht_erreichbar", f"Strom abgerissen: {type(fehler).__name__} {fehler}".strip(), wiederholbar=False) from fehler
 
     async def lesen(self) -> bytes:
-        return await self._antwort.aread()
+        try:
+            return await self._antwort.aread()
+        except httpx.HTTPError as fehler:
+            raise DienstFehler("dienst_nicht_erreichbar", f"Antwort abgerissen: {type(fehler).__name__} {fehler}".strip(), wiederholbar=False) from fehler
 
     async def schliessen(self) -> None:
         self._geschlossen = True

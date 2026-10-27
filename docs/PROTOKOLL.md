@@ -233,6 +233,7 @@ einen Steckbrief. Die Leitstelle setzt ihn aus drei Quellen zusammen und nennt j
 | `zone` | `heim`, `fern` oder `extern`; extern heißt: Daten verlassen das Heimnetz |
 | `anfragen_je_minute`, `token_ein_je_minute`, `token_aus_je_minute` | Grenzen des Anbieters je Minute (gleitend, je Schlüssel), wenn er welche hat |
 | `geprueft` | Fähigkeitsproben der Leitstelle (Quelle `gemessen`): je Fähigkeit `belegt`, `zeit_s` und die gekürzte Antwort als `meldung` |
+| `bild` | nur Bildmodelle, deren Dienst es sagt (übliches Bildformat, 6.1): `modell` (Kennung beim Dienst), `name`, `aliase`, `kann_bearbeiten`, `groessen` (`raster`, `kante_min`, `kante_max`, `pixel_min`, `pixel_max`, `vorgabe`, `empfohlen`), `schritte` (`vorgabe`, `kleinste`, `groesste`), `anzahl_max`, `beschreibung_max_token`, `textkodierer`, `lizenz`, `parameter_mrd`, `quantisierung`, `abgerufen_s`; null, solange die Leitstelle ihn nicht gelesen hat |
 | `gemessen` | `auftraege` (Grundlage), `rechenzeit_s`, `erstes_stueck_s`, `token_je_s` (Median der jüngsten 100 fertigen Aufträge), `ladezeit_s` (gleitender Mittelwert) |
 | `herkunft` | je Feld die Quelle: `dienst`, `hand`, `gemessen`, `abgeleitet` |
 
@@ -255,6 +256,7 @@ Auskunft des Dienstes stehen. Was die Dienste selbst sagen:
 | Modell-Läufer (`openai_kompatibel` mit nativer Schnittstelle) | Beschreibung der Modellkarte als Zweck, `capabilities.reasoning` als `denken`, Quantisierung, Kontext, Parameter, Bilder und Werkzeuge (als Fähigkeiten) |
 | Externer Anbieter (`extern_openai`) | Kontext (`max_model_len`), Parameter gesamt und aktiv aus dem Namen; im Vergleich der Textmodelle des Anbieters abgeleitet schnell (Mischmodell, für kurze Aufgaben) und gründlich (dicht, für lange Texte) mit passendem Zweck; Bild beschreiben nur, wenn eine Fähigkeitsprobe es belegt (von Hand am Dienst, `POST /api/dienste/<kennung>/faehigkeiten_pruefen`: je Modell ein kleines Bild mit einer Frage, zählt gegen die Grenzen) |
 | Maschinenraum (Knoten-Agent) | aus der Dienstdatei: `beschreibung` als Zweck, `eignung`, `sprachen`; im Bericht `knoten.dienste` je Dienst als `selbstauskunft` |
+| Bilddienst im üblichen Bildformat (etwa die Dienste des Bildwerks) | unter `GET /v1/models` das Feld `steckbrief` des Modelleintrags: daraus `bild`, dazu Parameter und Quantisierung, wenn der Maschinenraum sie nicht nennt. Die Leitstelle liest ihn über die Durchleitung gleich nach jedem Start des Dienstes (und vor dem ersten Auftrag, wenn das nicht ging), hält ihn über Neustarts (Ablage `bildsteckbriefe`) und meldet eine Änderung im Verlauf |
 
 **Abfrage.** `GET /v1/steckbriefe` (Fassade, Schlüssel der Anwendung) mit den Filtern `faehigkeit`, `eignung` und
 `sprache` liefert nur Modelle, die die Anwendung nutzen darf (Fähigkeiten, Zonen, externe nur mit Erlaubnis).
@@ -306,68 +308,112 @@ Für Anwendungen ohne Umbau. Basisadresse mit oder ohne `/v1` wird angenommen.
 | `POST /v1/embeddings` | `auftrag.anlegen` (einbettung) | Modellname muss zur Kette passen (Einbettungen sind modellgebunden) |
 | `POST /v1/audio/transcriptions` | `auftrag.anlegen` (hoeren) | multipart; lange Dateien laufen als Hintergrund-Auftrag, Antwort erst am Ende |
 | `POST /v1/audio/speech` | `auftrag.anlegen` (stimme) | Audio-Stream |
-| `POST /v1/images/generations` | `auftrag.anlegen` (bild_erzeugen) | Bilder als `b64_json`, mit und ohne Strom; den Ablauf des Bilddienstes kennt die Leitstelle (6.1) |
-| `GET /v1/dienste` | Liste der Dienste | die Dienste im Maschinenraum, die die Anwendung nutzen darf, mit Zustand und Rechner (6.2) |
+| `POST /v1/images/generations` | `auftrag.anlegen` (bild_erzeugen) | Bilder als `b64_json`, mit und ohne Strom; `model` wählt den Bilddienst (Kennung oder Name seines Modells); den Ablauf des Bilddienstes kennt die Leitstelle, die Grenzen seines Modells prüft sie vorher (6.1) |
+| `GET /v1/dienste` | Liste der Dienste | die Dienste im Maschinenraum, die die Anwendung nutzen darf, mit Zweck, Zustand, Rechner und bei Bilddiensten dem Bild-Steckbrief (6.2) |
 | `GET, POST, PUT, PATCH, DELETE /v1/dienste/<name>/<pfad>` | `auftrag.anlegen` (Fähigkeit, die Dienst und Anwendung teilen) | jeder Dienst mit eigener Schnittstelle (Sprache, Bild, Musik): die Leitstelle startet ihn bei Bedarf über den Maschinenraum seines Rechners, plant seinen Bedarf ein und reicht Anfrage und Antwort unverändert durch (auch Binärdaten). `<name>` ist die Kennung des Dienstes im Maschinenraum (Dateiname der Dienstdatei) |
 | `GET /api/v0/models`, `GET /api/v1/models` | `frage.modelle` | nachgebildete Form des Modell-Läufers (Feld `state`, `loaded_instances`), weil mehrere Anwendungen genau diese Form lesen |
 
 ### 6.1 Bilder erzeugen
 
 `POST /v1/images/generations` mit dem Schlüssel einer Anwendung, die `bild_erzeugen` darf. Die Arbeit ist ein Auftrag
-wie jeder andere (Rechte, Zonen, Speicherplanung, Start des Dienstes bei Bedarf, Lage, Verlauf). Welcher Bilddienst
-rechnet, sagt `model` oder die Kette der Anwendung für `bild_erzeugen`; wie er rechnet (bei der Bildschmiede ein
-Arbeitsgraph mit Checkpoint, Sampler, Schritten), weiß nur sein Bildablauf in der Leitstelle (Einstellung
-`LEITSTELLE_BILDABLAEUFE`, je Dienst; Vorgabe: `bildschmiede` mit FLUX.1 schnell, 4 Schritte, cfg 1.0, euler/simple).
+wie jeder andere (Rechte, Zonen, Speicherplanung, Start des Dienstes bei Bedarf, Vorrang, Lage, Verlauf).
+
+Welches Bildmodell rechnet, bestimmt die Anwendung (oder der Mensch in ihr), nie die Leitstelle: sie entscheidet nur, ob
+und wann (Laden, Warten, Vorrang, Speicher, Entladen) und woher (Rechner, Instanz). Die Anwendung nennt ihr Modell als
+`model` und darf `alternativen` mitgeben, in ihrer Reihenfolge; die Leitstelle nimmt eine Alternative nur, wenn das
+verlangte Modell nicht geht (sein Dienst ist nicht erreichbar oder sein Modell nimmt die Anfrage nach seinem Steckbrief
+nicht an), nie, weil eine Alternative schon geladen ist; wartet das verlangte Modell auf Speicher oder einen Platz,
+wartet der Auftrag. Ohne `model` gilt nur eine Wahl, die die Anwendung in der Leitstelle hinterlegt hat (ihre Kette für
+`bild_erzeugen`, Seite Anwendungen); ohne beides antwortet die Leitstelle mit 400 `modell_fehlt` und der Liste der
+Bildmodelle, die die Anwendung nutzen darf (`error.x-leitstelle.modelle`), statt selbst eines auszusuchen. Wie ein
+Dienst rechnet, weiß nur sein Bildablauf in der Leitstelle:
+
+| Art | für | was die Leitstelle tut |
+|---|---|---|
+| `bildformat` | jeden Bilddienst ohne eigenen Eintrag (Vorgabe `LEITSTELLE_BILDABLAUF_VORGABE`), etwa die Dienste des Bildwerks wie `bildwerk-moss-image` | über die Durchleitung `POST v1/images/generations` mit `prompt`, `size`, `n`, `seed`, `steps` und `response_format` `b64_json` (ohne `model`: der Dienst hält genau ein Modell); die Bilder aus `data[].b64_json`; den Steckbrief aus `GET v1/models` |
+| `comfyui` | Dienste mit eigenem Eintrag in `LEITSTELLE_BILDABLAEUFE`; Vorgabe: `bildschmiede` mit FLUX.1 schnell, 4 Schritte, cfg 1.0, euler/simple | Arbeitsgraph einreihen, Verlauf abfragen, Bilder holen |
+
+Ein neuer Bilddienst im üblichen Bildformat braucht in der Leitstelle keinen Eintrag; nur eine andere Art braucht einen.
+Ist die Vorgabe abgeschaltet (`null`) und hat der Dienst keinen Eintrag, bleibt er nur roh über `/v1/dienste/<name>/`
+erreichbar.
 
 | Feld | Pflicht | Bedeutung |
 |---|---|---|
-| `prompt` | ja | Beschreibung, 1 bis 8000 Zeichen |
-| `size` | nein | `BreitexHöhe`, je 256 bis 2048 und durch 16 teilbar; Vorgabe `1024x1024`, üblich auch `1344x768`, `768x1344` |
-| `n` | nein | Anzahl 1 bis 4, Vorgabe 1 |
+| `prompt` | ja | Beschreibung, 1 bis 20000 Zeichen (wie viele Token das Modell liest, steht in `beschreibung_max_token` seines Steckbriefs) |
+| `size` | nein | `BreitexHöhe` in Pixeln; Grenzen aus dem Steckbrief des Modells (MOSS-Image: Kanten 256 bis 2048, durch 16 teilbar, Fläche 512x512 bis 2048x2048), ohne Steckbrief die Vorgabegrenzen (Kanten 256 bis 2048, durch 16 teilbar). Fehlt sie, gilt die Vorgabe des Modells, ohne Steckbrief `1024x1024` |
+| `n` | nein | Anzahl 1 bis 4 (oder bis `anzahl_max` des Modells), Vorgabe 1 |
 | `seed` | nein | Startwert 0 bis 2^53 - 1; fehlt er, zieht die Leitstelle einen und nennt ihn in der Antwort |
-| `model` | nein | Kennung des Bilddienstes (`GET /v1/dienste`); fehlt sie, gilt die Kette der Anwendung |
+| `steps` | nein | Schritte; Grenzen und Vorgabe aus dem Steckbrief (MOSS-Image 1 bis 218, Vorgabe 50). Die Bildschmiede rechnet mit den Schritten ihres Ablaufs |
+| `model` | nein | Kennung des Bilddienstes (`GET /v1/dienste`, `GET /v1/models`, etwa `bildwerk-moss-image`) oder, sobald sein Steckbrief bekannt ist, der Name seines Modells (`moss-image`, `MOSS-Image-SFT`, Aliase); fehlt es, gilt die in der Leitstelle hinterlegte Kette der Anwendung, sonst 400 `modell_fehlt` |
+| `alternativen` | nein | weitere Bildmodelle der Anwendung (höchstens 8, Namen wie bei `model`), in ihrer Reihenfolge; nur zusammen mit `model`; ein unbekannter Name gibt 404 `kein_modell` |
 | `response_format` | nein | nur `b64_json` |
 | `stream` | nein | `true`: Server-Sent Events wie beim Chat |
 
-Gleicher Startwert, gleiche Beschreibung, Größe und Anzahl beim selben Dienst ergeben dieselben Bilder ("dasselbe Bild,
-nur dunkler": Startwert behalten, Beschreibung ändern). Unbekannte Felder werden überlesen.
+Gleicher Startwert, gleiche Beschreibung, Größe, Anzahl und Schritte beim selben Dienst ergeben dieselben Bilder
+("dasselbe Bild, nur dunkler": Startwert behalten, Beschreibung ändern). Unbekannte Felder werden überlesen.
 
 ```json
 {"created": 1792512802,
  "data": [{"b64_json": "iVBORw0KGgo...", "revised_prompt": null}],
- "x-leitstelle": {"seed": 42, "modell": "bildschmiede", "dauer_ms": 21400}}
+ "x-leitstelle": {"seed": 42, "modell": "bildwerk-moss-image", "groesse": "1344x768", "schritte": 50, "dauer_ms": 61400}}
 ```
 
 `x-leitstelle.modell` ist die Kennung des Dienstes, der gerechnet hat (als `model` mitgeschickt rechnet derselbe
-wieder), `dauer_ms` die Rechenzeit im Dienst ohne das Warten auf Start oder Platz. Köpfe wie bei der übrigen Fassade
-(`X-Leitstelle-Auftrag`, `X-Leitstelle-Lage`, ohne Strom auch `X-Leitstelle-Modell`, `X-Leitstelle-Knoten`).
+wieder), `groesse` und `schritte` sagen, wie gerechnet wurde (ohne Angabe die Vorgaben des Modells; `schritte` null: nach
+Vorgabe des Dienstes, ohne dass die Leitstelle sie kennt), `dauer_ms` die Rechenzeit im Dienst ohne das Warten auf Start
+oder Platz. Köpfe wie bei der übrigen Fassade (`X-Leitstelle-Auftrag`, `X-Leitstelle-Lage`, ohne Strom auch
+`X-Leitstelle-Modell`, `X-Leitstelle-Knoten`).
 
-Mit `"stream": true` (`text/event-stream`): solange der Auftrag wartet (Dienst startet, Platz belegt, Speicher) alle
-15 s ein Kommentar `: wartet, <grund>, etwa <n> s`, während der Dienst rechnet `: rechnet seit <n> s`; dann genau eine
-Zeile `data: <Antwort wie oben>` und `data: [DONE]`. Ein Fehler kommt als `data: {"error": {...}}` und `data: [DONE]`.
-Trennt die Anwendung die Verbindung, endet der Auftrag, und die Bildschmiede nimmt ihn aus ihrer Warteschlange.
+Mit `"stream": true` (`text/event-stream`): solange der Auftrag wartet alle 15 s ein Kommentar `: wartet, <grund>, etwa
+<n> s`; startet der Dienst gerade (ein Bilddienst lädt sein Modell beim Start, bis zu Minuten), heißt der Grund
+`<Dienst> startet auf <Rechner> seit <n> s`, mit der gemessenen Restzeit oder dem Zusatz "Startdauer noch nicht
+gemessen"; während der Dienst rechnet `: rechnet seit <n> s`; dann genau eine Zeile `data: <Antwort wie oben>` und
+`data: [DONE]`. Ein Fehler kommt als `data: {"error": {...}}` und `data: [DONE]`.
 
-Fehler im Format der Fassade (7): 400 `eingabe` (Feld falsch, Satz in `error.message`), 401, 403
-`faehigkeit_nicht_erlaubt`, 404 `kein_modell` (Name unbekannt, oder weder `model` noch Kette), 503 `kein_dienst`
-(für diesen Dienst ist kein Bildablauf eingerichtet; er bleibt über `/v1/dienste/<name>/` roh erreichbar), 502
-`dienst_fehler` mit der Meldung der Bildschmiede, dazu alle Gründe der Warteschlange (`rechner_schlaeft`, `halt`, ...).
+Prüfen vor dem Dienst: Größe, Anzahl und Schritte prüft die Leitstelle mit dem Steckbrief des Modells, bevor sie
+einreiht: gegen das verlangte Modell und die Alternativen (ein Modell, das die Anfrage nicht annimmt, geht für sie nicht,
+es gilt das nächste der Anwendung) oder, ohne `model`, gegen ihre Kette; nimmt keines sie an, 400 `eingabe` mit dem
+Grund des ersten. So startet kein Dienst für eine Anfrage, die er ablehnen würde. Nach der Zuteilung prüft
+sie noch einmal gegen den einen Dienst, der rechnet, mit seinem frisch gelesenen Steckbrief. Bis die Leitstelle den
+Steckbrief eines Dienstes kennt (nach seinem ersten Start), gelten die Vorgabegrenzen.
+
+Abbruch: trennt die Anwendung die Verbindung oder stoppt ein Mensch den Auftrag, endet der Auftrag; beim Bildformat
+schließt die Leitstelle ihre Verbindung zum Dienst (die Bildschmiede nimmt den Auftrag aus ihrer Warteschlange).
+
+Fehler im Format der Fassade (7): 400 `eingabe` (Feld falsch oder von keinem der genannten Modelle angenommen, Satz in
+`error.message`), 400 `modell_fehlt` (weder `model` noch hinterlegte Kette; die Modelle zur Wahl in
+`error.x-leitstelle.modelle`), 401, 403 `faehigkeit_nicht_erlaubt`, 404 `kein_modell` (Name unbekannt), 503 `kein_dienst`
+(für diesen Dienst ist kein Bildablauf eingerichtet), dazu die Absagen des Dienstes mit seinem Satz: 400 `eingabe`
+(Größe, Schritte; 422 des Dienstes ebenso), 409 `anderes_modell`, 501 `nicht_unterstuetzt`, 503 `dienst_nicht_bereit`
+(Modell lädt oder ist gestört, mit `Retry-After`), 409 `abgebrochen` (der Dienst hat die Rechnung abgebrochen, seine 499),
+502 `dienst_fehler` (alles andere), 503 `dienst_nicht_erreichbar` (die Durchleitung sagt ab, etwa weil der Dienst gerade
+nicht läuft), dazu alle Gründe der Warteschlange (`rechner_schlaeft`, `halt`, ...). Bilder bearbeiten bietet die
+Fassade nicht an; ob ein Modell es kann, sagt `kann_bearbeiten` im Steckbrief.
 
 ### 6.2 Liste der Dienste
 
 `GET /v1/dienste` mit dem Schlüssel einer Anwendung: die Dienste im Maschinenraum (Sprache, Bild, Musik, ...), die
 sie nutzen darf (Fähigkeit und Zone). Je Dienst ein Eintrag, gleich wie viele Instanzen auf wie vielen Rechnern laufen;
-`faehigkeiten` nennt nur, was die Anwendung davon nutzen darf. Ohne Schlüssel aus dem Heimnetz: alle.
+`faehigkeiten` nennt nur, was die Anwendung davon nutzen darf, `zweck` den Satz aus dem Steckbrief (die Dienstdatei),
+`bild` bei Bilddiensten den Bild-Steckbrief (4.8; null, bis der Dienst einmal lief). Ohne Schlüssel aus dem Heimnetz: alle.
 
 ```json
-{"object": "list", "data": [{"kennung": "bildschmiede", "name": "Bildschmiede", "faehigkeiten": ["bild_erzeugen"],
-                             "zustand": "aus", "rechner": ["MacBook M4 Max 128 GB"]}]}
+{"object": "list", "data": [{"kennung": "bildwerk-moss-image", "name": "Bildwerk MOSS-Image",
+                             "zweck": "Bilder aus Text mit MOSS-Image (SFT): lange Beschreibungen, Schrift im Bild, Anordnung per JSON; kein Bearbeiten",
+                             "faehigkeiten": ["bild_erzeugen"], "zustand": "aus", "rechner": ["MacBook M4 Max 128 GB"],
+                             "bild": {"modell": "moss-image", "name": "MOSS-Image-SFT", "aliase": ["OpenMOSS-Team/MOSS-Image-SFT"],
+                                      "kann_bearbeiten": false, "groessen": {"raster": 16, "kante_min": 256, "kante_max": 2048,
+                                      "pixel_min": 262144, "pixel_max": 4194304, "vorgabe": "1024x1024", "empfohlen": ["1024x1024", "1344x768"]},
+                                      "schritte": {"vorgabe": 50, "kleinste": 1, "groesste": 218}, "anzahl_max": 4,
+                                      "beschreibung_max_token": 4096, "textkodierer": "Qwen3.5-9B", "lizenz": "Apache-2.0",
+                                      "parameter_mrd": 4.9, "quantisierung": "8bit", "abgerufen_s": 1793120000.0}}]}
 ```
 
 | `zustand` | Bedeutung |
 |---|---|
 | `bereit` | läuft und nimmt Aufträge an |
 | `startet` | wird gerade gestartet |
-| `aus` | läuft nicht; der erste Auftrag startet ihn (Startzeit des Dienstes, die Bildschmiede etwa 180 s) |
+| `aus` | läuft nicht; der erste Auftrag startet ihn (Startzeit des Dienstes, die Bildschmiede etwa 180 s, MOSS-Image bis 300 s) |
 | `schlaeft` | sein Rechner schläft; Aufträge warten in der Anwendung, bis er wach ist |
 | `nicht_erreichbar` | sein Maschinenraum meldet sich nicht |
 
@@ -406,7 +452,9 @@ Gründe sind Wörter aus Listen, die Oberfläche übersetzt sie:
 `unbekannter_schluessel`, `gesperrt`, `herkunft_nicht_erlaubt`, `faehigkeit_nicht_erlaubt`,
 `zone_nicht_erlaubt`, `kostengrenze`, `kontingent`, `kein_dienst`, `kein_modell`,
 `modell_passt_nicht`, `dienst_nicht_erreichbar`, `rechner_schlaeft`, `dienst_fehler`, `instanz_weg`, `stillstand`,
-`nicht_anhaltbar`, `nutzer`, `regel_hintergrund`, `lage`, `dringend_vor`, `wartung`.
+`nicht_anhaltbar`, `nutzer`, `regel_hintergrund`, `lage`, `dringend_vor`, `wartung`, dazu für Bilddienste (6.1)
+`eingabe` (400), `modell_fehlt` (400), `anderes_modell` (409), `nicht_unterstuetzt` (501), `dienst_nicht_bereit` (503) und
+`abgebrochen` (409).
 
 Jede Fehler- oder Ablehnungsnachricht trägt zusätzlich `begruendung` in einem Satz und, wenn
 vorhanden, die Originalmeldung des Dienstes in `meldung`.

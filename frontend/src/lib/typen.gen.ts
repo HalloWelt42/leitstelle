@@ -514,6 +514,7 @@ export interface Steckbrief {
   token_ein_je_minute?: number | null;
   token_aus_je_minute?: number | null;
   geprueft?: Faehigkeitsprobe[];
+  bild?: Bildsteckbrief | null;
   gemessen?: Messwerte1;
   herkunft?: {
     [k: string]: Quelle;
@@ -530,6 +531,55 @@ export interface Faehigkeitsprobe {
   belegt: boolean;
   zeit_s: number;
   meldung: string;
+}
+/**
+ * Was ein Bildmodell annimmt, wie sein Dienst es selbst sagt (übliches Bildformat: `GET /v1/models`, Feld `steckbrief`
+ * des Modelleintrags). Die Leitstelle liest ihn nach jedem Start des Dienstes, hält ihn über Neustarts und prüft damit
+ * Anfragen, bevor sie den Dienst erreichen.
+ *
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "Bildsteckbrief".
+ */
+export interface Bildsteckbrief {
+  modell: string;
+  name: string;
+  aliase?: string[];
+  kann_bearbeiten?: boolean;
+  groessen?: Groessenregel | null;
+  schritte?: Schrittregel | null;
+  anzahl_max?: number | null;
+  beschreibung_max_token?: number | null;
+  textkodierer?: string | null;
+  lizenz?: string | null;
+  parameter_mrd?: number | null;
+  quantisierung?: string | null;
+  abgerufen_s?: number;
+}
+/**
+ * Welche Bildgrößen ein Bildmodell annimmt: Kanten im Raster, je Kante und für die Fläche eine Grenze.
+ *
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "Groessenregel".
+ */
+export interface Groessenregel {
+  raster: number;
+  kante_min: number;
+  kante_max: number;
+  pixel_min: number;
+  pixel_max: number;
+  vorgabe: string;
+  empfohlen?: string[];
+}
+/**
+ * Wie viele Schritte ein Bildmodell rechnen kann und wie viele es ohne Angabe rechnet.
+ *
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "Schrittregel".
+ */
+export interface Schrittregel {
+  vorgabe: number;
+  kleinste: number;
+  groesste: number;
 }
 /**
  * Aus den jüngsten fertigen Aufträgen des Modells (Mittelwerte als Median, Ladezeit als gleitender Mittelwert).

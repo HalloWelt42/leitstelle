@@ -58,7 +58,7 @@
   function meldungsart(text: string): string {
     if (/nicht erreichbar|abgelehnt|gescheitert|Fehler/i.test(text)) return 'gefahr';
     if (/Hauptregler|entladen|Flattern|Speicher|Leitstand vorbei/i.test(text)) return 'warnung';
-    if (/geladen in|wieder erreichbar|bereit|aufgewacht/i.test(text)) return 'erfolg';
+    if (/geladen in|gestartet in|wieder erreichbar|bereit|aufgewacht/i.test(text)) return 'erfolg';
     return '';
   }
 </script>

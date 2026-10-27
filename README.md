@@ -46,9 +46,13 @@ KI-Dienste, Stellwerk · App-Steuerung. Bei der Leitstelle stehen Name und Kurzz
 
 ## Was sie kann
 
-- **Fassade im OpenAI-Format** (`/v1/chat/completions` mit und ohne Strom, `/v1/embeddings`, `/v1/models`, dazu
-  die Modelllisten des Läufers nachgebildet). Wartet ein Auftrag, kommen Hinweiszeilen statt Zeitüberschreitung;
-  ein Abbruch liefert den bisherigen Text.
+- **Fassade im OpenAI-Format** (`/v1/chat/completions` mit und ohne Strom, `/v1/embeddings`, `/v1/images/generations`,
+  `/v1/models`, dazu die Modelllisten des Läufers nachgebildet). Wartet ein Auftrag, kommen Hinweiszeilen statt
+  Zeitüberschreitung; ein Abbruch liefert den bisherigen Text.
+- **Bilddienste** wie die des [Bildwerks](https://github.com/HalloWelt42/bildwerk) (je Bildmodell ein Programm im
+  Maschinenraum, übliches Bildformat) ohne Eintrag je Dienst: die Leitstelle startet sie bei Bedarf, liest ihren
+  Steckbrief (Größen, Schritte, Anzahl) und prüft jede Anfrage damit, bevor sie den Dienst erreicht; Apps wählen das
+  Bildmodell mit `model` (PROTOKOLL 6.1).
 - **Speicherplanung und Selbststeuerung:** lädt nur, was passt, entlädt nur bei Bedarf und nie, was rechnet;
   leitet um, räumt Leerlauf, weicht in der Kette aus, mit Begründung, Gewinnschwelle und Schutz vor Hin und Her.
   Regeln sind Graphen aus Bausteinen.

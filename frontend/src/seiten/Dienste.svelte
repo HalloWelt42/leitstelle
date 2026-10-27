@@ -8,6 +8,7 @@
   import { weg } from '../lib/weg.svelte';
   import { FAEHIGKEIT, PROBENAUSGANG } from '../lib/wort';
   import AnbieterModelle from '../teile/AnbieterModelle.svelte';
+  import MaschinenraumDienste from '../teile/MaschinenraumDienste.svelte';
   import ZoneMarke from '../teile/ZoneMarke.svelte';
   import Zustand from '../teile/Zustand.svelte';
 
@@ -111,7 +112,7 @@
                 {#if d.fehlschlaege && d.naechste_pruefung_s}<div class="klein" title="Nach jedem Fehlschlag verdoppelt sich der Abstand, höchstens ein Tag; ab dem fünften Fehlschlag in Folge heißt es Ausfall">
                   <span class="zahl">{d.fehlschlaege}</span> {d.fehlschlaege === 1 ? 'Fehlschlag' : 'Fehlschläge'}, nächste Prüfung {d.naechste_pruefung_s > jetzt ? `in ${dauer(d.naechste_pruefung_s - jetzt)}` : 'gleich'}
                   <button class="knopf klein ohne" onclick={() => tun(() => api.dienstPruefen(d.kennung), 'Geprüft')} title="Sofort fragen, unabhängig von den Abständen"><i class="fa-solid fa-rotate"></i> Jetzt prüfen</button></div>{/if}</td>
-              <td data-titel="Modelle" class="zahl">{ms.length} <span class="leise">{d.extern ? 'beim Anbieter' : `(${ms.filter((m) => m.zustand !== 'frei').length} geladen)`}</span></td>
+              <td data-titel={d.art === 'agent' ? 'Programme' : 'Modelle'} class="zahl">{ms.length} <span class="leise">{d.extern ? 'beim Anbieter' : d.art === 'agent' ? `(${ms.filter((m) => m.zustand !== 'frei').length} laufen)` : `(${ms.filter((m) => m.zustand !== 'frei').length} geladen)`}</span></td>
               <td data-titel="Plätze" class="zahl" title="Gleichzeitige Aufträge je Modell">{d.plaetze}
                 {#if d.einbettung_instanzen > 1}<div class="klein" title="Bei Andrang lädt die Leitstelle weitere Instanzen je Einbettungsmodell (je Instanz ein Platz) und lässt den Spielraum im Budget frei; bei Ruhe baut sie zurück">
                   Einbettung bis {d.einbettung_instanzen} Instanzen, {d.einbettung_spielraum_gb} GB Spielraum</div>{/if}
@@ -130,6 +131,8 @@
             </tr>
             {#if d.extern && ms.length}
               <tr class="anbieter-zeile"><td colspan={SPALTEN}><AnbieterModelle dienst={d} modelle={grundmodelle(d.kennung)} {jetzt} /></td></tr>
+            {:else if d.art === 'agent' && ms.length}
+              <tr class="anbieter-zeile"><td colspan={SPALTEN}><MaschinenraumDienste modelle={grundmodelle(d.kennung)} /></td></tr>
             {/if}
             {#if pruefen === d.kennung}
               <tr><td colspan={SPALTEN}><div class="bestaetigen"><i class="fa-solid fa-flask"></i>

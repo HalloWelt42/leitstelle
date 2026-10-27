@@ -1,9 +1,9 @@
 // Wörter, Symbole und Farben zu den Schlüsseln des Kerns. Gedruckt wird nie ein Schlüssel.
 import type {
-  Auftragszustand, Betriebsmodus, Dienstzustand, Eignung, Faehigkeit, Fremdart, Fremddeutung, Hintergrundstufe, KnotenSicht, Knotenzustand,
-  Laeuferrolle, Lage, Massnahmenart, Massnahmenzustand, Modellzustand, Probenausgang, Quelle, Steckbrief, Zone,
+  Auftragszustand, Betriebsmodus, Bildsteckbrief, Dienstzustand, Eignung, Faehigkeit, Fremdart, Fremddeutung, Hintergrundstufe, KnotenSicht,
+  Knotenzustand, Laeuferrolle, Lage, Massnahmenart, Massnahmenzustand, Modellzustand, Probenausgang, Quelle, Steckbrief, Zone,
 } from './typen.gen';
-import { zahl } from './format';
+import { komma, zahl } from './format';
 
 export const FAEHIGKEIT: Record<Faehigkeit, { wort: string; symbol: string; farbe: string; klasse: string }> = {
   text: { wort: 'Text', symbol: 'fa-comment-dots', farbe: 'var(--himmel)', klasse: 'text' },
@@ -103,6 +103,27 @@ export function art(s: Steckbrief): { wort: string; satz: string } | null {
   return null;
 }
 
+/** Was ein Bildmodell annimmt (Bild-Steckbrief, wie sein Dienst ihn sagt): je Angabe ein kurzes Stück für die Zeile und
+ *  ein Satz für den Schwebetext. Nur, was das Modell kann. */
+export function bildregeln(b: Bildsteckbrief): { text: string; titel: string }[] {
+  const teile: { text: string; titel: string }[] = [];
+  const namen = [b.modell, ...(b.aliase ?? [])].filter((n) => n && n !== b.name);
+  const ueber = [b.textkodierer ? `Textkodierer ${b.textkodierer}` : '', b.quantisierung ? `Quantisierung ${b.quantisierung}` : '',
+                 b.beschreibung_max_token ? `Beschreibungen bis ${zahl(b.beschreibung_max_token)} Token` : ''].filter(Boolean);
+  teile.push({ text: b.name, titel: `Bildmodell des Dienstes${namen.length ? `; als model gilt auch ${namen.join(', ')}` : ''}${ueber.length ? `. ${ueber.join(', ')}` : ''}` });
+  const g = b.groessen;
+  // Kanten wie in Bildgrößen üblich ohne Tausenderpunkt (2048, nicht 2.048)
+  if (g) teile.push({ text: `${g.kante_min} bis ${g.kante_max} Pixel`,
+                      titel: `Breite und Höhe je ${g.kante_min} bis ${g.kante_max} Pixel, durch ${g.raster} teilbar; Fläche ${komma(g.pixel_min / 1e6, 2)} bis `
+                        + `${komma(g.pixel_max / 1e6, 2)} Megapixel; ohne Angabe ${g.vorgabe}${g.empfohlen?.length ? `; am besten ${g.empfohlen.join(', ')}` : ''}` });
+  const s = b.schritte;
+  if (s) teile.push({ text: `${zahl(s.kleinste)} bis ${zahl(s.groesste)} Schritte`, titel: `Schritte je Bild ${zahl(s.kleinste)} bis ${zahl(s.groesste)}; ohne Angabe ${zahl(s.vorgabe)}` });
+  if (b.anzahl_max) teile.push({ text: `bis ${b.anzahl_max} ${b.anzahl_max === 1 ? 'Bild' : 'Bilder'}`, titel: 'Bilder je Anfrage' });
+  if (b.kann_bearbeiten) teile.push({ text: 'Bearbeiten', titel: 'Nimmt eine Bildvorlage an und bearbeitet sie' });
+  if (b.lizenz) teile.push({ text: b.lizenz, titel: 'Lizenz des Modells' });
+  return teile;
+}
+
 export const QUELLE: Record<Quelle, string> = {
   dienst: 'sagt der Dienst', hand: 'von Hand eingetragen', gemessen: 'gemessen', abgeleitet: 'abgeleitet',
 };
@@ -173,4 +194,6 @@ export const GRUND: Record<string, string> = {
   dienst_fehler: 'Fehler des Dienstes', dienst_nicht_erreichbar: 'Dienst nicht erreichbar', rechner_schlaeft: 'Rechner schläft', modell_passt_nicht: 'Modell passt nicht in den Speicher',
   kein_modell: 'Modell unbekannt', kein_dienst: 'kein passender Dienst', faehigkeit_nicht_erlaubt: 'Fähigkeit nicht erlaubt',
   zone_nicht_erlaubt: 'Zone nicht erlaubt', gesperrt: 'Anwendung gesperrt', kontingent: 'Kontingent erreicht', wartung: 'Wartung',
+  eingabe: 'Anfrage passt nicht zum Modell', anderes_modell: 'Dienst hält ein anderes Modell', nicht_unterstuetzt: 'kann der Dienst nicht',
+  dienst_nicht_bereit: 'Modell des Dienstes nicht bereit', abgebrochen: 'vom Dienst abgebrochen',
 };

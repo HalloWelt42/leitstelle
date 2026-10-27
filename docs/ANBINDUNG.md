@@ -79,13 +79,30 @@ Die Anwendung ändert nur die Adresse ihres Modell-Läufers und bekommt einen Sc
 - `X-Leitstelle-Instanz` (Antwort jeder Durchleitung und Folgeaufruf): an dieselbe Instanz wie der erste Aufruf,
   wenn ein Dienst mehrfach läuft (PROTOKOLL 6, Bindung). Ohne Bindung kann "Ergebnis abholen" bei einer anderen
   Instanz landen, die die Datei nicht hat.
-- `POST /v1/images/generations` (`prompt`, `size`, `n` 1 bis 4, `seed`, `model`, `stream`): Bilder als `b64_json`, mit
-  dem genutzten Startwert unter `x-leitstelle.seed`; gleicher Startwert und gleiche Beschreibung ergeben dasselbe Bild.
-  Den Ablauf der Bildschmiede kennt nur die Leitstelle (PROTOKOLL 6.1). Die Anwendung braucht das Recht
-  `bild_erzeugen` und nennt den Dienst als `model` oder hat eine Kette für `bild_erzeugen`.
-- `GET /v1/dienste`: die Dienste im Maschinenraum, die die Anwendung nutzen darf, mit `kennung`, `name`,
-  `faehigkeiten`, `zustand` (`bereit`, `startet`, `aus`, `schlaeft`, `nicht_erreichbar`) und `rechner`
-  (PROTOKOLL 6.2); etwa für eine Auswahl "Bilder erzeugen mit".
+- `POST /v1/images/generations` (`prompt`, `size`, `n` 1 bis 4, `seed`, `steps`, `model`, `stream`): Bilder als
+  `b64_json`, mit Startwert, Größe und Schritten, wie gerechnet, unter `x-leitstelle`; gleicher Startwert und gleiche
+  Beschreibung ergeben dasselbe Bild. Wie ein Bilddienst rechnet (Bildschmiede mit ComfyUI, die Dienste des Bildwerks im
+  üblichen Bildformat), weiß nur die Leitstelle (PROTOKOLL 6.1). Die Anwendung braucht das Recht `bild_erzeugen`.
+- Das Bildmodell wählt die Anwendung, nie die Leitstelle: sie nennt es als `model` (Kennung wie `bildwerk-moss-image`
+  oder der Name seines Modells wie `moss-image`) und darf `alternativen` mitgeben, in ihrer Reihenfolge, etwa
+  `{"model": "bildwerk-moss-image", "alternativen": ["bildschmiede"], ...}`. Die Leitstelle nimmt eine Alternative nur,
+  wenn das verlangte Modell nicht geht (sein Dienst ist nicht erreichbar oder die Anfrage passt nicht zu seinem
+  Steckbrief), nie, weil sie schon geladen ist; sie entscheidet nur Quelle (Rechner, Instanz), Laden, Entladen, Warten
+  und Vorrang. Ohne `model` gilt nur eine Wahl, die die Anwendung in der Leitstelle hinterlegt hat (Seite Anwendungen,
+  Kette für Bild erzeugen); ohne beides kommt 400 `modell_fehlt` mit den Bildmodellen zur Wahl in
+  `error.x-leitstelle.modelle`. Welches Modell gerechnet hat, steht in `x-leitstelle.modell`. Ohne `size` und `steps`
+  gelten die Vorgaben des Modells. Was das Modell annimmt,
+  prüft die Leitstelle vorher; passt es nicht, kommt 400 `eingabe` mit dem Satz, ohne dass ein Dienst startet. Ein
+  Bilddienst startet beim ersten Auftrag (MOSS-Image bis 300 s): Lese-Zeitgrenze weglassen oder mit `"stream": true`
+  die Wartehinweise lesen.
+- Modell zur Auswahl anbieten (etwa im Assistenten "Bild erzeugen mit"): `GET /v1/steckbriefe?faehigkeit=bild_erzeugen`
+  oder `GET /v1/models` (Feld `x-leitstelle.steckbrief`) liefert je Bildmodell `id` (als `model` schicken), Name,
+  Zweck, Eignung, Sprachen der Beschreibung und unter `bild` die Grenzen: Größen (Raster, Kanten, Fläche, Vorgabe,
+  empfohlene Größen), Schritte (kleinste, größte, Vorgabe), höchstens Bilder je Anfrage, `kann_bearbeiten`, Lizenz.
+  `bild` ist null, bis der Dienst einmal lief; dann gelten die Vorgabegrenzen (Kanten 256 bis 2048, durch 16 teilbar).
+- `GET /v1/dienste`: die Dienste im Maschinenraum, die die Anwendung nutzen darf, mit `kennung`, `name`, `zweck`,
+  `faehigkeiten`, `zustand` (`bereit`, `startet`, `aus`, `schlaeft`, `nicht_erreichbar`), `rechner` und bei
+  Bilddiensten `bild` (PROTOKOLL 6.2).
 - `GET /v1/steckbriefe` (Filter `faehigkeit`, `eignung`, `sprache`): wofür welches Modell gemacht ist
   (PROTOKOLL 4.8); dieselben Steckbriefe stehen in `GET /v1/models` unter `x-leitstelle.steckbrief`.
 - Externe Modelle gezielt wählen: bietet ein Anbieter ein Mischmodell mit wenigen aktiven Parametern und ein dichtes

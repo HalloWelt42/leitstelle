@@ -148,6 +148,9 @@ class Knoten(BaseModel):
         return max(0.0, self.speicher_gb - max(reserve_gb, self.system_gb))
 
 
+ART_MASCHINENRAUM = "agent"          # Adapterart der Dienste, die ein Maschinenraum startet und anhält
+
+
 class Dienst(BaseModel):
     kennung: str
     name: str
@@ -171,6 +174,11 @@ class Dienst(BaseModel):
     @property
     def nutzbar(self) -> bool:
         return self.zustand == Dienstzustand.BEREIT
+
+    @property
+    def maschinenraum(self) -> bool:
+        """Programme im Maschinenraum eines Rechners: Laden heißt Starten, Entladen heißt Anhalten."""
+        return self.art == ART_MASCHINENRAUM
 
 
 class Modell(BaseModel):
@@ -236,6 +244,7 @@ class Auftrag(BaseModel):
     eingang_s: float
     zustand: Auftragszustand = Auftragszustand.EINGEREIHT
     festes_modell: str | None = None  # Familie, wenn die Anwendung ein Modell verlangt
+    alternativen: list[str] = Field(default_factory=list)   # Familien, die die Anwendung dazu nennt, in ihrer Reihenfolge: nur, wenn das verlangte nicht geht
     modell: str | None = None
     dienst: str | None = None
     knoten: str | None = None
@@ -374,7 +383,7 @@ class Verbund(BaseModel):
         (der Eintrag "Dienste auf ..." ist nur ein Behälter); bei anderen Diensten begrenzt ihr Eintrag nach oben, was
         das Modell meldet (etwa `parallel` des Modell-Läufers), damit eine bewusste Begrenzung gilt."""
         d = self.dienste[m.dienst]
-        if d.art == "agent":
+        if d.maschinenraum:
             return m.plaetze or 1
         return min(d.plaetze, m.plaetze) if m.plaetze else d.plaetze
 
@@ -456,7 +465,7 @@ class Verbund(BaseModel):
         per einstellungen welche dienste sie nutzen wollen")."""
         app = self.anwendungen[auftrag.anwendung]
         return (app.extern_erlaubt and Zone.EXTERN in app.zonen
-                and (auftrag.festes_modell == modell.familie or modell.familie in auftrag.extern_familien))
+                and (self.verlangt(auftrag, modell.familie) or modell.familie in auftrag.extern_familien))
 
     def arbeit_haelt(self, modell: str, ausser: str | None = None) -> Arbeit | None:
         """Die begonnene Arbeit, die das Modell in der Frist genutzt hat; die fragende Arbeit selbst zählt nicht, sie
@@ -498,9 +507,17 @@ class Verbund(BaseModel):
         return kette[0] if kette else None
 
     def kette(self, auftrag: Auftrag) -> list[str]:
+        """Welche Modelle in Frage kommen, immer die Wahl der Anwendung: das verlangte Modell mit den Alternativen, die sie
+        dazu nennt, sonst ihre Kette in der Leitstelle. Die Leitstelle wählt daraus nur Quelle (Rechner, Instanz) und
+        Zeitpunkt, nie ein Modell, das die Anwendung nicht genannt hat."""
         if auftrag.festes_modell:
-            return [auftrag.festes_modell]
+            return [auftrag.festes_modell, *auftrag.alternativen]
         return list(self.anwendungen[auftrag.anwendung].ketten.get(auftrag.faehigkeit, []))
+
+    @staticmethod
+    def verlangt(auftrag: Auftrag, familie: str) -> bool:
+        """Hat die Anwendung dieses Modell selbst genannt (als `model` oder als Alternative)?"""
+        return familie == auftrag.festes_modell or familie in auftrag.alternativen
 
     def melden(self, text: str) -> None:
         self.ereignisse.append(f"{self.zeit_s:08.1f} {text}")

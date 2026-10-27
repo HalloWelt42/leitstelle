@@ -101,7 +101,7 @@ def kandidaten(verbund: Verbund, auftrag: Auftrag, familie: str, mit_extern: boo
         d = verbund.dienste[m.dienst]
         if auftrag.faehigkeit not in d.faehigkeiten or not d.nutzbar:
             continue
-        if d.extern and not mit_extern and auftrag.festes_modell != familie:
+        if d.extern and not mit_extern and not verbund.verlangt(auftrag, familie):
             continue
         if not zone_erlaubt(verbund, auftrag, m):
             continue
@@ -198,8 +198,13 @@ def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> 
         gefunden: Zuteilung | None = None
         warte: Wartegrund | None = None
         gebremst: list[str] = []
-        # 1. Geladene zuerst (über die ganze Kette), mit freiem Platz
-        suche = kette if verbund.regelwerk.geladene_zuerst else kette[:1]
+        # 1. Geladene zuerst (über die ganze Kette), mit freiem Platz. Nennt die Anwendung ein Modell mit Alternativen, gilt
+        # ihre Reihenfolge streng: das erste ihrer Modelle, das geht (einen Kandidaten hat); eine Alternative nur, wenn das
+        # verlangte Modell nicht geht, nie, weil sie schon geladen ist
+        if a.festes_modell:
+            suche = next(([fam] for fam in kette if kandidaten(verbund, a, fam, mit_extern)), kette[:1])
+        else:
+            suche = kette if verbund.regelwerk.geladene_zuerst else kette[:1]
         geladene: list[tuple[int, Modell]] = []
         for i, fam in enumerate(suche):
             for m in kandidaten(verbund, a, fam, mit_extern, gebremst):
@@ -259,7 +264,7 @@ def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> 
                     bevorzugt = verbund.hintergrund_knoten_bevorzugt if a.prioritaet == Prioritaet.HINTERGRUND else None
                     p, m, d = sorted(passende, key=lambda t: (0 if t[2].knoten == bevorzugt else 1, t[0].aufwand_s))[0]
                     gefunden = Zuteilung(auftrag=a.kennung, dienst=d.kennung, knoten=d.knoten, modell=m.kennung, laden=True, direkt=False,
-                                         begruendung=f"{m.name} wird auf {d.name} geladen ({komma(p.frei_gb)} GB frei, etwa {p.aufwand_s:.0f} s)")
+                                         begruendung=f"{m.name} wird auf {d.name} {'gestartet' if d.maschinenraum else 'geladen'} ({komma(p.frei_gb)} GB frei, etwa {p.aufwand_s:.0f} s)")
                     geplanter_speicher[d.knoten] = geplanter_speicher.get(d.knoten, 0.0) + m.gb
                     break
                 if plaene:

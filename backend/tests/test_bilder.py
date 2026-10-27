@@ -20,7 +20,8 @@ from leitstelle.konfig import Konfig
 from leitstelle.ports.dienste import DienstFehler
 from leitstelle.ports.dienste.bilder import Bildauftrag, ComfyAblauf, bildablauf
 from leitstelle.ports.dienste.openai_kompatibel import OpenAIKompatibel
-from leitstelle.protokoll.fassade import BildAnfrage
+from leitstelle.fach.bildregeln import regeln_pruefen
+from leitstelle.protokoll.fassade import BildAnfrage, groesse_lesen
 
 from schein.bildschmiede import schein_bildschmiede
 from schein.server import laufend
@@ -82,21 +83,31 @@ async def test_abbruch_traegt_den_auftrag_in_der_bildschmiede_aus():
 
 
 def test_ohne_bildablauf_kein_dienst():
-    """Ein Bilddienst ohne eingerichteten Ablauf bleibt nur roh durchleitbar; die Fassade lehnt mit einem Satz ab."""
+    """Ohne eigenen Eintrag gilt die Vorgabe (übliches Bildformat); ist auch die abgeschaltet, bleibt ein Bilddienst nur roh
+    durchleitbar, und die Fassade lehnt mit einem Satz ab."""
     from leitstelle.fach.fehler import Ablehnung
     from leitstelle.fach.vermittlung import Vermittlung
+    from leitstelle.ports.dienste.bilder.bildformat import Bildformat
+    from leitstelle.ports.dienste.bilder.comfyui import Comfy
+    assert isinstance(Vermittlung(None, Konfig()).bildablauf_fuer("bildschmiede"), Comfy)  # type: ignore[arg-type]
+    assert isinstance(Vermittlung(None, Konfig()).bildablauf_fuer("bildwerk-moss-image"), Bildformat)  # type: ignore[arg-type]
     with pytest.raises(Ablehnung) as a:
-        Vermittlung(None, Konfig(bildablaeufe={})).bildablauf_fuer("bildschmiede")  # type: ignore[arg-type]
+        Vermittlung(None, Konfig(bildablaeufe={}, bildablauf_vorgabe=None)).bildablauf_fuer("bildschmiede")  # type: ignore[arg-type]
     assert a.value.grund == "kein_dienst" and "/v1/dienste/bildschmiede/" in a.value.begruendung
 
 
 def test_anfrage_im_openai_format_wird_geprueft():
+    """Die Fassade prüft die Form; ob Größe, Anzahl und Schritte zum Modell passen, sagen die Bildregeln mit seinem Steckbrief."""
     a = BildAnfrage.model_validate({"prompt": "Katze", "size": "768x1344", "quality": "hd", "user": "x"})   # Unbekanntes wird überlesen
-    assert (a.breite, a.hoehe, a.n, a.seed, a.response_format) == (768, 1344, 1, None, "b64_json")
-    for falsch in ({"prompt": " "}, {"prompt": "x", "size": "1000x1000"}, {"prompt": "x", "size": "groß"}, {"prompt": "x", "n": 5},
-                   {"prompt": "x", "response_format": "url"}, {"prompt": "x", "seed": -1}, {"size": "1024x1024"}):
+    assert (groesse_lesen(a.size), a.n, a.seed, a.steps, a.response_format) == ((768, 1344), 1, None, None, "b64_json")
+    assert BildAnfrage.model_validate({"prompt": "x"}).size is None                                    # ohne Größe: Vorgabe des Modells
+    for falsch in ({"prompt": " "}, {"prompt": "x", "size": "groß"}, {"prompt": "x", "size": "0x512"}, {"prompt": "x", "n": 5},
+                   {"prompt": "x", "response_format": "url"}, {"prompt": "x", "seed": -1}, {"prompt": "x", "steps": 0}, {"size": "1024x1024"}):
         with pytest.raises(ValidationError):
             BildAnfrage.model_validate(falsch)
+    # ohne Steckbrief gelten die Vorgabegrenzen der Fassade (Kanten 256 bis 2048, durch 16 teilbar)
+    assert "durch 16 teilbar" in regeln_pruefen(None, "1000x1000", 1, None)
+    assert regeln_pruefen(None, "256x256", 4, 500) is None
 
 
 # ── Ende zu Ende mit dem Maschinenraum ──────────────────────────────────
@@ -141,7 +152,8 @@ async def test_bilder_und_dienste_ueber_die_fassade(tmp_path):
             async with httpx.AsyncClient(base_url=url, timeout=60) as anw:
                 r = await anw.get("/v1/dienste", headers=bild)
                 assert r.status_code == 200 and r.json() == {"object": "list", "data": [
-                    {"kennung": "bildschmiede", "name": "Bildschmiede", "faehigkeiten": ["bild_erzeugen"], "zustand": "aus", "rechner": ["Mac Studio"]}]}
+                    {"kennung": "bildschmiede", "name": "Bildschmiede", "zweck": "", "faehigkeiten": ["bild_erzeugen"], "zustand": "aus", "rechner": ["Mac Studio"],
+                     "bild": None}]}
                 assert (await anw.get("/v1/dienste", headers=text)).json()["data"] == []      # nur, was die Anwendung nutzen darf
                 assert (await anw.get("/v1/dienste", headers={"Authorization": "Bearer falsch"})).status_code == 401
 
@@ -156,6 +168,7 @@ async def test_bilder_und_dienste_ueber_die_fassade(tmp_path):
                 assert len(strom["data"]) == 2 and strom["data"][0]["revised_prompt"] is None
                 assert base64.b64decode(strom["data"][0]["b64_json"]).startswith(b"\x89PNG")
                 assert strom["x-leitstelle"]["seed"] == 42 and strom["x-leitstelle"]["modell"] == "bildschmiede" and strom["x-leitstelle"]["dauer_ms"] >= 0
+                assert (strom["x-leitstelle"]["groesse"], strom["x-leitstelle"]["schritte"]) == ("1344x768", 4)      # die Schritte ihres Ablaufs
                 assert (await anw.get("/v1/dienste", headers=bild)).json()["data"][0]["zustand"] == "bereit"
 
                 # ohne Strom, gleicher Startwert und gleiche Beschreibung: dieselben Bilder; anderer Startwert: andere

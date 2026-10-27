@@ -56,6 +56,21 @@ Dann in der Leitstelle unter Knoten beim Rechner "Maschinenraum verbinden" und A
 Oberfläche des Maschinenraums (`http://127.0.0.1:8540/`) unter Leitstelle eintragen. Dienste je Rechner liegen in
 `~/Maschinenraum/dienste/`, eine Datei je Dienst.
 
+## Bild erzeugen (Bilddienste des Bildwerks)
+
+Grenzen der Bildmodelle, die eine Anwendung nutzen darf (`bild` ist null, bis der Dienst einmal lief):
+
+```bash
+curl -s "http://leitstelle:8530/v1/steckbriefe?faehigkeit=bild_erzeugen" -H "Authorization: Bearer <Schlüssel>"
+```
+
+Ein Bild, mit Wartehinweisen im Strom (der erste Auftrag startet den Dienst, MOSS-Image bis 5 Minuten):
+
+```bash
+curl -sN http://leitstelle:8530/v1/images/generations -H "Authorization: Bearer <Schlüssel>" -H "Content-Type: application/json" \
+  -d '{"model": "bildwerk-moss-image", "prompt": "Ein Leuchtturm im Nebel", "size": "1024x1024", "seed": 42, "stream": true}'
+```
+
 ## Erste Schritte in der Oberfläche
 
 1. **Anschluss hinzufügen** (Dienste): Adresse des Modell-Läufers, zum Beispiel `192.168.1.20:1234`, Erkennen.

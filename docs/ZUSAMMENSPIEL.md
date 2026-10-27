@@ -440,6 +440,41 @@ Regelbausteine `rechnerlast` und `last_ueber_grenze` mit beiden Maßen (`LASTMAS
 (anhalten nicht unter drosseln), Migration 0011 (`anwendungen.docker_projekte`). Prüfung: Szenarien L24 bis L28
 ([SZENARIEN.md](SZENARIEN.md) Abschnitt 3d), im Maschinenraum `tests/test_apps.py`.
 
+### Bildweg: Bilddienste im üblichen Bildformat (Bildwerk)
+
+Anlass (27.10.2026): das neue [Bildwerk](https://github.com/HalloWelt42/bildwerk) bringt Bilddienste, je Bildmodell
+ein Prozess im Maschinenraum, alle mit derselben Schnittstelle im üblichen Bildformat (zuerst `bildwerk-moss-image`,
+MOSS-Image-SFT, Port 8791 nur an 127.0.0.1, 24 GB geschätzt, Start bis 300 s, Sollzustand aus). Grundsatz des Nutzers:
+jeder KI-Aufruf läuft über die Leitstelle; ein Bilddienst ist eine Ressource wie jedes Modell, die die Leitstelle
+steuert (Laden, Entladen, Vorrang); er startet nie von selbst.
+
+| Frage | Entscheidung |
+|---|---|
+| Woran erkennt die Leitstelle, wie sie einen Bilddienst anspricht? | Ohne Sonderfall je Dienst: jeder Bilddienst ohne eigenen Eintrag nutzt die Vorgabe (`LEITSTELLE_BILDABLAUF_VORGABE`, ab Werk das Bildformat); nur eine andere Art braucht einen Eintrag (`LEITSTELLE_BILDABLAEUFE`, ab Werk die Bildschmiede mit ComfyUI). Eine Angabe in der Dienstdatei schied aus: der Maschinenraum lässt dort nur seine eigenen Felder zu und meldet sie nicht; der Steckbrief allein auch, denn den sagt ein Dienst erst, wenn er läuft, die Wahl muss aber vor dem Start feststehen |
+| Wie kommt eine Anfrage zum Dienst? | über die Durchleitung des Maschinenraums an `v1/images/generations`, Bilder aus `data[].b64_json`; `model` geht nicht mit (der Dienst hält genau ein Modell) |
+| Wer wählt das Modell? | Die App, nie die Leitstelle (Nutzer: "Leitstelle darf nur festlegen ob und wann, nicht was"; "die Apps fragen an, machen Alternativen usw., aber Leitstelle kümmert sich um das Speichermanagement und Quellen"). `model` nennt die Kennung des Dienstes (`bildwerk-moss-image`) oder, sobald der Steckbrief bekannt ist, den Namen seines Modells (`moss-image`, `MOSS-Image-SFT`); `alternativen` nennt weitere in der Reihenfolge der App. Die Leitstelle nimmt eine Alternative nur, wenn das verlangte Modell nicht geht (Dienst nicht erreichbar, Anfrage passt nicht zu seinem Steckbrief), nie, weil sie schon geladen ist. Ohne `model` gilt nur die Kette, die die App in der Leitstelle hinterlegt hat (ihre Wahl); ohne beides 400 `modell_fehlt` mit der Liste der Bildmodelle. Die Leitstelle entscheidet Quelle (Rechner, Instanz), Laden, Entladen, Warten und Vorrang. `GET /v1/models`, `GET /v1/steckbriefe` und `GET /v1/dienste` nennen je Bildmodell den Bild-Steckbrief, damit die App wählen kann |
+| Woher kennt die Leitstelle die Grenzen? | aus dem Steckbrief des Dienstes (`GET v1/models`, Feld `steckbrief`): gelesen gleich nach jedem Start, gehalten über Neustarts (Ablage `bildsteckbriefe`), Änderungen im Verlauf. Bis zum ersten Start gelten die Vorgabegrenzen der Fassade |
+| Wann prüft sie? | vor dem Einreihen gegen jeden Dienst, der die Anfrage rechnen könnte (kein Start für eine Anfrage, die keiner annimmt), und nach der Zuteilung gegen den einen mit seinem frischen Steckbrief; ohne Größe oder Schritte gelten die Vorgaben des Modells |
+| Laden und Entladen | wie bei jedem Dienst des Maschinenraums: Laden heißt Starten (der Maschinenraum antwortet, sobald `/gesundheit` 200 sagt, also das Modell geladen ist), Entladen heißt Anhalten; Bedarf aus der Dienstdatei, dann gemessen; weicht bei Bedarf anderer nach der Bedarfsfrist (Leerlauf räumen), nie während er rechnet |
+| Was sehen Wartende? | `<Dienst> startet auf <Rechner> seit <n> s`, mit der gemessenen Restzeit oder "Startdauer noch nicht gemessen"; der Zuteiler schreibt "wird auf ... gestartet" |
+| Fehler | Absagen des Dienstes mit Grundwort und Satz: 400 und 422 `eingabe`, 409 `anderes_modell`, 501 `nicht_unterstuetzt`, 503 `dienst_nicht_bereit`, 499 `abgebrochen`, sonst `dienst_fehler`; eine Absage der Durchleitung heißt `dienst_nicht_erreichbar` |
+| Abbruch | Verbindung schließen: der Auftrag endet, die Leitstelle schließt ihre Verbindung zum Maschinenraum |
+
+Befund (27.10.2026, Szenario B09, Maschinenraum 0.17.0): die Durchleitung des Maschinenraums reicht das Schließen der
+Leitstelle erst weiter, wenn der Dienst antwortet; solange sie auf seine Antwort wartet, merkt sie nicht, dass die
+Leitstelle gegangen ist. Ein abgebrochenes Bild rechnet im Dienst deshalb zu Ende, und der nächste Auftrag wartet im
+Dienst so lange auf dessen Sperre. Direkt am Dienst greift der Abbruch sofort (B04). Abhilfe gehört in den
+Maschinenraum (Durchleitung: Trennen der Leitstelle beobachten und die Anfrage an den Dienst dann schließen).
+
+**Umsetzung** (Leitstelle 0.26.0, 27.10.2026): Bildablauf `ports/dienste/bilder/bildformat.py` neben dem für ComfyUI,
+Wahl an einer Stelle (`bildablauf_waehlen`), Bild-Steckbrief im Steckbrief (`bild`, PROTOKOLL 4.8) mit Ablage
+(Migration 0012), Bildregeln `fach/bildregeln.py`, Wahl der App (`model`, `alternativen`, sonst ihre Kette, sonst
+`modell_fehlt`; im Kern `Auftrag.alternativen` mit strenger Reihenfolge), Fassade mit `steps`, Größe nach Vorgabe des Modells und
+`x-leitstelle.groesse` und `schritte`, Liste der Dienste mit Zweck und Bild-Steckbrief, Wartehinweis beim Start. Oberfläche:
+bei den Modellen die Grenzen des Bildmodells, bei den Diensten die Programme des Maschinenraums einzeln mit Kurzzweck,
+Zweck und Bild-Steckbrief. Prüfung: Szenarien B01 bis B11 ([SZENARIEN.md](SZENARIEN.md) Abschnitt 3g) gegen den
+Schein-Bilddienst, ohne ein Bild zu rechnen.
+
 ## Selbstauskunft: Steckbrief je Modell
 
 Nutzer 18.10.2026: "die modelle [können] auskunft über sich selber geben ... so kann eine anfrage einer software eine
@@ -448,7 +483,7 @@ die Leitstelle setzt ihn aus drei Quellen zusammen und nennt je Angabe, woher si
 
 | Quelle | Angaben |
 |---|---|
-| der Dienst selbst | Modell-Läufer: Kontext, Parameter, Quantisierung, Bilder verstehen, Werkzeuge; Hetzner: Kontext; Dienste des Maschinenraums: was in ihrer Dienstdatei steht (Zweck, Sprachen, Eignung) |
+| der Dienst selbst | Modell-Läufer: Kontext, Parameter, Quantisierung, Bilder verstehen, Werkzeuge; Hetzner: Kontext; Dienste des Maschinenraums: was in ihrer Dienstdatei steht (Zweck, Sprachen, Eignung); Bilddienste im üblichen Bildformat: der Bild-Steckbrief (Größen, Schritte, Anzahl, Bearbeiten, Lizenz) |
 | gemessen von der Leitstelle | Wörter je Sekunde, Zeit bis zum ersten Stück, Ladezeit, wie oft erreichbar |
 | eingetragen von Hand | Zweck und Eignung, wo der Dienst nichts sagt (etwa bei externen Anbietern) |
 

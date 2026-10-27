@@ -193,13 +193,13 @@
             <input class="eingabe" value={(entwurf.docker_projekte ?? []).join(', ')} placeholder="zum Beispiel fundus"
                    onchange={(e) => (entwurf.docker_projekte = teilen(e.currentTarget.value))} /></label>
 
-          <div class="etikett" style="margin-top: var(--a4)">Modellketten <span class="leise" style="text-transform:none; letter-spacing:0; font-weight:500">gilt, wenn die Anwendung kein Modell nennt; erstes verfügbares gewinnt</span></div>
+          <div class="etikett" style="margin-top: var(--a4)" title="Die Kette ist die Wahl der Anwendung: die Leitstelle nimmt nur Modelle daraus und entscheidet nur Rechner, Laden, Warten und Vorrang">Modellketten <span class="leise" style="text-transform:none; letter-spacing:0; font-weight:500">Wahl der Anwendung, wenn sie kein Modell nennt; erstes verfügbares gewinnt</span></div>
           {#if hatExtern}<p class="leise klein kettenhinweis">Externe Modelle rechnen beim Anbieter: in der Kette nur, wenn lokal länger gewartet würde und die
             Anwendung sie auf ihre Erlaubnisliste setzt; nennt sie eines als Modell, gilt es direkt. Das schnelle taugt für kurze Aufgaben, das
             gründliche für lange Texte; die Wahl bleibt bei der Anwendung.</p>{/if}
           {#each KETTEN.filter((f) => entwurf.faehigkeiten?.includes(f)) as f (f)}
             <div class="modellkette">
-              <div><Faehigkeit wert={f} /></div>
+              <div title={f === 'bild_erzeugen' ? 'Bildmodell der Anwendung, wenn sie selbst keines nennt; ohne Kette und ohne Modell antwortet die Leitstelle mit der Liste der Bildmodelle, statt eines auszusuchen' : undefined}><Faehigkeit wert={f} /></div>
               <div class="kette">
                 {#each kette(f) as fam, i (fam)}
                   <span class="schritt" title={extern(fam) ? `${wahlName(fam)}: rechnet beim Anbieter, in der Kette nur beim Ausweichen und wenn die Anwendung es erlaubt` : fam}><i class="fa-solid {extern(fam) ? 'fa-cloud' : 'fa-brain'}"></i>{modellName(fam)}

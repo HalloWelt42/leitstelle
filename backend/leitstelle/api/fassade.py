@@ -26,7 +26,6 @@ from ..kern.werte import GIB, WORT, Auftragszustand, Dienstzustand, Eignung, Fae
 from ..ports.ablage.eintraege import Adapterart
 from ..ports.ablage.eintraege import AnwendungEintrag
 from ..ports.dienste import Durchleitung
-from ..ports.dienste.bilder import Bildauftrag
 from ..protokoll.fassade import Bereitschaft, BildAnfrage, BildAntwort, BildDaten, BildZusatz, DienstListe, DienstSicht
 from .gemeinsam import ablehnung_antwort, betrieb, fehler_antwort, konfig, vermittlung
 
@@ -190,14 +189,17 @@ def _eingabe_text(fehler: ValidationError) -> str:
 
 
 def _bildantwort(request: Request, e: Bilderzeugung) -> bytes:
+    a = e.auftrag
     antwort = BildAntwort(created=int(betrieb(request).uhr.jetzt()), data=[BildDaten(b64_json=base64.b64encode(b).decode("ascii")) for b in e.ergebnis.bilder],
-                          x_leitstelle=BildZusatz(seed=e.ergebnis.seed, modell=e.familie, dauer_ms=round(e.dauer_s * 1000)))
+                          x_leitstelle=BildZusatz(seed=e.ergebnis.seed, modell=e.familie, groesse=f"{a.breite}x{a.hoehe}", schritte=e.ergebnis.schritte,
+                                                  dauer_ms=round(e.dauer_s * 1000)))
     return json.dumps(antwort.model_dump(mode="json", by_alias=True), ensure_ascii=False).encode()
 
 
 async def bilder(request: Request) -> Response:
     """Bilder erzeugen im OpenAI-Format (PROTOKOLL 6): ein Auftrag mit der Fähigkeit bild_erzeugen. Den Ablauf des
-    Bilddienstes kennt nur sein Bildablauf; die Anwendung nennt Beschreibung, Größe, Anzahl und wahlweise Startwert."""
+    Bilddienstes kennt nur sein Bildablauf; die Anwendung nennt Beschreibung, Größe, Anzahl und wahlweise Startwert,
+    Schritte und Modell. Was das Modell annimmt, prüft die Leitstelle mit seinem Steckbrief, bevor sie einen Dienst startet."""
     app = _anwendung(request)
     if app is None:
         return fehler_antwort(request, "unbekannter_schluessel", "Schlüssel fehlt oder ist unbekannt (Kopf Authorization: Bearer ...).")
@@ -205,21 +207,22 @@ async def bilder(request: Request) -> Response:
         anfrage = BildAnfrage.model_validate(await request.json())
     except ValueError as fehler:
         return _eingabefehler(_eingabe_text(fehler) if isinstance(fehler, ValidationError) else "Der Körper ist kein JSON.")
-    b, verm = betrieb(request), vermittlung(request)
+    verm = vermittlung(request)
     try:
-        if anfrage.model and (familie := b.familie_fuer(anfrage.model)):
-            verm.bildablauf_fuer(familie)            # ohne Bildablauf gar nicht erst einreihen (und keinen Dienst starten)
-        v = verm.annehmen(app.kennung, Faehigkeit.BILD_ERZEUGEN, anfrage.model, _prioritaet(request, app), _titel(request, Faehigkeit.BILD_ERZEUGEN),
-                          _arbeit(request), _extern(request))
+        # die Wahl der Anwendung, vorab geprüft: kein Dienst startet für eine Anfrage, die keines ihrer Modelle annimmt
+        familie, alternativen = verm.bildwahl(app.kennung, anfrage)
+        v = verm.annehmen(app.kennung, Faehigkeit.BILD_ERZEUGEN, familie, _prioritaet(request, app), _titel(request, Faehigkeit.BILD_ERZEUGEN),
+                          _arbeit(request), _extern(request), alternativen=alternativen)
     except Ablehnung as a:
         return ablehnung_antwort(request, a)
-    auftrag = Bildauftrag(beschreibung=anfrage.prompt, breite=anfrage.breite, hoehe=anfrage.hoehe, anzahl=anfrage.n, seed=verm.startwert(anfrage.seed))
+    seed = verm.startwert(anfrage.seed)
     if anfrage.stream:
-        return StreamingResponse(_bilder_strom(request, v, auftrag), media_type="text/event-stream", headers={**_kopf(request, v), "Cache-Control": "no-cache"})
+        return StreamingResponse(_bilder_strom(request, v, anfrage, seed), media_type="text/event-stream",
+                                 headers={**_kopf(request, v), "Cache-Control": "no-cache"})
     try:
         async for _ in verm.warten(v, getrennt=request.is_disconnected):
             pass
-        erzeugung = await verm.bilder_erzeugen(v, auftrag)
+        erzeugung = await verm.bilder_erzeugen(v, anfrage, seed)
     except Ablehnung as a:
         antwort = ablehnung_antwort(request, a)
         antwort.headers.update(_kopf(request, v))
@@ -230,7 +233,7 @@ async def bilder(request: Request) -> Response:
     return Response(_bildantwort(request, erzeugung), media_type="application/json", headers=kopf)
 
 
-async def _bilder_strom(request: Request, v: Vorgang, auftrag: Bildauftrag):
+async def _bilder_strom(request: Request, v: Vorgang, anfrage: BildAnfrage, seed: int):
     """Wie der Chat: Kommentare, solange der Auftrag wartet, und während der Dienst rechnet, damit die Verbindung offen
     bleibt; dann genau ein `data:` mit der Antwort (oder dem Fehler) und `data: [DONE]`. Geht die Anwendung, endet der
     Auftrag, und der Bilddienst nimmt ihn aus seiner Warteschlange."""
@@ -239,7 +242,7 @@ async def _bilder_strom(request: Request, v: Vorgang, auftrag: Bildauftrag):
     try:
         async for w in verm.warten(v):
             yield _hinweis(w)
-        arbeit = asyncio.ensure_future(verm.bilder_erzeugen(v, auftrag))
+        arbeit = asyncio.ensure_future(verm.bilder_erzeugen(v, anfrage, seed))
         seit = 0.0
         while not (await asyncio.wait({arbeit}, timeout=konfig(request).hinweis_s))[0]:
             seit += konfig(request).hinweis_s
@@ -393,8 +396,9 @@ def _bereitschaft(request: Request, m: Modell) -> Bereitschaft:
 
 @router.get("/v1/dienste")
 async def dienste(request: Request):
-    """Die Dienste im Maschinenraum, die die Anwendung nutzen darf (PROTOKOLL 6): Kennung, Name, Fähigkeiten, Zustand,
-    Rechner; je Dienst ein Eintrag, gleich wie viele Instanzen auf wie vielen Rechnern laufen."""
+    """Die Dienste im Maschinenraum, die die Anwendung nutzen darf (PROTOKOLL 6.2): Kennung, Name, Zweck, Fähigkeiten,
+    Zustand, Rechner und bei Bilddiensten ihr Bild-Steckbrief; je Dienst ein Eintrag, gleich wie viele Instanzen auf wie
+    vielen Rechnern laufen."""
     darf, app = _darf_lesen(request)
     if not darf:
         return fehler_antwort(request, "unbekannter_schluessel", "Schlüssel fehlt oder ist unbekannt.")
@@ -408,9 +412,10 @@ async def dienste(request: Request):
         grund = next((m for m in instanzen if not m.zusatz), instanzen[0])
         knoten = {b.verbund.dienste[m.dienst].knoten for m in instanzen}
         faehig = set().union(*(m.faehigkeiten for m in instanzen)) & (app.faehigkeiten if app else set(Faehigkeit))
-        aus.append(DienstSicht(kennung=familie, name=grund.name, faehigkeiten=[f for f in Faehigkeit if f in faehig],
+        steckbrief = b.steckbrief(grund)
+        aus.append(DienstSicht(kennung=familie, name=grund.name, zweck=steckbrief.zweck, faehigkeiten=[f for f in Faehigkeit if f in faehig],
                                zustand=min((_bereitschaft(request, m) for m in instanzen), key=BEREITSCHAFT_VORRANG.index),
-                               rechner=sorted(b.verbund.knoten[k].name for k in knoten if k in b.verbund.knoten)))
+                               rechner=sorted(b.verbund.knoten[k].name for k in knoten if k in b.verbund.knoten), bild=steckbrief.bild))
     return DienstListe(data=aus).model_dump(mode="json")
 
 

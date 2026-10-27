@@ -351,6 +351,31 @@ Beenden mit nachgestellter Prozesstabelle, nachgestelltem lsof und nachgestellte
 | X06 | Grenzen der Token im Kern (Schein-Welt) | geschätzte Token offener Anfragen zählen sofort, der echte Verbrauch ersetzt sie; ein großer Auftrag wartet mit Grund und Frist, ein kleiner läuft; Token heraus zählen ab dem Ende |
 | X07 | Datenbank aus 0.23 (Revision 0009) mit Hetzner und Steckbrief von Hand | Migration 0010: Token-Grenzen und aktive Parameter leer, Proben speicherbar |
 
+## 3g. Bilder erzeugen (`test_bilder.py`, `test_bildformat.py`)
+
+Das Bildmodell wählt immer die Anwendung (`model`, ihre `alternativen` in ihrer Reihenfolge, sonst ihre in der
+Leitstelle hinterlegte Kette); die Leitstelle entscheidet nur Quelle, Laden, Entladen, Warten und Vorrang (B08, B10, B11).
+
+`test_bilder.py`: der Ablauf der Bildschmiede (ComfyUI) gegen die Schein-Bildschmiede und Ende zu Ende über die Fassade
+mit dem echten Maschinenraum. `test_bildformat.py`: der Bildablauf "bildformat" gegen den Schein-Bilddienst (wie ein
+Dienst des Bildwerks mit MOSS-Image, `tests/schein/bilddienst.py`; er rechnet kein Bild, die Bilder sind PNG mit einem
+Bildpunkt), Ende zu Ende mit dem echten Maschinenraum, der ihn als Prozess startet (Beobachtung, Läufer und Stellwerk
+aus), und im Kern gegen die Schein-Welt.
+
+| Nr. | Situation | Erwartet |
+|---|---|---|
+| B01 | Ablauf erzeugt zwei Bilder 1344x768 mit Startwert 42 und 8 Schritten | Anfrage mit `prompt`, `size`, `n`, `seed`, `steps`, `response_format`, ohne `model`; zwei PNG aus `data[].b64_json`; gleicher Startwert gleiche Bilder, anderer andere; ohne Schritte geht `steps` nicht mit |
+| B02 | Steckbrief lesen | aus `GET v1/models`: Modell `moss-image`, Name, Aliase, Fläche ab 262144 Pixeln, Kanten bis 2048, Schritte 1 bis 218 (Vorgabe 50), bis 4 Bilder, Lizenz, Quantisierung, Parameter; ein Dienst ohne diesen Weg (404) sagt nichts |
+| B03 | Absagen je Antwortcode | 400 und 422 `eingabe` (Prüffehler als Feld und Satz), 409 `anderes_modell`, 501 `nicht_unterstuetzt`, 503 `dienst_nicht_bereit`, 499 `abgebrochen`, sonst `dienst_fehler`, je mit dem Satz des Dienstes; eine Absage der Durchleitung (`grund`, `meldung`) `dienst_nicht_erreichbar`, wiederholbar; am Dienst selbst: 256x256 gibt `eingabe`, ein ladendes Modell `dienst_nicht_bereit` |
+| B04 | Abbruch, während der Dienst rechnet | die Verbindung ist zu, der Dienst hört auf (abgebrochen 1, keine Rechnung mehr, nichts fertig) |
+| B05 | Bildregeln mit und ohne Steckbrief | 256x256: "Die Fläche muss zwischen 262144 und 4194304 Pixeln liegen; 256x256 hat 65536. Vorgabe von MOSS-Image-SFT: 1024x1024."; nicht durch 16 teilbar, Kante über 2048, 300 Schritte, mehr Bilder als `anzahl_max` je mit Satz; ohne Größe und Schritte 1024x1024 und 50; ohne Steckbrief die Vorgabegrenzen, Schritte ungeprüft und ungesetzt |
+| B06 | Steckbrief speichern und wieder lesen | in der Ablage (Migration 0012), Überschreiben ersetzt |
+| B07 | Schein-Welt: Bilddienst des Maschinenraums (24 GB, Start 120 s) für einen Bildauftrag, dann ein Textauftrag, für den nicht beides passt | "Bildwerk MOSS-Image wird auf Dienste auf Mac Studio gestartet"; solange er rechnet, weicht er nicht und der Text wartet; danach Leerlauf räumen entlädt ihn, beide Aufträge fertig |
+| B08 | App verlangt `bildwerk-moss-image` (Maschinenraum startet den Schein-Bilddienst in 2,5 s) | vorher: `/v1/models` und `/v1/dienste` mit Zweck aus der Dienstdatei, `bild` null, aus; 4096x4096 gibt 400 `eingabe`, der Dienst bleibt aus. Strom: Hinweis "Bildwerk MOSS-Image startet auf Mac Studio seit ... (Startdauer noch nicht gemessen)", zwei PNG, `x-leitstelle` mit Startwert, Kennung, Größe, Schritten; der Dienst sah die Anfrage ohne `model`. Danach: Steckbrief in `/v1/models` (Herkunft dienst, Parameter 4,9, Quantisierung 8bit), `/v1/dienste`, `/v1/steckbriefe?faehigkeit=bild_erzeugen`, Verlauf "Steckbrief von Bildwerk MOSS-Image gelesen"; gleicher Startwert gleiche Bilder; `moss-image`, `MOSS-Image-SFT` und der Alias wählen denselben Dienst; ohne Größe und Schritte 1024x1024 und 50; 256x256, 300 Schritte, 1000x1000 geben 400 mit Satz, ohne dass der Dienst sie sieht; ohne `model` und Kette 400 `modell_fehlt` mit `x-leitstelle.modelle` (die Leitstelle sucht keines aus), Alternativen ohne `model` 400 `eingabe`, eine unbekannte Alternative 404 `kein_modell` |
+| B10 | Schein-Welt: die App verlangt MOSS-Image (nicht geladen) mit der Alternative FLUX (geladen und frei); ein drittes Bildmodell ist geladen | MOSS-Image wird gestartet, nicht die geladene Alternative; ist sein Dienst nicht erreichbar, rechnet die Alternative; das dritte, nicht genannte Modell nie |
+| B11 | Verlangtes Modell bis 1024 Pixel je Kante, Alternative bis 2048 | 2048x1024 geht an die Alternative (das verlangte nimmt sie nicht an), sonst bleibt das verlangte vorn; nimmt keines die Anfrage an, 400 `eingabe` mit dem Grund des verlangten |
+| B09 | Von Hand sofort gestoppt, während der Dienst rechnet; ein Fehler des Dienstes (500) | App 409 `nutzer`, Auftrag abgebrochen mit Grund, Modell wieder geladen ohne Auftrag; der Fehler kommt als 502 `dienst_fehler` mit dem Satz des Dienstes, Auftrag fehlgeschlagen. Befund: über den Maschinenraum 0.17.0 erreicht das Schließen den Dienst erst, wenn er antwortet (ZUSAMMENSPIEL, Bildweg) |
+
 ## 4. Zweige je Vorlage
 
 | Vorlage | Ende | Szenario |

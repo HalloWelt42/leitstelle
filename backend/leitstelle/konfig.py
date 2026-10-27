@@ -12,13 +12,13 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from .ports.dienste.bilder import BildablaufEinstellung, ComfyAblauf
+from .ports.dienste.bilder import BildablaufEinstellung, BildformatAblauf, ComfyAblauf
 
 WURZEL = Path(__file__).resolve().parents[2]
 
 
 class Konfig(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="LEITSTELLE_", env_file=None)
+    model_config = SettingsConfigDict(env_prefix="LEITSTELLE_", env_file=None, env_parse_none_str="null")
 
     daten: Path = Field(default=WURZEL / ".run" / "daten", description="Datenordner: Datenbank und Tresorschlüssel")
     host: str = "0.0.0.0"
@@ -46,8 +46,14 @@ class Konfig(BaseSettings):
                                                                "Arbeiter des Läufers beenden soll (er selbst wartet bis zu seiner Anhaltezeit)")
     bildablaeufe: dict[str, BildablaufEinstellung] = Field(
         default_factory=lambda: {"bildschmiede": ComfyAblauf()},
-        description="je Bilddienst (Kennung im Maschinenraum) der Ablauf, mit dem `/v1/images/generations` dort Bilder erzeugt; "
-                    "als JSON, zum Beispiel {\"bildschmiede\": {\"art\": \"comfyui\", \"checkpoint\": \"flux1-schnell-fp8.safetensors\"}}")
+        description="je Bilddienst (Kennung im Maschinenraum) der Ablauf, mit dem `/v1/images/generations` dort Bilder erzeugt, wenn "
+                    "er nicht die Vorgabe nutzt; als JSON, zum Beispiel {\"bildschmiede\": {\"art\": \"comfyui\", \"checkpoint\": "
+                    "\"flux1-schnell-fp8.safetensors\"}}")
+    bildablauf_vorgabe: BildablaufEinstellung | None = Field(
+        default_factory=BildformatAblauf,
+        description="Ablauf jedes Bilddienstes ohne eigenen Eintrag in `bildablaeufe`: das übliche Bildformat (POST "
+                    "/v1/images/generations mit b64_json, Steckbrief unter GET /v1/models), wie es die Dienste des Bildwerks "
+                    "sprechen; als JSON, null heißt: nur Dienste mit eigenem Eintrag")
 
     @property
     def datenbank(self) -> Path:

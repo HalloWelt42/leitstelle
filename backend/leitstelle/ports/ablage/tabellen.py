@@ -83,6 +83,14 @@ class FaehigkeitsprobeTabelle(Basis):
     meldung: Mapped[str] = mapped_column(Text, default="")
 
 
+class BildsteckbriefTabelle(Basis):
+    """Je Bilddienst (Modellfamilie) der Bild-Steckbrief, wie der Dienst ihn zuletzt genannt hat (PROTOKOLL 4.8)."""
+
+    __tablename__ = "bildsteckbriefe"
+    familie: Mapped[str] = mapped_column(String(255), primary_key=True)
+    steckbrief: Mapped[dict[str, Any]] = mapped_column(JSON)
+
+
 class AliasTabelle(Basis):
     __tablename__ = "modell_aliasse"
     alias: Mapped[str] = mapped_column(String(255), primary_key=True)

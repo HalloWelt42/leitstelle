@@ -76,6 +76,10 @@ class Comfy:
     def __init__(self, einstellung: ComfyAblauf) -> None:
         self.e = einstellung
 
+    async def steckbrief(self, senden: Senden) -> None:
+        """Die Bildschmiede sagt nichts über die Grenzen ihres Checkpoints; es gelten die Vorgabegrenzen der Fassade."""
+        return None
+
     async def erzeugen(self, senden: Senden, auftrag: Bildauftrag) -> Bildergebnis:
         kennung = await self._einreihen(senden, auftrag)
         try:
@@ -83,7 +87,7 @@ class Comfy:
         except asyncio.CancelledError:
             await self._austragen(senden, kennung)
             raise
-        return Bildergebnis(bilder=[await self._holen(senden, b) for b in bilder], seed=auftrag.seed)
+        return Bildergebnis(bilder=[await self._holen(senden, b) for b in bilder], seed=auftrag.seed, schritte=self.e.schritte)
 
     async def _anfrage(self, senden: Senden, methode: str, pfad: str, koerper: Any = None, abfrage: str = "") -> tuple[int, bytes]:
         inhalt = json.dumps(koerper).encode() if koerper is not None else b""

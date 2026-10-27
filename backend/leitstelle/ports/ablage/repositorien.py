@@ -10,6 +10,7 @@ from sqlalchemy import delete, func, select
 from ...kern.messungen import Messwerk, Mittel
 from ...kern.modelle import Massnahme, Regelwerk
 from ...kern.werte import Auftragszustand, Faehigkeit, Massnahmenart, Massnahmenzustand, OFFENE_ZUSTAENDE, Prioritaet, Zone
+from ...protokoll.steckbrief import Bildsteckbrief
 from .datenbank import Datenbank
 from .eintraege import (AliasEintrag, AnwendungEintrag, AuftragEintrag, BetriebEinstellung, Bewegung, DienstEintrag, FaehigkeitsprobeEintrag, Kennzahlen,
                         KnotenEintrag, PruefEintrag, Schlafstand, SteckbriefEintrag)
@@ -18,6 +19,7 @@ from .tabellen import (
     AnwendungTabelle,
     AuftragTabelle,
     BewegungTabelle,
+    BildsteckbriefTabelle,
     FaehigkeitsprobeTabelle,
     SteckbriefTabelle,
     DienstTabelle,
@@ -154,6 +156,21 @@ class ProbenAblage:
     async def speichern(self, e: FaehigkeitsprobeEintrag) -> None:
         async with self.db.sitzung() as s, s.begin():
             await s.merge(FaehigkeitsprobeTabelle(**e.model_dump(mode="json")))
+
+
+class BildsteckbriefAblage:
+    """Bild-Steckbriefe: je Familie der zuletzt vom Dienst gelesene."""
+
+    def __init__(self, db: Datenbank) -> None:
+        self.db = db
+
+    async def alle(self) -> dict[str, Bildsteckbrief]:
+        async with self.db.sitzung() as s:
+            return {z.familie: Bildsteckbrief.model_validate(z.steckbrief) for z in (await s.scalars(select(BildsteckbriefTabelle))).all()}
+
+    async def speichern(self, familie: str, steckbrief: Bildsteckbrief) -> None:
+        async with self.db.sitzung() as s, s.begin():
+            await s.merge(BildsteckbriefTabelle(familie=familie, steckbrief=steckbrief.model_dump(mode="json")))
 
 
 class AuftragAblage:
@@ -352,3 +369,4 @@ class Ablage:
         self.bewegungen = BewegungsAblage(db)
         self.steckbriefe = SteckbriefAblage(db)
         self.proben = ProbenAblage(db)
+        self.bildsteckbriefe = BildsteckbriefAblage(db)

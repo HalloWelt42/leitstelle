@@ -5,7 +5,7 @@
   import { tun } from '../lib/meldung.svelte';
   import { systemteile } from '../lib/speicher';
   import type { Eignung, Lagebild, ModellSicht } from '../lib/typen.gen';
-  import { EIGNUNG, FAEHIGKEIT, QUELLE, parameterText } from '../lib/wort';
+  import { EIGNUNG, FAEHIGKEIT, QUELLE, bildregeln, parameterText } from '../lib/wort';
   import { weg } from '../lib/weg.svelte';
   import Faehigkeit from '../teile/Faehigkeit.svelte';
   import Speicherbalken from '../teile/Speicherbalken.svelte';
@@ -162,6 +162,8 @@
                     {#if m.steckbrief.zweck}<span class="zweck">{m.steckbrief.zweck}</span>{/if}
                     {#each m.steckbrief.eignung ?? [] as e (e)}<span class="eignung">{EIGNUNG[e]}</span>{/each}
                     {#if m.steckbrief.sprachen?.length}<span class="eignung sprache">{m.steckbrief.sprachen.join(', ')}</span>{/if}</div>{/if}
+                  {#if m.steckbrief.bild}<div class="steckbrief" title="Was das Bildmodell annimmt, wie sein Dienst es sagt (gelesen {uhrzeit(m.steckbrief.bild.abgerufen_s)}); die Leitstelle prüft jede Anfrage damit, bevor sie den Dienst erreicht">
+                    {#each bildregeln(m.steckbrief.bild) as t (t.text)}<span class="eignung" title={t.titel}>{t.text}</span>{/each}</div>{/if}
                   {#each m.steckbrief.geprueft ?? [] as p (p.faehigkeit)}<div class="zweit" title={p.meldung}><i class="fa-solid fa-flask"></i> {FAEHIGKEIT[p.faehigkeit].wort} {p.belegt ? 'belegt' : 'nicht belegt'}, geprüft {uhrzeit(p.zeit_s)}</div>{/each}</td>
                 <td data-titel="Fähigkeiten"><div class="marken">{#each m.faehigkeiten.filter((f) => f !== 'uebersetzen' && f !== 'werkzeug') as f (f)}<Faehigkeit wert={f} />{/each}</div></td>
                 <td data-titel="Dienst"><div class="dienst">{dienst(m.dienst)?.name}</div><div class="zweit">{knotenName(m.knoten)}</div></td>

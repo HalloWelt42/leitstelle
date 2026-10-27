@@ -13,7 +13,7 @@ from ..kern.modelle import Modell
 from ..kern.werte import Eignung, Faehigkeit, Zone
 from ..ports.ablage.eintraege import AuftragEintrag, FaehigkeitsprobeEintrag, SteckbriefEintrag
 from ..protokoll.knoten import Selbstauskunft
-from ..protokoll.steckbrief import Faehigkeitsprobe, Messwerte, Quelle, Steckbrief
+from ..protokoll.steckbrief import Bildsteckbrief, Faehigkeitsprobe, Messwerte, Quelle, Steckbrief
 
 LANGE_TEXTE_AB = 100_000              # Token Kontext, ab denen ein Modell für lange Texte taugt
 MESSUNG_JE_FAMILIE = 100              # jüngste fertige Aufträge je Modellfamilie
@@ -98,7 +98,10 @@ def rollen(modelle: list[tuple[Modell, float | None]]) -> dict[str, Eignung]:
 
 
 def zusammensetzen(m: Modell, auskunft: Selbstauskunft, hand: SteckbriefEintrag | None, kontext: int | None, zone: Zone, grenzen: Grenzen,
-                   gemessen: Messwerte, rolle: Eignung | None = None, proben: list[FaehigkeitsprobeEintrag] | None = None) -> Steckbrief:
+                   gemessen: Messwerte, rolle: Eignung | None = None, proben: list[FaehigkeitsprobeEintrag] | None = None,
+                   bild: Bildsteckbrief | None = None) -> Steckbrief:
+    """`bild`: was ein Bilddienst über sein Modell sagt; daraus kommen auch Parameter und Quantisierung, wenn der Bericht des
+    Dienstes sie nicht nennt (der Maschinenraum kennt sie nicht)."""
     herkunft: dict[str, Quelle] = {}
 
     def waehlen(feld: str, von_hand, vom_dienst):
@@ -121,7 +124,9 @@ def zusammensetzen(m: Modell, auskunft: Selbstauskunft, hand: SteckbriefEintrag 
                 eignung.append(e)
                 herkunft.setdefault("eignung", Quelle.ABGELEITET)
     sprachen = list(waehlen("sprachen", hand.sprachen if hand else [], auskunft.sprachen) or [])
-    for feld, wert in (("kontext", kontext), ("parameter_mrd", m.parameter_mrd if m.parameter_mrd else None), ("quantisierung", auskunft.quantisierung)):
+    parameter = m.parameter_mrd or (bild.parameter_mrd if bild else None) or None
+    quantisierung = auskunft.quantisierung or (bild.quantisierung if bild else None)
+    for feld, wert in (("kontext", kontext), ("parameter_mrd", parameter), ("quantisierung", quantisierung), ("bild", bild)):
         if wert is not None:
             herkunft[feld] = Quelle.DIENST
     aktiv, quelle = aktive_parameter(m, hand)
@@ -133,6 +138,6 @@ def zusammensetzen(m: Modell, auskunft: Selbstauskunft, hand: SteckbriefEintrag 
     if gemessen.auftraege or gemessen.ladezeit_s is not None:
         herkunft["gemessen"] = Quelle.GEMESSEN
     return Steckbrief(zweck=zweck, eignung=eignung, sprachen=sprachen, faehigkeiten=sorted(m.faehigkeiten, key=lambda f: f.value), kontext=kontext,
-                      parameter_mrd=m.parameter_mrd or None, parameter_aktiv_mrd=aktiv, quantisierung=auskunft.quantisierung, zone=zone,
+                      parameter_mrd=parameter, parameter_aktiv_mrd=aktiv, quantisierung=quantisierung, zone=zone,
                       anfragen_je_minute=grenzen.anfragen_je_minute, token_ein_je_minute=grenzen.token_ein_je_minute,
-                      token_aus_je_minute=grenzen.token_aus_je_minute, geprueft=geprueft, gemessen=gemessen, herkunft=herkunft)
+                      token_aus_je_minute=grenzen.token_aus_je_minute, geprueft=geprueft, bild=bild, gemessen=gemessen, herkunft=herkunft)

@@ -34,10 +34,11 @@ from ..ports.ablage.eintraege import (Adapterart, AnwendungEintrag, AuftragEintr
 from ..ports.agenten import AgentGetrennt, AgentVerbindung, Agentenvermittlung
 from ..ports.ablage.repositorien import Ablage
 from ..ports.dienste import AdapterFabrik, DienstAdapter, DienstFehler, ModellBericht, agent_adresse
+from ..ports.dienste.bilder import Bildablauf, bildablauf_waehlen
 from ..ports.tresor import Tresor, fingerabdruck
 from ..ports.uhr import Uhr
 from ..protokoll.knoten import Befehl, BefehlErgebnis, Befehlsart, Fremdzugriffe, KnotenLast, KnotenSchlaeft, Selbstauskunft
-from ..protokoll.steckbrief import Messwerte, Steckbrief
+from ..protokoll.steckbrief import Bildsteckbrief, Messwerte, Steckbrief
 from ..protokoll.umschlag import umschlag
 from .ereignisse import Ereignisbus
 from .fehler import Ablehnung, Zusatz
@@ -157,6 +158,8 @@ class Betrieb:
         self.steckbriefe_hand: dict[str, SteckbriefEintrag] = {}  # je Familie: von Hand eingetragen
         self.proben: dict[str, dict[Faehigkeit, FaehigkeitsprobeEintrag]] = {}   # je Familie: Fähigkeitsproben von Hand (fach/faehigkeitsprobe.py)
         self.gemessen: dict[str, Messwerte] = {}                  # je Familie: aus dem Verlauf
+        self.bildsteckbriefe: dict[str, Bildsteckbrief] = {}      # je Familie: was ein Bilddienst über sein Modell sagt
+        self._bildsteckbrief_lesen: dict[str, asyncio.Task] = {}  # je Familie: laufendes Lesen beim Dienst
         self._letzte_messung = 0.0
         self.orte: dict[str, ModellOrt] = {}
         self.laeufe: dict[str, Lauf] = {}
@@ -196,6 +199,7 @@ class Betrieb:
         self.steckbriefe_hand = {e.familie: e for e in await self.ablage.steckbriefe.alle()}
         for p in await self.ablage.proben.alle():
             self.proben.setdefault(p.familie, {})[p.faehigkeit] = p
+        self.bildsteckbriefe = await self.ablage.bildsteckbriefe.alle()
         await self.abgleichen()
         await self._messwerte_holen()
         if mit_schleife:
@@ -704,7 +708,7 @@ class Betrieb:
         return zusammensetzen(m, self.auskunft.get(m.kennung, Selbstauskunft()), self.steckbriefe_hand.get(m.familie), self.ort(m.kennung).kontext, zone,
                               Grenzen(anfragen_je_minute=d.anfragen_je_minute, token_ein_je_minute=d.token_ein_je_minute,
                                       token_aus_je_minute=d.token_aus_je_minute),
-                              gemessen, rolle, list(self.proben.get(m.familie, {}).values()))
+                              gemessen, rolle, list(self.proben.get(m.familie, {}).values()), self.bildsteckbriefe.get(m.familie))
 
     def frei(self, dienst: str, bedarf: Bedarf | None = None) -> Frei:
         """Jetzt: wann der Dienst Anfragen mit diesem Bedarf annimmt (Grenzen je Minute, Sperre nach Überlast)."""
@@ -753,6 +757,71 @@ class Betrieb:
             self.steckbriefe_hand.pop(e.familie, None)
         await self.ablage.pruefung.anhaengen(PruefEintrag(zeit_s=self.uhr.jetzt(), wer=wer, was="Steckbrief von Hand geändert", gegenstand=e.familie))
         self.geaendert()
+
+    # ── Bilddienste: Ablauf und Bild-Steckbrief (PROTOKOLL 4.8, 6.1) ─────
+    def bildablauf(self, familie: str) -> Bildablauf | None:
+        """Wie dieser Bilddienst Bilder erzeugt: eigener Eintrag (`bildablaeufe`), sonst die Vorgabe (`bildablauf_vorgabe`)."""
+        return bildablauf_waehlen(self.konfig.bildablaeufe, self.konfig.bildablauf_vorgabe, familie)
+
+    def bildsteckbrief_veraltet(self, modell: str) -> bool:
+        """Noch nie gelesen, oder der Dienst ist seit dem letzten Lesen neu gestartet (etwa mit anderer Quantisierung)."""
+        m = self.verbund.modelle.get(modell)
+        if m is None:
+            return False
+        s = self.bildsteckbriefe.get(m.familie)
+        return s is None or (m.geladen_seit_s is not None and s.abgerufen_s < m.geladen_seit_s)
+
+    async def bildsteckbrief_lesen(self, modell: str) -> Bildsteckbrief | None:
+        """Den Bild-Steckbrief beim laufenden Dienst lesen; wer gleichzeitig fragt, teilt das eine Lesen. Bricht der Aufrufer ab,
+        liest es trotzdem zu Ende."""
+        return await asyncio.shield(self._bildsteckbrief_anstossen(modell))
+
+    def _bildsteckbrief_anstossen(self, modell: str) -> asyncio.Task:
+        familie = self.verbund.modelle[modell].familie
+        t = self._bildsteckbrief_lesen.get(familie)
+        if t is None or t.done():
+            t = self._nebenbei(self._bildsteckbrief_holen(modell))
+            self._bildsteckbrief_lesen[familie] = t
+        return t
+
+    async def _bildsteckbrief_holen(self, modell: str) -> Bildsteckbrief | None:
+        """Fragt den Ablauf des Dienstes; ohne Auskunft oder bei einem Fehler bleibt der bisherige Steckbrief (die Anfrage
+        rechnet dann mit ihm oder mit den Vorgabegrenzen)."""
+        m = self.verbund.modelle[modell]
+        bisher = self.bildsteckbriefe.get(m.familie)
+        ablauf, adapter = self.bildablauf(m.familie), self.adapter.get(m.dienst)
+        if ablauf is None or adapter is None:
+            return bisher
+        schluessel = self.ort(modell).schluessel
+        try:
+            s = await ablauf.steckbrief(lambda d: adapter.durchleiten(schluessel, d))
+        except DienstFehler as f:
+            log.warning("Steckbrief von %s nicht gelesen: %s", m.name, f.meldung)
+            return bisher
+        if s is None:
+            return bisher
+        s = s.model_copy(update={"abgerufen_s": self.uhr.jetzt()})
+        self.bildsteckbriefe[m.familie] = s
+        self.schreibfolge.einreihen(self.ablage.bildsteckbriefe.speichern(m.familie, s))
+        if bisher is None or bisher.model_copy(update={"abgerufen_s": 0.0}) != s.model_copy(update={"abgerufen_s": 0.0}):
+            self.melden(f"Steckbrief von {m.name} gelesen: {s.kurz()}")
+        self.geaendert()
+        return s
+
+    def wartehinweis(self, a: Auftrag) -> tuple[str, float | None]:
+        """Was ein wartender Aufruf als Hinweis bekommt: der Grund des Zuteilers; startet sein Dienst oder lädt sein Modell
+        gerade, seit wann und wie lange das nach der Messung noch dauert (ein Bilddienst braucht bis zu Minuten)."""
+        m = self.verbund.modelle.get(a.modell or "")
+        d = self.verbund.dienste.get(a.dienst or "")
+        if a.zustand != Auftragszustand.ZUGETEILT or m is None or d is None or m.zustand != Modellzustand.LAEDT or m.geladen_seit_s is None:
+            return a.begruendung, a.voraussichtlich_s
+        seit = max(0.0, self.uhr.jetzt() - m.geladen_seit_s)
+        ort = self.verbund.knoten[d.knoten].name if d.knoten in self.verbund.knoten else d.name
+        dauer = self.messwerk.ladezeit(m.familie, d.knoten or "", m.gb)
+        text = f"{m.name} {'startet' if d.maschinenraum else 'lädt'} auf {ort} seit {seit:.0f} s"
+        if dauer.gemessen:
+            return text, max(1.0, dauer.sekunden - seit)
+        return text + f" ({'Startdauer' if d.maschinenraum else 'Ladedauer'} noch nicht gemessen)", None
 
     def _modell_abgleichen(self, kennung: str, d: Dienst, mb: ModellBericht, steuerbar: bool, jetzt: float) -> None:
         unbekannte_groesse = mb.parameter_mrd is None
@@ -901,7 +970,9 @@ class Betrieb:
     # ── Aufträge ─────────────────────────────────────────────────────────
     def anlegen(self, anwendung: str, faehigkeit: Faehigkeit, festes_modell: str | None, prioritaet: Prioritaet | None, titel: str,
                 arbeit: str | None = None, extern: list[str] | None = None, instanz: str | None = None,
-                token: tuple[int, int] = (0, 0)) -> tuple[Auftrag, Lauf]:
+                token: tuple[int, int] = (0, 0), alternativen: list[str] | None = None) -> tuple[Auftrag, Lauf]:
+        """`festes_modell` und `alternativen` sind die Wahl der Anwendung (Familien, in ihrer Reihenfolge); ohne sie gilt ihre
+        Kette in der Leitstelle."""
         app = self.anwendungen[anwendung]
         if self.verbund.betriebsmodus == Betriebsmodus.HALT:
             raise Ablehnung("halt", "Der Hauptregler steht auf Halt; es wird nichts gerechnet.")
@@ -909,13 +980,14 @@ class Betrieb:
             raise Ablehnung("gesperrt", app.sperrgrund or "Die Anwendung ist gesperrt.")
         self._zeit_setzen()
         a = Auftrag(kennung=uuid4().hex, anwendung=anwendung, faehigkeit=faehigkeit, prioritaet=app.prioritaet if prioritaet is None else prioritaet,
-                    eingang_s=self.verbund.zeit_s, festes_modell=festes_modell, anhaltbar=False, laufzeit_s=0.0,
+                    eingang_s=self.verbund.zeit_s, festes_modell=festes_modell, alternativen=list(alternativen or []), anhaltbar=False, laufzeit_s=0.0,
                     arbeit=f"{anwendung}:{arbeit}" if arbeit else None, extern_familien=list(extern or []), feste_instanz=instanz,
                     token_ein_geschaetzt=token[0], token_aus_geschaetzt=token[1])
         self.verbund.arbeiten_aufraeumen()
         self.verbund.arbeit_zaehlen(a, titel)
         lauf = Lauf(a.kennung, titel)
-        lauf.notieren(a.eingang_s, Auftragszustand.EINGEREIHT, f"angenommen von {app.name}" + (f", Modell {festes_modell} verlangt" if festes_modell else ""))
+        wahl = f", Modell {festes_modell} verlangt" + (f", sonst {', '.join(a.alternativen)}" if a.alternativen else "") if festes_modell else ""
+        lauf.notieren(a.eingang_s, Auftragszustand.EINGEREIHT, f"angenommen von {app.name}{wahl}")
         self.verbund.auftraege[a.kennung] = a
         self.laeufe[a.kennung] = lauf
         self.anstossen()
@@ -1003,7 +1075,8 @@ class Betrieb:
                                                     f"{', '.join(namen)} hat sich noch nicht gemeldet; gleich erneut versuchen.")
 
     def familie_fuer(self, name: str) -> str | None:
-        """Löst einen Modellnamen der Anwendung auf: eigener Alias, Schlüssel, Instanz, Name ohne Anbieter, Anzeigename."""
+        """Löst einen Modellnamen der Anwendung auf: eigener Alias, Schlüssel, Instanz, Name ohne Anbieter, Anzeigename, bei
+        Bilddiensten auch die Namen ihres Modells aus dem Bild-Steckbrief (etwa moss-image für bildwerk-moss-image)."""
         if not name:
             return None
         if name in self.aliasse:
@@ -1016,7 +1089,8 @@ class Betrieb:
         for m in self.verbund.modelle.values():
             if klein in (m.familie.lower(), m.familie.lower().split("/")[-1], m.name.lower()):
                 return m.familie
-        return None
+        bekannt = {m.familie for m in self.verbund.modelle.values()}
+        return next((f for f, s in self.bildsteckbriefe.items() if f in bekannt and klein in s.namen()), None)
 
     # ── Steuerung durch den Menschen ─────────────────────────────────────
     async def hauptregler(self, modus: Betriebsmodus, hintergrund_an: bool, wer: str, grund: str = "") -> int:
@@ -1154,8 +1228,10 @@ class Betrieb:
             self.ladeversuche.pop(modell, None)
             self.messwerk.merke_ladezeit(m.familie, d.knoten or "", dauer)
             self.schreibfolge.einreihen(self.ablage.messungen.speichern(self.messwerk))
-            self.melden(f"{m.name} auf {d.name} geladen in {komma(dauer)} s")
+            self.melden(f"{m.name} auf {d.name} {'gestartet' if d.maschinenraum else 'geladen'} in {komma(dauer)} s")
             self.bus.senden(umschlag("signal.modell", {"modell": m.name, "zustand": "bereit", "knoten": d.knoten, "dauer_s": round(dauer, 1)}))
+            if Faehigkeit.BILD_ERZEUGEN in m.faehigkeiten and self.bildablauf(m.familie) is not None:
+                self._bildsteckbrief_anstossen(modell)      # gleich nach dem Start: die Grenzen gelten schon für den ersten Auftrag
         finally:
             self.ladeaufgaben.pop(modell, None)
             self.anstossen()
