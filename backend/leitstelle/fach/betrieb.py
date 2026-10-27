@@ -608,10 +608,17 @@ class Betrieb:
             m.dienst == dienst and m.familie == mb.familie and m.zusatz and k in self.ladeaufgaben and not self.ort(k).instanzen
             for k, m in self.verbund.modelle.items())
 
+    def abgleich_vorgabe_s(self, e: DienstEintrag) -> float | None:
+        """Abstand der Zustandsabfrage eines gesunden Dienstes ohne eigenen Eintrag: extern selten (jede Abfrage zählt für
+        seine Grenze), im eigenen Netz im Takt; None für Dienste, die sich selbst melden (Maschinenraum)."""
+        if e.art == Adapterart.AGENT:
+            return None
+        return self.konfig.extern_abgleich_s if e.extern else self.konfig.dienst_takt_s
+
     def _gesund_vermerken(self, dienst: str) -> None:
         e = self.dienste.get(dienst)
-        abstand = e.abgleich_s if e and e.abgleich_s else self.konfig.extern_abgleich_s if e and e.extern else self.konfig.dienst_takt_s
-        self.pruefstand[dienst] = Pruefstand(naechste_s=self.uhr.jetzt() + abstand)
+        abstand = (e.abgleich_s or self.abgleich_vorgabe_s(e)) if e else None
+        self.pruefstand[dienst] = Pruefstand(naechste_s=self.uhr.jetzt() + (abstand or self.konfig.dienst_takt_s))
 
     def _fehlschlag_vermerken(self, dienst: str) -> Dienstzustand:
         """Abstand verdoppelt sich je Fehlschlag (bis höchstens einen Tag); ab dem n-ten in Folge heißt es Ausfall."""

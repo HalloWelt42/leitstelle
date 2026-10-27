@@ -368,8 +368,11 @@ export interface DienstSicht {
   frei_in_s: number;
   fehlschlaege: number;
   naechste_pruefung_s: number | null;
+  abgleich_s: number | null;
+  abgleich_vorgabe_s: number | null;
   einbettung_instanzen: number;
   einbettung_spielraum_gb: number;
+  aenderbar: string[];
 }
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
@@ -713,6 +716,9 @@ export interface DienstDaten {
   einbettung_spielraum_gb?: number;
 }
 /**
+ * Was sich an einem Dienst von Hand ändern lässt. None lässt ein Feld, wie es ist; ein Wert gleich dem bisherigen
+ * gilt nicht als Änderung. Welche Felder je Art überhaupt einstellbar sind, sagt `AENDERBAR`.
+ *
  * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "DienstAenderung".
  */

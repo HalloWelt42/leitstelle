@@ -4,7 +4,7 @@
   import { dauer } from '../lib/format';
   import { kanal } from '../lib/kanal.svelte';
   import { tun } from '../lib/meldung.svelte';
-  import type { DienstSicht, Lagebild } from '../lib/typen.gen';
+  import type { DienstAenderung, DienstSicht, Lagebild } from '../lib/typen.gen';
   import { weg } from '../lib/weg.svelte';
   import ZoneMarke from '../teile/ZoneMarke.svelte';
   import Zustand from '../teile/Zustand.svelte';
@@ -30,21 +30,23 @@
   const knotenName = (k: string | null) => bild.knoten.find((x) => x.kennung === k)?.name ?? 'Extern';
   const knotenZone = (d: DienstSicht) => (d.extern ? 'extern' : bild.knoten.find((x) => x.kennung === d.knoten)?.zone ?? 'heim');
   const modelle = (d: string) => bild.modelle.filter((m) => m.dienst === d);
+  // Was sich je Art von Hand einstellen lässt, sagt der Kern (beim Maschinenraum nur der Name); der Rest bleibt verborgen
+  const kann = (d: DienstSicht, feld: string) => d.aenderbar.includes(feld);
 
   function beginnen(d: DienstSicht) {
     bearbeiten = d.kennung;
-    entwurf = { name: d.name, adresse: d.adresse, plaetze: d.plaetze, zugang: '', zugangNeu: false, grenze: d.anfragen_je_minute, abgleich: null,
+    entwurf = { name: d.name, adresse: d.adresse, plaetze: d.plaetze, zugang: '', zugangNeu: false, grenze: d.anfragen_je_minute, abgleich: d.abgleich_s,
                 instanzen: d.einbettung_instanzen, spielraum: d.einbettung_spielraum_gb };
   }
 
-  async function speichern() {
-    if (!bearbeiten) return;
+  async function speichern(d: DienstSicht) {
     const e = entwurf;
-    // leere Grenze entfernt sie (0), leerer Abgleich lässt ihn
-    const daten = { name: e.name, adresse: e.adresse, plaetze: e.plaetze, zugang: e.zugangNeu ? e.zugang : null,
-                    anfragen_je_minute: e.grenze ?? 0, abgleich_s: e.abgleich || null,
-                    einbettung_instanzen: e.instanzen || 1, einbettung_spielraum_gb: e.spielraum ?? 4 };
-    if (await tun(() => api.dienstAendern(bearbeiten!, daten), 'Dienst gespeichert')) bearbeiten = null;
+    // nur einstellbare Felder; leere Grenze entfernt sie (0), leerer Abgleich heißt Vorgabe (0)
+    const alle: DienstAenderung = { name: e.name, adresse: e.adresse, plaetze: e.plaetze, zugang: e.zugangNeu ? e.zugang : null,
+                                    anfragen_je_minute: e.grenze ?? 0, abgleich_s: e.abgleich ?? 0,
+                                    einbettung_instanzen: e.instanzen || 1, einbettung_spielraum_gb: e.spielraum ?? 4 };
+    const daten = Object.fromEntries(Object.entries(alle).filter(([feld]) => kann(d, feld))) as DienstAenderung;
+    if (await tun(() => api.dienstAendern(d.kennung, daten), 'Dienst gespeichert')) bearbeiten = null;
   }
 
   async function zugangZeigen(d: string) {
@@ -101,7 +103,7 @@
                   <button class="knopf ohne symbol klein" onclick={() => zugangZeigen(d.kennung)} title="Zugang aufdecken; steht im Prüfprotokoll"><i class="fa-solid {d.kennung in aufgedeckt ? 'fa-eye-slash' : 'fa-eye'}"></i></button>
                 {:else}<span class="leise klein">keiner nötig</span>{/if}</td>
               <td class="aktionen">
-                <button class="knopf ohne symbol klein" onclick={() => beginnen(d)} title="Name, Adresse, Plätze oder Zugang ändern"><i class="fa-solid fa-pen"></i></button>
+                <button class="knopf ohne symbol klein" onclick={() => beginnen(d)} title={kann(d, 'adresse') ? 'Name, Adresse, Plätze, Grenze oder Zugang ändern' : 'Name ändern; den Rest meldet der Maschinenraum'}><i class="fa-solid fa-pen"></i></button>
                 <button class="knopf ohne symbol klein gefahr" onclick={() => (loeschen = d.kennung)} title="Dienst aus der Leitstelle entfernen"><i class="fa-solid fa-trash"></i></button>
               </td>
             </tr>
@@ -109,20 +111,23 @@
               <tr><td colspan="8">
                 <div class="feldreihe">
                   <label class="feld-l"><span>Name</span><input class="eingabe" bind:value={entwurf.name} /></label>
-                  <label class="feld-l"><span>Adresse</span><input class="eingabe" bind:value={entwurf.adresse} /></label>
-                  <label class="feld-l"><span>Plätze <small>gleichzeitige Aufträge je Modell</small></span><input class="eingabe" type="number" min="1" max="64" bind:value={entwurf.plaetze} /></label>
-                  <label class="feld-l"><span>Grenze <small>Anfragen je Minute, leer heißt keine</small></span><input class="eingabe" type="number" min="1" max="100000" bind:value={entwurf.grenze} /></label>
-                  {#if !d.extern && d.art === 'openai_kompatibel'}
+                  {#if kann(d, 'adresse')}<label class="feld-l"><span>Adresse</span><input class="eingabe" bind:value={entwurf.adresse} /></label>
+                  {:else}<label class="feld-l"><span>Adresse <small>vergibt die Leitstelle; der Maschinenraum meldet sich mit dem Schlüssel seines Rechners</small></span>
+                    <input class="eingabe" value={d.adresse} readonly title="Nicht von Hand änderbar" /></label>{/if}
+                  {#if kann(d, 'plaetze')}<label class="feld-l"><span>Plätze <small>gleichzeitige Aufträge je Modell</small></span><input class="eingabe" type="number" min="1" max="64" bind:value={entwurf.plaetze} /></label>{/if}
+                  {#if kann(d, 'anfragen_je_minute')}<label class="feld-l"><span>Grenze <small>Anfragen je Minute, leer heißt keine</small></span><input class="eingabe" type="number" min="1" max="100000" bind:value={entwurf.grenze} /></label>{/if}
+                  {#if kann(d, 'einbettung_instanzen')}
                     <label class="feld-l"><span>Einbettung: Instanzen <small>bei Andrang lädt die Leitstelle je Einbettungsmodell bis zu so viele; 1 heißt keine weiteren</small></span><input class="eingabe" type="number" min="1" max="32" bind:value={entwurf.instanzen} /></label>
                     <label class="feld-l"><span>Einbettung: Spielraum <small>GB, die im Budget des Rechners frei bleiben</small></span><input class="eingabe" type="number" min="0" max="512" step="0.5" bind:value={entwurf.spielraum} /></label>
                   {/if}
-                  {#if d.extern}<label class="feld-l"><span>Abgleich <small>Sekunden zwischen zwei Abfragen der Modelle, leer lässt ihn</small></span><input class="eingabe" type="number" min="1" max="86400" bind:value={entwurf.abgleich} /></label>{/if}
-                  <label class="feld-l"><span>Zugang <small>{entwurf.zugangNeu ? 'leer entfernt den Zugang' : 'bleibt, wie er ist'}</small></span>
+                  {#if kann(d, 'abgleich_s')}<label class="feld-l"><span>Abgleich <small>Sekunden zwischen zwei Abfragen der Modelle, wenn der Dienst gesund ist; leer heißt Vorgabe</small></span><input class="eingabe" type="number" min="1" max="86400" bind:value={entwurf.abgleich} placeholder={d.abgleich_vorgabe_s != null ? `Vorgabe ${d.abgleich_vorgabe_s}` : ''} /></label>{/if}
+                  {#if kann(d, 'zugang')}<label class="feld-l"><span>Zugang <small>{entwurf.zugangNeu ? 'leer entfernt den Zugang' : 'bleibt, wie er ist'}</small></span>
                     <span class="feld-l zeile-feld"><input class="eingabe" type="password" bind:value={entwurf.zugang} disabled={!entwurf.zugangNeu} placeholder="neuer Schlüssel" />
-                      <button class="knopf klein ohne" onclick={() => (entwurf.zugangNeu = !entwurf.zugangNeu)}>{entwurf.zugangNeu ? 'Doch nicht' : 'Ändern'}</button></span></label>
+                      <button class="knopf klein ohne" onclick={() => (entwurf.zugangNeu = !entwurf.zugangNeu)}>{entwurf.zugangNeu ? 'Doch nicht' : 'Ändern'}</button></span></label>{/if}
                 </div>
+                {#if d.aenderbar.length === 1}<p class="leise klein">Plätze, Zustand und Fähigkeiten meldet der Maschinenraum je Dienst aus seinen Dienstdateien; hier lässt sich nur der Name ändern.</p>{/if}
                 <div class="tun" style="margin-top: var(--a3); display: flex; gap: var(--a2)">
-                  <button class="knopf haupt" onclick={speichern}><i class="fa-solid fa-floppy-disk"></i> Speichern</button>
+                  <button class="knopf haupt" onclick={() => speichern(d)}><i class="fa-solid fa-floppy-disk"></i> Speichern</button>
                   <button class="knopf ohne" onclick={() => (bearbeiten = null)}>Abbrechen</button></div>
               </td></tr>
             {/if}

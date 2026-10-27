@@ -9,11 +9,13 @@ Prüfprotokoll.
 
 from __future__ import annotations
 
+from typing import Any
 from urllib.parse import urlparse
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
+from ..kern.text import aufzaehlung
 from ..kern.werte import Faehigkeit, Prioritaet, Zone
 from ..ports.ablage.eintraege import Adapterart, AliasEintrag, AnwendungEintrag, DienstEintrag, KnotenEintrag, PruefEintrag
 from ..ports.dienste import ModellBericht
@@ -65,6 +67,9 @@ class DienstDaten(BaseModel):
 
 
 class DienstAenderung(BaseModel):
+    """Was sich an einem Dienst von Hand ändern lässt. None lässt ein Feld, wie es ist; ein Wert gleich dem bisherigen
+    gilt nicht als Änderung. Welche Felder je Art überhaupt einstellbar sind, sagt `AENDERBAR`."""
+
     name: str | None = Field(default=None, max_length=120)
     adresse: str | None = Field(default=None, max_length=255)
     zugang: str | None = Field(default=None, max_length=500)  # "" entfernt den Zugang, None lässt ihn
@@ -73,6 +78,21 @@ class DienstAenderung(BaseModel):
     abgleich_s: float | None = Field(default=None, ge=0, le=86400)         # 0 heißt Vorgabe, None lässt ihn
     einbettung_instanzen: int | None = Field(default=None, ge=1, le=32)
     einbettung_spielraum_gb: float | None = Field(default=None, ge=0, le=512)
+
+
+#: Was sich je Art eines Dienstes von Hand einstellen lässt. Die Dienste des Maschinenraums ("Dienste auf ...") legt die
+#: Leitstelle selbst an: ihre Adresse ist `agent://<Rechner>`, Plätze und Zustand meldet der Maschinenraum je Dienst aus
+#: seiner Dienstdatei, einen Zugang braucht er nicht (er meldet sich mit dem Schlüssel seines Rechners). Einstellbar ist
+#: dort nur der Name; alles andere wäre ein Regler ohne Wirkung.
+AENDERBAR: dict[Adapterart, tuple[str, ...]] = {
+    Adapterart.OPENAI_KOMPATIBEL: ("name", "adresse", "zugang", "plaetze", "anfragen_je_minute", "abgleich_s", "einbettung_instanzen",
+                                   "einbettung_spielraum_gb"),
+    Adapterart.EXTERN_OPENAI: ("name", "adresse", "zugang", "plaetze", "anfragen_je_minute", "abgleich_s"),
+    Adapterart.AGENT: ("name",),
+}
+
+FELDWORT = {"name": "der Name", "adresse": "die Adresse", "zugang": "der Zugang", "plaetze": "die Plätze", "anfragen_je_minute": "die Grenze je Minute",
+            "abgleich_s": "der Abgleich", "einbettung_instanzen": "die Instanzen der Einbettung", "einbettung_spielraum_gb": "der Spielraum der Einbettung"}
 
 
 class AnwendungDaten(BaseModel):
@@ -87,6 +107,36 @@ class AnwendungDaten(BaseModel):
 
 def _rechnername(adresse: str) -> str | None:
     return (urlparse(adresse).hostname or "").lower() or None
+
+
+def _gewuenschte_werte(e: DienstEintrag, d: DienstAenderung) -> dict[str, Any]:
+    """Die wirklichen Änderungen als Feld und neuer Wert. So darf eine Oberfläche das ganze Formular schicken, auch die
+    unveränderte Adresse eines Maschinenraum-Dienstes."""
+    neu: dict[str, Any] = {}
+    if d.name and d.name.strip() != e.name:
+        neu["name"] = d.name.strip()
+    if d.adresse and d.adresse.strip().rstrip("/") != e.adresse:
+        neu["adresse"] = d.adresse
+    if d.zugang or (d.zugang == "" and e.zugang_geheim is not None):
+        neu["zugang"] = d.zugang
+    werte: dict[str, Any] = {"plaetze": d.plaetze, "einbettung_instanzen": d.einbettung_instanzen, "einbettung_spielraum_gb": d.einbettung_spielraum_gb,
+                             # 0 entfernt eine Grenze und heißt beim Abgleich die Vorgabe der Konfiguration
+                             "anfragen_je_minute": None if d.anfragen_je_minute is None else d.anfragen_je_minute or None,
+                             "abgleich_s": None if d.abgleich_s is None else d.abgleich_s or None}
+    gesetzt = {f for f in werte if getattr(d, f) is not None}
+    neu |= {f: w for f, w in werte.items() if f in gesetzt and w != getattr(e, f)}
+    return neu
+
+
+def _nicht_aenderbar(e: DienstEintrag, felder: list[str]) -> Ablehnung:
+    if e.art == Adapterart.AGENT and "adresse" in felder:
+        return Ablehnung("adresse", f"Die Adresse von {e.name} ({e.adresse}) vergibt die Leitstelle selbst; der Maschinenraum meldet sich mit "
+                                    "dem Schlüssel seines Rechners. Sie lässt sich nicht von Hand ändern.")
+    worte = aufzaehlung([FELDWORT[f] for f in felder])
+    if e.art == Adapterart.AGENT:
+        return Ablehnung("nicht_aenderbar", f"Bei {e.name} bestimmt der Maschinenraum {worte} selbst (Dienstdateien); von Hand lässt sich nur "
+                                            "der Name ändern.")
+    return Ablehnung("nicht_aenderbar", f"Bei {e.name} lässt sich {worte} nicht einstellen.")
 
 
 def _adresse_pruefen(adresse: str, extern: bool) -> str:
@@ -201,26 +251,23 @@ class Verzeichnis:
         e = self.b.dienste.get(kennung)
         if e is None:
             raise Ablehnung("unbekannt", "Diesen Dienst gibt es nicht.")
+        gewuenscht = _gewuenschte_werte(e, d)
+        if verboten := [f for f in gewuenscht if f not in AENDERBAR[e.art]]:
+            raise _nicht_aenderbar(e, verboten)
+        if not gewuenscht:
+            return e
         neu = e.model_copy()
-        if d.name:
-            neu.name = d.name
-        if d.adresse:
-            neu.adresse = _adresse_pruefen(d.adresse, e.extern)
-        if d.plaetze:
-            neu.plaetze = d.plaetze
-        if d.anfragen_je_minute is not None:
-            neu.anfragen_je_minute = d.anfragen_je_minute or None
-        if d.abgleich_s is not None:
-            neu.abgleich_s = d.abgleich_s or None
-        if d.einbettung_instanzen is not None:
-            neu.einbettung_instanzen = d.einbettung_instanzen
-        if d.einbettung_spielraum_gb is not None:
-            neu.einbettung_spielraum_gb = d.einbettung_spielraum_gb
-        if d.zugang is not None:
-            neu.zugang_geheim = self.b.tresor.verschluesseln(d.zugang) if d.zugang else None
+        for feld, wert in gewuenscht.items():
+            if feld == "adresse":
+                neu.adresse = _adresse_pruefen(wert, e.extern)
+            elif feld == "zugang":
+                neu.zugang_geheim = self.b.tresor.verschluesseln(wert) if wert else None
+            else:
+                setattr(neu, feld, wert)
         await self.b.ablage.dienste.speichern(neu)
         self.b.dienst_setzen(neu)
-        await self._pruefen(wer, "Dienst geändert" + (" (Zugang neu)" if d.zugang else " (Zugang entfernt)" if d.zugang == "" else ""), neu.name)
+        was = [FELDWORT[f] + (" (entfernt)" if f == "zugang" and not gewuenscht[f] else "") for f in gewuenscht]
+        await self._pruefen(wer, f"Dienst geändert: {aufzaehlung(was)}", neu.name)
         await self.b.abgleichen()
         return neu
 

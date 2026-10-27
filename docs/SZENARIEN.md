@@ -321,6 +321,14 @@ Beenden mit nachgestellter Prozesstabelle, nachgestelltem lsof und nachgestellte
 | L22 | Regel an | die Leitstelle schickt den Befehl selbst, Maßnahme im Lagebild |
 | L23 | Fremdlast 90 %, dann Maschinenraum getrennt | Hintergrund angehalten mit Grund und Meldung; ohne Messung wieder frei |
 
+## 3e. Verwaltung (`test_dienste_bearbeiten.py`)
+
+| Nr. | Situation | Erwartet |
+|---|---|---|
+| V01 | Dienst des Maschinenraums bearbeiten, das Formular schickt alle Felder unverändert mit (auch `agent://<Rechner>`) | gespeichert, nur der Name ändert sich; das Lagebild nennt je Dienst die einstellbaren Felder (`aenderbar`, beim Maschinenraum nur der Name) |
+| V02 | Adresse oder Plätze des Maschinenraum-Dienstes ändern | 422 `adresse` ("vergibt die Leitstelle selbst") beziehungsweise `nicht_aenderbar` mit den Feldern; nichts gespeichert |
+| V03 | Modell-Läufer mit unveränderter Adresse (auch mit Schrägstrich am Ende) speichern | keine Änderung der Adresse; das Prüfprotokoll nennt, was sich geändert hat ("Dienst geändert: der Name") |
+
 ## 4. Zweige je Vorlage
 
 | Vorlage | Ende | Szenario |
