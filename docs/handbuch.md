@@ -10,7 +10,7 @@ schluessel_orte:
   - "Pi: `tresor.schluessel` im Datenordner; ohne ihn sind die im Tresor gespeicherten Schlüssel und Zugänge nicht lesbar"
   - "Datenbank (verschlüsselt mit dem Tresor): Schlüssel der Anwendungen, der Knoten (Maschinenraum) und externer Anbieter"
 einrichten: einrichten.sh
-stand: 696b3e8
+stand: 36fb81c
 ---
 
 # Leitstelle

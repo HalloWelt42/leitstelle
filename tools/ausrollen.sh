@@ -77,7 +77,7 @@ aufraeumen() {
   echo "Räumt Docker auf $PI_HOST auf: verwaiste Abbilder, Baucache bis $BAUCACHE_GB GB ..."
   ssh "$ZIEL" "set -eo pipefail
     abbilder=\$(docker image prune -f | sed -n 's/^Total reclaimed space: //p')
-    baucache=\$(docker builder prune -f --keep-storage '${BAUCACHE_GB}GB' | sed -n 's/^Total:[[:space:]]*//p')
+    baucache=\$(docker builder prune -f --max-used-space '${BAUCACHE_GB}GB' | sed -n 's/^Total:[[:space:]]*//p')
     echo \"Aufgeräumt: verwaiste Abbilder \${abbilder:-0B}, Baucache \${baucache:-0B} freigegeben (Grenze ${BAUCACHE_GB} GB)\"" \
     || echo "Aufräumen auf $PI_HOST gescheitert; das Ausrollen selbst ist gelungen" >&2
 }
