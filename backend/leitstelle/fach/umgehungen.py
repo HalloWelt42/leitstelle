@@ -82,6 +82,11 @@ class Umgehungsbuch:
         weg = [s for s, (_, gesehen_s) in buch.items() if s not in da and zeit_s - gesehen_s >= self.nachlauf_s]
         return neu, [buch.pop(s)[0] for s in weg]
 
+    def am_laeufer(self, knoten: str) -> list[Fremdzugriff]:
+        """Die gemeldeten Umgehungen am Läufer des Rechners, die noch gelten (auch im Nachlauf); für die Regel "Läufer
+        arbeitet ohne Auftrag": wer so am Läufer hängt, erklärt, warum ein Arbeiter ohne Auftrag der Leitstelle rechnet."""
+        return [z for z, _ in self._gesehen.get(knoten, {}).values() if z.art == Fremdart.LAEUFER]
+
     def vergessen(self, knoten: str) -> None:
         """Der Maschinenraum ist weg: was er gesehen hat, gilt nicht mehr (beim nächsten Verbinden wird neu gemeldet)."""
         self._gesehen.pop(knoten, None)

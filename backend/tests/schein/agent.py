@@ -3,8 +3,9 @@
 Meldet sich mit seinem Schlüssel an, meldet Messwerte und eine feste Dienstliste, legt sich schlafen wie der echte vor
 dem Einschlafen (`knoten.schlaeft`, wartet höchstens 3 s auf `knoten.schlaf_vermerkt`, schließt mit dem Grund
 `schlaeft`) und wacht wieder auf (neue Anmeldung). `trennen` reißt die Verbindung ohne Abmeldung ab, wie ein Rechner,
-der unangekündigt verschwindet. `fremde_melden` schickt, was seine Beobachtung am Leitstand vorbei sähe. Befehle lehnt er
-ab; er startet nichts.
+der unangekündigt verschwindet. `fremde_melden` schickt, was seine Beobachtung am Leitstand vorbei sähe, `last_melden`
+die Last von Läufer und Rechner. Befehle merkt er sich; Dienste startet er nicht, einen Arbeiter des Läufers "beendet" er
+(ohne Prozess, mit der Antwort des echten).
 """
 
 from __future__ import annotations
@@ -16,8 +17,8 @@ import websockets
 from pydantic import BaseModel
 
 from leitstelle.kern.werte import Faehigkeit
-from leitstelle.protokoll.knoten import (Befehl, BefehlErgebnis, Dienstliste, Fremdzugriffe, KnotenAnmeldung, KnotenSchlaeft, Messwerte,
-                                         ProzessBericht, Prozesszustand, Schlafgrund)
+from leitstelle.protokoll.knoten import (Befehl, BefehlErgebnis, Befehlsart, Dienstliste, Fremdzugriffe, KnotenAnmeldung, KnotenLast,
+                                         KnotenSchlaeft, Messwerte, ProzessBericht, Prozesszustand, Schlafgrund)
 from leitstelle.protokoll.umschlag import Umschlag
 
 VERMERK_S = 3.0
@@ -37,6 +38,7 @@ class ScheinAgent:
         self._empfang: asyncio.Task | None = None
         self._angemeldet = asyncio.Event()
         self._offen: dict[str, asyncio.Future[None]] = {}
+        self.befehle: list[Befehl] = []
 
     async def _senden(self, art: str, nutzlast: BaseModel) -> str:
         u = Umschlag(art=art, von="schein-agent", an="leitstelle", nutzlast=nutzlast.model_dump(mode="json"))
@@ -56,6 +58,10 @@ class ScheinAgent:
     async def fremde_melden(self, fremde: Fremdzugriffe) -> None:
         """`knoten.fremde`, wie der Maschinenraum es im Takt der Messung schickt."""
         await self._senden("knoten.fremde", fremde)
+
+    async def last_melden(self, last: KnotenLast) -> None:
+        """`knoten.last`, wie der Maschinenraum es im Takt der Beobachtung schickt."""
+        await self._senden("knoten.last", last)
 
     async def wecken(self) -> None:
         """Aufgewacht: wie der Maschinenraum meldet er sich neu an."""
@@ -104,6 +110,9 @@ class ScheinAgent:
                     z.set_result(None)
                 elif u.art == "knoten.befehl":
                     b = Befehl.model_validate(u.nutzlast)
-                    e = BefehlErgebnis(befehl=b.befehl, ziel=b.ziel, erfolg=False, meldung="der Schein-Agent startet nichts")
+                    self.befehle.append(b)
+                    e = (BefehlErgebnis(befehl=b.befehl, ziel=b.ziel, erfolg=True, meldung=f"Prozess {b.ziel} beendet: auf Bitte (SIGTERM)")
+                         if b.befehl == Befehlsart.LAEUFER_PROZESS_BEENDEN
+                         else BefehlErgebnis(befehl=b.befehl, ziel=b.ziel, erfolg=False, meldung="der Schein-Agent startet nichts"))
                     await self._ws.send(Umschlag(art="knoten.befehl_ergebnis", von="schein-agent", an="leitstelle", bezug=u.id,
                                                  nutzlast=e.model_dump(mode="json")).model_dump_json())

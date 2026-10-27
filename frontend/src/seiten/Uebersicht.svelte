@@ -5,8 +5,9 @@
   import { tun } from '../lib/meldung.svelte';
   import type { AuftragEintrag, AuftragSicht, Kennzahlen, Lagebild } from '../lib/typen.gen';
   import { weg } from '../lib/weg.svelte';
-  import { FAEHIGKEIT, KNOTENZUSTAND, LAGE, MASSNAHME, PRIORITAET, knotenzustand } from '../lib/wort';
+  import { FAEHIGKEIT, HINTERGRUNDSTUFE, KNOTENZUSTAND, LAGE, MASSNAHME, PRIORITAET, knotenzustand } from '../lib/wort';
   import Faehigkeit from '../teile/Faehigkeit.svelte';
+  import Laeuferlast from '../teile/Laeuferlast.svelte';
   import Netzbild from '../teile/Netzbild.svelte';
   import Speicherbalken from '../teile/Speicherbalken.svelte';
   import StoppDialog from '../teile/StoppDialog.svelte';
@@ -44,6 +45,10 @@
   // Zugriffe am Leitstand vorbei: nur echte Umgehungen (die Leitstelle selbst auf dem direkten Weg zählt der Kern nicht mit)
   const vorbei = $derived(bild.knoten.filter((k) => k.fremde.umgehungen > 0));
   const umgehungen = $derived(vorbei.reduce((s, k) => s + k.fremde.umgehungen, 0));
+  // Last des Läufers und des Rechners (ZUSAMMENSPIEL Z6): Arbeiter ohne Auftrag und gebremster Hintergrund je Rechner
+  const mitLast = $derived(bild.knoten.filter((k) => k.last.gemeldet));
+  const ohneAuftrag = $derived(bild.knoten.flatMap((k) => k.last.laeufer.filter((p) => p.ohne_auftrag_seit_s != null).map((p) => ({ k, p }))));
+  const gebremst = $derived(bild.knoten.filter((k) => k.last.stufe !== 'frei'));
   const ausgefuehrt = $derived(bild.massnahmen.filter((m) => m.zustand === 'ausgefuehrt' || m.zustand === 'gesperrt' || m.zustand === 'geplant').slice(0, 6));
 
   function meldungsart(text: string): string {
@@ -88,6 +93,18 @@
           <span class="rechts"><a class="knopf klein" href={weg.pfad('knoten')} onclick={(e) => weg.klick(e, 'knoten')}
                                   title="Unter Knoten steht je Rechner, wer, mit welchem Prozess und aus welchem Ordner">Ansehen</a></span></div>
       {/if}
+      {#if ohneAuftrag.length}
+        <div class="hinweis warnung vorbei-hinweis"><i class="fa-solid fa-microchip"></i>
+          <span><b>{ohneAuftrag.length} {ohneAuftrag.length === 1 ? 'Arbeiter des Läufers rechnet' : 'Arbeiter des Läufers rechnen'} ohne Auftrag</b>:
+            {ohneAuftrag.map(({ k, p }) => `${p.name} auf ${k.name} seit ${dauer(bild.zeit_s - (p.ohne_auftrag_seit_s ?? bild.zeit_s))}`).join(', ')}.
+            Die Leitstelle hat dort nichts rechnen lassen.</span>
+          <span class="rechts"><a class="knopf klein" href={weg.pfad('knoten')} onclick={(e) => weg.klick(e, 'knoten')}
+                                  title="Unter Knoten steht je Rechner, welcher Prozess mit welchem Modell, und dort lässt er sich beenden">Ansehen</a></span></div>
+      {/if}
+      {#each gebremst as k (k.kennung)}
+        <div class="hinweis vorbei-hinweis"><i class="fa-solid {HINTERGRUNDSTUFE[k.last.stufe].symbol}"></i>
+          <span><b>Hintergrund auf {k.name} {HINTERGRUNDSTUFE[k.last.stufe].wort.toLowerCase()}</b>: {k.last.stufe_grund}. {HINTERGRUNDSTUFE[k.last.stufe].satz}.</span></div>
+      {/each}
       {#if bild.knoten.length === 0}
         <div class="leer"><i class="fa-solid fa-plug-circle-plus"></i><h2>Noch kein Anschluss</h2>
           <p>Richte den ersten Modell-Läufer ein: Adresse eingeben, die Leitstelle erkennt Modelle und Fähigkeiten selbst.</p>
@@ -158,6 +175,15 @@
         </div>
       </div>
 
+      {#if mitLast.length}
+        <div class="karte lastkarte">
+          <h3><i class="fa-solid fa-microchip"></i>Läufer und Last <span class="rechts">je Rechner</span></h3>
+          {#each mitLast as k (k.kennung)}
+            <Laeuferlast knoten={k} regelwerk={bild.regelwerk} jetzt={bild.zeit_s} knapp titel={k.name} />
+          {/each}
+        </div>
+      {/if}
+
       {#if wartend.length}
         <div class="karte wartet-k">
           <h3><i class="fa-solid fa-hourglass-half"></i>Wartet <span class="rechts">{wartend.length} Aufträge</span></h3>
@@ -200,6 +226,7 @@
   .lagezeile b.ruhig { color: var(--gut); }
   .speicher-zeile { margin-top: 6px; }
   .vorbei-hinweis { margin-bottom: var(--a4); }
+  .lastkarte { display: flex; flex-direction: column; gap: var(--a2); }
   :global(.seite-uebersicht .lauf .titel) { display: block; color: var(--text); }
   :global(.seite-uebersicht .lauf.zuletzt) { grid-template-columns: 34px minmax(0, 1fr) 110px 90px; color: inherit; margin-top: 2px; }
   :global(.seite-uebersicht .wartet-k .eintrag .t a) { color: var(--text); }

@@ -1,8 +1,9 @@
 """Knoten-Agenten: Kanal `/agent/kanal` (WebSocket).
 
 Ein Knoten-Agent (zum Beispiel der Maschinenraum eines Rechners) verbindet sich von sich aus mit seinem
-Schlüssel als Bearer. Erste Nachricht ist `knoten.anmelden`; danach Messwerte und Zugriffe am Leitstand vorbei
-(`knoten.fremde`) im Takt, die Dienstliste bei Änderung und Antworten auf Befehle. Vor dem Einschlafen meldet er
+Schlüssel als Bearer. Erste Nachricht ist `knoten.anmelden`; danach Messwerte im Takt, Zugriffe am Leitstand vorbei
+(`knoten.fremde`) und Last von Läufer und Rechner (`knoten.last`) im Takt der Beobachtung, die Dienstliste bei Änderung
+und Antworten auf Befehle. Vor dem Einschlafen meldet er
 `knoten.schlaeft`; die Leitstelle vermerkt den Schlaf, antwortet mit `knoten.schlaf_vermerkt` und wartet, bis er sich
 wieder anmeldet.
 """
@@ -17,7 +18,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
 
 from ..fach.betrieb import Betrieb
-from ..protokoll.knoten import BefehlErgebnis, Dienstliste, Fremdzugriffe, KnotenAnmeldung, KnotenSchlaeft, Messwerte
+from ..protokoll.knoten import BefehlErgebnis, Dienstliste, Fremdzugriffe, KnotenAnmeldung, KnotenLast, KnotenSchlaeft, Messwerte
 from ..protokoll.umschlag import Umschlag, umschlag
 
 router = APIRouter()
@@ -82,6 +83,8 @@ async def kanal(ws: WebSocket) -> None:
                         await betrieb.agent_dienste(v)
                     case "knoten.fremde":
                         betrieb.agent_fremde(v, Fremdzugriffe.model_validate(u.nutzlast))
+                    case "knoten.last":
+                        betrieb.agent_last(v, KnotenLast.model_validate(u.nutzlast))
                     case "knoten.befehl_ergebnis":
                         betrieb.agenten.ergebnis(v, u.bezug, BefehlErgebnis.model_validate(u.nutzlast))
                     case "knoten.schlaeft":

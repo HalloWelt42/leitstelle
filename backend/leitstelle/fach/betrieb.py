@@ -22,17 +22,19 @@ from pydantic import BaseModel
 
 from ..kern.leitstelle import Leitstelle
 from ..kern.messungen import Messwerk
-from ..kern.modelle import Anwendung, Auftrag, Dienst, Knoten, Massnahme, Modell, Verbund
-from ..kern.werte import WORT, Auftragszustand, Betriebsmodus, Dienstzustand, Faehigkeit, Massnahmenzustand, Modellzustand, Prioritaet, Zone
+from ..kern.modelle import Anwendung, Auftrag, Dienst, Knoten, Massnahme, Modell, Prozesslast, Verbund
+from ..kern.rechnerlast import arbeitet_ohne_auftrag, befund, datei, laeuferarbeit, last_uebernehmen, ohne_auftrag
+from ..kern.werte import (WORT, Auftragszustand, Betriebsmodus, Dienstzustand, Faehigkeit, Hintergrundstufe, Laeuferrolle, Massnahmenzustand,
+                          Modellzustand, Prioritaet, Zone)
 from ..konfig import Konfig
 from ..ports.ablage.eintraege import (Adapterart, AnwendungEintrag, AuftragEintrag, Ausgang, BetriebEinstellung, Bewegung, DienstEintrag, KnotenEintrag,
                                       PruefEintrag, Richtung, Schlafstand, Schritt, SteckbriefEintrag)
-from ..ports.agenten import AgentVerbindung, Agentenvermittlung
+from ..ports.agenten import AgentGetrennt, AgentVerbindung, Agentenvermittlung
 from ..ports.ablage.repositorien import Ablage
 from ..ports.dienste import AdapterFabrik, DienstAdapter, DienstFehler, ModellBericht, agent_adresse
 from ..ports.tresor import Tresor, fingerabdruck
 from ..ports.uhr import Uhr
-from ..protokoll.knoten import Fremdzugriffe, KnotenSchlaeft, Selbstauskunft
+from ..protokoll.knoten import Befehl, BefehlErgebnis, Befehlsart, Fremdzugriffe, KnotenLast, KnotenSchlaeft, Selbstauskunft
 from ..protokoll.steckbrief import Messwerte, Steckbrief
 from ..protokoll.umschlag import umschlag
 from .ereignisse import Ereignisbus
@@ -161,6 +163,7 @@ class Betrieb:
         self.massnahmen: deque[Massnahme] = deque(maxlen=40)
         self.meldungen: deque[tuple[float, str]] = deque(maxlen=60)
         self.umgehungsbuch = Umgehungsbuch(konfig.fremde_nachlauf_s)   # je Rechner: gemeldete Zugriffe am Leitstand vorbei
+        self.ohne_auftrag_gemeldet: dict[str, dict[int, Prozesslast]] = {}   # je Rechner: Arbeiter des Läufers, die ohne Auftrag gemeldet sind
         self._gesperrt_gemeldet: dict[tuple, float] = {}
         self._hintergrund: set[asyncio.Task] = set()
         self.schreibfolge = Schreibfolge()   # alles, was im Hintergrund in die Ablage geht, in der Reihenfolge des Geschehens
@@ -232,9 +235,10 @@ class Betrieb:
         self.knoten[k.kennung] = k
         alt = self.verbund.knoten.get(k.kennung)
         fenster = (k.hintergrund_von, k.hintergrund_bis) if k.hintergrund_von is not None and k.hintergrund_bis is not None else None
+        laufend = {f: getattr(alt, f) for f in ("erreichbar", "schlaeft_seit_s", "last", "laeufer_umgehungen", "hintergrund_stufe",
+                                                 "hintergrund_grund", "hintergrund_seit_s")} if alt else {}
         self.verbund.knoten[k.kennung] = Knoten(kennung=k.kennung, name=k.name, zone=k.zone, speicher_gb=k.speicher_gb, system_gb=k.system_gb,
-                                                 erreichbar=alt.erreichbar if alt else True, schlaeft_seit_s=alt.schlaeft_seit_s if alt else None,
-                                                 hintergrund_fenster=fenster, budget_fest_gb=k.budget_fest_gb)
+                                                 hintergrund_fenster=fenster, budget_fest_gb=k.budget_fest_gb, **laufend)
         v = self.agenten.verbindung(k.kennung)
         if v and v.messwerte:
             self.messwerte_uebernehmen(v)
@@ -322,6 +326,8 @@ class Betrieb:
             self.melden(f"Maschinenraum auf {e.name} getrennt; es gelten wieder die eingetragenen Speicherwerte")
         self.bus.senden(umschlag("knoten.getrennt", {"knoten": knoten, "name": e.name}))
         self.umgehungsbuch.vergessen(knoten)
+        k.last, k.laeufer_umgehungen = None, []          # ohne Maschinenraum keine Aussage; die Regel gibt einen gebremsten Hintergrund frei
+        self.ohne_auftrag_gemeldet.pop(knoten, None)
         dienst = self.agentdienst(knoten)
         if dienst:
             self._nebenbei(self._abgleich(dienst))   # seine Dienste sofort als nicht erreichbar zeigen (schläft er: als schlafend)
@@ -359,6 +365,98 @@ class Betrieb:
             self.melden(f"Am Leitstand vorbei auf {name}: {beschreibung(z, deuten(z, direkt))}")
         for z in weg:
             self.melden(f"Am Leitstand vorbei auf {name}: {kurz(z)} nicht mehr gesehen")
+        if (k := self.verbund.knoten.get(v.knoten)) is not None:
+            k.laeufer_umgehungen = [kurz(z) for z in self.umgehungsbuch.am_laeufer(v.knoten)]
+
+    # ── Last des Läufers und des Rechners (ZUSAMMENSPIEL Z6) ─────────────
+    def agent_last(self, v: AgentVerbindung, last: KnotenLast) -> None:
+        """`knoten.last` im Takt der Beobachtung: in den Verbund (je Arbeiter die Reihe über der Schwelle, Fremdlast im
+        Fenster der Frist); neue und vergangene Befunde "rechnet ohne Auftrag" je einmal in den Verlauf."""
+        k = self.verbund.knoten.get(v.knoten)
+        if k is None:
+            return
+        self._zeit_setzen()
+        prozesse = [Prozesslast(pid=p.pid, name=p.name, rolle=p.rolle, modelldatei=p.modelldatei, gb=p.gb, cpu_prozent=p.cpu_prozent)
+                    for p in last.laeufer]
+        last_uebernehmen(self.verbund, v.knoten, last.gemessen, last.kerne, prozesse, last.fremd_prozent)
+        if last.gemessen:
+            self._befunde_abgleichen(k)
+        self.geaendert()
+
+    def _befunde_abgleichen(self, k: Knoten) -> None:
+        jetzt = {p.pid: p for p in ohne_auftrag(self.verbund, k)}
+        vorher = self.ohne_auftrag_gemeldet.get(k.kennung, {})
+        for pid, p in jetzt.items():
+            if pid not in vorher:
+                self.melden(befund(self.verbund, k, p))
+        da = {p.pid for p in k.last.prozesse} if k.last else set()
+        for pid, p in vorher.items():
+            if pid not in jetzt:
+                self.melden(f"Läufer auf {k.name}: {p.name} (Prozess {pid}) {'rechnet nicht mehr ohne Auftrag' if pid in da else 'ist beendet'}")
+        self.ohne_auftrag_gemeldet[k.kennung] = jetzt
+
+    def laeufer_prozess_beenden(self, knoten: str, pid: int) -> None:
+        """Vollzug der Regel "Läufer arbeitet ohne Auftrag": den Maschinenraum des Rechners den Arbeiter beenden lassen.
+        Bis zur nächsten Meldung gilt er als "wird beendet" und löst nicht erneut aus."""
+        if self._beenden_vermerken(knoten, pid) is not None:
+            self._nebenbei(self._laeufer_beenden_lassen(knoten, pid))
+
+    def _beenden_vermerken(self, knoten: str, pid: int) -> Prozesslast | None:
+        k = self.verbund.knoten.get(knoten)
+        p = next((x for x in (k.last.prozesse if k and k.last else []) if x.pid == pid), None)
+        if p is not None:
+            p.beenden_s = self.uhr.jetzt()
+            self.geaendert()
+        return p
+
+    async def _laeufer_beenden_lassen(self, knoten: str, pid: int) -> BefehlErgebnis:
+        """Der Befehl an den Maschinenraum; er prüft selbst noch einmal, dass es ein Arbeiter ist. Ein Fehlschlag hebt den
+        Vermerk auf (die Regel darf es nach ihrem Schleifenschutz erneut versuchen)."""
+        name = self.verbund.knoten[knoten].name if knoten in self.verbund.knoten else knoten
+        befehl = Befehl(befehl=Befehlsart.LAEUFER_PROZESS_BEENDEN, ziel=str(pid))
+        try:
+            e = await asyncio.wait_for(self.agenten.befehl(knoten, befehl), self.konfig.laeufer_befehl_s)
+        except AgentGetrennt:
+            e = BefehlErgebnis(befehl=befehl.befehl, ziel=befehl.ziel, erfolg=False, meldung="kein Maschinenraum verbunden")
+        except TimeoutError:
+            e = BefehlErgebnis(befehl=befehl.befehl, ziel=befehl.ziel, erfolg=False,
+                               meldung=f"keine Antwort des Maschinenraums in {self.konfig.laeufer_befehl_s:.0f} s")
+        if e.erfolg:
+            self.melden(f"Läufer auf {name}: {e.meldung}")
+        else:
+            k = self.verbund.knoten.get(knoten)
+            for p in k.last.prozesse if k and k.last else []:
+                if p.pid == pid:
+                    p.beenden_s = None
+            self.melden(f"Läufer auf {name}: Prozess {pid} nicht beendet: {e.meldung}")
+        self.geaendert()
+        return e
+
+    async def laeufer_prozess_beenden_von_hand(self, knoten: str, pid: int, wer: str) -> BefehlErgebnis:
+        """Rückfall per Hand (Knopf "Prozess beenden"), mit derselben Prüfung wie die Regel: ein Arbeiter des Läufers, der
+        laut Messung seit der Frist ohne Auftrag rechnet; der Maschinenraum prüft danach selbst noch einmal."""
+        k = self.verbund.knoten.get(knoten)
+        if k is None:
+            raise Ablehnung("unbekannt", "Diesen Rechner gibt es nicht.")
+        self._zeit_setzen()
+        p = next((x for x in (k.last.prozesse if k.last else []) if x.pid == pid), None)
+        if p is None or p.rolle != Laeuferrolle.ARBEITER:
+            raise Ablehnung("nicht_anhaltbar", f"Prozess {pid} ist laut der letzten Messung kein Arbeiter des Läufers auf {k.name}.")
+        if p.beenden_s is not None:
+            raise Ablehnung("nicht_anhaltbar", f"{p.name} (Prozess {pid}) wird schon beendet.")
+        if not arbeitet_ohne_auftrag(self.verbund, knoten, p):
+            arbeit = laeuferarbeit(self.verbund, knoten)
+            warum = (f"auf dem Läufer arbeitet die Leitstelle gerade ({arbeit.auftraege} Aufträge)" if arbeit.auftraege or arbeit.laedt
+                     else "er rechnet nicht seit der Frist über der Schwelle ohne Auftrag")
+            raise Ablehnung("nicht_anhaltbar", f"{p.name} (Prozess {pid}) wird nicht beendet: {warum}.")
+        self._beenden_vermerken(knoten, pid)
+        e = await self._laeufer_beenden_lassen(knoten, pid)
+        await self.ablage.pruefung.anhaengen(PruefEintrag(zeit_s=self.uhr.jetzt(), wer=wer, was="Prozess des Läufers von Hand beendet" if e.erfolg
+                                                          else "Beenden eines Prozesses des Läufers gescheitert",
+                                                          gegenstand=f"{k.name}: {p.name} (Prozess {pid}, {datei(p.modelldatei)})"))
+        if not e.erfolg:
+            raise Ablehnung("dienst_fehler", e.meldung)
+        return e
 
     # ── Schlaf der Rechner ───────────────────────────────────────────────
     def agent_schlaeft(self, v: AgentVerbindung, meldung: KnotenSchlaeft) -> None:
@@ -1136,3 +1234,11 @@ class Betrieb:
         """Regel "Hintergrund bei Lage". Fassaden-Aufträge sind nicht anhaltbar; zurückgehalten wird nur, was
         noch nicht läuft (der Zuteiler tut das). Der Schalter am Hauptregler ist davon getrennt."""
         self.verbund.hintergrund_an = an
+
+    def hintergrund_stufe(self, knoten: str, stufe: Hintergrundstufe, grund: str) -> None:
+        """Regel "Hintergrund bei Rechnerlast": die Stufe des Rechners; zurückgehalten wird nur, was noch nicht läuft (der
+        Zuteiler tut das), laufende Aufträge rechnen zu Ende."""
+        k = self.verbund.knoten.get(knoten)
+        if k is not None:
+            k.hintergrund_stufe, k.hintergrund_grund, k.hintergrund_seit_s = stufe, grund, self.uhr.jetzt()
+            self.geaendert()

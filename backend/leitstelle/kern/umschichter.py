@@ -2,8 +2,9 @@
 
 Schleifenschutz (ARCHITEKTUR 5.6):
 - Hauptregler vor Regelwerk: bei Auslaufen und Halt wird nichts umgeschichtet.
-- Flattern: dieselbe Bewegung (Laden oder Entladen einer Modellfamilie auf einem Knoten) zum zweiten Mal
-  innerhalb des Fensters sperrt die beteiligten Familien auf dem Knoten für die Ruhezeit und meldet es.
+- Flattern: dieselbe Bewegung (Laden oder Entladen einer Modellfamilie auf einem Knoten, Beenden eines Arbeiters des
+  Läufers mit derselben Modelldatei) zum zweiten Mal innerhalb des Fensters sperrt die Beteiligten auf dem Knoten für
+  die Ruhezeit und meldet es.
 - Je Auftrag höchstens die eingestellte Zahl Umleitungen.
 - Höchstens eine Maßnahme je Knoten und Takt, höchstens die eingestellte Zahl je Fenster.
 - Gewinnschwelle und Mindestverweildauer stecken in den Bausteinen und im Speicherplaner.
@@ -18,7 +19,13 @@ from uuid import uuid4
 from .messungen import Messwerk
 from .modelle import Massnahme, Verbund
 from .regeln.auswerter import Lauf, Regelgraph, auswerten
-from .werte import Automatik, Betriebsmodus, Massnahmenzustand
+from .werte import SZENARIEN_AB_WERK_AUS, Automatik, Betriebsmodus, Hintergrundstufe, Massnahmenzustand
+
+#: Hauptrichtung einer Maßnahme nach ihrer ersten bewegenden Aktion; Partizip für die Meldung bei Flattern
+RICHTUNGEN = {"modell_laden": "laden", "modell_entladen": "entladen", "auftrag_umleiten": "umleiten", "auftrag_extern": "umleiten",
+              "instanz_starten": "laden", "laeufer_prozess_beenden": "beenden"}
+GETAN = {"laden": "geladen", "entladen": "entladen", "beenden": "beendet"}
+STUFENAKTIONEN = ("hintergrund_drosseln", "hintergrund_auf_knoten_anhalten", "hintergrund_auf_knoten_freigeben")
 
 
 class Vollzug(Protocol):
@@ -36,6 +43,8 @@ class Vollzug(Protocol):
     def wartende_neu_einreihen(self, knoten: str) -> None: ...
     def bevorzugter_knoten(self, knoten: str | None) -> None: ...
     def hintergrund(self, an: bool) -> None: ...
+    def laeufer_prozess_beenden(self, knoten: str, pid: int) -> None: ...
+    def hintergrund_stufe(self, knoten: str, stufe: Hintergrundstufe, grund: str) -> None: ...
 
 
 def _text_fuellen(vorlage: str, werte: dict, verbund: Verbund, lauf: Lauf) -> str:
@@ -105,7 +114,7 @@ class Umschichter:
         neu: list[Massnahme] = []
         knoten_belegt: set[str] = set()
         for graph in self.graphen:
-            if not graph.aktiv or not r.szenarien_an.get(graph.art, True):
+            if not graph.aktiv or not r.szenarien_an.get(graph.art, graph.art not in SZENARIEN_AB_WERK_AUS):
                 continue
             for lauf in auswerten(graph, verbund, messwerk):
                 m = self._massnahme_aus_lauf(lauf, verbund)
@@ -137,9 +146,7 @@ class Umschichter:
 
     def _massnahme_aus_lauf(self, lauf: Lauf, verbund: Verbund) -> Massnahme:
         # Hauptrichtung: die erste Aktion des Laufs, die etwas bewegt (Leerlauf räumen = entladen, Umleiten = umleiten)
-        richtungen = {"modell_laden": "laden", "modell_entladen": "entladen", "auftrag_umleiten": "umleiten", "auftrag_extern": "umleiten",
-                      "instanz_starten": "laden"}
-        richtung = next((richtungen[a.baustein] for a in lauf.aktionen if a.baustein in richtungen), None)
+        richtung = next((RICHTUNGEN[a.baustein] for a in lauf.aktionen if a.baustein in RICHTUNGEN), None)
         fam = None
         if lauf.modell_ziel and lauf.modell_ziel in verbund.modelle:
             fam = verbund.modelle[lauf.modell_ziel].familie
@@ -157,6 +164,8 @@ class Umschichter:
                     if mm.zusatz:
                         continue      # weitere Instanz: die Familie bleibt geladen, kein Hin und Her, das der Flatterschutz meint
                     bewegungen.append(f"entladen:{mm.familie}@{verbund.dienste[mm.dienst].knoten}")
+            if a.baustein == "laeufer_prozess_beenden":
+                bewegungen.append(f"beenden:{a.werte['pfad']}@{a.werte['knoten']}")      # voller Pfad: Dateinamen wiederholen sich
         meldung = next((a for a in lauf.aktionen if a.baustein == "melden"), None)
         grund = _text_fuellen(meldung.parameter.get("text", ""), lauf.werte, verbund, lauf) if meldung else (lauf.abschluss or "")
         return Massnahme(kennung=uuid4().hex, art=lauf.art, zustand=Massnahmenzustand.GEPLANT, regel=lauf.regel, zeit_s=verbund.zeit_s, grund=grund,
@@ -183,7 +192,7 @@ class Umschichter:
                 for bb in m.bewegungen:
                     self.sperren[bb.split(":", 1)[1]] = jetzt + r.ruhezeit_s
                 richtung, schluessel = b.split(":", 1)
-                return f"Flattern erkannt: {schluessel} würde innerhalb von {r.fenster_s:.0f} s zum zweiten Mal {'geladen' if richtung == 'laden' else 'entladen'}; gesperrt für {r.ruhezeit_s:.0f} s"
+                return f"Flattern erkannt: {schluessel} würde innerhalb von {r.fenster_s:.0f} s zum zweiten Mal {GETAN[richtung]}; gesperrt für {r.ruhezeit_s:.0f} s"
         return None
 
     def _ausfuehren(self, lauf: Lauf, m: Massnahme, verbund: Verbund, vollzug: Vollzug) -> None:
@@ -216,3 +225,7 @@ class Umschichter:
                     vollzug.bevorzugter_knoten(w["knoten"])
                 case "hintergrund_anhalten" | "hintergrund_fortsetzen":
                     vollzug.hintergrund(w["an"])
+                case "laeufer_prozess_beenden":
+                    vollzug.laeufer_prozess_beenden(w["knoten"], w["pid"])
+                case baustein if baustein in STUFENAKTIONEN:
+                    vollzug.hintergrund_stufe(w["knoten"], Hintergrundstufe(w["stufe"]), w["grund"])

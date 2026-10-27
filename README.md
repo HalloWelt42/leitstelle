@@ -29,6 +29,12 @@ Maschinenraum, und alles, was an ihr vorbei auf Modelle des Rechners zugreift, s
 (Knoten, "Am Leitstand vorbei"; Übersicht mit Anzahl). Fehlt der Maschinenraum, ist der Läufer nicht erreichbar statt
 still direkt angesprochen; der Rückfall ist der Schalter von Hand.
 
+Der Maschinenraum misst außerdem die Last (`knoten.last`): je Prozess des Läufers Rolle, Modelldatei, Kerne und
+Speicher, und die Fremdlast des Rechners ohne Läufer und Dienste. Die Leitstelle zeigt daneben, wie viel sie selbst
+gerade auf dem Läufer rechnen lässt, erkennt Arbeiter, die ohne ihren Auftrag rechnen (Befund im Verlauf, Knopf
+"Prozess beenden"; als Regel ab Werk aus), und drosselt oder hält Hintergrundarbeit auf einem Rechner an, solange der
+Mensch ihn braucht (Regel "Hintergrund bei Rechnerlast", ab Werk an).
+
 ## Was sie kann
 
 - **Fassade im OpenAI-Format** (`/v1/chat/completions` mit und ohne Strom, `/v1/embeddings`, `/v1/models`, dazu

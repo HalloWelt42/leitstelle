@@ -115,6 +115,28 @@ class Massnahmenart(str, Enum):
     WEITERE_INSTANZ = "weitere_instanz"
     EINBETTUNG_VERSTAERKEN = "einbettung_verstaerken"
     EINBETTUNG_ZURUECKBAUEN = "einbettung_zurueckbauen"
+    LAEUFER_OHNE_AUFTRAG = "laeufer_ohne_auftrag"
+    HINTERGRUND_RECHNERLAST = "hintergrund_rechnerlast"
+
+
+#: Szenarien, die ab Werk aus sind (die übrigen sind an); gilt auch für ein gespeichertes Regelwerk, das sie nicht kennt
+SZENARIEN_AB_WERK_AUS = frozenset({Massnahmenart.LAEUFER_OHNE_AUFTRAG})
+
+
+# Rolle eines Prozesses des Modell-Läufers, wie der Maschinenraum sie misst (knoten.last, PROTOKOLL 4.2). Ohne Docstring:
+# das Schema muss dem Spiegel im Maschinenraum gleichen (Test test_protokoll_von_agent_und_kern_ist_deckungsgleich).
+class Laeuferrolle(str, Enum):
+    HAUPT = "haupt"                   # lauscht am Port des Läufers; wird nie beendet
+    ARBEITER = "arbeiter"             # hat eine Modelldatei offen: eine geladene Instanz
+    SONSTIG = "sonstig"               # alles andere im Baum des Läufers, etwa das Fenster
+
+
+class Hintergrundstufe(str, Enum):
+    """Was Hintergrundarbeit auf einem Rechner darf, nach der Fremdlast (Regel "Hintergrund bei Rechnerlast")."""
+
+    FREI = "frei"                     # wie immer
+    GEDROSSELT = "gedrosselt"         # nur die Grundinstanz einer Familie, keine weitere
+    ANGEHALTEN = "angehalten"         # nichts Neues; der Rechner gehört gerade dem Menschen
 
 
 class Massnahmenzustand(str, Enum):
@@ -142,6 +164,7 @@ WORT: dict[str, str] = {
     "extern_ausweichen": "Extern ausweichen", "umverteilen": "Umverteilen", "verlagern": "Verlagern", "doppel_aufloesen": "Doppel auflösen",
     "hintergrund_lage": "Hintergrund bei Lage", "weitere_instanz": "Weitere Instanz",
     "einbettung_verstaerken": "Einbettung verstärken", "einbettung_zurueckbauen": "Einbettung zurückbauen",
+    "laeufer_ohne_auftrag": "Läufer ohne Auftrag", "hintergrund_rechnerlast": "Hintergrund bei Rechnerlast",
     "bereit": "Bereit", "aus": "Aus", "startet": "Startet", "nicht_erreichbar": "Nicht erreichbar", "ausfall": "Ausfall", "schlaeft": "Schläft", "erreichbar": "Erreichbar",
     "leerlauf": "nach Leerlauf", "angefordert": "von Hand",
     "denken": "Denkt schrittweise", "programmieren": "Programmieren", "lange_texte": "Lange Texte", "schnell": "Schnell", "gruendlich": "Gründlich",

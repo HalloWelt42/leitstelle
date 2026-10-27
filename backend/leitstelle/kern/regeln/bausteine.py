@@ -13,8 +13,10 @@ from typing import Any, Callable
 
 from ..messungen import Messwerk
 from ..modelle import Auftrag, Modell, Verbund
+from ..rechnerlast import STUFENRANG, datei, dauer, fremd_mittel, kerne, ohne_auftrag, ohne_auftrag_seit, prozent
 from ..speicherplaner import planen
-from ..werte import Auftragszustand, Dienstzustand, Faehigkeit, Lage, Modellzustand, Prioritaet, Zone
+from ..werte import Auftragszustand, Dienstzustand, Faehigkeit, Hintergrundstufe, Lage, Modellzustand, Prioritaet, Zone
+from ..zuteiler import hintergrund_gebremst, wirksame_prioritaet
 from .. import lage as lagebeurteilung
 from ..text import komma
 
@@ -192,23 +194,74 @@ def einbettung_andrang(k: Kontext) -> list[Kontext]:
             for (fam, knoten), liste in gruppen.items()]
 
 
+def _gebremst(v: Verbund, knoten: str | None) -> Hintergrundstufe | None:
+    """Die Stufe des Hintergrunds auf dem Rechner, wenn sie nicht frei ist (Regel "Hintergrund bei Rechnerlast")."""
+    kn = v.knoten.get(knoten) if knoten else None
+    return kn.hintergrund_stufe if kn is not None and kn.hintergrund_stufe != Hintergrundstufe.FREI else None
+
+
 @baustein("einbettung_ruhe", "ausloeser", "Ruhe bei der Einbettung",
-          "Je Einbettungsmodell und Rechner ein Lauf, wenn weitere Instanzen länger als die Ruhezeit (Regelwerk) nichts zu tun hatten und kein Einbettungsauftrag wartet.")
+          "Je Einbettungsmodell und Rechner ein Lauf, wenn weitere Instanzen länger als die Ruhezeit (Regelwerk) nichts zu tun hatten und kein Einbettungsauftrag wartet. "
+          "Ist der Hintergrund des Rechners gedrosselt oder angehalten, sofort, und wartender Hintergrund zählt nicht.")
 def einbettung_ruhe(k: Kontext) -> list[Kontext]:
     v = k.verbund
     gruppen: dict[tuple[str, str], list[Modell]] = {}
     for m in v.modelle.values():
         knoten = v.dienste[m.dienst].knoten
+        gebremst = _gebremst(v, knoten)
         if (not m.zusatz or Faehigkeit.EINBETTUNG not in m.faehigkeiten or knoten is None or m.zustand != Modellzustand.GELADEN or v.belegung(m.kennung)
-                or (m.letzte_nutzung_s is not None and v.zeit_s - m.letzte_nutzung_s < k.r.einbettung_ruhe_s)):
+                or (not gebremst and m.letzte_nutzung_s is not None and v.zeit_s - m.letzte_nutzung_s < k.r.einbettung_ruhe_s)):
             continue
-        if any(a.faehigkeit == Faehigkeit.EINBETTUNG for a in v.wartende_auf_familie(m.familie)):
+        if any(a.faehigkeit == Faehigkeit.EINBETTUNG and (not gebremst or wirksame_prioritaet(v, a) > int(Prioritaet.HINTERGRUND))
+               for a in v.wartende_auf_familie(m.familie)):
             continue
         gruppen.setdefault((m.familie, knoten), []).append(m)
-    return [Kontext(verbund=v, messwerk=k.messwerk, instanz=f"{fam}@{knoten}", knoten_quelle=knoten, knoten_ziel=knoten,
-                    modelle_entladen=[m.kennung for m in liste], aufwand_s=k.messwerk.entladezeit_s,
-                    werte={"familie": fam, "anzahl": len(liste), "ruhe": f"{k.r.einbettung_ruhe_s:.0f} s"})
-            for (fam, knoten), liste in gruppen.items()]
+    aus = []
+    for (fam, knoten), liste in gruppen.items():
+        gebremst = _gebremst(v, knoten)
+        anlass = f"Hintergrund {gebremst.value}, kein Auftrag" if gebremst else f"{k.r.einbettung_ruhe_s:.0f} s ohne Arbeit"
+        aus.append(Kontext(verbund=v, messwerk=k.messwerk, instanz=f"{fam}@{knoten}", knoten_quelle=knoten, knoten_ziel=knoten,
+                           modelle_entladen=[m.kennung for m in liste], aufwand_s=k.messwerk.entladezeit_s,
+                           werte={"familie": fam, "anzahl": len(liste), "anlass": anlass}))
+    return aus
+
+
+@baustein("laeufer_arbeitet_ohne_auftrag", "ausloeser", "Läufer arbeitet ohne Auftrag",
+          "Je Arbeiter des Modell-Läufers eines wachen Rechners ein Lauf, wenn er seit der Frist (Regelwerk) in jeder Messung mindestens die Schwelle "
+          "rechnet und in diesem Fenster kein Auftrag der Leitstelle auf dem Läufer lief, zugeteilt war oder geladen wurde; nicht mehr, sobald er beendet wird.")
+def laeufer_arbeitet_ohne_auftrag(k: Kontext) -> list[Kontext]:
+    v = k.verbund
+    aus = []
+    for kn in sorted(v.knoten.values(), key=lambda x: x.kennung):
+        if kn.schlaeft:
+            continue
+        for p in ohne_auftrag(v, kn):
+            if p.beenden_s is not None:
+                continue
+            seit = ohne_auftrag_seit(v, kn.kennung, p)
+            seit = v.zeit_s if seit is None else seit
+            aus.append(Kontext(verbund=v, messwerk=k.messwerk, instanz=f"{p.pid}@{kn.kennung}", knoten_quelle=kn.kennung, knoten_ziel=kn.kennung,
+                               werte={"pid": p.pid, "prozess": p.name, "modelldatei": datei(p.modelldatei), "pfad": p.modelldatei, "dauer": dauer(v.zeit_s - seit),
+                                      "kerne": kerne(p.cpu_prozent)}))
+    return aus
+
+
+@baustein("rechnerlast", "ausloeser", "Rechnerlast",
+          "Je wachem Rechner mit Lastmessung ein Lauf je Takt, mit der Fremdlast im gleitenden Mittel über die Frist (Regelwerk). Ohne frische Messung "
+          "nur, solange sein Hintergrund nicht frei ist (dann geben die Prüfungen ihn frei).")
+def rechnerlast(k: Kontext) -> list[Kontext]:
+    v = k.verbund
+    aus = []
+    for kn in sorted(v.knoten.values(), key=lambda x: x.kennung):
+        if kn.schlaeft:
+            continue
+        mittel = fremd_mittel(v, kn)
+        if mittel is None and kn.hintergrund_stufe == Hintergrundstufe.FREI:
+            continue
+        aus.append(Kontext(verbund=v, messwerk=k.messwerk, instanz=kn.kennung, knoten_quelle=kn.kennung, knoten_ziel=kn.kennung,
+                           werte={"mittel": mittel, "last": prozent(mittel) if mittel is not None else "nicht gemessen",
+                                  "vorher": kn.hintergrund_stufe.value, "frist": f"{k.r.last_frist_s:.0f} s"}))
+    return aus
 
 
 @baustein("modell_doppelt_geladen", "ausloeser", "Modell doppelt im Speicher", "Dieselbe Modellfamilie liegt auf zwei wachen Knoten im Speicher.")
@@ -250,7 +303,7 @@ def anderer_knoten_mit_platz(k: Kontext, reserve_gb: float = 2.0) -> bool:
             continue
         if d.zustand not in (Dienstzustand.BEREIT, Dienstzustand.AUS) or (d.zustand == Dienstzustand.AUS and not d.installiert):
             continue
-        if not erlaubte_zone(k.verbund, a, d.knoten):
+        if not erlaubte_zone(k.verbund, a, d.knoten) or hintergrund_gebremst(k.verbund, a, m):
             continue
         if m.im_speicher or not m.ladbar(k.verbund.zeit_s):
             continue
@@ -335,7 +388,8 @@ def platz_ohne_entladen(k: Kontext, reserve_anteil: float = 0.05) -> bool:
         if m.familie != fam or a.faehigkeit not in m.faehigkeiten or m.im_speicher:
             continue
         d = k.verbund.dienste[m.dienst]
-        if d.extern or d.knoten is None or not d.nutzbar or not erlaubte_zone(k.verbund, a, d.knoten) or not m.ladbar(k.verbund.zeit_s):
+        if (d.extern or d.knoten is None or not d.nutzbar or not erlaubte_zone(k.verbund, a, d.knoten) or not m.ladbar(k.verbund.zeit_s)
+                or hintergrund_gebremst(k.verbund, a, m)):
             continue
         budget = k.verbund.knoten[d.knoten].budget_gb(k.r.budget_reserve_gb)
         plan = planen(k.verbund, d.knoten, m.gb + budget * reserve_anteil, k.messwerk, familie=fam)
@@ -369,6 +423,9 @@ def weitere_instanz_moeglich(k: Kontext, reserve_gb: float = 1.0) -> bool:
     d = k.verbund.dienste[grund.dienst]
     if d.extern or d.knoten is None or not d.nutzbar:
         return False
+    if (stufe := _gebremst(k.verbund, d.knoten)) and wirksame_prioritaet(k.verbund, a) == int(Prioritaet.HINTERGRUND):
+        k.werte["instanz"] = f"Hintergrund auf {k.verbund.knoten[d.knoten].name} {stufe.value}: keine weitere Instanz für Hintergrund"
+        return False
     plan = planen(k.verbund, d.knoten, grund.gb + reserve_gb, k.messwerk, familie=fam)
     if not plan.passt or plan.entladen:
         k.werte["instanz"] = plan.begruendung
@@ -400,8 +457,15 @@ def einbettungsinstanzen_moeglich(k: Kontext) -> bool:
     if d.extern or not d.nutzbar or not grund.im_speicher:
         k.werte["instanz"] = "die Grundinstanz ist nicht bereit"
         return False
+    wartende = k.werte["wartende"]
+    if stufe := _gebremst(v, knoten):
+        vorn = [x for x in k.werte["auftraege"] if x in v.auftraege and wirksame_prioritaet(v, v.auftraege[x]) > int(Prioritaet.HINTERGRUND)]
+        if not vorn:
+            k.werte["instanz"] = f"Hintergrund auf {v.knoten[knoten].name} {stufe.value}: es wartet nur Hintergrund"
+            return False
+        wartende = len(vorn)
     ladend = sum(1 for m in alle if m.zustand == Modellzustand.LAEDT)
-    anzahl = min(k.werte["wartende"] - ladend, grund.instanzen_hoechstens - len(alle))
+    anzahl = min(wartende - ladend, grund.instanzen_hoechstens - len(alle))
     if anzahl <= 0:
         k.werte["instanz"] = (f"alle {grund.instanzen_hoechstens} Instanzen laufen" if len(alle) >= grund.instanzen_hoechstens
                               else f"{ladend} Instanzen laden schon")
@@ -444,7 +508,7 @@ def kette_hat_alternative(k: Kontext) -> bool:
             if m.familie != fam or a.faehigkeit not in m.faehigkeiten or m.zustand not in (Modellzustand.GELADEN, Modellzustand.RECHNET):
                 continue
             d = k.verbund.dienste[m.dienst]
-            if d.extern or d.knoten is None or not d.nutzbar or not erlaubte_zone(k.verbund, a, d.knoten):
+            if d.extern or d.knoten is None or not d.nutzbar or not erlaubte_zone(k.verbund, a, d.knoten) or hintergrund_gebremst(k.verbund, a, m):
                 continue
             if len(k.verbund.belegung(m.kennung)) >= k.verbund.plaetze(m) or k.verbund.anfrage_frei_in_s(m.dienst) > 0:
                 continue
@@ -551,6 +615,36 @@ def hintergrund_angehalten(k: Kontext) -> bool:
     return not k.verbund.hintergrund_an
 
 
+@baustein("umgehung_am_laeufer", "pruefung", "Umgehung am Läufer?",
+          "Spricht ein Programm den Läufer dieses Rechners am Leitstand vorbei an (nach der Deutung, nicht die Leitstelle selbst auf dem direkten Weg)? "
+          "Dann rechnet der Arbeiter vermutlich für diesen Kunden.")
+def umgehung_am_laeufer(k: Kontext) -> bool:
+    wer = k.verbund.knoten[k.knoten_quelle].laeufer_umgehungen if k.knoten_quelle else []
+    if wer:
+        k.werte["wer"] = ", ".join(wer)
+    return bool(wer)
+
+
+@baustein("last_ueber_grenze", "pruefung", "Fremdlast über der Grenze?",
+          "Liegt die Fremdlast im Mittel mindestens bei der Grenze zum Drosseln oder Anhalten (Parameter; Werte im Regelwerk)? Gilt die Stufe schon, "
+          "heißt es erst unter der Grenze minus Abstand nein (gegen Flattern). Ohne Messung nein.", grenze="drosseln")
+def last_ueber_grenze(k: Kontext, grenze: str = "drosseln") -> bool:
+    r, kn = k.r, k.verbund.knoten[k.knoten_quelle or ""]
+    stufe, wert = ((Hintergrundstufe.ANGEHALTEN, r.last_anhalten_ab_prozent) if grenze == "anhalten"
+                   else (Hintergrundstufe.GEDROSSELT, r.last_drosseln_ab_prozent))
+    if STUFENRANG[kn.hintergrund_stufe] >= STUFENRANG[stufe]:
+        wert -= r.last_abstand_prozent
+    k.werte[f"grenze_{grenze}"] = prozent(wert)
+    mittel = k.werte.get("mittel")
+    return mittel is not None and mittel >= wert
+
+
+@baustein("stufe_ist", "pruefung", "Hintergrund hat die Stufe?", "Hat der Hintergrund des Rechners die Stufe des Parameters (frei, gedrosselt, angehalten)?",
+          stufe="frei")
+def stufe_ist(k: Kontext, stufe: str = "frei") -> bool:
+    return k.verbund.knoten[k.knoten_quelle or ""].hintergrund_stufe.value == stufe
+
+
 @baustein("immer", "pruefung", "Immer", "Prüfung, die immer ja sagt (für Vorlagen ohne Bedingung).")
 def immer(k: Kontext) -> bool:
     return True
@@ -621,3 +715,33 @@ def hintergrund_anhalten(k: Kontext) -> dict[str, Any]:
 @baustein("hintergrund_fortsetzen", "aktion", "Hintergrund fortsetzen", "Lässt Hintergrundaufträge wieder laufen.")
 def hintergrund_fortsetzen(k: Kontext) -> dict[str, Any]:
     return {"an": True}
+
+
+@baustein("laeufer_prozess_beenden", "aktion", "Prozess des Läufers beenden",
+          "Lässt den Arbeiter vom Maschinenraum seines Rechners beenden (erst freundlich, dann hart); der Maschinenraum prüft vorher selbst, dass er "
+          "ein Arbeiter des Läufers ist, und beendet nie den Hauptprozess. Der Läufer lädt das Modell bei Bedarf neu.")
+def laeufer_prozess_beenden(k: Kontext) -> dict[str, Any]:
+    return {"knoten": k.knoten_quelle, "pid": k.werte["pid"], "pfad": k.werte["pfad"]}
+
+
+def _stufe_setzen(k: Kontext, stufe: Hintergrundstufe, grund: str) -> dict[str, Any]:
+    return {"knoten": k.knoten_quelle, "stufe": stufe.value, "grund": grund}
+
+
+@baustein("hintergrund_drosseln", "aktion", "Hintergrund drosseln",
+          "Hintergrundaufträge bekommen auf dem Rechner nur noch die Grundinstanz einer Familie, keine weitere; weitere Instanzen ohne Auftrag weichen sofort.")
+def hintergrund_drosseln(k: Kontext) -> dict[str, Any]:
+    return _stufe_setzen(k, Hintergrundstufe.GEDROSSELT, f"Fremdlast {k.werte['last']}, drosseln ab {k.werte.get('grenze_drosseln', '-')}")
+
+
+@baustein("hintergrund_auf_knoten_anhalten", "aktion", "Hintergrund auf dem Rechner anhalten",
+          "Hintergrundaufträge werden auf dem Rechner nicht mehr zugeteilt, auch nicht nach der Fairness-Frist; laufende rechnen zu Ende.")
+def hintergrund_auf_knoten_anhalten(k: Kontext) -> dict[str, Any]:
+    return _stufe_setzen(k, Hintergrundstufe.ANGEHALTEN, f"Fremdlast {k.werte['last']}, anhalten ab {k.werte.get('grenze_anhalten', '-')}")
+
+
+@baustein("hintergrund_auf_knoten_freigeben", "aktion", "Hintergrund auf dem Rechner freigeben", "Hintergrund darf auf dem Rechner wieder alles.")
+def hintergrund_auf_knoten_freigeben(k: Kontext) -> dict[str, Any]:
+    grund = (f"Fremdlast {k.werte['last']}, frei unter {k.werte.get('grenze_drosseln', '-')}" if k.werte.get("mittel") is not None
+             else "Fremdlast nicht mehr gemessen")
+    return _stufe_setzen(k, Hintergrundstufe.FREI, grund)

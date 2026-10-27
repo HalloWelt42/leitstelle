@@ -62,6 +62,7 @@ export const api = {
   modellEntladen: (kennung: string) => rufen(`/modelle/${kennung}/entladen`, 'POST'),
   speicherFreigeben: (knoten: string, vorschau: boolean) => rufen<FreigabePlan>(`/knoten/${knoten}/speicher_freigeben`, 'POST', { vorschau }),
   schlafBeenden: (knoten: string) => rufen(`/knoten/${knoten}/schlaf_beenden`, 'POST'),
+  laeuferBeenden: (knoten: string, pid: number) => rufen<{ erfolg: boolean; meldung: string }>(`/knoten/${knoten}/laeufer/${pid}/beenden`, 'POST'),
 
   knotenAnlegen: (d: KnotenDaten) => rufen<Rechner>('/knoten', 'POST', d),
   knotenAendern: (kennung: string, d: KnotenDaten) => rufen<Rechner>(`/knoten/${kennung}`, 'PUT', d),

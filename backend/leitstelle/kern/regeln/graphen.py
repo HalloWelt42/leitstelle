@@ -185,14 +185,57 @@ EINBETTUNG_VERSTAERKEN = _graph("einbettung_verstaerken", "Einbettung verstärke
 EINBETTUNG_ZURUECKBAUEN = _graph("einbettung_zurueckbauen", "Einbettung zurückbauen", Massnahmenart.EINBETTUNG_ZURUECKBAUEN, [
     K(id="a", art="ausloeser", baustein="einbettung_ruhe"),
     K(id="k1", art="aktion", baustein="modell_entladen"),
-    K(id="k2", art="aktion", baustein="melden", parameter={"text": "Einbettung zurückgebaut: {anzahl} weitere Instanzen von {familie} auf {knoten}, {ruhe} ohne Arbeit"}),
+    K(id="k2", art="aktion", baustein="melden", parameter={"text": "Einbettung zurückgebaut: {anzahl} weitere Instanzen von {familie} auf {knoten}, {anlass}"}),
     K(id="e_ok", art="ende", titel="zurückgebaut"),
 ], [
     E(von="a", nach="k1"), E(von="k1", nach="k2"), E(von="k2", nach="e_ok"),
 ])
 
-VORLAGEN: list[Regelgraph] = [UMLEITEN, LEERLAUF, VORWAERMEN, KETTE, EXTERN, UMVERTEILEN, VERLAGERN, DOPPEL, HINTERGRUND, INSTANZ,
-                              EINBETTUNG_VERSTAERKEN, EINBETTUNG_ZURUECKBAUEN]
+# Hintergrund bei Rechnerlast (ZUSAMMENSPIEL Z6): die Fremdlast eines Rechners (ohne Läufer und Dienste des Maschinenraums,
+# also der Mensch und seine Programme) im gleitenden Mittel setzt die Stufe seines Hintergrunds: ab der Grenze gedrosselt
+# (nur die Grundinstanz), ab der höheren angehalten; zurück erst unter Grenze minus Abstand. Vorgabe an.
+HINTERGRUND_RECHNERLAST = _graph("hintergrund_rechnerlast", "Hintergrund bei Rechnerlast", Massnahmenart.HINTERGRUND_RECHNERLAST, [
+    K(id="a", art="ausloeser", baustein="rechnerlast"),
+    K(id="p1", art="pruefung", baustein="last_ueber_grenze", parameter={"grenze": "anhalten"}),
+    K(id="p2", art="pruefung", baustein="stufe_ist", parameter={"stufe": "angehalten"}),
+    K(id="p3", art="pruefung", baustein="last_ueber_grenze", parameter={"grenze": "drosseln"}),
+    K(id="p4", art="pruefung", baustein="stufe_ist", parameter={"stufe": "gedrosselt"}),
+    K(id="p5", art="pruefung", baustein="stufe_ist", parameter={"stufe": "frei"}),
+    K(id="k1", art="aktion", baustein="hintergrund_auf_knoten_anhalten"),
+    K(id="k2", art="aktion", baustein="melden", parameter={"text": "Hintergrund auf {knoten} angehalten (vorher {vorher}): Fremdlast im Mittel {last}, anhalten ab {grenze_anhalten}"}),
+    K(id="k3", art="aktion", baustein="hintergrund_drosseln"),
+    K(id="k4", art="aktion", baustein="melden", parameter={"text": "Hintergrund auf {knoten} gedrosselt (vorher {vorher}): Fremdlast im Mittel {last}, drosseln ab {grenze_drosseln}"}),
+    K(id="k5", art="aktion", baustein="hintergrund_auf_knoten_freigeben"),
+    K(id="k6", art="aktion", baustein="melden", parameter={"text": "Hintergrund auf {knoten} freigegeben (vorher {vorher}): Fremdlast im Mittel {last}, frei unter {grenze_drosseln}"}),
+    K(id="e_halt", art="ende", titel="angehalten"),
+    K(id="e_drossel", art="ende", titel="gedrosselt"),
+    K(id="e_frei", art="ende", titel="freigegeben"),
+    K(id="e_bleibt", art="ende", titel="Stufe bleibt"),
+], [
+    E(von="a", nach="p1"), E(von="p1", nach="p2", port="ja"), E(von="p1", nach="p3", port="nein"),
+    E(von="p2", nach="e_bleibt", port="ja"), E(von="p2", nach="k1", port="nein"), E(von="k1", nach="k2"), E(von="k2", nach="e_halt"),
+    E(von="p3", nach="p4", port="ja"), E(von="p3", nach="p5", port="nein"),
+    E(von="p4", nach="e_bleibt", port="ja"), E(von="p4", nach="k3", port="nein"), E(von="k3", nach="k4"), E(von="k4", nach="e_drossel"),
+    E(von="p5", nach="e_bleibt", port="ja"), E(von="p5", nach="k5", port="nein"), E(von="k5", nach="k6"), E(von="k6", nach="e_frei"),
+])
+
+# Läufer arbeitet ohne Auftrag (Z6): ein Arbeiter des Läufers rechnet seit der Frist über der Schwelle, ohne dass die
+# Leitstelle dort etwas rechnen lässt. Hängt zugleich ein Programm am Leitstand vorbei am Läufer, rechnet er vermutlich für
+# diesen Kunden: nicht beenden (der Befund steht im Verlauf). Sonst beendet ihn der Maschinenraum. Vorgabe aus.
+LAEUFER_OHNE_AUFTRAG = _graph("laeufer_ohne_auftrag", "Läufer arbeitet ohne Auftrag", Massnahmenart.LAEUFER_OHNE_AUFTRAG, [
+    K(id="a", art="ausloeser", baustein="laeufer_arbeitet_ohne_auftrag"),
+    K(id="p1", art="pruefung", baustein="umgehung_am_laeufer"),
+    K(id="k1", art="aktion", baustein="laeufer_prozess_beenden"),
+    K(id="k2", art="aktion", baustein="melden", parameter={"text": "Läufer auf {knoten}: {prozess} mit {modelldatei} rechnete {dauer} ohne Auftrag mit {kerne} Kernen; wird beendet"}),
+    K(id="e_ok", art="ende", titel="beendet"),
+    K(id="e_kunde", art="ende", titel="rechnet für ein Programm am Leitstand vorbei, nicht beendet"),
+], [
+    E(von="a", nach="p1"), E(von="p1", nach="e_kunde", port="ja"), E(von="p1", nach="k1", port="nein"),
+    E(von="k1", nach="k2"), E(von="k2", nach="e_ok"),
+])
+
+VORLAGEN: list[Regelgraph] = [UMLEITEN, LEERLAUF, VORWAERMEN, KETTE, EXTERN, UMVERTEILEN, VERLAGERN, DOPPEL, HINTERGRUND, HINTERGRUND_RECHNERLAST,
+                              LAEUFER_OHNE_AUFTRAG, INSTANZ, EINBETTUNG_VERSTAERKEN, EINBETTUNG_ZURUECKBAUEN]
 
 
 def vorlagen() -> list[Regelgraph]:

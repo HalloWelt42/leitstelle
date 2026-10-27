@@ -157,6 +157,14 @@ async def schlaf_beenden(kennung: str, request: Request):
     return {"knoten": kennung, "schlaeft": False}
 
 
+@router.post("/knoten/{kennung}/laeufer/{pid}/beenden")
+async def laeufer_prozess_beenden(kennung: str, pid: int, request: Request):
+    """"Prozess beenden": einen Arbeiter des Läufers, der ohne Auftrag rechnet, vom Maschinenraum beenden lassen (Rückfall
+    per Hand zur Regel "Läufer arbeitet ohne Auftrag", dieselbe Prüfung)."""
+    e = await _fachlich(betrieb(request).laeufer_prozess_beenden_von_hand(kennung, pid, wer(request)))
+    return {"knoten": kennung, "pid": pid, "erfolg": e.erfolg, "meldung": e.meldung}
+
+
 @router.post("/aliasse")
 async def alias_setzen(daten: AliasDaten, request: Request):
     await _fachlich(verzeichnis(request).alias_setzen(daten.alias, daten.familie, wer(request)))

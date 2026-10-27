@@ -298,6 +298,35 @@ Schein-Agent auf echten Ports.
 | U08 | Umgehungen verschwinden; dazwischen eine Meldung ohne Beobachtung | ohne Beobachtung weder weg noch da (Lagebild "nicht beobachtet"); nach dem Verschwinden je eine Meldung "nicht mehr gesehen", danach keine mehr |
 | U09 | Nachlauf | kurz fehlend und wieder da: nichts; erst nach dem Nachlauf seit dem letzten Sehen einmal weg; nach dem Trennen des Maschinenraums wird neu gemeldet |
 
+## 3d. Last des Läufers und des Rechners (`test_rechnerlast.py`, `test_am_leitstand_vorbei.py`)
+
+ZUSAMMENSPIEL Z6. In der Schein-Welt kommt `knoten.last` alle 15 s über denselben Weg in den Verbund wie im Betrieb
+(L01 bis L17); L20 bis L23 mit Leitstelle, Schein-Läufer und Schein-Agent auf echten Ports. Die Messung selbst und das
+Beenden mit nachgestellter Prozesstabelle, nachgestelltem lsof und nachgestellten Signalen prüft der Maschinenraum
+(`tests/test_laeuferlast.py`).
+
+| Nr | Szenario | Erwartung |
+|---|---|---|
+| L01 | Regel "Läufer arbeitet ohne Auftrag" an; ein Arbeiter rechnet 100 % eines Kerns, ein zweiter 2 %, kein Auftrag der Leitstelle auf dem Läufer | nach 285 s nichts, nach der vollen Frist (300 s) genau der Arbeiter über der Schwelle wird beendet, eine Maßnahme "rechnete 5 min ohne Auftrag mit 1,0 Kernen; wird beendet"; meldet der Maschinenraum ihn danach noch, kein zweites Mal |
+| L02 | Dasselbe, am Läufer hängt ein Programm am Leitstand vorbei | nicht beendet, Ende "rechnet für ein Programm am Leitstand vorbei, nicht beendet"; der Befund bleibt sichtbar |
+| L03 | Ein Auftrag der Leitstelle läuft im Fenster auf dem Läufer | nichts, solange er läuft; die Frist zählt ab seinem Ende |
+| L04 | Regel ab Werk aus | nichts beendet, der Befund steht im Verbund |
+| L05 | Hauptprozess und Sonstiges rechnen hoch | nie ein Befund, nie beendet |
+| L06 | Eine Messung unter der Schwelle | die Frist beginnt neu |
+| L07 | Der neue Arbeiter desselben Modells hängt kurz danach wieder | das zweite Beenden innerhalb des Fensters ist Flattern: gesperrt, kein zweites Beenden |
+| L10 | Regel "Hintergrund bei Rechnerlast", Fremdlast 30, 55, 80, 70, 60, 45, 35 % je 75 s | frei, gedrosselt, angehalten, angehalten (Abstand), gedrosselt, gedrosselt (Abstand), frei; vier Maßnahmen mit Fremdlast im Mittel und Grenze; andere Rechner unberührt |
+| L11 | Angehalten; ein Hintergrund- und ein normaler Einbettungsauftrag | der normale läuft; der Hintergrund wartet mit "Hintergrund auf Mac Studio angehalten", auch nach der Fairness-Frist; nach dem Freigeben läuft er |
+| L12 | Angehalten, während ein Hintergrundauftrag läuft | er rechnet zu Ende |
+| L13 | Gedrosselt; vier Einbettungen im Hintergrund warten | keine weitere Instanz, die Grundinstanz arbeitet; kommen normale dazu, wird verstärkt |
+| L14 | Gedrosselt; eine weitere Einbettungsinstanz ohne Auftrag, eben noch genutzt | sofort entladen, "Hintergrund gedrosselt, kein Auftrag" (frei erst nach der Ruhezeit) |
+| L15 | Angehalten, dann keine Messung mehr (Maschinenraum getrennt) | freigegeben, "Fremdlast nicht mehr gemessen" |
+| L16 | Regel aus | die Stufe bleibt frei |
+| L17 | Gespeichertes Regelwerk ohne die neuen Szenarien | "Läufer ohne Auftrag" aus, "Hintergrund bei Rechnerlast" an, Gespeichertes bleibt |
+| L20 | `knoten.last` vom Schein-Agenten | Lagebild `last` mit Rollen, Kernen, Aufträgen der Leitstelle; Befund einmal im Verlauf; Beenden von Hand: Hauptprozess 409, Arbeiter ohne Auftrag 200 mit Befehl `laeufer_prozess_beenden` an den Agenten, danach "wird schon beendet" 409; verschwindet er, "ist beendet" im Verlauf |
+| L21 | Beenden von Hand gleich nach der ersten Messung | 409: "rechnet nicht seit der Frist über der Schwelle ohne Auftrag", kein Befehl |
+| L22 | Regel an | die Leitstelle schickt den Befehl selbst, Maßnahme im Lagebild |
+| L23 | Fremdlast 90 %, dann Maschinenraum getrennt | Hintergrund angehalten mit Grund und Meldung; ohne Messung wieder frei |
+
 ## 4. Zweige je Vorlage
 
 | Vorlage | Ende | Szenario |
@@ -326,7 +355,11 @@ Schein-Agent auf echten Ports.
 | Hintergrund bei Lage | angehalten | S31 |
 | | fortgesetzt | S31 |
 | | nichts zu tun | S20, S34 (im Verlauf) |
-| Sperren des Umschichters | Flattern | S34 |
+| Hintergrund bei Rechnerlast | angehalten, gedrosselt, freigegeben | L10, L11, L23 |
+| | Stufe bleibt | L10 (Abstand) |
+| Läufer arbeitet ohne Auftrag | beendet | L01, L22 |
+| | rechnet für ein Programm am Leitstand vorbei, nicht beendet | L02 |
+| Sperren des Umschichters | Flattern | S34, L07 |
 | | Höchstzahl je Fenster | S36 |
 | | eine je Knoten und Takt | im Zufallslauf S38 |
 | | Umleitung nur einmal | S37 |

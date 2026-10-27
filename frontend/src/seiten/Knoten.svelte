@@ -8,6 +8,7 @@
   import { DIENSTZUSTAND, KNOTENZUSTAND, knotenzustand } from '../lib/wort';
   import AgentFeld from '../teile/AgentFeld.svelte';
   import AmLeitstandVorbei from '../teile/AmLeitstandVorbei.svelte';
+  import Laeuferlast from '../teile/Laeuferlast.svelte';
   import Ring from '../teile/Ring.svelte';
   import Speicherbalken from '../teile/Speicherbalken.svelte';
   import ZoneMarke from '../teile/ZoneMarke.svelte';
@@ -33,6 +34,8 @@
   const unerreichbar = $derived(bild.knoten.filter((k) => knotenzustand(k) === 'nicht_erreichbar'));
   const mitAgent = $derived(bild.knoten.filter((k) => k.agent.verbunden));
   const umgehungen = $derived(bild.knoten.reduce((s, k) => s + k.fremde.umgehungen, 0));
+  const ohneAuftrag = $derived(bild.knoten.reduce((s, k) => s + k.last.laeufer.filter((p) => p.ohne_auftrag_seit_s != null).length, 0));
+  const gebremst = $derived(bild.knoten.filter((k) => k.last.stufe !== 'frei'));
   const anteil = (teil: number | null | undefined, ganz: number | null | undefined) => (teil != null && ganz ? (100 * teil) / ganz : null);
   const dienste = (k: string) => bild.dienste.filter((d) => d.knoten === k);
   const rechnend = (k: string) => bild.auftraege.filter((a) => a.knoten === k && a.zustand === 'laeuft').length;
@@ -79,6 +82,8 @@
       <div class="kennzahl"><b>{gb(bild.knoten.reduce((s, k) => s + k.geladen_gb, 0))}</b><span>Modelle im Speicher</span></div>
       <div class="kennzahl"><b>{mitAgent.length}</b><span>Mit Maschinenraum</span><small>Speicher gemessen statt geschätzt</small></div>
       {#if umgehungen}<div class="kennzahl fehler"><b>{umgehungen}</b><span>Am Leitstand vorbei</span><small>Zugriffe auf Modelle ohne die Leitstelle</small></div>{/if}
+      {#if ohneAuftrag}<div class="kennzahl fehler"><b>{ohneAuftrag}</b><span>Ohne Auftrag</span><small>Arbeiter des Läufers rechnen ohne die Leitstelle</small></div>{/if}
+      {#if gebremst.length}<div class="kennzahl"><b>{gebremst.length}</b><span>Hintergrund gebremst</span><small>{gebremst.map((k) => k.name).join(', ')}: Rechnerlast</small></div>{/if}
     </div>
   </div>
 
@@ -170,6 +175,7 @@
                 <AgentFeld knoten={k} jetzt={bild.zeit_s} />
               </div>
             </div>
+            <Laeuferlast knoten={k} regelwerk={bild.regelwerk} jetzt={bild.zeit_s} />
             <AmLeitstandVorbei fremde={k.fremde} verbunden={k.agent.verbunden} />
             {#if loeschen === k.kennung}
               <div class="bestaetigen"><i class="fa-solid fa-triangle-exclamation"></i><span>{k.name} entfernen? Geht nur, wenn keine Dienste mehr darauf eingerichtet sind.</span>

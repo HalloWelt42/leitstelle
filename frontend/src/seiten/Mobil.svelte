@@ -2,11 +2,11 @@
   // Eigenständige Telefonansicht (Entwurf mockups/mobil.html): nur Lage, Hauptregler, Aufträge stoppen, Knoten,
   // Meldungen. Alles mit Folgen nur mit Drücken und Halten. Regeln, Einrichtung und Diagnose bleiben am Rechner.
   import { api } from '../lib/api';
-  import { dauer, gb, prozent, uhrzeit } from '../lib/format';
+  import { dauer, gb, komma, prozent, uhrzeit } from '../lib/format';
   import { kanal } from '../lib/kanal.svelte';
   import { tun } from '../lib/meldung.svelte';
   import type { Betriebsmodus } from '../lib/typen.gen';
-  import { FAEHIGKEIT, KNOTENZUSTAND, LAGE, MODUS, knotenzustand } from '../lib/wort';
+  import { FAEHIGKEIT, HINTERGRUNDSTUFE, KNOTENZUSTAND, LAGE, MODUS, knotenzustand } from '../lib/wort';
   import Halteknopf from '../teile/Halteknopf.svelte';
   import NeueFassung from '../teile/NeueFassung.svelte';
   import Speicherbalken from '../teile/Speicherbalken.svelte';
@@ -26,6 +26,9 @@
   const lage = $derived(!bild ? { klasse: 'aus', wort: 'Getrennt' } : bild.modus !== 'normal' ? { klasse: bild.modus, wort: MODUS[bild.modus].lage } : LAGE[bild.lage]);
   const anwendung = (k: string) => bild?.anwendungen.find((a) => a.kennung === k)?.name ?? '';
   const umgehungen = $derived(bild?.knoten.reduce((s, k) => s + k.fremde.umgehungen, 0) ?? 0);
+  const ohneAuftrag = $derived(bild?.knoten.reduce((s, k) => s + k.last.laeufer.filter((p) => p.ohne_auftrag_seit_s != null).length, 0) ?? 0);
+  const gebremst = $derived(bild?.knoten.filter((k) => k.last.stufe !== 'frei') ?? []);
+  const datei = (pfad: string) => pfad.split('/').pop() || '-';
 
   const stellen = (m: Betriebsmodus) => bild && tun(() => api.hauptregler(m, bild.hintergrund_erlaubt), `Hauptregler: ${MODUS[m].wort}`);
   const stoppen = (k: string, m: 'sofort' | 'auslaufen') => tun(() => api.stoppen(k, m, 'vom Telefon'), m === 'sofort' ? 'Gestoppt' : 'Läuft aus').then(() => (wahl = null));
@@ -47,6 +50,14 @@
         <div class="hinweis warnung"><i class="fa-solid fa-user-secret"></i>
           <span><b>{umgehungen} {umgehungen === 1 ? 'Zugriff' : 'Zugriffe'} am Leitstand vorbei</b>; Einzelheiten in der großen Ansicht unter Knoten.</span></div>
       {/if}
+      {#if ohneAuftrag}
+        <div class="hinweis warnung"><i class="fa-solid fa-microchip"></i>
+          <span><b>{ohneAuftrag} {ohneAuftrag === 1 ? 'Arbeiter des Läufers rechnet' : 'Arbeiter des Läufers rechnen'} ohne Auftrag</b>; Einzelheiten unter Knoten.</span></div>
+      {/if}
+      {#each gebremst as k (k.kennung)}
+        <div class="hinweis"><i class="fa-solid {HINTERGRUNDSTUFE[k.last.stufe].symbol}"></i>
+          <span><b>Hintergrund auf {k.name} {HINTERGRUNDSTUFE[k.last.stufe].wort.toLowerCase()}</b>: {k.last.stufe_grund}.</span></div>
+      {/each}
       <div class="m-karte">
         <h3><i class="fa-solid fa-sliders"></i>Hauptregler</h3>
         <div class="m-regler">
@@ -93,6 +104,16 @@
           <h3><i class="fa-solid fa-server"></i>{k.name}<span class="rechts">{k.erreichbar ? prozent(k.belegt_anteil) : KNOTENZUSTAND[knotenzustand(k)].satz}</span></h3>
           <Speicherbalken knoten={k} modelle={bild.modelle} />
           <div class="m-hint">{gb(k.geladen_gb)} Modelle, {gb(Math.max(0, k.frei_gb))} frei</div>
+          {#if k.last.gemeldet}
+            <div class="m-hint">Fremdlast {k.last.fremd_prozent != null ? `${komma(k.last.fremd_prozent, 0)} %` : '-'}, Hintergrund {HINTERGRUNDSTUFE[k.last.stufe].wort.toLowerCase()};
+              {k.last.auftraege} {k.last.auftraege === 1 ? 'Auftrag' : 'Aufträge'} der Leitstelle auf dem Läufer</div>
+            {#each k.last.laeufer.filter((p) => p.rolle === 'arbeiter') as p (p.pid)}
+              <div class="m-arbeiter" class:warnung={p.ohne_auftrag_seit_s != null}>
+                <span class="umbruch">{datei(p.modelldatei)}</span><span class="zahl">{p.cpu_prozent != null ? komma(p.cpu_prozent / 100, 1) : '-'} Kerne</span>
+                {#if p.ohne_auftrag_seit_s != null}<span class="ohne">ohne Auftrag seit {dauer(bild.zeit_s - p.ohne_auftrag_seit_s)}</span>{/if}
+              </div>
+            {/each}
+          {/if}
         </div>
       {/each}
     {:else}
@@ -123,4 +144,7 @@
   .m-meldung { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 8px; padding: 8px 0; border-top: 1px solid var(--rand); font-size: var(--klein); }
   .m-meldung:first-child { border-top: 0; }
   .m-meldung .zahl { color: var(--text-3); }
+  .m-arbeiter { display: flex; flex-wrap: wrap; gap: 4px var(--a3); margin-top: 6px; padding: 6px 8px; border-radius: var(--r2); background: var(--karte); font-size: var(--klein); }
+  .m-arbeiter .umbruch { overflow-wrap: anywhere; min-width: 0; flex: 1 1 10em; }
+  .m-arbeiter.warnung .ohne { color: var(--warn); font-weight: 600; }
 </style>

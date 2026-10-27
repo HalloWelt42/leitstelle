@@ -6,9 +6,11 @@ from __future__ import annotations
 from pydantic import BaseModel
 
 from .. import version
-from ..kern.modelle import ANFRAGE_FENSTER_S, Massnahme
+from ..kern.modelle import ANFRAGE_FENSTER_S, Knoten, Massnahme, Regelwerk, Verbund
+from ..kern.rechnerlast import fremd_mittel, laeuferarbeit, ohne_auftrag_seit
 from ..protokoll.steckbrief import Steckbrief
-from ..kern.werte import Auftragszustand, Automatik, Betriebsmodus, Dienstzustand, Faehigkeit, Knotenzustand, Lage, Modellzustand, Zone
+from ..kern.werte import (Auftragszustand, Automatik, Betriebsmodus, Dienstzustand, Faehigkeit, Hintergrundstufe, Knotenzustand, Laeuferrolle, Lage,
+                          Modellzustand, Zone)
 from ..ports.ablage.eintraege import Schritt
 from ..protokoll.knoten import Fremdzugriff, Fremdzugriffe, Messwerte
 from .betrieb import Betrieb
@@ -48,6 +50,54 @@ def fremde_sicht(f: Fremdzugriffe, laeufer_direkt: bool) -> FremdeSicht:
                        umgehungen=sum(1 for z in zugriffe if z.deutung != Fremddeutung.LEITSTELLE_DIREKT))
 
 
+class LaeuferprozessSicht(BaseModel):
+    """Ein Prozess des Modell-Läufers, wie der Maschinenraum ihn misst, mit dem Befund der Leitstelle."""
+
+    pid: int
+    name: str
+    rolle: Laeuferrolle
+    modelldatei: str
+    cpu_prozent: float | None          # Prozent eines Kerns (100 heißt ein Kern)
+    gb: float | None
+    ohne_auftrag_seit_s: float | None  # rechnet seitdem über der Schwelle ohne Auftrag der Leitstelle (nur ab der Frist gesetzt)
+    beenden_s: float | None            # die Leitstelle lässt ihn gerade beenden
+
+
+class LastSicht(BaseModel):
+    """Last von Läufer und Rechner (`knoten.last`) und was die Leitstelle daraus macht (ZUSAMMENSPIEL Z6)."""
+
+    gemeldet: bool                     # der Maschinenraum meldet die Last (ab Fassung 0.15)
+    gemessen: bool                     # die Liste der Läufer-Prozesse sagt etwas (lsof da, Läufer eingetragen)
+    kerne: int | None
+    fremd_prozent: float | None        # letzte Messung, Anteil aller Kerne
+    fremd_mittel_prozent: float | None # gleitendes Mittel über last_frist_s; danach richtet sich die Stufe
+    laeufer: list[LaeuferprozessSicht]
+    auftraege: int                     # Aufträge der Leitstelle, die gerade auf dem Läufer laufen oder ihm zugeteilt sind
+    zuletzt_s: float | None            # wann zuletzt ein Auftrag der Leitstelle auf dem Läufer lief
+    umgehungen: list[str]              # wer den Läufer am Leitstand vorbei anspricht (Erklärung für Rechnen ohne Auftrag)
+    stufe: Hintergrundstufe            # Hintergrund auf diesem Rechner: frei, gedrosselt, angehalten
+    stufe_grund: str
+    stufe_seit_s: float | None
+
+
+def last_sicht(v: Verbund, k: Knoten) -> LastSicht:
+    last = k.last
+    frist = v.regelwerk.laeufer_frist_s
+    laeufer = []
+    for p in last.prozesse if last else []:
+        seit = ohne_auftrag_seit(v, k.kennung, p)
+        laeufer.append(LaeuferprozessSicht(pid=p.pid, name=p.name, rolle=p.rolle, modelldatei=p.modelldatei, cpu_prozent=p.cpu_prozent, gb=p.gb,
+                                           ohne_auftrag_seit_s=seit if seit is not None and v.zeit_s - seit >= frist else None,
+                                           beenden_s=p.beenden_s))
+    arbeit = laeuferarbeit(v, k.kennung)
+    mittel = fremd_mittel(v, k)
+    return LastSicht(gemeldet=last is not None, gemessen=bool(last and last.gemessen), kerne=last.kerne if last else None,
+                     fremd_prozent=last.fremd[-1][1] if last and last.fremd else None,
+                     fremd_mittel_prozent=round(mittel, 1) if mittel is not None else None, laeufer=laeufer,
+                     auftraege=arbeit.auftraege, zuletzt_s=arbeit.zuletzt_s, umgehungen=list(k.laeufer_umgehungen),
+                     stufe=k.hintergrund_stufe, stufe_grund=k.hintergrund_grund, stufe_seit_s=k.hintergrund_seit_s)
+
+
 class KnotenSicht(BaseModel):
     kennung: str
     name: str
@@ -67,6 +117,7 @@ class KnotenSicht(BaseModel):
     hintergrund_bis: int | None
     agent: AgentSicht
     fremde: FremdeSicht                # was am Leitstand vorbei auf Modelle dieses Rechners zugreift
+    last: LastSicht                    # Last von Läufer und Rechner, Stufe des Hintergrunds
 
 
 class DienstSicht(BaseModel):
@@ -164,6 +215,7 @@ class Lagebild(BaseModel):
     lage: Lage
     lage_grund: str
     automatik: Automatik
+    regelwerk: Regelwerk               # alle Regelwerte, zur Anzeige und Erklärung neben dem, worauf sie wirken
     knoten: list[KnotenSicht]
     dienste: list[DienstSicht]
     modelle: list[ModellSicht]
@@ -188,7 +240,8 @@ def lagebild(b: Betrieb) -> Lagebild:
                                   budget_gb=round(k.budget_gb(r.budget_reserve_gb), 2), geladen_gb=round(v.geladen_gb(k.kennung), 2),
                                   frei_gb=round(v.frei_gb(k.kennung), 2), belegt_anteil=round(v.belegt_anteil(k.kennung), 3), erreichbar=k.erreichbar,
                                   zustand=k.zustand, schlaeft_seit_s=k.schlaeft_seit_s, budget_fest_gb=k.budget_fest_gb, hintergrund_von=e.hintergrund_von, hintergrund_bis=e.hintergrund_bis, agent=agent,
-                                  fremde=fremde_sicht(av.fremde if av else Fremdzugriffe(beobachtet=False), b.laeufer_direkt(k.kennung))))
+                                  fremde=fremde_sicht(av.fremde if av else Fremdzugriffe(beobachtet=False), b.laeufer_direkt(k.kennung)),
+                                  last=last_sicht(v, k)))
     dienste = [DienstSicht(kennung=d.kennung, name=d.name, art=d.art.value, adresse=d.adresse, knoten=d.knoten, extern=d.extern,
                            zustand=v.dienste[d.kennung].zustand if d.kennung in v.dienste else Dienstzustand.NICHT_ERREICHBAR,
                            steuerbar=b.steuerbar.get(d.kennung, False), meldung=b.dienst_meldung.get(d.kennung, ""), plaetze=d.plaetze,
@@ -221,6 +274,6 @@ def lagebild(b: Betrieb) -> Lagebild:
                                   ketten={f.value: k for f, k in x.ketten.items()}, gesperrt=x.gesperrt, sperrgrund=x.sperrgrund, angelegt_s=x.angelegt_s)
                    for x in b.anwendungen.values()]
     return Lagebild(version=version(), zeit_s=b.uhr.jetzt(), modus=v.betriebsmodus, hintergrund_erlaubt=v.hintergrund_erlaubt,
-                    hintergrund_an=v.hintergrund_an, lage=b.kern.lage, lage_grund=b.kern.lage_grund, automatik=r.automatik,
+                    hintergrund_an=v.hintergrund_an, lage=b.kern.lage, lage_grund=b.kern.lage_grund, automatik=r.automatik, regelwerk=r,
                     knoten=knoten, dienste=dienste, modelle=modelle, auftraege=auftraege, anwendungen=anwendungen,
                     massnahmen=list(b.massnahmen)[:20], meldungen=[Meldung(zeit_s=z, text=t) for z, t in list(b.meldungen)[:30]])

@@ -7,24 +7,56 @@ Kern ohne echte Uhr läuft und im Schein-Verbund deterministisch bleibt.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from .werte import (
     IM_SPEICHER,
     OFFENE_ZUSTAENDE,
+    SZENARIEN_AB_WERK_AUS,
     WARTENDE_ZUSTAENDE,
     Auftragszustand,
     Automatik,
     Betriebsmodus,
     Dienstzustand,
     Faehigkeit,
+    Hintergrundstufe,
     Knotenzustand,
+    Laeuferrolle,
     Massnahmenart,
     Massnahmenzustand,
     Modellzustand,
     Prioritaet,
     Zone,
 )
+
+
+class Prozesslast(BaseModel):
+    """Ein Prozess des Modell-Läufers eines Rechners (knoten.last), so weit die Regeln ihn brauchen (ZUSAMMENSPIEL Z6)."""
+
+    pid: int
+    name: str
+    rolle: Laeuferrolle
+    modelldatei: str = ""
+    gb: float | None = None
+    cpu_prozent: float | None = None  # letzte Messung, Prozent eines Kerns; leer bei der ersten Messung eines Prozesses
+    ueber_seit_s: float | None = None # erste Messung der ununterbrochenen Reihe bis jetzt mit mindestens laeufer_schwelle_prozent
+    beenden_s: float | None = None    # seit dann lässt die Leitstelle ihn beenden (Regel oder von Hand); er löst nicht erneut aus
+
+
+class Rechnerlast(BaseModel):
+    """Was der Maschinenraum eines Rechners über die Last meldet (knoten.last), mit Verlauf. Die Fremdlast ist die Last
+    ohne Läufer und ohne Dienste des Maschinenraums, Anteil aller Kerne."""
+
+    zeit_s: float                     # letzte Meldung
+    gemessen: bool                    # falsch: die Liste der Läufer-Prozesse sagt nichts (kein lsof, kein Läufer)
+    kerne: int
+    prozesse: list[Prozesslast] = Field(default_factory=list)
+    fremd: list[tuple[float, float]] = Field(default_factory=list)   # (Zeit, Fremdlast in Prozent) je Messung im Fenster, älteste zuerst
+
+    def fremd_mittel(self, jetzt_s: float, frist_s: float) -> float | None:
+        """Gleitendes Mittel der Fremdlast über die Frist; None ohne Messung darin."""
+        werte = [w for t, w in self.fremd if jetzt_s - t <= frist_s]
+        return sum(werte) / len(werte) if werte else None
 
 
 class Knoten(BaseModel):
@@ -37,6 +69,11 @@ class Knoten(BaseModel):
     schlaeft_seit_s: float | None = None                 # hat sich schlafen gelegt (knoten.schlaeft); None: wach
     hintergrund_fenster: tuple[int, int] | None = None   # Stunden (von, bis), in denen Hintergrundarbeit hierher darf
     budget_fest_gb: float | None = None                  # von Hand gesetztes Budget; sonst Gesamtspeicher minus Reserve
+    last: Rechnerlast | None = None                      # knoten.last seines Maschinenraums; None: keine Meldung (keiner, ältere Fassung)
+    laeufer_umgehungen: list[str] = Field(default_factory=list)   # wer den Läufer am Leitstand vorbei anspricht (nach der Deutung)
+    hintergrund_stufe: Hintergrundstufe = Hintergrundstufe.FREI   # Regel "Hintergrund bei Rechnerlast"
+    hintergrund_grund: str = ""
+    hintergrund_seit_s: float | None = None
 
     @property
     def schlaeft(self) -> bool:
@@ -199,7 +236,7 @@ class Regelwerk(BaseModel):
     hintergrund_bei_angespannt_anhalten: bool = True
     speicher_warnschwelle: float = 0.92   # Anteil belegt, ab dem die Lage angespannt ist
     automatik: Automatik = Automatik.SELBST
-    szenarien_an: dict[Massnahmenart, bool] = Field(default_factory=lambda: {a: True for a in Massnahmenart})
+    szenarien_an: dict[Massnahmenart, bool] = Field(default_factory=lambda: {a: a not in SZENARIEN_AB_WERK_AUS for a in Massnahmenart})
     # Schleifenschutz
     max_massnahmen_je_fenster: int = 6
     fenster_s: float = 600.0
@@ -212,6 +249,24 @@ class Regelwerk(BaseModel):
     einbettung_andrang_s: float = 10.0
     einbettung_schonfrist_s: float = 1800.0
     einbettung_ruhe_s: float = 300.0
+    # Läufer ohne Auftrag (ZUSAMMENSPIEL Z6): ein Arbeiter des Läufers, der so lange in jeder Messung mindestens so viel
+    # rechnet (Prozent eines Kerns), während kein Auftrag der Leitstelle auf dem Läufer lief oder zugeteilt war
+    laeufer_schwelle_prozent: float = 50.0
+    laeufer_frist_s: float = 300.0
+    # Hintergrund bei Rechnerlast (Z6): Fremdlast des Rechners im gleitenden Mittel über die Frist; drosseln und anhalten ab
+    # diesen Grenzen (Prozent aller Kerne), zurück erst unter Grenze minus Abstand (gegen Flattern). Schätzwerte: nach einer
+    # Woche Verlauf nachstellen
+    last_frist_s: float = 60.0
+    last_drosseln_ab_prozent: float = 50.0
+    last_anhalten_ab_prozent: float = 75.0
+    last_abstand_prozent: float = 10.0
+
+    @field_validator("szenarien_an")
+    @classmethod
+    def _alle_szenarien(cls, werte: dict[Massnahmenart, bool]) -> dict[Massnahmenart, bool]:
+        """Ein gespeichertes Regelwerk aus einer älteren Fassung kennt neue Szenarien nicht: sie bekommen ihre Vorgabe ab
+        Werk (sonst wäre etwa "Läufer ohne Auftrag" stillschweigend an)."""
+        return {a: werte.get(a, a not in SZENARIEN_AB_WERK_AUS) for a in Massnahmenart}
 
 
 class Massnahme(BaseModel):

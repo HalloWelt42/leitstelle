@@ -40,6 +40,8 @@ class Konfig(BaseSettings):
                                                               "er wacht selten in Sekunden auf")
     fremde_nachlauf_s: float = Field(default=60.0, description="so lange muss ein Zugriff am Leitstand vorbei fehlen, bis er als weg gemeldet wird; "
                                                                 "ein Programm, das den Läufer immer wieder kurz anspricht, gilt so als ein Zugriff")
+    laeufer_befehl_s: float = Field(default=60.0, description="so lange wartet die Leitstelle auf die Antwort des Maschinenraums, wenn er einen "
+                                                               "Arbeiter des Läufers beenden soll (er selbst wartet bis zu seiner Anhaltezeit)")
     bildablaeufe: dict[str, BildablaufEinstellung] = Field(
         default_factory=lambda: {"bildschmiede": ComfyAblauf()},
         description="je Bilddienst (Kennung im Maschinenraum) der Ablauf, mit dem `/v1/images/generations` dort Bilder erzeugt; "

@@ -15,6 +15,7 @@ export type Lage = 'ruhig' | 'angespannt' | 'engpass';
  * via the `definition` "Automatik".
  */
 export type Automatik = 'aus' | 'vorschlagen' | 'selbst';
+export type Automatik1 = 'aus' | 'vorschlagen' | 'selbst';
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "Zone".
@@ -35,6 +36,18 @@ export type Fremdart = 'laeufer' | 'speicher';
  * via the `definition` "Fremddeutung".
  */
 export type Fremddeutung = 'umgehung' | 'rechner_der_leitstelle' | 'leitstelle_direkt';
+/**
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "Laeuferrolle".
+ */
+export type Laeuferrolle = 'haupt' | 'arbeiter' | 'sonstig';
+/**
+ * Was Hintergrundarbeit auf einem Rechner darf, nach der Fremdlast (Regel "Hintergrund bei Rechnerlast").
+ *
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "Hintergrundstufe".
+ */
+export type Hintergrundstufe = 'frei' | 'gedrosselt' | 'angehalten';
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "Dienstzustand".
@@ -98,7 +111,9 @@ export type Massnahmenart =
   | 'hintergrund_lage'
   | 'weitere_instanz'
   | 'einbettung_verstaerken'
-  | 'einbettung_zurueckbauen';
+  | 'einbettung_zurueckbauen'
+  | 'laeufer_ohne_auftrag'
+  | 'hintergrund_rechnerlast';
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "Massnahmenzustand".
@@ -161,6 +176,7 @@ export interface Lagebild {
   lage: Lage;
   lage_grund: string;
   automatik: Automatik;
+  regelwerk: Regelwerk;
   knoten: KnotenSicht[];
   dienste: DienstSicht[];
   modelle: ModellSicht[];
@@ -168,6 +184,45 @@ export interface Lagebild {
   anwendungen: AnwendungSicht[];
   massnahmen: Massnahme[];
   meldungen: Meldung[];
+}
+/**
+ * Alles Einstellbare an einem Ort; jede Grenze sichtbar und erklärt (Oberfläche: Regeln).
+ *
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "Regelwerk".
+ */
+export interface Regelwerk {
+  budget_reserve_gb: number;
+  schutzgrenze_mrd: number;
+  mindestverweildauer_s: number;
+  leerlauf_s: number;
+  bedarfsfrist_s: number;
+  arbeit_frist_s: number;
+  arbeit_ab_anfragen: number;
+  gewinnfaktor: number;
+  extern_schwelle_s: number;
+  hintergrund_spaetestens_s: number;
+  hintergrund_bei_angespannt_anhalten: boolean;
+  speicher_warnschwelle: number;
+  automatik: Automatik1;
+  szenarien_an: {
+    [k: string]: boolean;
+  };
+  max_massnahmen_je_fenster: number;
+  fenster_s: number;
+  ruhezeit_s: number;
+  max_umleitungen_je_auftrag: number;
+  umschichter_takt_s: number;
+  geladene_zuerst: boolean;
+  einbettung_andrang_s: number;
+  einbettung_schonfrist_s: number;
+  einbettung_ruhe_s: number;
+  laeufer_schwelle_prozent: number;
+  laeufer_frist_s: number;
+  last_frist_s: number;
+  last_drosseln_ab_prozent: number;
+  last_anhalten_ab_prozent: number;
+  last_abstand_prozent: number;
 }
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
@@ -192,6 +247,7 @@ export interface KnotenSicht {
   hintergrund_bis: number | null;
   agent: AgentSicht;
   fremde: FremdeSicht;
+  last: LastSicht;
 }
 /**
  * Knoten-Agent: Schlüssel vergeben, verbunden, und was er zuletzt gemessen hat.
@@ -254,6 +310,42 @@ export interface FremdzugriffSicht {
   gb: number | null;
   vom_rechner_der_leitstelle: boolean;
   deutung: Fremddeutung;
+}
+/**
+ * Last von Läufer und Rechner (`knoten.last`) und was die Leitstelle daraus macht (ZUSAMMENSPIEL Z6).
+ *
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "LastSicht".
+ */
+export interface LastSicht {
+  gemeldet: boolean;
+  gemessen: boolean;
+  kerne: number | null;
+  fremd_prozent: number | null;
+  fremd_mittel_prozent: number | null;
+  laeufer: LaeuferprozessSicht[];
+  auftraege: number;
+  zuletzt_s: number | null;
+  umgehungen: string[];
+  stufe: Hintergrundstufe;
+  stufe_grund: string;
+  stufe_seit_s: number | null;
+}
+/**
+ * Ein Prozess des Modell-Läufers, wie der Maschinenraum ihn misst, mit dem Befund der Leitstelle.
+ *
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "LaeuferprozessSicht".
+ */
+export interface LaeuferprozessSicht {
+  pid: number;
+  name: string;
+  rolle: Laeuferrolle;
+  modelldatei: string;
+  cpu_prozent: number | null;
+  gb: number | null;
+  ohne_auftrag_seit_s: number | null;
+  beenden_s: number | null;
 }
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema

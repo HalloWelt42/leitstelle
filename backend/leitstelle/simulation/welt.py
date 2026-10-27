@@ -8,7 +8,7 @@ from ..kern.leitstelle import Leitstelle
 from ..kern.messungen import Messwerk
 from ..kern.modelle import Auftrag, Verbund
 from ..kern.regeln.auswerter import Regelgraph
-from ..kern.werte import Auftragszustand, Dienstzustand, Faehigkeit, Massnahmenzustand, Modellzustand, Prioritaet
+from ..kern.werte import Auftragszustand, Dienstzustand, Faehigkeit, Hintergrundstufe, Massnahmenzustand, Modellzustand, Prioritaet
 
 
 @dataclass
@@ -37,6 +37,7 @@ class Welt:
     startvorgaenge: dict[str, tuple[float, float]] = field(default_factory=dict)  # dienst -> (start, dauer)
     signale: list[tuple[float, str, str, dict]] = field(default_factory=list)
     meldungen: list[tuple[float, str]] = field(default_factory=list)
+    beendet: list[tuple[float, str, int]] = field(default_factory=list)   # (Zeit, Knoten, pid): Arbeiter des Läufers beenden lassen
     laufnummer: int = 0
 
     @classmethod
@@ -144,6 +145,18 @@ class Welt:
 
     def bevorzugter_knoten(self, knoten: str | None) -> None:
         self.verbund.hintergrund_knoten_bevorzugt = knoten
+
+    def laeufer_prozess_beenden(self, knoten: str, pid: int) -> None:
+        """Wie der Betrieb: vermerken, dass er beendet wird; weg ist er erst mit der nächsten Meldung des Maschinenraums."""
+        self.beendet.append((self.verbund.zeit_s, knoten, pid))
+        last = self.verbund.knoten[knoten].last
+        for p in last.prozesse if last else []:
+            if p.pid == pid:
+                p.beenden_s = self.verbund.zeit_s
+
+    def hintergrund_stufe(self, knoten: str, stufe: Hintergrundstufe, grund: str) -> None:
+        k = self.verbund.knoten[knoten]
+        k.hintergrund_stufe, k.hintergrund_grund, k.hintergrund_seit_s = stufe, grund, self.verbund.zeit_s
 
     def hintergrund(self, an: bool) -> None:
         self.verbund.hintergrund_an = an

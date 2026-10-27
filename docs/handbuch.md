@@ -87,7 +87,8 @@ des Läufers bleibt eingetragen; Schalter aus heißt sofort wieder direkt (Rück
 
 Probe: unter Dienste stehen die Modelle des Läufers mit Größe und Ladezustand, beim Läufer steht "über den
 Maschinenraum" und er ist bereit; unter Knoten ist der Mac verbunden, meldet seinen Speicher und zeigt unter "Am
-Leitstand vorbei" eine Liste oder "Nichts gefunden".
+Leitstand vorbei" eine Liste oder "Nichts gefunden", unter "Läufer und Last" die Prozesse des Läufers, die Fremdlast
+und den Hintergrund (ab Maschinenraum 0.15.0).
 
 ### 5. Anwendungen
 
@@ -126,4 +127,11 @@ Dienst anhalten, Archiv in den Datenordner entpacken, starten; Probe wie in Schr
   an oder hält ein eigenes Modell im Speicher. Unter Knoten stehen Wer, Prozess und Arbeitsordner; das Programm auf die
   Leitstelle umstellen. "Vermutlich die Leitstelle selbst (direkter Weg)" zählt nicht; der Schalter "über den
   Maschinenraum" macht auch diesen Fall eindeutig.
+- Unter Knoten steht bei einem Arbeiter des Läufers "arbeitet ohne Auftrag": er rechnet seit der Frist (Vorgabe 5 min)
+  über der Schwelle, ohne dass die Leitstelle dort etwas rechnen lässt. Hängt am Läufer ein Programm am Leitstand
+  vorbei, rechnet er vermutlich dafür (das Programm umstellen); sonst "Prozess beenden" (Bestätigung in der Leiste), der
+  Läufer lädt das Modell bei Bedarf neu. Die Regel "Läufer arbeitet ohne Auftrag" täte das selbst, ist ab Werk aber aus.
+- Hintergrundarbeit stockt auf einem Rechner: in der Übersicht steht "Hintergrund gedrosselt" oder "angehalten", weil
+  der Mensch den Rechner gerade braucht (Fremdlast ab 50 beziehungsweise 75 % im Mittel). Das gibt sich von selbst,
+  sobald die Last 10 Punkte unter die Grenze fällt; normale und dringende Aufträge sind nicht betroffen.
 - Gespeicherte Schlüssel sind unlesbar: `tresor.schluessel` fehlt oder gehört zu einer anderen Datenbank.

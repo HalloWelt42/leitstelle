@@ -1,7 +1,8 @@
 """Zuteiler: welcher Dienst, welches Modell, welcher Knoten für einen wartenden Auftrag.
 
 Reihenfolge der Prüfung (ARCHITEKTUR 5.1): Rechte der Anwendung, Kette, Speicher, Plätze,
-Priorität mit Fairness, Direktweg. Jede Entscheidung trägt eine Begründung in Worten.
+Priorität mit Fairness, Direktweg. Jede Entscheidung trägt eine Begründung in Worten. Hintergrund folgt dazu der Stufe
+jedes Rechners nach seiner Fremdlast (ZUSAMMENSPIEL Z6): gedrosselt nur die Grundinstanz, angehalten nichts.
 Der Zuteiler lädt nicht selbst; er sagt, was zu laden wäre (Zuteilung mit laden=True), das
 Ausführen übernimmt der Vollzug (Dienst-Adapter, im Test der Schein-Verbund).
 """
@@ -13,7 +14,7 @@ from pydantic import BaseModel, Field
 from .messungen import Messwerk
 from .modelle import Auftrag, Modell, Verbund
 from .speicherplaner import planen
-from .werte import Auftragszustand, Betriebsmodus, Faehigkeit, Modellzustand, Prioritaet, Zone
+from .werte import Auftragszustand, Betriebsmodus, Faehigkeit, Hintergrundstufe, Modellzustand, Prioritaet, Zone
 from .text import komma, schlaf_satz
 
 
@@ -62,9 +63,34 @@ def zone_erlaubt(verbund: Verbund, auftrag: Auftrag, modell: Modell) -> bool:
     return dienst.extern or verbund.knoten[dienst.knoten or ""].erreichbar
 
 
-def kandidaten(verbund: Verbund, auftrag: Auftrag, familie: str, mit_extern: bool) -> list[Modell]:
+def wirksame_prioritaet(verbund: Verbund, a: Auftrag) -> int:
+    """Hintergrund rückt nach der eingestellten Wartezeit auf Normal, damit nichts verhungert."""
+    if a.prioritaet == Prioritaet.HINTERGRUND and verbund.zeit_s - a.eingang_s >= verbund.regelwerk.hintergrund_spaetestens_s:
+        return int(Prioritaet.NORMAL)
+    return int(a.prioritaet)
+
+
+def hintergrund_gebremst(verbund: Verbund, a: Auftrag, m: Modell) -> str | None:
+    """Warum ein Hintergrundauftrag dieses Modell nach der Stufe seines Rechners gerade nicht bekommt; None: er darf.
+    Angehalten: kein Hintergrund, auch nicht nach der Fairness-Frist (der Rechner gehört gerade dem Menschen).
+    Gedrosselt: wirksam Hintergrund bekommt nur die Grundinstanz, keine weitere. Alles Übrige ist unberührt."""
+    if a.prioritaet != Prioritaet.HINTERGRUND:
+        return None
+    knoten = verbund.dienste[m.dienst].knoten
+    k = verbund.knoten.get(knoten) if knoten else None
+    if k is None or k.hintergrund_stufe == Hintergrundstufe.FREI:
+        return None
+    if k.hintergrund_stufe == Hintergrundstufe.ANGEHALTEN:
+        return f"Hintergrund auf {k.name} angehalten: {k.hintergrund_grund}"
+    if m.zusatz and wirksame_prioritaet(verbund, a) == int(Prioritaet.HINTERGRUND):
+        return f"Hintergrund auf {k.name} gedrosselt, nur die Grundinstanz: {k.hintergrund_grund}"
+    return None
+
+
+def kandidaten(verbund: Verbund, auftrag: Auftrag, familie: str, mit_extern: bool, gebremst: list[str] | None = None) -> list[Modell]:
     """Alle Modellinstanzen einer Familie, die der Auftrag nutzen dürfte. Externe nur, wenn ausdrücklich
-    gewünscht (festes Modell) oder wenn die Regel Extern ausweichen sie einbezieht."""
+    gewünscht (festes Modell) oder wenn die Regel Extern ausweichen sie einbezieht. Was die Stufe des Hintergrunds
+    verwehrt, fehlt; der Grund kommt nach `gebremst` (dann wartet der Auftrag, statt abgelehnt zu werden)."""
     aus = []
     for m in verbund.modelle.values():
         if m.familie != familie or auftrag.faehigkeit not in m.faehigkeiten:
@@ -77,6 +103,10 @@ def kandidaten(verbund: Verbund, auftrag: Auftrag, familie: str, mit_extern: boo
         if d.extern and not mit_extern and auftrag.festes_modell != familie:
             continue
         if not zone_erlaubt(verbund, auftrag, m):
+            continue
+        if (grund := hintergrund_gebremst(verbund, auftrag, m)) is not None:
+            if gebremst is not None:
+                gebremst.append(grund)
             continue
         aus.append(m)
     return aus
@@ -115,13 +145,6 @@ def ablehnungsgrund(verbund: Verbund, auftrag: Auftrag, kette: list[str]) -> War
 def platz_frei(verbund: Verbund, m: Modell, schon_vergeben: int = 0) -> bool:
     """Ein Platz auf dem Modell und, wo der Dienst eine Grenze je Minute hat, eine Anfrage im Fenster."""
     return len(verbund.belegung(m.kennung)) < verbund.plaetze(m) and verbund.anfrage_frei_in_s(m.dienst, schon_vergeben) == 0
-
-
-def wirksame_prioritaet(verbund: Verbund, a: Auftrag) -> int:
-    """Hintergrund rückt nach der eingestellten Wartezeit auf Normal, damit nichts verhungert."""
-    if a.prioritaet == Prioritaet.HINTERGRUND and verbund.zeit_s - a.eingang_s >= verbund.regelwerk.hintergrund_spaetestens_s:
-        return int(Prioritaet.NORMAL)
-    return int(a.prioritaet)
 
 
 def reihenfolge(verbund: Verbund) -> list[Auftrag]:
@@ -167,11 +190,12 @@ def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> 
 
         gefunden: Zuteilung | None = None
         warte: Wartegrund | None = None
+        gebremst: list[str] = []
         # 1. Geladene zuerst (über die ganze Kette), mit freiem Platz
         suche = kette if verbund.regelwerk.geladene_zuerst else kette[:1]
         geladene: list[tuple[int, Modell]] = []
         for i, fam in enumerate(suche):
-            for m in kandidaten(verbund, a, fam, mit_extern):
+            for m in kandidaten(verbund, a, fam, mit_extern, gebremst):
                 if (m.zustand in (Modellzustand.GELADEN, Modellzustand.RECHNET) and platz_frei(verbund, m, vergeben_anfragen.get(m.dienst, 0))
                         and vergeben_plaetze.get(m.kennung, 0) < verbund.plaetze(m) - len(verbund.belegung(m.kennung))):
                     d = verbund.dienste[m.dienst]
@@ -185,7 +209,7 @@ def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> 
         if gefunden is None:
             # 2. Erste Familie der Kette: geladen, aber belegt -> warten auf Platz; sonst laden, wenn es passt
             for fam in kette:
-                ks = kandidaten(verbund, a, fam, mit_extern)
+                ks = kandidaten(verbund, a, fam, mit_extern, gebremst)
                 if not ks:
                     continue
                 belegt = [m for m in ks if m.zustand in (Modellzustand.GELADEN, Modellzustand.RECHNET, Modellzustand.LAEDT)]
@@ -246,6 +270,8 @@ def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> 
             je_anwendung[a.anwendung] = je_anwendung.get(a.anwendung, 0) + 1
         elif warte:
             ergebnis.wartend.append(warte)
+        elif gebremst:
+            ergebnis.wartend.append(Wartegrund(auftrag=a.kennung, zustand=Auftragszustand.EINGEREIHT, begruendung=gebremst[0]))
         else:
             ergebnis.abgelehnt.append(ablehnungsgrund(verbund, a, kette))
     return ergebnis

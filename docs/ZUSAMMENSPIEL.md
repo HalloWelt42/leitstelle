@@ -224,6 +224,134 @@ Mac Studio deshalb 2. Befunde nebenbei: der Läufer reißt gelegentlich Verbindu
 Fundus); die Leitstelle setzt ihn dann 5 s auf "nicht erreichbar" und lehnt solange alle Aufträge ab, mit mehr
 Instanzen häufiger (offen). Fundus schickte live nur einen Stapel gleichzeitig; mit einem Stapel entsteht kein Andrang.
 
+### Stufe Z6: Last des Modell-Läufers messen, Hängendes beenden, Hintergrund bei Rechnerlast drosseln
+
+Anlass (27.10.2026): Die Last des Mac lag stundenlang bei rund 60, Tests liefen in Zeitgrenzen. Zwei Prozesse des
+Modell-Läufers belegten viel Rechenzeit. Erst ein Abgleich von Hand mit `/api/auftraege` zeigte: es waren die beiden
+Instanzen von Bge M3, die die Leitstelle selbst für die Masseneinbettung des Fundus betreibt (rund 640 Aufträge je
+Stunde). Die Leitstelle zeigte das nirgends; die Beobachtung des Maschinenraums lässt die Läufer-Prozesse bewusst aus.
+Nutzer: "genau deswegen muss Leitstelle sowas zentral steuern. das war seit Beginn der Entwicklung eine fundamentale
+Forderung." Gewählt im Dialog: "Selbst eingreifen nach Regel" und "Massenarbeit bei Last drosseln"; beides setzt auf
+einer gemeinsamen Messung auf.
+
+Zuständigkeiten wie immer: der Maschinenraum misst und führt aus, die Leitstelle entscheidet.
+
+#### Messung (Maschinenraum): `knoten.last`
+
+Im Takt der Beobachtung (`beobachtung.takt_s`, 15 s), eigene Nachricht neben `knoten.fremde`:
+
+- `kerne`: logische Kerne des Rechners
+- `laeufer`: je Prozess des Läufers (lauschender Prozess am Läufer-Port samt Nachfahren)
+  - `pid`, `name` (wie bei der Beobachtung), `rolle`: `haupt` (lauscht am Port), `arbeiter` (hat eine Modelldatei
+    offen), `sonstig` (alles andere, etwa das Fenster)
+  - `modelldatei`: Pfad der offenen Modelldatei unterhalb des Modellordners, leer bei Nicht-Arbeitern; erkannt an den
+    Endungen aus `beobachtung.modelldateien` (Vorgabe `.gguf`, `.safetensors`), ein Aufruf von lsof für alle Läufer-Prozesse
+  - `cpu_prozent`: Rechenzeit seit der letzten Messung je Wandzeit, in Prozent eines Kerns (aus `rechenzeit_s` der
+    Prozesstabelle; beim ersten Mal und bei neuer pid leer)
+  - `gb`: Speicher wie überall (`prozess_bytes`)
+- `fremd_prozent`: Prozessorlast ohne Läufer und ohne Dienste des Maschinenraums, Anteil aller Kerne (0 bis 100), aus
+  den Rechenzeiten aller Prozesse der Tabelle. Das ist die Last, die der Mensch und seine übrigen Programme erzeugen;
+  die eigene Arbeit der Leitstelle steckt nicht darin, darum schaukelt sich das Drosseln nicht an der eigenen Last auf.
+- `gemessen`: false ohne lsof oder ohne Läufer-Port; dann gibt es keine Aussage statt einer leeren Liste
+
+Alles zeitbasiert (Rechenzeit je Wandzeit), nicht taktgewichtet wie `cpu_prozent` aus den Messwerten; beide Maße
+werden nicht gemischt.
+
+#### Befehl (Maschinenraum): `laeufer_prozess_beenden`
+
+Neue `Befehlsart.LAEUFER_PROZESS_BEENDEN`, `ziel` = pid. Der Maschinenraum prüft beim Ausführen, dass die pid gerade
+ein `arbeiter` des Läufers ist (im Baum des lauschenden Prozesses, Modelldatei offen); den Hauptprozess und alles
+andere beendet er nie (Schutz gegen wiederverwendete pids und Fehlbedienung). SIGTERM, nach 10 s SIGKILL; das Ergebnis
+nennt Name, Modelldatei und Weg. Der Läufer meldet die Instanz danach als entladen; die Leitstelle lädt bei Bedarf neu.
+
+#### Anzeige (Leitstelle)
+
+Beim Knoten und in der Übersicht: je Läufer die Prozesse mit Rolle, Modell (Datei), Kernen (cpu_prozent / 100, mit
+Komma), Speicher und dem Stand der Leitstelle daneben: wie viele Aufträge gerade auf diesem Läufer laufen und wann
+zuletzt einer lief. Ein Arbeiter, der über der Schwelle rechnet, während seit der Frist kein Auftrag der Leitstelle auf
+diesem Läufer lief, heißt "arbeitet ohne Auftrag"; liegt zugleich eine Umgehung am Läufer vor (`knoten.fremde`,
+Deutung aus `fach/umgehungen.py`), steht sie als Erklärung daneben. Dazu die Fremdlast des Rechners und die Stufe des
+Hintergrunds je Knoten (frei, gedrosselt, angehalten) mit Grund. Neue Befunde in den Verlauf (wie bei den Umgehungen).
+Von Hand: Knopf "Prozess beenden" je Arbeiter (Rückfall per Hand, gleiche Prüfung wie die Regel, mit Bestätigung in der
+Leiste, nie Browser-Dialog).
+
+#### Regel 1: "Läufer arbeitet ohne Auftrag" (Vorgabe aus)
+
+Neue Massnahmenart `LAEUFER_OHNE_AUFTRAG`, in `szenarien_an` mit Vorgabe **aus**.
+
+- Auslöser `laeufer_arbeitet_ohne_auftrag`: je Arbeiter eines Läufers ein Lauf, wenn er seit `laeufer_frist_s`
+  (Vorgabe 300) in jeder Messung mindestens `laeufer_schwelle_prozent` (Vorgabe 50, Prozent eines Kerns) rechnet und
+  in diesem Fenster kein Auftrag der Leitstelle auf einem Modell dieses Läufer-Dienstes lief oder zugeteilt war
+  (`letzte_nutzung_s` der Modelle und offene Aufträge).
+- Prüfung `umgehung_am_laeufer`: liegt eine echte Umgehung vor (nach der Deutung, nicht die Leitstelle selbst auf dem
+  direkten Weg)? Ja: nur melden ("{prozess} rechnet ohne Auftrag der Leitstelle; am Läufer hängt {wer}"), nicht
+  beenden, denn dann rechnet er für einen echten Kunden. Nein: weiter.
+- Aktion `laeufer_prozess_beenden` (Befehl an den Maschinenraum), dann melden ("{prozess} mit {modelldatei} rechnete
+  {dauer} ohne Auftrag mit {kerne} Kernen; beendet").
+- Schleifenschutz wie alle Regeln (Fenster, Ruhezeit).
+
+#### Regel 2: "Hintergrund bei Rechnerlast" (Vorgabe an)
+
+Neue Massnahmenart `HINTERGRUND_RECHNERLAST`, Vorgabe an. Stufe je Knoten `hintergrund_stufe`: `frei`, `gedrosselt`,
+`angehalten`, mit Grund und Zeitpunkt.
+
+- Auslöser `rechnerlast`: je wachem Knoten mit `knoten.last` ein Lauf je Takt mit dem gleitenden Mittel der Fremdlast
+  über `last_frist_s` (Vorgabe 60).
+- Prüfungen über die Regelwerte `last_drosseln_ab_prozent` (Vorgabe 50), `last_anhalten_ab_prozent` (Vorgabe 75) und
+  `last_abstand_prozent` (Vorgabe 10, Rückweg erst darunter, gegen Flattern).
+- Aktionen `hintergrund_drosseln`, `hintergrund_auf_knoten_anhalten`, `hintergrund_auf_knoten_freigeben` setzen die
+  Stufe; melden mit Fremdlast und Grenze.
+- Wirkung im Zuteiler und in den Prüfungen:
+  - `gedrosselt`: Hintergrundaufträge (Priorität HINTERGRUND, wirksame Priorität) bekommen auf diesem Knoten nur die
+    Grundinstanz einer Familie, keine weitere; `weitere_instanz_moeglich` und `einbettungsinstanzen_moeglich` sagen nein,
+    solange nur Hintergrund wartet; weitere Instanzen ohne Auftrag werden sofort entladen (nicht erst nach der Ruhe).
+  - `angehalten`: Hintergrundaufträge werden auf diesem Knoten nicht zugeteilt; laufende laufen zu Ende. Die Fairness
+    (`hintergrund_spaetestens_s`) gilt hier nicht: angehalten heißt, der Rechner gehört gerade dem Menschen.
+  - Normale, hohe und dringende Aufträge bleiben unberührt.
+- Die Grenzen sind Schätzwerte; nach einer Woche mit dem Verlauf (Fremdlast, Stufenwechsel, Durchsatz der Einbettung)
+  nachstellen.
+
+#### Prüfung
+
+- Maschinenraum: Messung mit nachgestellter Prozesstabelle und lsof (Rollen, Modelldatei, Prozent aus zwei Messungen,
+  Fremdlast ohne Läufer und Dienste); Befehl beendet nur Arbeiter, lehnt Hauptprozess, fremde pid und verschwundene pid
+  ab.
+- Leitstelle: Regel 1 löst nur nach voller Frist ohne Auftrag aus, nicht bei Umgehung, nicht wenn ein Auftrag lief;
+  Regel 2 drosselt, hält an, gibt erst unter Grenze minus Abstand frei, lässt Normales unberührt, entlädt weitere
+  Instanzen ohne Auftrag; Spiegeltest des Protokolls; Szenarien in `docs/SZENARIEN.md`.
+
+**Umsetzung** (Leitstelle 0.23.0, Maschinenraum 0.15.0, 27.10.2026):
+
+- **Maschinenraum**: `knoten.last` und `knoten.fremde` entstehen aus einer Aufnahme je Takt (ein Aufruf von ps, einer
+  von lsof am Läufer-Port, dazu einer für die Modelldateien aller Läufer-Prozesse). Die Modelldatei kommt als Pfad (Heim
+  als `~`), die Oberfläche zeigt den Dateinamen. Ohne eingetragenen Läufer gibt es keinen, der herauszurechnen wäre: dann
+  ist `gemessen` falsch, die Fremdlast aber gemessen; ohne lsof fehlen beide. Die Wartezeit zwischen SIGTERM und SIGKILL
+  ist die Einstellung `beobachtung.anhaltezeit_s` (Vorgabe 10 s), nicht fest. Gemessen wird erst, wenn der Start alle
+  laufenden Dienste übernommen hat (sonst hielte die Beobachtung eigene Dienste für fremd); weitere Instanzen findet der
+  Start über Stand und Port wieder.
+- **Kern**: `Knoten.last` (je Prozess die Reihe über der Schwelle, Fremdlast im Fenster), `laeufer_umgehungen` (aus dem
+  Umgehungsbuch, nur Verbindungen zum Läufer) und die Stufe des Hintergrunds. Eine Stelle für Befund, Arbeit der
+  Leitstelle auf dem Läufer und Sätze: `kern/rechnerlast.py`. Läufer eines Rechners sind seine Dienste der Art
+  `openai_kompatibel`; ein Laden der Leitstelle dort zählt wie ein Auftrag.
+- **Regel 1**: der Weg mit Umgehung endet ohne Aktion ("rechnet für ein Programm am Leitstand vorbei, nicht beendet");
+  gemeldet ist der Fall schon als Befund im Verlauf (einmal je Arbeiter, mit "am Läufer hängt ..."), so verbraucht er
+  nicht in jedem Takt eine Maßnahme des Fensters. Die Meldung der Maßnahme endet mit "wird beendet"; das Ergebnis des
+  Maschinenraums (Weg oder Ablehnung) steht danach im Verlauf. Schleifenschutz: Beenden zählt als Bewegung
+  `beenden:<Pfad der Modelldatei>@<knoten>`; ein zweites Beenden desselben Modells im Fenster ist Flattern. Beenden von Hand
+  (Knopf "Prozess beenden", `POST /api/knoten/<k>/laeufer/<pid>/beenden`) nur für einen Arbeiter mit Befund, dieselbe
+  Prüfung wie die Regel.
+- **Regel 2**: ohne frische Messung (Maschinenraum getrennt) gibt die Regel einen gebremsten Hintergrund frei. Das
+  sofortige Entladen weiterer Instanzen ohne Auftrag betrifft die Einbettungsinstanzen des Läufers (Regel "Einbettung
+  zurückbauen" ohne Ruhezeit, wartender Hintergrund zählt nicht); für weitere Instanzen von Diensten des Maschinenraums
+  gibt es keine Rückbau-Regel, sie bekommen gedrosselt nur keinen Hintergrund. Gesperrt für Hintergrund sind auch
+  Umleiten, Ausweichen in der Kette und Vorwärmen auf einen gebremsten Rechner.
+- **Regelwerte** (Regelwerk, im Lagebild): `laeufer_schwelle_prozent`, `laeufer_frist_s`, `last_frist_s`,
+  `last_drosseln_ab_prozent`, `last_anhalten_ab_prozent`, `last_abstand_prozent`; ein gespeichertes Regelwerk ohne die
+  neuen Szenarien bekommt ihre Vorgaben ab Werk (keine Migration nötig). Eine Seite Regeln gibt es in der App noch nicht;
+  Werte und Erklärungen stehen dort, wo sie wirken: unter Knoten bei "Läufer und Last".
+- **Prüfung**: Szenarien L01 bis L23 ([SZENARIEN.md](SZENARIEN.md) Abschnitt 3d), Spiegeltest des Protokolls; im
+  Maschinenraum `tests/test_laeuferlast.py` und die Instanztests in `tests/test_dienste.py`.
+
 ## Selbstauskunft: Steckbrief je Modell
 
 Nutzer 18.10.2026: "die modelle [können] auskunft über sich selber geben ... so kann eine anfrage einer software eine

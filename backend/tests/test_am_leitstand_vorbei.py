@@ -18,14 +18,18 @@ import pytest
 
 from leitstelle.api.app import erstellen
 from leitstelle.fach.umgehungen import Umgehungsbuch
+from leitstelle.kern.modelle import Regelwerk
+from leitstelle.kern.werte import Massnahmenart
 from leitstelle.konfig import Konfig
+from leitstelle.ports.ablage.datenbank import Datenbank
+from leitstelle.ports.ablage.repositorien import Ablage
 from leitstelle.ports.ablage.eintraege import Adapterart
 from leitstelle.ports.agenten import Agentenvermittlung
 from leitstelle.ports.dienste import adapter_fabrik
 from leitstelle.ports.dienste.laeuferweg import OHNE_MASCHINENRAUM, UeberMaschinenraum
 from leitstelle.ports.dienste.openai_kompatibel import OpenAIKompatibel
 from leitstelle.ports.dienste.schnittstelle import DienstFehler, Durchleitung
-from leitstelle.protokoll.knoten import Fremdart, Fremdzugriff, Fremdzugriffe, KnotenAnmeldung
+from leitstelle.protokoll.knoten import Befehlsart, Fremdart, Fremdzugriff, Fremdzugriffe, KnotenAnmeldung, KnotenLast, Laeuferprozess, Laeuferrolle
 
 from schein.agent import ScheinAgent
 from schein.laeufer import Lage, schein_laeufer
@@ -113,8 +117,13 @@ class Aufbau:
 
 
 @asynccontextmanager
-async def aufbau(tmp_path, nachlauf_s: float = 0.0):
-    """Mac Studio mit Läufer (direkter Weg) und Maschinenraum; eine Anwendung."""
+async def aufbau(tmp_path, nachlauf_s: float = 0.0, regelwerk: Regelwerk | None = None):
+    """Mac Studio mit Läufer (direkter Weg) und Maschinenraum; eine Anwendung. Ein Regelwerk liegt vor dem Start in der Ablage."""
+    if regelwerk is not None:
+        db = Datenbank(tmp_path / "leitstelle.sqlite")
+        await db.oeffnen()
+        await Ablage(db).einstellungen.regelwerk_speichern(regelwerk)
+        await db.schliessen()
     laeufer = schein_laeufer()
     konfig = Konfig(daten=tmp_path, oberflaeche=None, dienst_takt_s=0.3, hinweis_s=1.0, fremde_nachlauf_s=nachlauf_s)
     async with laufend(laeufer) as laeufer_url, laufend(erstellen(konfig)) as url, httpx.AsyncClient(base_url=url, timeout=30) as c:
@@ -270,3 +279,111 @@ def test_u09_nachlauf_gegen_flackern():
     buch.abgleichen("mac", [PROGRAMM], 600.0)
     buch.vergessen("mac")                                                        # Maschinenraum getrennt
     assert buch.abgleichen("mac", [PROGRAMM], 610.0) == ([PROGRAMM], [])
+
+
+# ── Last des Läufers und des Rechners (ZUSAMMENSPIEL Z6), mit dem Schein-Agenten ────────────────────────────────────────
+DATEI = "~/.lmstudio/models/lmstudio-community/bge-m3-GGUF/bge-m3-Q8_0.gguf"
+HAUPT = Laeuferprozess(pid=807, name="Läufer", rolle=Laeuferrolle.HAUPT, cpu_prozent=3.0, gb=0.6)
+ARBEITER = Laeuferprozess(pid=808, name="node (Läufer)", rolle=Laeuferrolle.ARBEITER, modelldatei=DATEI, cpu_prozent=98.0, gb=1.2)
+
+
+def _regeln(**mehr) -> Regelwerk:
+    """Kurze Fristen für den Test: ohne Auftrag nach 1 s, Mittel der Fremdlast über 60 s."""
+    return Regelwerk(umschichter_takt_s=0.2, laeufer_frist_s=1.0, **mehr)
+
+
+async def _last(a: Aufbau) -> dict:
+    return next(k for k in (await _lage(a))["knoten"] if k["kennung"] == a.knoten)["last"]
+
+
+async def _verlauf(a: Aufbau, anfang: str) -> list[str]:
+    return [m["text"] for m in reversed((await _lage(a))["meldungen"]) if m["text"].startswith(anfang)]
+
+
+async def _ohne_auftrag_gemeldet(a: Aufbau, fremd: float = 20.0) -> None:
+    """Zwei Meldungen mit mehr als der Frist dazwischen: der Arbeiter rechnet ohne Auftrag."""
+    await a.agent.last_melden(KnotenLast(kerne=10, laeufer=[HAUPT, ARBEITER], fremd_prozent=fremd))
+    await asyncio.sleep(1.3)
+    await a.agent.last_melden(KnotenLast(kerne=10, laeufer=[HAUPT, ARBEITER], fremd_prozent=fremd))
+
+    async def befund():
+        return any(p["ohne_auftrag_seit_s"] is not None for p in (await _last(a))["laeufer"])
+    await _warte_bis(befund)
+
+
+async def test_l20_last_im_lagebild_befund_einmal_im_verlauf_und_von_hand_beenden(tmp_path):
+    async with aufbau(tmp_path, regelwerk=_regeln()) as a:
+        s = await _last(a)
+        assert s["gemeldet"] is False and s["laeufer"] == [] and s["stufe"] == "frei"           # bis zur ersten Meldung
+        await asyncio.sleep(1.1)                                                                 # die Modelle des Läufers gelten bei der Einrichtung als genutzt
+        await _ohne_auftrag_gemeldet(a)
+        s = await _last(a)
+        assert s["gemeldet"] and s["gemessen"] and s["kerne"] == 10 and s["fremd_prozent"] == 20.0 and s["auftraege"] == 0
+        assert [(p["pid"], p["rolle"], p["cpu_prozent"]) for p in s["laeufer"]] == [(807, "haupt", 3.0), (808, "arbeiter", 98.0)]
+        assert s["laeufer"][0]["ohne_auftrag_seit_s"] is None and s["laeufer"][1]["modelldatei"] == DATEI
+        await a.agent.last_melden(KnotenLast(kerne=10, laeufer=[HAUPT, ARBEITER], fremd_prozent=20.0))
+        befunde = await _verlauf(a, "Läufer auf Mac Studio")
+        assert len(befunde) == 1 and befunde[0].startswith("Läufer auf Mac Studio: node (Läufer) (Prozess 808, bge-m3-Q8_0.gguf) rechnet seit ")
+        assert befunde[0].endswith("ohne Auftrag der Leitstelle mit 1,0 Kernen")
+        assert a.agent.befehle == []                                                             # Regel ab Werk aus: nur Befund
+
+        r = await a.c.post(f"/api/knoten/{a.knoten}/laeufer/807/beenden")
+        assert r.status_code == 409 and "kein Arbeiter" in r.json()["begruendung"], r.text   # Hauptprozess nie
+        r = await a.c.post(f"/api/knoten/{a.knoten}/laeufer/808/beenden")
+        assert r.status_code == 200 and r.json()["erfolg"], r.text
+        assert [(b.befehl, b.ziel) for b in a.agent.befehle] == [(Befehlsart.LAEUFER_PROZESS_BEENDEN, "808")]
+        assert (await _last(a))["laeufer"][1]["beenden_s"] is not None
+        assert "Läufer auf Mac Studio: Prozess 808 beendet: auf Bitte (SIGTERM)" in await _verlauf(a, "Läufer auf Mac Studio")
+        r = await a.c.post(f"/api/knoten/{a.knoten}/laeufer/808/beenden")
+        assert r.status_code == 409 and "schon beendet" in r.json()["begruendung"]
+        await a.agent.last_melden(KnotenLast(kerne=10, laeufer=[HAUPT], fremd_prozent=20.0))   # der Läufer hat die Instanz entladen
+
+        async def weg():
+            return (await _verlauf(a, "Läufer auf Mac Studio"))[-1] == "Läufer auf Mac Studio: node (Läufer) (Prozess 808) ist beendet"
+        await _warte_bis(weg)
+
+
+async def test_l21_von_hand_erst_nach_der_frist(tmp_path):
+    """Dieselbe Prüfung wie die Regel: gerade erst über der Schwelle (und die Modelle des Läufers eben noch genutzt) heißt
+    nicht ohne Auftrag."""
+    async with aufbau(tmp_path, regelwerk=_regeln()) as a:
+        await a.agent.last_melden(KnotenLast(kerne=10, laeufer=[HAUPT, ARBEITER], fremd_prozent=20.0))
+
+        async def da():
+            return len((await _last(a))["laeufer"]) == 2
+        await _warte_bis(da)
+        r = await a.c.post(f"/api/knoten/{a.knoten}/laeufer/808/beenden")
+        assert r.status_code == 409 and r.json()["begruendung"] == ("node (Läufer) (Prozess 808) wird nicht beendet: er rechnet nicht seit der "
+                                                                     "Frist über der Schwelle ohne Auftrag."), r.text
+        assert a.agent.befehle == []
+
+
+async def test_l22_regel_an_beendet_selbst(tmp_path):
+    regeln = _regeln()
+    regeln.szenarien_an[Massnahmenart.LAEUFER_OHNE_AUFTRAG] = True
+    async with aufbau(tmp_path, regelwerk=regeln) as a:
+        await asyncio.sleep(1.1)
+        await _ohne_auftrag_gemeldet(a)
+
+        async def beendet():
+            return [(b.befehl, b.ziel) for b in a.agent.befehle] == [(Befehlsart.LAEUFER_PROZESS_BEENDEN, "808")]
+        await _warte_bis(beendet)
+        assert any(m["grund"].startswith("Läufer auf Mac Studio: node (Läufer) mit bge-m3-Q8_0.gguf rechnete") for m in (await _lage(a))["massnahmen"])
+
+
+async def test_l23_rechnerlast_haelt_hintergrund_an_und_gibt_ihn_frei(tmp_path):
+    async with aufbau(tmp_path, regelwerk=_regeln(last_frist_s=60.0)) as a:
+        for _ in range(3):
+            await a.agent.last_melden(KnotenLast(kerne=10, laeufer=[HAUPT], fremd_prozent=90.0))
+
+        async def stufe(wert: str):
+            async def gleich():
+                return (await _last(a))["stufe"] == wert
+            return gleich
+        await _warte_bis(await stufe("angehalten"))
+        s = await _last(a)
+        assert s["stufe_grund"] == "Fremdlast 90 %, anhalten ab 75 %" and s["fremd_mittel_prozent"] == 90.0
+        assert "Hintergrund auf Mac Studio angehalten (vorher frei): Fremdlast im Mittel 90 %, anhalten ab 75 %" in await _verlauf(a, "Hintergrund")
+        await a.agent.trennen()                                                                  # ohne Maschinenraum keine Messung: frei
+        await _warte_bis(await stufe("frei"))
+        assert (await _last(a))["stufe_grund"] == "Fremdlast nicht mehr gemessen"
