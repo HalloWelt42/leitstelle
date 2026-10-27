@@ -111,20 +111,13 @@ Durchleitung: der Agent meldet in `knoten.anmelden` den Port `durchleitung_port`
 `/<dienst>/<pfad>` mit demselben Schlüssel als Bearer auf; der Agent reicht an den Dienst weiter, der nur auf seinem
 Rechner lauscht. Ziel ist die Adresse, von der aus sich der Agent verbunden hat.
 
-`/laeufer/<pfad>` reicht an den Modell-Läufer des Rechners (beim Maschinenraum Einstellung `nachbar.modell_laeufer`);
-kein Dienst darf `laeufer` heißen. Die Leitstelle nimmt diesen Weg, wenn beim Läufer der Schalter "über den
-Maschinenraum" an ist (`ueber_maschinenraum`, `PATCH /api/dienste/<kennung>`): jede ihrer Anfragen an den Läufer
-(Zustand, Laden, Entladen, Arbeit) geht dann an die Durchleitung, Adresse und Schlüssel bei jeder Anfrage aus der
-Verbindung des Agenten. Damit kommt jede ihrer Verbindungen zum Läufer vom Maschinenraum, und jede andere meldet er als
-Umgehung (`knoten.fremde`). Ist der Agent nicht verbunden, ist der Läufer nicht erreichbar ("Maschinenraum nicht
-verbunden; Rückfall: Schalter 'über den Maschinenraum' aus"); einen stillen Rückfall auf den direkten Weg gibt es
-nicht. Die Adresse des Läufers bleibt eingetragen: Schalter aus heißt sofort wieder direkt. Einen Zugang zum Läufer
-reicht die Durchleitung nicht weiter (sie trägt den Schlüssel des Maschinenraums); mit Zugang lehnt die Leitstelle den
-Schalter ab (Grund `weg`).
+Den Modell-Läufer eines Rechners spricht die Leitstelle direkt unter seiner Adresse an; durch die Durchleitung gehen nur
+die Dienste des Agenten. Die Leitstelle ist die zentrale Steuerung und Überwachung: sie muss nicht jedes Bit
+durchschleifen, aber sie sieht, was auf den Rechnern geschieht, und greift ein, wo es nötig ist.
 
 Am Leitstand vorbei: die Leitstelle deutet jeden Zugriff aus `knoten.fremde`. Eine Verbindung zum Läufer aus dem Netz
-von der Adresse der Leitstelle ist, solange sie den Läufer dieses Rechners direkt anspricht, vermutlich sie selbst
-(`leitstelle_direkt`, keine Umgehung); geht ihr Weg über den Maschinenraum, ist es ein anderes Programm auf ihrem Rechner
+von der Adresse der Leitstelle ist, solange sie einen Läufer dieses Rechners eingetragen hat (den sie direkt anspricht),
+vermutlich sie selbst (`leitstelle_direkt`, keine Umgehung); sonst ist es ein anderes Programm auf ihrem Rechner
 (`rechner_der_leitstelle`); alles andere heißt `umgehung`. Das Lagebild trägt je Knoten `fremde` (`beobachtet`,
 `zugriffe` mit `deutung`, `umgehungen` als Zahl der echten Umgehungen). Jede Umgehung (Schlüssel aus Art, wer und
 Prozess) steht einmal in den Meldungen, wenn sie auftaucht, und einmal, wenn sie verschwunden ist; verschwunden heißt

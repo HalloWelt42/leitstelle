@@ -41,7 +41,6 @@ class DienstTabelle(Basis):
     abgleich_s: Mapped[float | None] = mapped_column(Float, nullable=True)
     einbettung_instanzen: Mapped[int] = mapped_column(Integer, default=1)
     einbettung_spielraum_gb: Mapped[float] = mapped_column(Float, default=4.0)
-    ueber_maschinenraum: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class AnwendungTabelle(Basis):

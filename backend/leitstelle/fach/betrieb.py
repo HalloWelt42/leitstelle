@@ -255,8 +255,7 @@ class Betrieb:
             self._nebenbei(alt_adapter.schliessen())
         self.dienste[d.kennung] = d
         zugang = self.tresor.entschluesseln(d.zugang_geheim) if d.zugang_geheim else None
-        self.adapter[d.kennung] = self.fabrik(d.art, d.adresse, zugang, lambda k=d.kennung: self.verbund.anfrage_gesendet(k, self.uhr.jetzt()),
-                                              maschinenraum=d.knoten if d.ueber_maschinenraum else None)
+        self.adapter[d.kennung] = self.fabrik(d.art, d.adresse, zugang, lambda k=d.kennung: self.verbund.anfrage_gesendet(k, self.uhr.jetzt()))
         self.pruefstand.pop(d.kennung, None)            # geändert: sofort neu prüfen
         alt = self.verbund.dienste.get(d.kennung)
         self.verbund.dienste[d.kennung] = Dienst(kennung=d.kennung, name=d.name, knoten=d.knoten, art=d.art.value,
@@ -310,7 +309,6 @@ class Betrieb:
         kn = self.verbund.knoten.get(v.knoten)
         if kn is not None and kn.schlaeft_seit_s is not None:
             self._wecken(kn, f"{kn.name} ist aufgewacht nach {_schlafdauer(self.uhr.jetzt() - kn.schlaeft_seit_s)}")
-        self._nebenbei(self._laeufer_ueber_pruefen(v.knoten))
         self.geaendert()
 
     def agent_getrennt(self, knoten: str) -> None:
@@ -331,25 +329,13 @@ class Betrieb:
         dienst = self.agentdienst(knoten)
         if dienst:
             self._nebenbei(self._abgleich(dienst))   # seine Dienste sofort als nicht erreichbar zeigen (schläft er: als schlafend)
-        self._nebenbei(self._laeufer_ueber_pruefen(knoten))
         self.geaendert()
 
-    # ── Weg zum Läufer und Zugriffe am Leitstand vorbei ──────────────────
+    # ── Zugriffe am Leitstand vorbei ─────────────────────────────────────
     def laeufer_direkt(self, knoten: str) -> bool:
-        """Spricht die Leitstelle einen Modell-Läufer dieses Rechners auf dem direkten Weg an (nicht über seinen Maschinenraum)?"""
-        return any(d.art == Adapterart.OPENAI_KOMPATIBEL and d.knoten == knoten and not d.ueber_maschinenraum for d in self.dienste.values())
-
-    async def _laeufer_ueber_pruefen(self, knoten: str) -> None:
-        """Der Maschinenraum eines Rechners ist gekommen oder gegangen: Läufer, die über ihn gehen, sofort neu fragen
-        (nicht erst nach den wachsenden Abständen eines Ausfalls)."""
-        ueber = [d.kennung for d in self.dienste.values() if d.ueber_maschinenraum and d.knoten == knoten]
-        if not ueber:
-            return
-        for d in ueber:
-            self.pruefstand.pop(d, None)
-        await asyncio.gather(*(self._abgleich(d) for d in ueber))
-        self._erreichbarkeit_setzen()
-        self.anstossen()
+        """Spricht die Leitstelle einen Modell-Läufer dieses Rechners an (immer direkt unter seiner Adresse)? Dann ist eine
+        Verbindung von ihrem Rechner zum Läufer vermutlich sie selbst."""
+        return any(d.art == Adapterart.OPENAI_KOMPATIBEL and d.knoten == knoten for d in self.dienste.values())
 
     def agent_fremde(self, v: AgentVerbindung, fremde: Fremdzugriffe) -> None:
         """`knoten.fremde` im Takt der Messung: übernehmen; neue und verschwundene Umgehungen je einmal melden."""
@@ -924,15 +910,14 @@ class Betrieb:
         return self.orte.get(modell) or ModellOrt(schluessel=self.verbund.modelle[modell].familie)
 
     def knoten_ohne_meldung(self) -> list[str]:
-        """Rechner, deren Dienste die Leitstelle (noch) nicht kennt: mit eingetragenem Maschinenraum (auch als Weg zum
-        Läufer) nach ihrem Neustart, bis er sich meldet, und jeder Rechner, der seitdem schläft. Ein Name, den sie dann
-        nicht kennt, kann dort liegen."""
+        """Rechner, deren Dienste die Leitstelle (noch) nicht kennt: mit eingetragenem Maschinenraum nach ihrem Neustart,
+        bis er sich meldet, und jeder Rechner, der seitdem schläft. Ein Name, den sie dann nicht kennt, kann dort liegen."""
         aus: list[str] = []
         for d in self.dienste.values():
             if not d.knoten or any(m.dienst == d.kennung for m in self.verbund.modelle.values()):
                 continue
             k = self.verbund.knoten.get(d.knoten)
-            if (d.art == Adapterart.AGENT or d.ueber_maschinenraum or (k is not None and k.schlaeft)) and d.knoten not in aus:
+            if (d.art == Adapterart.AGENT or (k is not None and k.schlaeft)) and d.knoten not in aus:
                 aus.append(d.knoten)
         return aus
 

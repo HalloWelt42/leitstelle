@@ -20,7 +20,6 @@ import httpx
 from ...kern.werte import GIB, Eignung
 from ...kern.werte import Faehigkeit as F
 from ...protokoll.knoten import Selbstauskunft
-from .laeuferweg import OhneMaschinenraum
 from .schnittstelle import Dienstbericht, DienstFehler, Durchleitung, ModellBericht
 
 TEXT_FAEHIGKEITEN = {F.TEXT, F.UEBERSETZEN}
@@ -69,13 +68,11 @@ def _auskunft(m: dict[str, Any]) -> Selbstauskunft:
 
 
 def _fehlertext(roh: bytes) -> str:
-    """Wortlaut einer Absage: im OpenAI-Format (`error.message`) oder vom Maschinenraum (`meldung`), sonst roh."""
+    """Wortlaut einer Absage: im OpenAI-Format (`error.message`), sonst roh."""
     try:
         daten = json.loads(roh)
     except ValueError:
         return roh.decode("utf-8", "replace")[:500]
-    if isinstance(daten, dict) and "error" not in daten and isinstance(daten.get("meldung"), str):
-        return daten["meldung"][:500]
     fehler = daten.get("error") if isinstance(daten, dict) else None
     if isinstance(fehler, dict):
         return str(fehler.get("message", fehler))
@@ -83,12 +80,12 @@ def _fehlertext(roh: bytes) -> str:
 
 
 def _ursache(fehler: Exception) -> str:
-    """Wortlaut eines Verbindungsfehlers; ein verschlossener Weg über den Maschinenraum erklärt sich selbst."""
-    return str(fehler) if isinstance(fehler, OhneMaschinenraum) else f"{type(fehler).__name__} {fehler}".strip()
+    """Wortlaut eines Verbindungsfehlers."""
+    return f"{type(fehler).__name__} {fehler}".strip()
 
 
 def _nicht_erreichbar(fehler: Exception) -> str:
-    return _ursache(fehler) if isinstance(fehler, OhneMaschinenraum) else f"nicht erreichbar: {_ursache(fehler)}"
+    return f"nicht erreichbar: {_ursache(fehler)}"
 
 
 class HttpStrom:

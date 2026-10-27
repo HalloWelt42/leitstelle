@@ -1,20 +1,18 @@
-"""Am Leitstand vorbei: der Weg zum Modell-Läufer über den Maschinenraum seines Rechners und die Zugriffe, die nicht
-über die Leitstelle gehen (`knoten.fremde`). Szenarien U01 bis U09 aus docs/SZENARIEN.md; mit dem echten Maschinenraum
-als Durchleitung A12 in test_knoten_agent.py.
+"""Am Leitstand vorbei: die Zugriffe auf Modelle eines Rechners, die nicht über die Leitstelle gehen (`knoten.fremde`),
+und die Last des Läufers und des Rechners (`knoten.last`, ZUSAMMENSPIEL Z6). Szenarien U06 bis U09 und L20 bis L23 aus
+docs/SZENARIEN.md, mit Leitstelle, Schein-Läufer und Schein-Agent auf echten Ports.
 
-Grundsatz des Nutzers: alles KI nur über die Leitstelle; was daran vorbeigeht, soll sichtbar sein. Vorgabe zum Weg:
-"fallback per hand muss IMMER möglich sein", also nie ein stiller Rückfall, aber der Schalter aus heißt sofort direkt.
+Die Leitstelle ist die zentrale Steuerung und Überwachung; den Modell-Läufer spricht sie direkt an. Was an ihr vorbei
+auf Modelle zugreift, soll sichtbar sein, und wo es nötig ist, greift sie ein.
 """
 
 from __future__ import annotations
 
 import asyncio
-import json
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
 import httpx
-import pytest
 
 from leitstelle.api.app import erstellen
 from leitstelle.fach.umgehungen import Umgehungsbuch
@@ -23,21 +21,11 @@ from leitstelle.kern.werte import Massnahmenart
 from leitstelle.konfig import Konfig
 from leitstelle.ports.ablage.datenbank import Datenbank
 from leitstelle.ports.ablage.repositorien import Ablage
-from leitstelle.ports.ablage.eintraege import Adapterart
-from leitstelle.ports.agenten import Agentenvermittlung
-from leitstelle.ports.dienste import adapter_fabrik
-from leitstelle.ports.dienste.laeuferweg import OHNE_MASCHINENRAUM, UeberMaschinenraum
-from leitstelle.ports.dienste.openai_kompatibel import OpenAIKompatibel
-from leitstelle.ports.dienste.schnittstelle import DienstFehler, Durchleitung
-from leitstelle.protokoll.knoten import Befehlsart, Fremdart, Fremdzugriff, Fremdzugriffe, KnotenAnmeldung, KnotenLast, Laeuferprozess, Laeuferrolle
+from leitstelle.protokoll.knoten import Befehlsart, Fremdart, Fremdzugriff, Fremdzugriffe, KnotenLast, Laeuferprozess, Laeuferrolle
 
 from schein.agent import ScheinAgent
-from schein.laeufer import Lage, schein_laeufer
+from schein.laeufer import schein_laeufer
 from schein.server import laufend
-
-MS_SCHLUESSEL = "ms_schluessel_nur_fuer_den_test"
-MODELL = "qwen/qwen3-next-80b"
-FRAGE = {"model": MODELL, "messages": [{"role": "user", "content": "hallo"}]}
 
 PROGRAMM = Fremdzugriff(art=Fremdart.LAEUFER, wer="uvicorn (pappagei)", pid=4242, befehl="python -m uvicorn app:app", ordner="~/Entwicklung/pappagei",
                         verbindungen=2)
@@ -45,100 +33,35 @@ SPEICHER = Fremdzugriff(art=Fremdart.SPEICHER, wer="bildwerk.py", pid=5151, befe
 VON_DER_LEITSTELLE = Fremdzugriff(art=Fremdart.LAEUFER, wer="192.168.178.49", verbindungen=1, vom_rechner_der_leitstelle=True)
 
 
-def _vermittlung(durchleitung_port: int | None = 4711) -> Agentenvermittlung:
-    """Ein verbundener Maschinenraum auf "mac", so wie der Kanal ihn anmeldet."""
-    async def senden(_u) -> None:
-        return None
-    a = Agentenvermittlung()
-    a.anmelden("mac", KnotenAnmeldung(name="Mac Studio", betriebssystem="macOS", architektur="arm64", speicher_gb=64, agent_version="0.14.0",
-                                      durchleitung_port=durchleitung_port), senden, 0.0, adresse="192.168.178.45", schluessel=MS_SCHLUESSEL)
-    return a
-
-
-def _mitschnitt() -> tuple[httpx.MockTransport, list[httpx.Request]]:
-    gesehen: list[httpx.Request] = []
-
-    def antworten(anfrage: httpx.Request) -> httpx.Response:
-        gesehen.append(anfrage)
-        return httpx.Response(200, json={"models": []} if anfrage.url.path.endswith("/models") else {"ok": True})
-    return httpx.MockTransport(antworten), gesehen
-
-
-async def test_u01_anfrage_landet_mit_dem_schluessel_des_maschinenraums_unter_laeufer():
-    innen, gesehen = _mitschnitt()
-    adapter = OpenAIKompatibel("http://192.168.178.45:1234/v1", zugang=None, transport=UeberMaschinenraum("mac", _vermittlung(), innen=innen))
-    try:
-        bericht = await adapter.zustand()
-        strom = await adapter.anfrage("/v1/chat/completions", FRAGE)
-        await strom.schliessen()
-        strom = await adapter.durchleiten("", Durchleitung(methode="GET", pfad="api/v1/models", abfrage="a=1&b=%C3%A4"))
-        await strom.schliessen()
-    finally:
-        await adapter.schliessen()
-    assert bericht.erreichbar
-    assert [str(a.url) for a in gesehen] == ["http://192.168.178.45:4711/laeufer/api/v1/models", "http://192.168.178.45:4711/laeufer/v1/chat/completions",
-                                             "http://192.168.178.45:4711/laeufer/api/v1/models?a=1&b=%C3%A4"]
-    assert all(a.headers["authorization"] == f"Bearer {MS_SCHLUESSEL}" and a.headers["host"] == "192.168.178.45:4711" for a in gesehen)
-    assert json.loads(gesehen[1].content) == FRAGE                              # Körper unverändert
-
-
-async def test_u02_ohne_maschinenraum_klare_meldung_und_kein_rueckfall():
-    """Weder ohne Verbindung noch ohne gemeldete Durchleitung geht eine Anfrage an die eingetragene Adresse."""
-    for vermittlung in (Agentenvermittlung(), _vermittlung(durchleitung_port=None)):
-        innen, gesehen = _mitschnitt()
-        adapter = OpenAIKompatibel("http://192.168.178.45:1234", transport=UeberMaschinenraum("mac", vermittlung, innen=innen))
-        try:
-            bericht = await adapter.zustand()
-            with pytest.raises(DienstFehler) as f:
-                await adapter.anfrage("/v1/chat/completions", FRAGE)
-        finally:
-            await adapter.schliessen()
-        assert not bericht.erreichbar and bericht.meldung == OHNE_MASCHINENRAUM
-        assert f.value.grund == "dienst_nicht_erreichbar" and f.value.meldung == OHNE_MASCHINENRAUM and f.value.wiederholbar
-        assert gesehen == []
-
-
-def test_u03_ueber_den_maschinenraum_geht_nur_der_laeufer():
-    bauen = adapter_fabrik()
-    for art, adresse in ((Adapterart.EXTERN_OPENAI, "https://anbieter.example/v1"), (Adapterart.AGENT, "agent://mac")):
-        with pytest.raises(ValueError):
-            bauen(art, adresse, None, maschinenraum="mac")
-
-
-# ── Ende zu Ende: Leitstelle, Schein-Läufer und Schein-Agent (ohne Durchleitung) ───────────────────────────────────────
+# ── Ende zu Ende: Leitstelle, Schein-Läufer und Schein-Agent ─────────────────────────────────────────────────────────
 @dataclass
 class Aufbau:
     c: httpx.AsyncClient          # Verwaltung
-    anw: httpx.AsyncClient        # Anwendung (Fassade)
     knoten: str
     dienst: str                   # der Modell-Läufer des Mac
     agent: ScheinAgent
-    laeufer: Lage
 
 
 @asynccontextmanager
 async def aufbau(tmp_path, nachlauf_s: float = 0.0, regelwerk: Regelwerk | None = None):
-    """Mac Studio mit Läufer (direkter Weg) und Maschinenraum; eine Anwendung. Ein Regelwerk liegt vor dem Start in der Ablage."""
+    """Mac Studio mit Läufer und Maschinenraum. Ein Regelwerk liegt vor dem Start in der Ablage."""
     if regelwerk is not None:
         db = Datenbank(tmp_path / "leitstelle.sqlite")
         await db.oeffnen()
         await Ablage(db).einstellungen.regelwerk_speichern(regelwerk)
         await db.schliessen()
-    laeufer = schein_laeufer()
     konfig = Konfig(daten=tmp_path, oberflaeche=None, dienst_takt_s=0.3, hinweis_s=1.0, fremde_nachlauf_s=nachlauf_s)
-    async with laufend(laeufer) as laeufer_url, laufend(erstellen(konfig)) as url, httpx.AsyncClient(base_url=url, timeout=30) as c:
+    async with laufend(schein_laeufer()) as laeufer_url, laufend(erstellen(konfig)) as url, httpx.AsyncClient(base_url=url, timeout=30) as c:
         r = await c.post("/api/dienste", json={"adresse": laeufer_url, "neuer_knoten": {"name": "Mac Studio", "adresse": "127.0.0.1", "speicher_gb": 128}})
         assert r.status_code == 200, r.text
         dienst, knoten = r.json()["kennung"], r.json()["knoten"]
         schluessel = (await c.post(f"/api/knoten/{knoten}/agent/schluessel/neu")).json()["schluessel"]
-        app_schluessel = (await c.post("/api/anwendungen", json={"name": "Codehilfe"})).json()["schluessel"]
         agent = ScheinAgent(url, schluessel)
         await agent.verbinden()
-        async with httpx.AsyncClient(base_url=url, timeout=30, headers={"Authorization": f"Bearer {app_schluessel}"}) as anw:
-            try:
-                yield Aufbau(c=c, anw=anw, knoten=knoten, dienst=dienst, agent=agent, laeufer=laeufer.state.lage)
-            finally:
-                await agent.beenden()
+        try:
+            yield Aufbau(c=c, knoten=knoten, dienst=dienst, agent=agent)
+        finally:
+            await agent.beenden()
 
 
 async def _warte_bis(bedingung, sekunden: float = 10.0):
@@ -153,16 +76,8 @@ async def _lage(a: Aufbau) -> dict:
     return (await a.c.get("/api/lage")).json()
 
 
-async def _laeufer(a: Aufbau) -> dict:
-    return next(d for d in (await _lage(a))["dienste"] if d["kennung"] == a.dienst)
-
-
 async def _fremde(a: Aufbau) -> dict:
     return next(k for k in (await _lage(a))["knoten"] if k["kennung"] == a.knoten)["fremde"]
-
-
-async def _ist(a: Aufbau, zustand: str) -> bool:
-    return (await _laeufer(a))["zustand"] == zustand
 
 
 async def _vorbei(a: Aufbau) -> list[str]:
@@ -179,42 +94,6 @@ async def _gemeldet(a: Aufbau, f: Fremdzugriffe) -> None:
         s = await _fremde(a)
         return s["beobachtet"] == f.beobachtet and [z["wer"] for z in s["zugriffe"]] == ([z.wer for z in f.zugriffe] if f.beobachtet else [])
     await _warte_bis(da)
-
-
-async def test_u04_schalter_an_ohne_durchleitung_nicht_erreichbar_schalter_aus_sofort_direkt(tmp_path):
-    async with aufbau(tmp_path) as a:
-        await _warte_bis(lambda: _ist(a, "bereit"))
-        r = await a.c.patch(f"/api/dienste/{a.dienst}", json={"ueber_maschinenraum": True})
-        assert r.status_code == 200, r.text
-        await _warte_bis(lambda: _ist(a, "nicht_erreichbar"))
-        d = await _laeufer(a)
-        assert d["ueber_maschinenraum"] and d["meldung"] == OHNE_MASCHINENRAUM and d["adresse"].startswith("http://127.0.0.1:")
-        vorher = a.laeufer.aufrufe
-        await asyncio.sleep(1.0)                                                  # mehrere Prüfungen
-        r = await a.anw.post("/v1/chat/completions", json=FRAGE)
-        assert r.status_code == 503 and r.json()["error"]["code"] == "dienst_nicht_erreichbar", r.text
-        assert a.laeufer.aufrufe == vorher                                        # der direkte Weg bleibt zu
-        assert any("Weg zum Läufer jetzt über den Maschinenraum" in m["text"] for m in (await _lage(a))["meldungen"])
-
-        r = await a.c.patch(f"/api/dienste/{a.dienst}", json={"ueber_maschinenraum": False})
-        assert r.status_code == 200 and not r.json()["ueber_maschinenraum"], r.text
-        await _warte_bis(lambda: _ist(a, "bereit"))
-        r = await a.anw.post("/v1/chat/completions", json=FRAGE)
-        assert r.status_code == 200 and a.laeufer.aufrufe > vorher, r.text      # ohne Neueingabe der Adresse
-
-
-async def test_u05_schalter_nur_fuer_den_laeufer_und_nur_ohne_zugang(tmp_path):
-    async with aufbau(tmp_path) as a:
-        r = await a.c.patch(f"/api/dienste/{a.dienst}", json={"ueber_maschinenraum": True, "zugang": "geheim"})
-        assert r.status_code == 400 and r.json()["grund"] == "weg", r.text
-        assert "kein Zugang" in r.json()["begruendung"]
-        await a.c.patch(f"/api/dienste/{a.dienst}", json={"zugang": "geheim"})
-        r = await a.c.patch(f"/api/dienste/{a.dienst}", json={"ueber_maschinenraum": True})
-        assert r.status_code == 400 and r.json()["grund"] == "weg", r.text
-        agentdienst = next(d for d in (await _lage(a))["dienste"] if d["art"] == "agent")
-        r = await a.c.patch(f"/api/dienste/{agentdienst['kennung']}", json={"ueber_maschinenraum": True})
-        assert r.status_code == 400 and r.json()["grund"] == "weg", r.text
-        assert not (await _laeufer(a))["ueber_maschinenraum"]
 
 
 async def test_u06_fremde_zugriffe_im_lagebild_mit_deutung_und_einmal_gemeldet(tmp_path):
@@ -239,11 +118,13 @@ async def test_u06_fremde_zugriffe_im_lagebild_mit_deutung_und_einmal_gemeldet(t
         assert len(await _vorbei(a)) == 2
 
 
-async def test_u07_ueber_den_maschinenraum_ist_der_rechner_der_leitstelle_ein_anderes_programm(tmp_path):
+async def test_u07_ohne_eingetragenen_laeufer_ist_der_rechner_der_leitstelle_ein_anderes_programm(tmp_path):
+    """Die Leitstelle spricht den Läufer direkt an: eine Verbindung von ihrem Rechner ist sie selbst, solange sie dort einen
+    Läufer eingetragen hat; ohne ist es ein anderes Programm auf ihrem Rechner und zählt als Umgehung."""
     async with aufbau(tmp_path) as a:
         await _gemeldet(a, Fremdzugriffe(zugriffe=[VON_DER_LEITSTELLE]))
         assert (await _fremde(a))["umgehungen"] == 0 and await _vorbei(a) == []
-        assert (await a.c.patch(f"/api/dienste/{a.dienst}", json={"ueber_maschinenraum": True})).status_code == 200
+        assert (await a.c.delete(f"/api/dienste/{a.dienst}")).status_code < 300
         s = await _fremde(a)
         assert s["umgehungen"] == 1 and s["zugriffe"][0]["deutung"] == "rechner_der_leitstelle"   # sofort neu gedeutet
         await _gemeldet(a, Fremdzugriffe(zugriffe=[VON_DER_LEITSTELLE]))

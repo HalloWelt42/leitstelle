@@ -73,7 +73,6 @@ class DienstAenderung(BaseModel):
     abgleich_s: float | None = Field(default=None, ge=0, le=86400)         # 0 heißt Vorgabe, None lässt ihn
     einbettung_instanzen: int | None = Field(default=None, ge=1, le=32)
     einbettung_spielraum_gb: float | None = Field(default=None, ge=0, le=512)
-    ueber_maschinenraum: bool | None = None   # Modell-Läufer: über den Maschinenraum seines Rechners; False heißt wieder direkt
 
 
 class AnwendungDaten(BaseModel):
@@ -88,21 +87,6 @@ class AnwendungDaten(BaseModel):
 
 def _rechnername(adresse: str) -> str | None:
     return (urlparse(adresse).hostname or "").lower() or None
-
-
-def _weg_pruefen(e: DienstEintrag) -> None:
-    """Über den Maschinenraum geht nur ein Modell-Läufer auf einem eigenen Rechner, und nur ohne Zugang: die Durchleitung
-    trägt den Schlüssel des Maschinenraums und reicht keinen Zugang zum Läufer weiter."""
-    if not e.ueber_maschinenraum:
-        return
-    if e.art != Adapterart.OPENAI_KOMPATIBEL or e.extern or not e.knoten:
-        raise Ablehnung("weg", "Über den Maschinenraum geht nur ein Modell-Läufer auf einem eigenen Rechner.")
-    if e.zugang_geheim:
-        raise Ablehnung("weg", "Über den Maschinenraum geht kein Zugang zum Läufer mit; erst den Zugang entfernen oder den direkten Weg lassen.")
-
-
-def _weg(ueber_maschinenraum: bool) -> str:
-    return "über den Maschinenraum" if ueber_maschinenraum else "direkt"
 
 
 def _adresse_pruefen(adresse: str, extern: bool) -> str:
@@ -234,17 +218,9 @@ class Verzeichnis:
             neu.einbettung_spielraum_gb = d.einbettung_spielraum_gb
         if d.zugang is not None:
             neu.zugang_geheim = self.b.tresor.verschluesseln(d.zugang) if d.zugang else None
-        if d.ueber_maschinenraum is not None:
-            neu.ueber_maschinenraum = d.ueber_maschinenraum
-        _weg_pruefen(neu)
         await self.b.ablage.dienste.speichern(neu)
         self.b.dienst_setzen(neu)
-        weg_neu = neu.ueber_maschinenraum != e.ueber_maschinenraum
-        await self._pruefen(wer, "Dienst geändert" + (" (Zugang neu)" if d.zugang else " (Zugang entfernt)" if d.zugang == "" else "")
-                            + (f" (Weg zum Läufer {_weg(neu.ueber_maschinenraum)})" if weg_neu else ""), neu.name)
-        if weg_neu:
-            self.b.melden(f"{neu.name}: Weg zum Läufer jetzt {_weg(neu.ueber_maschinenraum)}"
-                          + ("" if neu.ueber_maschinenraum else f" an {neu.adresse}"))
+        await self._pruefen(wer, "Dienst geändert" + (" (Zugang neu)" if d.zugang else " (Zugang entfernt)" if d.zugang == "" else ""), neu.name)
         await self.b.abgleichen()
         return neu
 

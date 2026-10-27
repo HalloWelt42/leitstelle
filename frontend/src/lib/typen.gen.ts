@@ -370,7 +370,6 @@ export interface DienstSicht {
   naechste_pruefung_s: number | null;
   einbettung_instanzen: number;
   einbettung_spielraum_gb: number;
-  ueber_maschinenraum: boolean;
 }
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
@@ -726,7 +725,6 @@ export interface DienstAenderung {
   abgleich_s?: number | null;
   einbettung_instanzen?: number | null;
   einbettung_spielraum_gb?: number | null;
-  ueber_maschinenraum?: boolean | null;
 }
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema

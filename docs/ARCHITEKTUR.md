@@ -19,11 +19,13 @@ bereit), damit sich jede Anwendung auf die Lage einstellen kann.
 - **Der Maschinenraum bündelt alle KI-Dienste, die der Modell-Läufer nicht verwaltet**, je Rechner, und ist für sich
   allein bedienbar wie der Modell-Läufer. Er nimmt nur Dienste mit Fähigkeiten an (Nutzer, 17.10.2026: "hier dürfen
   Sachen nicht vermischt werden").
-- **Alles geht nur über die Leitstelle:** Anwendungen sprechen nur mit ihr (Fassade, auch `/v1/dienste/...`); die
-  Dienste lauschen nur auf ihrem Rechner und sind nur über die Durchleitung des Maschinenraums erreichbar. Den
-  Modell-Läufer spricht die Leitstelle wahlweise ebenso über die Durchleitung an (`/laeufer`, Schalter beim Läufer,
-  Rückfall nur von Hand; `ports/dienste/laeuferweg.py`); was an ihr vorbei auf Modelle eines Rechners zugreift, meldet
-  sein Maschinenraum (`knoten.fremde`), die Leitstelle zeigt es beim Knoten und in der Übersicht (`fach/umgehungen.py`).
+- **Die Leitstelle ist zentrale Steuerung und Überwachung** (Nutzer, 27.10.2026): sie sorgt dafür, dass Ressourcen
+  nicht überlaufen, verteilt die Arbeit und greift sinnvoll ein; dafür muss sie nicht jedes Bit durchschleifen.
+  Anwendungen sprechen nur mit ihr (Fassade, auch `/v1/dienste/...`). Den Modell-Läufer spricht sie direkt an; die
+  Dienste des Maschinenraums lauschen nur auf ihrem Rechner und sind über seine Durchleitung erreichbar. Was an ihr
+  vorbei auf Modelle eines Rechners zugreift und wie belastet Läufer und Rechner sind, meldet sein Maschinenraum
+  (`knoten.fremde`, `knoten.last`); die Leitstelle zeigt es beim Knoten und in der Übersicht (`fach/umgehungen.py`,
+  `kern/rechnerlast.py`) und greift nach ihren Regeln ein (ZUSAMMENSPIEL Z6).
 - **Die Leitstelle sieht nur Fähigkeiten.** Eigene Webapps (Backend, Oberfläche, Datenbank, Abholer, mit oder ohne
   Docker) startet und stoppt das Stellwerk (Repo HalloWelt42/stellwerk), je Webapp mit allen Teilen; es hat keine
   Verbindung zur Leitstelle. Die Webapps halten selbst keine Modelle und nutzen KI nur über die Leitstelle.

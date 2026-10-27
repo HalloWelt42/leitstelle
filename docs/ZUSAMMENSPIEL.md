@@ -8,10 +8,16 @@ Leitstelle (4158 Aufträge, 32 Maßnahmen vom 16. bis 18.10.2026).
 
 ## Zuständigkeiten (je Sache genau ein Ort)
 
+Nutzer, 27.10.2026: "leitstelle war und sollte schon immer zentrale steuerung und überwachung sein. die sorgt dafür, dass
+ressourcen nicht überlaufen, verteilt werden, das bedeutet nicht, dass sie auch jedes bit durchschleifen muss, aber sie
+muss sinnvoll eingreifen." Den Modell-Läufer spricht die Leitstelle direkt an; der Maschinenraum meldet alle übrigen
+KI-Modelle und Dienste, die nicht im Läufer laufen, als alternative Anbindung, und misst für die Leitstelle, was sie zum
+Eingreifen braucht (Speicher, Zugriffe am Leitstand vorbei, Last).
+
 | Wer | entscheidet | führt aus | meldet |
 |---|---|---|---|
-| Leitstelle | was wo läuft: Zuteilen, Laden, Entladen, wie viele Instanzen, Vorrang, Ausweichen auf andere Knoten oder externe Anbieter | Anfragen durchreichen | Lage, Verlauf, Maßnahmen mit Begründung |
-| Maschinenraum (je Rechner einer) | nur Örtliches: Neustart nach Absturz, Schutz (`leitstelle_anhalten = false`) | Starten und Anhalten auf Befehl, Durchleitung | je Dienst Zustand, tatsächlicher Speicher, Bedarf, Plätze; Rechnerspeicher |
+| Leitstelle | was wo läuft: Zuteilen, Laden, Entladen, wie viele Instanzen, Vorrang, Ausweichen auf andere Knoten oder externe Anbieter; Eingreifen bei Last (Hintergrund drosseln, Arbeiter ohne Auftrag beenden, Z6) | Anfragen durchreichen (Läufer direkt, Dienste über den Maschinenraum) | Lage, Verlauf, Maßnahmen mit Begründung |
+| Maschinenraum (je Rechner einer) | nur Örtliches: Neustart nach Absturz, Schutz (`leitstelle_anhalten = false`) | Starten und Anhalten auf Befehl, Durchleitung zu seinen Diensten, Beenden eines Arbeiters des Läufers auf Befehl | je Dienst Zustand, tatsächlicher Speicher, Bedarf, Plätze; Rechnerspeicher; Zugriffe am Leitstand vorbei; Last von Läufer und Rechner |
 | Apps | was sie brauchen und wie dringend (Fähigkeit, Priorität, Titel) | geduldig warten, wenn die Leitstelle "gleich" sagt | nichts |
 
 Der Pi rechnet nicht (Nutzer 18.10.2026: "pi ist nur datenlieferant"); Rechenknoten sind Macs und externe Anbieter.

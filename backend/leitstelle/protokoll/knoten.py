@@ -13,10 +13,6 @@ from pydantic import BaseModel, Field
 
 from ..kern.werte import Eignung, Faehigkeit, Laeuferrolle
 
-#: Durchleitung: `/laeufer/<pfad>` reicht an den Modell-Läufer des Rechners (beim Agenten Einstellung `nachbar.modell_laeufer`)
-DURCHLEITUNG_LAEUFER = "laeufer"
-
-
 class KnotenAnmeldung(BaseModel):
     """`knoten.anmelden`: wer der Agent ist und was er messen kann."""
 

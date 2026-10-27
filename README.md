@@ -12,10 +12,12 @@ Leitstelle stellen, Schlüssel eintragen, fertig.
 ## Zusammenspiel mit Maschinenraum und Stellwerk
 
 Leitstelle und [Maschinenraum](https://github.com/HalloWelt42/maschinenraum) gehören zusammen. Der Modell-Läufer
-verwaltet die Sprachmodelle eines Rechners, der Maschinenraum die übrigen KI-Dienste (Sprache, Bild, Musik, etwa das
-[Klangwerk](https://github.com/HalloWelt42/klangwerk)), jeder mit eigener Oberfläche. Die Leitstelle steht darüber:
-Anwendungen sprechen nur noch mit ihr, sie wählt Dienst und Rechner, plant den Speicher und startet oder hält Dienste
-über den Maschinenraum des Rechners an. Die eigenen Webapps selbst startet und stoppt das
+verwaltet die Sprachmodelle eines Rechners, der Maschinenraum alle übrigen KI-Modelle und Dienste (Sprache, Bild, Musik,
+etwa das [Klangwerk](https://github.com/HalloWelt42/klangwerk)) und meldet sie der Leitstelle als alternative Anbindung;
+jeder hat eine eigene Oberfläche. Die Leitstelle ist die zentrale Steuerung und Überwachung: Anwendungen sprechen nur
+mit ihr, sie wählt Dienst und Rechner, plant den Speicher, sorgt dafür, dass Ressourcen nicht überlaufen, und greift
+ein, wo es nötig ist; jedes Bit durchschleifen muss sie dafür nicht. Den Modell-Läufer spricht sie direkt an, Dienste
+des Maschinenraums startet, hält und erreicht sie über ihn. Die eigenen Webapps selbst startet und stoppt das
 [Stellwerk](https://github.com/HalloWelt42/stellwerk); sie halten keine Modelle und nutzen KI nur über die Leitstelle.
 
 ```
@@ -23,11 +25,9 @@ Webapps (Stellwerk)  ->  Leitstelle  ->  Modell-Läufer      (Sprachmodelle)
                                      ->  Maschinenraum      (übrige KI-Dienste, je Rechner)
 ```
 
-Den Läufer spricht die Leitstelle wahlweise direkt oder über die Durchleitung des Maschinenraums seines Rechners an
-(Schalter "über den Maschinenraum" beim Läufer). Auf diesem Weg kommt jede Verbindung der Leitstelle zum Läufer vom
-Maschinenraum, und alles, was an ihr vorbei auf Modelle des Rechners zugreift, sieht der Maschinenraum und meldet es
-(Knoten, "Am Leitstand vorbei"; Übersicht mit Anzahl). Fehlt der Maschinenraum, ist der Läufer nicht erreichbar statt
-still direkt angesprochen; der Rückfall ist der Schalter von Hand.
+Was an der Leitstelle vorbei auf Modelle eines Rechners zugreift, sieht sein Maschinenraum und meldet es (Knoten, "Am
+Leitstand vorbei"; Übersicht mit Anzahl); eine Verbindung vom Rechner der Leitstelle zum Läufer ist dabei vermutlich sie
+selbst.
 
 Der Maschinenraum misst außerdem die Last (`knoten.last`): je Prozess des Läufers Rolle, Modelldatei, Kerne und
 Speicher, und die Fremdlast des Rechners ohne Läufer und Dienste. Die Leitstelle zeigt daneben, wie viel sie selbst

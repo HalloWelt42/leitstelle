@@ -2,9 +2,9 @@
 Modelle sieht, die nicht über die Leitstelle gehen, und wie die Leitstelle sie deutet. Eine Stelle für Lagebild und
 Meldungen.
 
-Eine Verbindung zum Läufer aus dem Netz von der Adresse der Leitstelle ist, solange die Leitstelle den Läufer dieses
-Rechners auf dem direkten Weg anspricht, vermutlich sie selbst. Geht ihr Weg über den Maschinenraum, kommen ihre
-Verbindungen von dort, und dann ist es ein anderes Programm auf ihrem Rechner. Alles andere ist eine Umgehung.
+Die Leitstelle spricht den Modell-Läufer eines Rechners direkt an. Eine Verbindung zum Läufer aus dem Netz von der
+Adresse der Leitstelle ist darum, solange sie einen Läufer dieses Rechners eingetragen hat, vermutlich sie selbst; sonst
+ist es ein anderes Programm auf ihrem Rechner. Alles andere ist eine Umgehung.
 
 Gemeldet wird jede Umgehung einmal, wenn sie auftaucht, und einmal, wenn sie verschwunden ist. Damit ein Programm, das
 den Läufer immer wieder kurz anspricht, nicht bei jedem Takt neu erscheint, gilt eine Umgehung erst nach dem Nachlauf als
@@ -24,8 +24,8 @@ Schluessel = tuple[str, str, int | None]
 
 class Fremddeutung(str, Enum):
     UMGEHUNG = "umgehung"                               # Programm auf dem Rechner oder Gegenstelle im Netz
-    RECHNER_DER_LEITSTELLE = "rechner_der_leitstelle"   # anderes Programm auf dem Rechner der Leitstelle (ihr Läufer geht über den Maschinenraum)
-    LEITSTELLE_DIREKT = "leitstelle_direkt"             # vermutlich die Leitstelle selbst auf dem direkten Weg: keine Umgehung
+    RECHNER_DER_LEITSTELLE = "rechner_der_leitstelle"   # anderes Programm auf dem Rechner der Leitstelle (sie hat dort keinen Läufer eingetragen)
+    LEITSTELLE_DIREKT = "leitstelle_direkt"             # vermutlich die Leitstelle selbst (sie spricht den Läufer direkt an): keine Umgehung
 
 
 def schluessel(z: Fremdzugriff) -> Schluessel:
