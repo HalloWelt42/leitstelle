@@ -10,7 +10,7 @@ schluessel_orte:
   - "Pi: `tresor.schluessel` im Datenordner; ohne ihn sind die im Tresor gespeicherten Schlüssel und Zugänge nicht lesbar"
   - "Datenbank (verschlüsselt mit dem Tresor): Schlüssel der Anwendungen, der Knoten (Maschinenraum) und externer Anbieter"
 einrichten: einrichten.sh
-stand: 6d4870e
+stand: 696b3e8
 ---
 
 # Leitstelle
@@ -71,8 +71,11 @@ Probe: auf dem Zielrechner zeigt `ls {{umgebung:LEITSTELLE_DATENORDNER}}` nach d
 
 Am Mac `tools/ausrollen.sh`: lädt den eingecheckten Stand hoch, klont oder holt ihn auf dem Zielrechner nach `{{wurzel}}`,
 baut dort mit Docker (alle Kern-Tests und die Typprüfung der Oberfläche; rot bricht ab und der alte Stand läuft
-weiter), wartet auf einen ruhigen Moment ohne laufenden Auftrag und startet beide Dienste. Auf dem Zielrechner selbst
-geht dasselbe mit `LEITSTELLE_DATENORDNER={{umgebung:LEITSTELLE_DATENORDNER}} ./einrichten.sh` im Klon.
+weiter), wartet auf einen ruhigen Moment ohne laufenden Auftrag und startet beide Dienste. Läuft der neue Stand und
+antwortet die Version, räumt es dort Docker auf: verwaiste Abbilder ohne Namen und den Baucache bis auf `BAUCACHE_GB`
+(Vorgabe 20 GB; etwa `BAUCACHE_GB=40 tools/ausrollen.sh`), mit dem freigegebenen Platz in der Ausgabe. Scheitert das
+Ausrollen, bleibt alles stehen. Auf dem Zielrechner selbst geht dasselbe mit
+`LEITSTELLE_DATENORDNER={{umgebung:LEITSTELLE_DATENORDNER}} ./einrichten.sh` im Klon (ohne Aufräumen).
 
 Probe: `curl -s http://<zielrechner>:{{port:docker-compose.yml/leitstelle}}/gesundheit` meldet `"version": "{{fassung}}"`,
 und `http://<zielrechner>:{{port:docker-compose.yml/entwuerfe}}/gesundheit` antwortet.
