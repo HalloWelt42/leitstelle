@@ -353,8 +353,16 @@ Neue Massnahmenart `HINTERGRUND_RECHNERLAST`, Vorgabe an. Stufe je Knoten `hinte
   Umleiten, Ausweichen in der Kette und Vorwärmen auf einen gebremsten Rechner.
 - **Regelwerte** (Regelwerk, im Lagebild): `laeufer_schwelle_prozent`, `laeufer_frist_s`, `last_frist_s`,
   `last_drosseln_ab_prozent`, `last_anhalten_ab_prozent`, `last_abstand_prozent`; ein gespeichertes Regelwerk ohne die
-  neuen Szenarien bekommt ihre Vorgaben ab Werk (keine Migration nötig). Eine Seite Regeln gibt es in der App noch nicht;
-  Werte und Erklärungen stehen dort, wo sie wirken: unter Knoten bei "Läufer und Last".
+  neuen Szenarien bekommt ihre Vorgaben ab Werk (keine Migration nötig). Unter Knoten bei "Läufer und Last" stehen die
+  Werte mit Erklärung neben dem, worauf sie wirken.
+- **Schaltbar seit 0.24.0**: bis dahin wurde das Regelwerk nur geladen, nie gespeichert, und ließ sich weder in der
+  Oberfläche noch über die Schnittstelle ändern; der Schalter "Läufer arbeitet ohne Auftrag" war damit tot. Jetzt: Seite
+  Regeln (je Maßnahme ein Schalter mit Erklärung, darunter ihre Werte mit Einheit, Vorgabe und Grenzen),
+  `GET`/`PATCH /api/regelwerk`, gespeichert in der Ablage (Einstellung `regelwerk`, nur Abweichungen von der Vorgabe ab
+  Werk), jede Änderung mit wer, alt und neu im Prüfprotokoll. Bedeutung, Einheit und Grenzen jedes Werts stehen an einer
+  Stelle im Kern (`kern/regelwerk.py`). Wirkt eine Regel nicht mehr (abgeschaltet oder Automatik nicht mehr "selbst
+  handeln"), nimmt die Leitstelle ihren Zustand zurück: gedrosselter oder angehaltener Hintergrund wird frei, Hintergrund
+  nach Lage läuft wieder, kein Rechner bleibt bevorzugt.
 - **Prüfung**: Szenarien L01 bis L23 ([SZENARIEN.md](SZENARIEN.md) Abschnitt 3d), Spiegeltest des Protokolls; im
   Maschinenraum `tests/test_laeuferlast.py` und die Instanztests in `tests/test_dienste.py`.
 

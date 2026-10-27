@@ -13,6 +13,7 @@
   import Mobil from './seiten/Mobil.svelte';
   import Modelle from './seiten/Modelle.svelte';
   import Protokoll from './seiten/Protokoll.svelte';
+  import Regeln from './seiten/Regeln.svelte';
   import Uebersicht from './seiten/Uebersicht.svelte';
   import Fuss from './teile/Fuss.svelte';
   import Kopf from './teile/Kopf.svelte';
@@ -44,6 +45,7 @@
       {:else if weg.seite === 'dienste'}<Dienste bild={kanal.lagebild} />
       {:else if weg.seite === 'anschluss'}<Anschluss bild={kanal.lagebild} />
       {:else if weg.seite === 'anwendungen'}<Anwendungen bild={kanal.lagebild} />
+      {:else if weg.seite === 'regeln'}<Regeln bild={kanal.lagebild} />
       {:else if weg.seite === 'protokoll'}<Protokoll bild={kanal.lagebild} />
       {:else if weg.seite === 'gestaltung'}<Gestaltung />
       {/if}

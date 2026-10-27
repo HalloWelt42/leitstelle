@@ -138,6 +138,17 @@ export type Zone2 = 'heim' | 'fern' | 'extern';
  */
 export type Richtung = 'laden' | 'entladen';
 export type Ausgang = 'ok' | 'abgelehnt' | 'gescheitert';
+/**
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "Regelgruppe".
+ */
+export type Regelgruppe = 'selbststeuerung' | 'speicher' | 'ausweichen' | 'hintergrund' | 'einbettung' | 'last';
+/**
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "Einheit".
+ */
+export type Einheit =
+  'sekunden' | 'gb' | 'milliarden' | 'prozent' | 'punkte' | 'prozent_kern' | 'anteil' | 'anzahl' | 'faktor' | 'schalter' | 'wahl';
 export type Zone3 = 'heim' | 'fern' | 'extern';
 export type Prioritaet1 = 0 | 1 | 2 | 3;
 /**
@@ -157,11 +168,13 @@ export interface Leitstelle {
   Kennzahlen?: Kennzahlen;
   Umschlag?: Umschlag;
   Bewegung?: Bewegung;
+  RegelwerkSicht?: RegelwerkSicht;
   KnotenDaten?: KnotenDaten;
   DienstDaten?: DienstDaten;
   DienstAenderung?: DienstAenderung;
   AnwendungDaten?: AnwendungDaten;
   SteckbriefEintrag?: SteckbriefEintrag;
+  RegelwerkAenderung?: RegelwerkAenderung;
 }
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
@@ -186,34 +199,30 @@ export interface Lagebild {
   meldungen: Meldung[];
 }
 /**
- * Alles Einstellbare an einem Ort; jede Grenze sichtbar und erklärt (Oberfläche: Regeln).
+ * Alle Werte der Selbststeuerung; Bedeutung und Grenzen je Wert im `Regelwert` daneben.
  *
  * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "Regelwerk".
  */
 export interface Regelwerk {
-  budget_reserve_gb: number;
-  schutzgrenze_mrd: number;
-  mindestverweildauer_s: number;
-  leerlauf_s: number;
-  bedarfsfrist_s: number;
-  arbeit_frist_s: number;
-  arbeit_ab_anfragen: number;
-  gewinnfaktor: number;
-  extern_schwelle_s: number;
-  hintergrund_spaetestens_s: number;
-  hintergrund_bei_angespannt_anhalten: boolean;
-  speicher_warnschwelle: number;
   automatik: Automatik1;
-  szenarien_an: {
-    [k: string]: boolean;
-  };
+  gewinnfaktor: number;
   max_massnahmen_je_fenster: number;
   fenster_s: number;
   ruhezeit_s: number;
   max_umleitungen_je_auftrag: number;
   umschichter_takt_s: number;
+  budget_reserve_gb: number;
+  schutzgrenze_mrd: number;
+  mindestverweildauer_s: number;
+  bedarfsfrist_s: number;
+  leerlauf_s: number;
+  arbeit_frist_s: number;
+  arbeit_ab_anfragen: number;
+  speicher_warnschwelle: number;
   geladene_zuerst: boolean;
+  extern_schwelle_s: number;
+  hintergrund_spaetestens_s: number;
   einbettung_andrang_s: number;
   einbettung_schonfrist_s: number;
   einbettung_ruhe_s: number;
@@ -223,6 +232,9 @@ export interface Regelwerk {
   last_drosseln_ab_prozent: number;
   last_anhalten_ab_prozent: number;
   last_abstand_prozent: number;
+  szenarien_an: {
+    [k: string]: boolean;
+  };
 }
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
@@ -685,6 +697,62 @@ export interface Bewegung {
   meldung: string;
 }
 /**
+ * Alle Gruppen mit ihren Maßnahmen und Werten, je mit Vorgabe ab Werk und Grenzen für Änderungen von Hand.
+ *
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "RegelwerkSicht".
+ */
+export interface RegelwerkSicht {
+  gruppen: RegelgruppeSicht[];
+}
+/**
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "RegelgruppeSicht".
+ */
+export interface RegelgruppeSicht {
+  gruppe: Regelgruppe;
+  titel: string;
+  erklaerung: string;
+  szenarien: SzenarioSicht[];
+  werte: RegelwertSicht[];
+}
+/**
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "SzenarioSicht".
+ */
+export interface SzenarioSicht {
+  art: Massnahmenart;
+  titel: string;
+  erklaerung: string;
+  an: boolean;
+  vorgabe: boolean;
+}
+/**
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "RegelwertSicht".
+ */
+export interface RegelwertSicht {
+  feld: string;
+  titel: string;
+  erklaerung: string;
+  einheit: Einheit;
+  wert: boolean | number | string;
+  vorgabe: boolean | number | string;
+  min: number | null;
+  max: number | null;
+  schritt: number | null;
+  wahl: Wahl[];
+  szenario: Massnahmenart | null;
+}
+/**
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "Wahl".
+ */
+export interface Wahl {
+  wert: string;
+  wort: string;
+}
+/**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "KnotenDaten".
  */
@@ -759,4 +827,18 @@ export interface SteckbriefEintrag {
   zweck?: string;
   eignung?: Eignung[];
   sprachen?: string[];
+}
+/**
+ * Von Hand: einzelne Werte und Schalter; was fehlt, bleibt.
+ *
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "RegelwerkAenderung".
+ */
+export interface RegelwerkAenderung {
+  werte?: {
+    [k: string]: boolean | number | string;
+  };
+  szenarien_an?: {
+    [k: string]: boolean;
+  };
 }

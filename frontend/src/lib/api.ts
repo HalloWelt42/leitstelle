@@ -3,7 +3,7 @@
 import { arbeit } from './arbeit.svelte';
 import type {
   AnwendungDaten, AuftragEintrag, Betriebsmodus, DienstAenderung, DienstDaten, Erkennung, Freigabe, Kennzahlen, KnotenDaten, KnotenEintrag,
-  Lagebild, Massnahme, PruefEintrag, SteckbriefEintrag,
+  Lagebild, Massnahme, PruefEintrag, RegelwerkAenderung, RegelwerkSicht, SteckbriefEintrag,
 } from './typen.gen';
 
 export class ApiFehler extends Error {
@@ -77,6 +77,8 @@ export const api = {
   dienstZugang: (kennung: string) => rufen<{ zugang: string | null }>(`/dienste/${kennung}/zugang`, 'POST'),
   dienstPruefen: (kennung: string) => rufen<{ dienst: string; zustand: string }>(`/dienste/${kennung}/pruefen`, 'POST'),
   steckbriefSetzen: (e: SteckbriefEintrag) => rufen<SteckbriefEintrag>('/steckbriefe', 'PUT', e),
+  regelwerk: () => rufen<RegelwerkSicht>('/regelwerk'),
+  regelwerkAendern: (a: RegelwerkAenderung) => rufen<RegelwerkSicht>('/regelwerk', 'PATCH', a),
 
   anwendungAnlegen: (d: AnwendungDaten) => rufen<{ kennung: string; name: string; schluessel: string }>('/anwendungen', 'POST', d),
   anwendungAendern: (kennung: string, d: AnwendungDaten) => rufen(`/anwendungen/${kennung}`, 'PUT', d),

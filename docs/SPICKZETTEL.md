@@ -64,6 +64,9 @@ Oberfläche des Maschinenraums (`http://127.0.0.1:8540/`) unter Leitstelle eintr
    einmal; später unter dem Auge (steht im Prüfprotokoll).
 3. In der Anwendung Basisadresse und Schlüssel eintragen (siehe [ANBINDUNG.md](ANBINDUNG.md) Abschnitt 2).
 4. Hauptregler oben: Normal, Auslaufen, Halt, Hintergrund.
+5. **Regeln**: je Maßnahme der Selbststeuerung ein Schalter, darunter ihre Werte mit Einheit, Vorgabe und Grenzen
+   (`GET`/`PATCH /api/regelwerk`); gespeichert wird nur, was von der Vorgabe abweicht, jede Änderung steht im
+   Prüfprotokoll.
 
 ## Lokal entwickeln
 

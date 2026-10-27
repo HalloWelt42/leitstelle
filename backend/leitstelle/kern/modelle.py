@@ -7,15 +7,14 @@ Kern ohne echte Uhr läuft und im Schein-Verbund deterministisch bleibt.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 
+from .regelwerk import Regelwerk
 from .werte import (
     IM_SPEICHER,
     OFFENE_ZUSTAENDE,
-    SZENARIEN_AB_WERK_AUS,
     WARTENDE_ZUSTAENDE,
     Auftragszustand,
-    Automatik,
     Betriebsmodus,
     Dienstzustand,
     Faehigkeit,
@@ -218,55 +217,6 @@ class Arbeit(BaseModel):
     beginn_s: float
     anfragen: int = 0
     modelle: dict[str, float] = Field(default_factory=dict)   # Modellkennung -> letzte Nutzung (Ende der Anfrage)
-
-
-class Regelwerk(BaseModel):
-    """Alles Einstellbare an einem Ort; jede Grenze sichtbar und erklärt (Oberfläche: Regeln)."""
-
-    budget_reserve_gb: float = 18.0
-    schutzgrenze_mrd: float = 10.0
-    mindestverweildauer_s: float = 600.0
-    leerlauf_s: float = 1800.0            # ab wann ein Modell als Leerlauf gilt (Anzeige, Doppel auflösen)
-    bedarfsfrist_s: float = 60.0          # wartet ein Auftrag auf den Platz, darf ein Modell schon nach dieser Zeit ohne Auftrag weichen
-    arbeit_frist_s: float = 300.0         # so lange nach ihrer letzten Nutzung hält eine begonnene Arbeit ein Modell
-    arbeit_ab_anfragen: int = 2           # ab so vielen Anfragen gilt eine Arbeit als begonnen (eine einzelne hält nichts)
-    gewinnfaktor: float = 2.0
-    extern_schwelle_s: float = 120.0
-    hintergrund_spaetestens_s: float = 900.0
-    hintergrund_bei_angespannt_anhalten: bool = True
-    speicher_warnschwelle: float = 0.92   # Anteil belegt, ab dem die Lage angespannt ist
-    automatik: Automatik = Automatik.SELBST
-    szenarien_an: dict[Massnahmenart, bool] = Field(default_factory=lambda: {a: a not in SZENARIEN_AB_WERK_AUS for a in Massnahmenart})
-    # Schleifenschutz
-    max_massnahmen_je_fenster: int = 6
-    fenster_s: float = 600.0
-    ruhezeit_s: float = 1800.0
-    max_umleitungen_je_auftrag: int = 1
-    umschichter_takt_s: float = 5.0
-    geladene_zuerst: bool = True
-    # Einbettung verstärken (ZUSAMMENSPIEL Z5): Andrang ab dieser Wartezeit, Schonfrist für Modelle, die dafür weichen
-    # müssten, Rückbau nach dieser Ruhe
-    einbettung_andrang_s: float = 10.0
-    einbettung_schonfrist_s: float = 1800.0
-    einbettung_ruhe_s: float = 300.0
-    # Läufer ohne Auftrag (ZUSAMMENSPIEL Z6): ein Arbeiter des Läufers, der so lange in jeder Messung mindestens so viel
-    # rechnet (Prozent eines Kerns), während kein Auftrag der Leitstelle auf dem Läufer lief oder zugeteilt war
-    laeufer_schwelle_prozent: float = 50.0
-    laeufer_frist_s: float = 300.0
-    # Hintergrund bei Rechnerlast (Z6): Fremdlast des Rechners im gleitenden Mittel über die Frist; drosseln und anhalten ab
-    # diesen Grenzen (Prozent aller Kerne), zurück erst unter Grenze minus Abstand (gegen Flattern). Schätzwerte: nach einer
-    # Woche Verlauf nachstellen
-    last_frist_s: float = 60.0
-    last_drosseln_ab_prozent: float = 50.0
-    last_anhalten_ab_prozent: float = 75.0
-    last_abstand_prozent: float = 10.0
-
-    @field_validator("szenarien_an")
-    @classmethod
-    def _alle_szenarien(cls, werte: dict[Massnahmenart, bool]) -> dict[Massnahmenart, bool]:
-        """Ein gespeichertes Regelwerk aus einer älteren Fassung kennt neue Szenarien nicht: sie bekommen ihre Vorgabe ab
-        Werk (sonst wäre etwa "Läufer ohne Auftrag" stillschweigend an)."""
-        return {a: werte.get(a, a not in SZENARIEN_AB_WERK_AUS) for a in Massnahmenart}
 
 
 class Massnahme(BaseModel):

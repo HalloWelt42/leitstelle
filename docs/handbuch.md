@@ -123,8 +123,12 @@ Dienst anhalten, Archiv in den Datenordner entpacken, starten; Probe wie in Schr
 - Unter Knoten steht bei einem Arbeiter des Läufers "arbeitet ohne Auftrag": er rechnet seit der Frist (Vorgabe 5 min)
   über der Schwelle, ohne dass die Leitstelle dort etwas rechnen lässt. Hängt am Läufer ein Programm am Leitstand
   vorbei, rechnet er vermutlich dafür (das Programm umstellen); sonst "Prozess beenden" (Bestätigung in der Leiste), der
-  Läufer lädt das Modell bei Bedarf neu. Die Regel "Läufer arbeitet ohne Auftrag" täte das selbst, ist ab Werk aber aus.
+  Läufer lädt das Modell bei Bedarf neu. Die Regel "Läufer ohne Auftrag" täte das selbst, ist ab Werk aber aus;
+  einschalten unter Regeln, Läufer und Last.
 - Hintergrundarbeit stockt auf einem Rechner: in der Übersicht steht "Hintergrund gedrosselt" oder "angehalten", weil
   der Mensch den Rechner gerade braucht (Fremdlast ab 50 beziehungsweise 75 % im Mittel). Das gibt sich von selbst,
-  sobald die Last 10 Punkte unter die Grenze fällt; normale und dringende Aufträge sind nicht betroffen.
+  sobald die Last 10 Punkte unter die Grenze fällt; normale und dringende Aufträge sind nicht betroffen. Grenzen und
+  Abstand stehen unter Regeln, Läufer und Last; ausgeschaltet gibt die Regel jeden gebremsten Rechner sofort frei.
+- Eine Maßnahme der Selbststeuerung stört: unter Regeln abschalten oder ihre Werte ändern (wirkt sofort, steht im
+  Prüfprotokoll); "von Hand" zeigt, was von der Vorgabe abweicht, der Pfeil daneben stellt sie wieder her.
 - Gespeicherte Schlüssel sind unlesbar: `tresor.schluessel` fehlt oder gehört zu einer anderen Datenbank.

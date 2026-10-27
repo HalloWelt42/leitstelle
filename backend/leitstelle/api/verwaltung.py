@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
 from .. import version
+from ..fach import regelwerk
 from ..fach.fehler import Ablehnung
 from ..fach.lagebild import lagebild
 from ..fach.verzeichnis import AnwendungDaten, DienstAenderung, DienstDaten, KnotenDaten
@@ -106,6 +107,19 @@ async def stoppen(kennung: str, daten: StoppDaten, request: Request):
 async def massnahmen(request: Request, ab: int = Query(0, ge=0), anzahl: int = Query(50, ge=1, le=200)):
     eintraege, gesamt = await betrieb(request).ablage.massnahmen.neueste(anzahl, ab)
     return {"eintraege": eintraege, "gesamt": gesamt, "ab": ab, "anzahl": anzahl}
+
+
+@router.get("/regelwerk")
+async def regelwerk_lesen(request: Request) -> regelwerk.RegelwerkSicht:
+    """Maßnahmen und Regelwerte je Gruppe, mit Erklärung, Einheit, Vorgabe ab Werk und Grenzen für Änderungen von Hand."""
+    return regelwerk.sicht(betrieb(request).verbund.regelwerk)
+
+
+@router.patch("/regelwerk")
+async def regelwerk_aendern(daten: regelwerk.RegelwerkAenderung, request: Request) -> regelwerk.RegelwerkSicht:
+    """Maßnahmen schalten und Regelwerte ändern; was fehlt, bleibt. Gespeichert wird nur, was von der Vorgabe abweicht; jede
+    Änderung steht mit alt und neu im Prüfprotokoll und wirkt sofort."""
+    return await _fachlich(regelwerk.aendern(betrieb(request), daten, wer(request)))
 
 
 @router.put("/steckbriefe")

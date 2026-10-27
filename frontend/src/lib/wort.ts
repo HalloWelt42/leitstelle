@@ -1,7 +1,7 @@
 // Wörter, Symbole und Farben zu den Schlüsseln des Kerns. Gedruckt wird nie ein Schlüssel.
 import type {
   Auftragszustand, Betriebsmodus, Dienstzustand, Eignung, Faehigkeit, Fremdart, Fremddeutung, Hintergrundstufe, KnotenSicht, Knotenzustand,
-  Laeuferrolle, Lage, Massnahmenart, Massnahmenzustand, Modellzustand, Quelle, Regelwerk, Zone,
+  Laeuferrolle, Lage, Massnahmenart, Massnahmenzustand, Modellzustand, Quelle, Zone,
 } from './typen.gen';
 
 export const FAEHIGKEIT: Record<Faehigkeit, { wort: string; symbol: string; farbe: string; klasse: string }> = {
@@ -142,29 +142,6 @@ export const HINTERGRUNDSTUFE: Record<Hintergrundstufe, Zustandsbild & { satz: s
   frei: { wort: 'Frei', symbol: 'fa-circle-check', klasse: 'fertig', satz: 'Hintergrund darf alles' },
   gedrosselt: { wort: 'Gedrosselt', symbol: 'fa-gauge', klasse: 'pausiert', satz: 'Hintergrund bekommt nur die Grundinstanz einer Familie, keine weitere' },
   angehalten: { wort: 'Angehalten', symbol: 'fa-hand', klasse: 'fehler', satz: 'Hintergrund wird hier nicht zugeteilt; laufende Aufträge rechnen zu Ende' },
-};
-
-type Regelwert = { wort: string; erklaerung: string; wert: (r: Regelwerk) => string };
-const sekunden = (s: number) => (s >= 120 ? `${Math.round(s / 60)} Minuten` : `${Math.round(s)} s`);
-
-/** Die Regelwerte der beiden Regeln zur Last (ZUSAMMENSPIEL Z6), erklärt; die Werte stehen im Regelwerk des Kerns */
-export const REGELWERTE: { laeufer: Regelwert[]; rechnerlast: Regelwert[] } = {
-  laeufer: [
-    { wort: 'Schwelle', wert: (r) => `${r.laeufer_schwelle_prozent} % eines Kerns`,
-      erklaerung: 'So viel muss ein Arbeiter des Läufers in jeder Messung rechnen, damit er als rechnend zählt (100 % ist ein ganzer Kern).' },
-    { wort: 'Frist', wert: (r) => sekunden(r.laeufer_frist_s),
-      erklaerung: 'So lange über der Schwelle, ohne dass in dieser Zeit ein Auftrag der Leitstelle auf dem Läufer lief, zugeteilt war oder geladen wurde: dann heißt es "arbeitet ohne Auftrag".' },
-  ],
-  rechnerlast: [
-    { wort: 'Mittel über', wert: (r) => sekunden(r.last_frist_s),
-      erklaerung: 'Die Fremdlast zählt im gleitenden Mittel über diese Zeit; kurze Spitzen schalten nichts.' },
-    { wort: 'Drosseln ab', wert: (r) => `${r.last_drosseln_ab_prozent} %`,
-      erklaerung: 'Ab dieser Fremdlast bekommt Hintergrund auf dem Rechner nur die Grundinstanz einer Familie; weitere Instanzen ohne Auftrag weichen sofort.' },
-    { wort: 'Anhalten ab', wert: (r) => `${r.last_anhalten_ab_prozent} %`,
-      erklaerung: 'Ab dieser Fremdlast wird Hintergrund auf dem Rechner nicht mehr zugeteilt, auch nicht nach der Fairness-Frist; laufende Aufträge rechnen zu Ende.' },
-    { wort: 'Zurück erst', wert: (r) => `${r.last_abstand_prozent} Punkte darunter`,
-      erklaerung: 'Eine Stufe gilt, bis die Fremdlast um diesen Abstand unter ihre Grenze fällt; so springt sie nicht bei jeder Schwankung hin und her.' },
-  ],
 };
 
 export const MASSNAHMENZUSTAND: Record<Massnahmenzustand, string> = {

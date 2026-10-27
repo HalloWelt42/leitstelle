@@ -84,7 +84,8 @@ Stand 16.10.2026 (Fassung 0.4): gebaut, geprüft und auf einem Raspberry Pi in B
   Whisper-Dienste), bildwerkbank (Bildschmiede: erzeugen, freistellen), sprecher_klein (Piper auf dem
   Pi), musik (Klangschmiede), extern_openai (Externer Anbieter mit Kosten je Token).
 - Regeln vollständig (Prioritäten, Fairness, Speicher je Knoten, Zeitgrenzen, Zeitfenster, Extern)
-  mit Wirkungsvorschau.
+  mit Wirkungsvorschau. Stand 0.24.0: jede Maßnahme schaltbar und jeder Wert des Regelwerks einstellbar (Seite Regeln,
+  `/api/regelwerk`, gespeichert, im Prüfprotokoll); Wirkungsvorschau offen.
 - Selbststeuerung (ARCHITEKTUR 5.6): der Kern liegt seit Staffel 0 vor und ist gegen den Schein-Verbund
   geprüft; hier kommt die Anbindung an echte Adapter und Agenten (Vollzug), Rückgängig in der Oberfläche
   und der Dauerlauf gegen Schein-Dienste über das Netz.

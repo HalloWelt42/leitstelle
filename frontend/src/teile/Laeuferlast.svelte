@@ -7,8 +7,10 @@
   import { api } from '../lib/api';
   import { dauer, gb, komma, vor } from '../lib/format';
   import { tun } from '../lib/meldung.svelte';
+  import { aktuell, regelbeschreibung, wertText } from '../lib/regelwerk.svelte';
   import type { KnotenSicht, LaeuferprozessSicht, Regelwerk } from '../lib/typen.gen';
-  import { HINTERGRUNDSTUFE, LAEUFERROLLE, REGELWERTE } from '../lib/wort';
+  import { weg } from '../lib/weg.svelte';
+  import { HINTERGRUNDSTUFE, LAEUFERROLLE } from '../lib/wort';
 
   let { knoten, regelwerk, jetzt, knapp = false, titel = 'Läufer und Last' }:
     { knoten: KnotenSicht; regelwerk: Regelwerk; jetzt: number; knapp?: boolean; titel?: string } = $props();
@@ -21,8 +23,14 @@
   const summe = (liste: LaeuferprozessSicht[], f: (p: LaeuferprozessSicht) => number | null) => liste.reduce((s, p) => s + (f(p) ?? 0), 0);
   const kerne = (cpu: number | null) => (cpu == null ? '-' : komma(cpu / 100, 1));
   const datei = (pfad: string) => pfad.split('/').pop() || '-';
-  const regelLaeufer = $derived(regelwerk.szenarien_an.laeufer_ohne_auftrag ?? false);
-  const regelLast = $derived(regelwerk.szenarien_an.hintergrund_rechnerlast ?? true);
+  // Die beiden Regeln zur Last mit ihren Werten; Bedeutung und Einheit vom Kern, Werte live aus dem Regelwerk des Lagebilds
+  $effect(() => {
+    if (!knapp) regelbeschreibung.laden().catch(() => {});
+  });
+  const lastregeln = $derived(knapp ? undefined : regelbeschreibung.gruppe('last'));
+  const WIRKUNG: Record<string, [string, string]> = {
+    laeufer_ohne_auftrag: ['beendet solche Arbeiter selbst, außer ein Programm hängt am Leitstand vorbei am Läufer', 'meldet nur; beenden von Hand'],
+  };
 
   async function beenden(p: LaeuferprozessSicht) {
     const r = await tun(() => api.laeuferBeenden(knoten.kennung, p.pid));
@@ -38,7 +46,7 @@
       {knoten.agent.verbunden ? 'Keine Lastmessung: der Maschinenraum meldet sie nicht (Beobachtung aus oder ältere Fassung).' : 'Keine Lastmessung: kein Maschinenraum verbunden.'}</div>
   {:else}
     <div class="ll-werte">
-      <span title="Last des Menschen und seiner übrigen Programme: alle Prozesse ohne Läufer und ohne Dienste des Maschinenraums, Anteil aller {last.kerne ?? ''} Kerne. Die Stufe richtet sich nach dem Mittel über {REGELWERTE.rechnerlast[0].wert(regelwerk)}.">
+      <span title="Last des Menschen und seiner übrigen Programme: alle Prozesse ohne Läufer und ohne Dienste des Maschinenraums, Anteil aller {last.kerne ?? ''} Kerne. Die Stufe richtet sich nach dem Mittel über {dauer(regelwerk.last_frist_s)}.">
         <i class="fa-solid fa-gauge"></i>Fremdlast <b>{last.fremd_prozent != null ? `${komma(last.fremd_prozent, 0)} %` : '-'}</b>
         {#if last.fremd_mittel_prozent != null}<span class="leise">(Mittel {komma(last.fremd_mittel_prozent, 0)} %)</span>{/if}</span>
       <span class="zustand {stufe.klasse}" title="{stufe.satz}{last.stufe_grund ? `. ${last.stufe_grund}` : ''}"><i class="fa-solid {stufe.symbol}"></i>Hintergrund {stufe.wort.toLowerCase()}{#if last.stufe !== 'frei' && last.stufe_seit_s != null}&nbsp;seit {dauer(jetzt - last.stufe_seit_s)}{/if}</span>
@@ -107,13 +115,16 @@
         <div class="rechts"><button class="knopf klein ohne" onclick={() => (bestaetigen = null)}>Abbrechen</button>
           <button class="knopf klein gefahr-voll" onclick={() => bestaetigen && beenden(bestaetigen)}>Ja, beenden</button></div></div>
     {/if}
-    {#if !knapp}
+    {#if lastregeln}
       <div class="ll-regeln klein">
-        <div><b>Regel "Läufer arbeitet ohne Auftrag"</b> <span class="zustand {regelLaeufer ? 'fertig' : 'aus'}">{regelLaeufer ? 'an' : 'aus'}</span>
-          <span class="leise">{regelLaeufer ? 'beendet solche Arbeiter selbst, außer ein Programm hängt am Leitstand vorbei am Läufer' : 'meldet nur; beenden von Hand'}</span>
-          {#each REGELWERTE.laeufer as w (w.wort)}<span class="wert" title={w.erklaerung}>{w.wort} <b>{w.wert(regelwerk)}</b></span>{/each}</div>
-        <div><b>Regel "Hintergrund bei Rechnerlast"</b> <span class="zustand {regelLast ? 'fertig' : 'aus'}">{regelLast ? 'an' : 'aus'}</span>
-          {#each REGELWERTE.rechnerlast as w (w.wort)}<span class="wert" title={w.erklaerung}>{w.wort} <b>{w.wert(regelwerk)}</b></span>{/each}</div>
+        {#each lastregeln.szenarien as s (s.art)}
+          {@const an = regelwerk.szenarien_an[s.art] ?? s.vorgabe}
+          <div><b title={s.erklaerung}>Regel "{s.titel}"</b> <span class="zustand {an ? 'fertig' : 'aus'}">{an ? 'an' : 'aus'}</span>
+            {#if WIRKUNG[s.art]}<span class="leise">{WIRKUNG[s.art][an ? 0 : 1]}</span>{/if}
+            {#each lastregeln.werte.filter((w) => w.szenario === s.art) as w (w.feld)}<span class="wert" title={w.erklaerung}>{w.titel} <b>{wertText(w, aktuell(regelwerk, w.feld))}</b></span>{/each}</div>
+        {/each}
+        <div><a href={weg.pfad('regeln', 'last')} onclick={(e) => weg.klick(e, 'regeln', 'last')} title="Regeln zur Last ein- und ausschalten, Werte einstellen">
+          <i class="fa-solid fa-scale-balanced"></i> Regeln einstellen</a></div>
       </div>
     {/if}
   {/if}

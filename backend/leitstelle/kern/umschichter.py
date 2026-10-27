@@ -19,7 +19,7 @@ from uuid import uuid4
 from .messungen import Messwerk
 from .modelle import Massnahme, Verbund
 from .regeln.auswerter import Lauf, Regelgraph, auswerten
-from .werte import SZENARIEN_AB_WERK_AUS, Automatik, Betriebsmodus, Hintergrundstufe, Massnahmenzustand
+from .werte import SZENARIEN_AB_WERK_AUS, Automatik, Betriebsmodus, Hintergrundstufe, Massnahmenart, Massnahmenzustand
 
 #: Hauptrichtung einer Maßnahme nach ihrer ersten bewegenden Aktion; Partizip für die Meldung bei Flattern
 RICHTUNGEN = {"modell_laden": "laden", "modell_entladen": "entladen", "auftrag_umleiten": "umleiten", "auftrag_extern": "umleiten",
@@ -45,6 +45,25 @@ class Vollzug(Protocol):
     def hintergrund(self, an: bool) -> None: ...
     def laeufer_prozess_beenden(self, knoten: str, pid: int) -> None: ...
     def hintergrund_stufe(self, knoten: str, stufe: Hintergrundstufe, grund: str) -> None: ...
+
+
+def zuruecknehmen(verbund: Verbund, art: Massnahmenart, vollzug: Vollzug) -> list[str]:
+    """Was eine Regel als Zustand hinterlässt, nimmt die Leitstelle zurück, sobald sie nicht mehr wirkt (abgeschaltet oder
+    Automatik nicht mehr selbst handelnd); sonst bliebe etwa ein gedrosselter Hintergrund gedrosselt, weil die Regel, die
+    ihn freigäbe, nicht mehr läuft. Liefert die Sätze für den Verlauf."""
+    saetze = []
+    if art == Massnahmenart.HINTERGRUND_LAGE and not verbund.hintergrund_an:
+        vollzug.hintergrund(True)
+        saetze.append('Hintergrund läuft wieder: die Regel "Hintergrund bei Lage" wirkt nicht mehr')
+    elif art == Massnahmenart.VERLAGERN and verbund.hintergrund_knoten_bevorzugt:
+        vollzug.bevorzugter_knoten(None)
+        saetze.append('Kein Rechner mehr bevorzugt für Hintergrund: die Regel "Verlagern" wirkt nicht mehr')
+    elif art == Massnahmenart.HINTERGRUND_RECHNERLAST:
+        for k in verbund.knoten.values():
+            if k.hintergrund_stufe != Hintergrundstufe.FREI:
+                vollzug.hintergrund_stufe(k.kennung, Hintergrundstufe.FREI, 'die Regel "Hintergrund bei Rechnerlast" wirkt nicht mehr')
+                saetze.append(f'Hintergrund auf {k.name} freigegeben: die Regel "Hintergrund bei Rechnerlast" wirkt nicht mehr')
+    return saetze
 
 
 def _text_fuellen(vorlage: str, werte: dict, verbund: Verbund, lauf: Lauf) -> str:

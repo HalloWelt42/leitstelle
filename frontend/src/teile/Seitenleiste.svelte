@@ -30,6 +30,7 @@
     ['Dienste', 'fa-plug', 'dienste'],
     ['Modelle', 'fa-brain', 'modelle'],
     ['Anwendungen', 'fa-cubes', 'anwendungen'],
+    ['Regeln', 'fa-scale-balanced', 'regeln'],
   ];
   const SYSTEM: [string, string, Seite][] = [['Protokoll', 'fa-terminal', 'protokoll'], ['Gestaltung', 'fa-swatchbook', 'gestaltung']];
   const aktiv = (s: Seite) => weg.seite === s || (s === 'dienste' && weg.seite === 'anschluss');

@@ -264,11 +264,13 @@ class EinstellungAblage:
             await s.merge(EinstellungTabelle(schluessel=schluessel, wert=wert))
 
     async def regelwerk(self) -> Regelwerk:
+        """Vorgaben ab Werk, darüber was von Hand abweicht."""
         daten = await self._lesen("regelwerk")
         return Regelwerk.model_validate(daten) if daten else Regelwerk()
 
     async def regelwerk_speichern(self, r: Regelwerk) -> None:
-        await self._schreiben("regelwerk", r.model_dump(mode="json"))
+        """Nur die Abweichungen von der Vorgabe: ein nie geänderter Wert folgt einer neuen Vorgabe einer späteren Fassung."""
+        await self._schreiben("regelwerk", r.abweichungen())
 
     async def betrieb(self) -> BetriebEinstellung:
         daten = await self._lesen("betrieb")

@@ -322,13 +322,17 @@ Beenden mit nachgestellter Prozesstabelle, nachgestelltem lsof und nachgestellte
 | L22 | Regel an | die Leitstelle schickt den Befehl selbst, Maßnahme im Lagebild |
 | L23 | Fremdlast 90 %, dann Maschinenraum getrennt | Hintergrund angehalten mit Grund und Meldung; ohne Messung wieder frei |
 
-## 3e. Verwaltung (`test_dienste_bearbeiten.py`)
+## 3e. Verwaltung (`test_dienste_bearbeiten.py`, `test_regelwerk.py`)
 
 | Nr. | Situation | Erwartet |
 |---|---|---|
 | V01 | Dienst des Maschinenraums bearbeiten, das Formular schickt alle Felder unverändert mit (auch `agent://<Rechner>`) | gespeichert, nur der Name ändert sich; das Lagebild nennt je Dienst die einstellbaren Felder (`aenderbar`, beim Maschinenraum nur der Name) |
 | V02 | Adresse oder Plätze des Maschinenraum-Dienstes ändern | 422 `adresse` ("vergibt die Leitstelle selbst") beziehungsweise `nicht_aenderbar` mit den Feldern; nichts gespeichert |
 | V03 | Modell-Läufer mit unveränderter Adresse (auch mit Schrägstrich am Ende) speichern | keine Änderung der Adresse; das Prüfprotokoll nennt, was sich geändert hat ("Dienst geändert: der Name") |
+| V04 | Regelwerk lesen | sechs Gruppen; jede Maßnahme genau einmal schaltbar, jeder Wert des Regelwerks genau einmal mit Erklärung, Einheit, Vorgabe und Grenzen (die Vorgabe liegt darin) |
+| V05 | Regel "Läufer ohne Auftrag" an, Frist und Warnschwelle ändern, eine zurück auf die Vorgabe, neu starten | wirkt sofort und steht im Lagebild; Prüfprotokoll "Regelwert Frist (Läufer und Last): 5 min auf 10 min" und "Regel Läufer ohne Auftrag: aus auf an"; gespeichert nur die Abweichungen; nach dem Neustart geladen |
+| V06 | Wert außerhalb der Grenzen, unbekannter Wert, Bruch bei einer Anzahl, Schalter mit Zahl, unbekannte Automatik, Anhalten unter Drosseln | 400 `eingabe` beziehungsweise 404 `unbekannt` mit Satz; nichts übernommen, nichts gespeichert |
+| V07 | Regel "Hintergrund bei Rechnerlast" aus, während ein Rechner gedrosselt ist; Automatik auf Vorschlagen, während Hintergrund nach Lage angehalten ist | der Rechner wird frei, Hintergrund läuft wieder; beides im Verlauf ("wirkt nicht mehr") |
 
 ## 4. Zweige je Vorlage
 
