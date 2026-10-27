@@ -144,8 +144,8 @@
                 <div class="feldreihe">
                   <label class="feld-l"><span>Name</span><input class="eingabe" bind:value={entwurf.name} /></label>
                   {#if kann(d, 'adresse')}<label class="feld-l"><span>Adresse</span><input class="eingabe" bind:value={entwurf.adresse} /></label>
-                  {:else}<label class="feld-l"><span>Adresse <small>vergibt die Leitstelle; der Maschinenraum meldet sich mit dem Schlüssel seines Rechners</small></span>
-                    <input class="eingabe" value={d.adresse} readonly title="Nicht von Hand änderbar" /></label>{/if}
+                  {:else}<div class="feld-l"><span>Adresse <small>vergibt die Leitstelle; der Maschinenraum meldet sich mit dem Schlüssel seines Rechners</small></span>
+                    <span class="zahl adresse nur-lesen" title="Nicht von Hand änderbar">{d.adresse}</span></div>{/if}
                   {#if kann(d, 'plaetze')}<label class="feld-l"><span>Plätze <small>gleichzeitige Aufträge je Modell</small></span><input class="eingabe" type="number" min="1" max="64" bind:value={entwurf.plaetze} /></label>{/if}
                   {#if kann(d, 'anfragen_je_minute')}<label class="feld-l"><span>Grenze: Anfragen <small>je Minute, gleitend; leer heißt keine</small></span><input class="eingabe" type="number" min="1" max="100000" bind:value={entwurf.grenze} /></label>{/if}
                   {#if kann(d, 'token_ein_je_minute')}<label class="feld-l"><span>Grenze: Token hinein <small>je Minute, gleitend; leer heißt keine</small></span><input class="eingabe" type="number" min="1" bind:value={entwurf.tokenEin} placeholder={d.extern ? 'zum Beispiel 4000000' : ''} /></label>{/if}
@@ -185,5 +185,6 @@
   :global(.seite-dienste .anbieter-zeile td) { padding-top: 0; }
   :global(.seite-dienste td.aktionen) { white-space: nowrap; }
   :global(.seite-dienste .adresse) { overflow-wrap: anywhere; }
+  :global(.seite-dienste .nur-lesen) { padding: var(--a2) 0; color: var(--text-2); }
   :global(.seite-dienste .rechner) { display: flex; flex-wrap: wrap; align-items: center; gap: 4px var(--a2); margin-top: 4px; color: var(--text-2); }
 </style>

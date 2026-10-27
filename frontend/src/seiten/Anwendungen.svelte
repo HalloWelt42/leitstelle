@@ -193,7 +193,7 @@
               <div><Faehigkeit wert={f} /></div>
               <div class="kette">
                 {#each kette(f) as fam, i (fam)}
-                  <span class="schritt" title={extern(fam) ? `${fam}: extern, nur beim Ausweichen und wenn die Anwendung es erlaubt` : fam}><i class="fa-solid {extern(fam) ? 'fa-cloud' : 'fa-brain'}"></i>{wahlName(fam)}
+                  <span class="schritt" title={extern(fam) ? `${wahlName(fam)}: rechnet beim Anbieter, in der Kette nur beim Ausweichen und wenn die Anwendung es erlaubt` : fam}><i class="fa-solid {extern(fam) ? 'fa-cloud' : 'fa-brain'}"></i>{modellName(fam)}
                     {#if i > 0}<button class="knopf ohne symbol klein" onclick={() => verschieben(f, i, -1)} title="Nach vorn"><i class="fa-solid fa-arrow-left"></i></button>{/if}
                     <button class="knopf ohne symbol klein" onclick={() => kettenSetzen(f, kette(f).filter((x) => x !== fam))} title="Aus der Kette nehmen"><i class="fa-solid fa-xmark"></i></button></span>
                   {#if i < kette(f).length - 1}<span class="pfeil"></span>{/if}
@@ -258,3 +258,7 @@
     </div>
   </div>
 </div>
+
+<style>
+  .kettenhinweis { margin: 4px 0 var(--a2); }
+</style>
