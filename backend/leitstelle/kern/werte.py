@@ -127,7 +127,7 @@ SZENARIEN_AB_WERK_AUS = frozenset({Massnahmenart.LAEUFER_OHNE_AUFTRAG})
 # das Schema muss dem Spiegel im Maschinenraum gleichen (Test test_protokoll_von_agent_und_kern_ist_deckungsgleich).
 class Laeuferrolle(str, Enum):
     HAUPT = "haupt"                   # lauscht am Port des Läufers; wird nie beendet
-    ARBEITER = "arbeiter"             # hat eine Modelldatei offen: eine geladene Instanz
+    ARBEITER = "arbeiter"             # hat eine Modelldatei offen oder eine Bibliothek eines Rechenwerks geladen: eine geladene Instanz
     SONSTIG = "sonstig"               # alles andere im Baum des Läufers, etwa das Fenster
 
 
