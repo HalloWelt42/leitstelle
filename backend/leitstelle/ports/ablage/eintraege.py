@@ -64,6 +64,7 @@ class AnwendungEintrag(BaseModel):
     extern_erlaubt: bool = False
     gleichzeitig: int = 4
     ketten: dict[Faehigkeit, list[str]] = Field(default_factory=dict)
+    docker_projekte: list[str] = Field(default_factory=list)   # ihre Container im Docker-Rechner: Compose-Projekte oder Containernamen
     gesperrt: bool = False
     sperrgrund: str = ""
     angelegt_s: float = 0.0

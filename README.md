@@ -30,10 +30,19 @@ Leitstand vorbei"; Übersicht mit Anzahl); eine Verbindung vom Rechner der Leits
 selbst.
 
 Der Maschinenraum misst außerdem die Last (`knoten.last`): je Prozess des Läufers Rolle, Modelldatei, Kerne und
-Speicher, und die Fremdlast des Rechners ohne Läufer und Dienste. Die Leitstelle zeigt daneben, wie viel sie selbst
+Speicher, die Apps des Stellwerks je Teil (vom Stellwerk gestartet, kein KI-Dienst), den Docker-Rechner mit seinen
+Containern und die Fremdlast des Rechners ohne Läufer, Dienste und Apps. Die Leitstelle zeigt das beim Knoten (Läufer und
+Last, Apps des Rechners, Docker-Rechner; im Speicherbalken die Apps als Teil von System), dazu wie viel sie selbst
 gerade auf dem Läufer rechnen lässt, erkennt Arbeiter, die ohne ihren Auftrag rechnen (Befund im Verlauf, Knopf
 "Prozess beenden"; als Regel ab Werk aus), und drosselt oder hält Hintergrundarbeit auf einem Rechner an, solange der
-Mensch ihn braucht (Regel "Hintergrund bei Rechnerlast", ab Werk an).
+Mensch ihn braucht oder sein Docker-Rechner ausgelastet ist (Regel "Hintergrund bei Rechnerlast" mit Fremdlast und
+Docker-Last, ab Werk an). Container von Anwendungen, die gerade Hintergrundarbeit haben, zählen dabei nicht; welche
+Container zu einer Anwendung gehören, steht bei ihr (Docker-Projekte).
+
+Weil die Namen im Verbund ähnlich klingen, steht neben jedem ein Kurzzweck: Leitstelle · KI-Vermittlung, Maschinenraum ·
+KI-Dienste, Stellwerk · App-Steuerung. Bei der Leitstelle stehen Name und Kurzzweck an einer Stelle,
+`frontend/marke.ts`; Kopfzeile, Tab-Titel, Telefonansicht und Manifest der installierten Web-App (`name` mit Zweck,
+`short_name` nur der Name) lesen sie dort.
 
 ## Was sie kann
 

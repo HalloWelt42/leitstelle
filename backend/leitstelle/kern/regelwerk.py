@@ -113,8 +113,11 @@ SZENARIEN: dict[Massnahmenart, Szenario] = {
     Massnahmenart.LAEUFER_OHNE_AUFTRAG: Szenario(Regelgruppe.LAST, "Rechnet ein Arbeiter des Modell-Läufers seit der Frist über der Schwelle, ohne "
                                                                    "dass die Leitstelle dort etwas rechnen lässt, beendet ihn der Maschinenraum; hängt ein "
                                                                    "Programm am Leitstand vorbei am Läufer, nur melden. Aus: nur melden, beenden von Hand."),
-    Massnahmenart.HINTERGRUND_RECHNERLAST: Szenario(Regelgruppe.LAST, "Braucht der Mensch den Rechner (Fremdlast im Mittel), drosselt oder hält die "
-                                                                      "Leitstelle dort Hintergrundarbeit an; normale Aufträge bleiben unberührt."),
+    Massnahmenart.HINTERGRUND_RECHNERLAST: Szenario(Regelgruppe.LAST, "Braucht der Mensch den Rechner (Fremdlast im Mittel) oder ist sein "
+                                                                      "Docker-Rechner ausgelastet (Docker-Last im Mittel, ohne die Container von "
+                                                                      "Anwendungen mit Hintergrundarbeit), drosselt oder hält die Leitstelle dort "
+                                                                      "Hintergrundarbeit an; es gilt das höhere der beiden Maße. Normale Aufträge "
+                                                                      "bleiben unberührt."),
 }
 
 #: Wörter der Automatik (WAHL)
@@ -199,17 +202,24 @@ class Regelwerk(BaseModel):
         "Frist", "So lange über der Schwelle, ohne dass in dieser Zeit ein Auftrag der Leitstelle auf dem Läufer lief, zugeteilt war oder "
         "geladen wurde: dann heißt es \"arbeitet ohne Auftrag\".", E.SEKUNDEN, R.LAST, 30, 86400, 30, szenario=Massnahmenart.LAEUFER_OHNE_AUFTRAG)] = 300.0
     last_frist_s: Annotated[float, Regelwert(
-        "Mittel über", "Die Fremdlast zählt im gleitenden Mittel über diese Zeit; kurze Spitzen schalten nichts.",
+        "Mittel über", "Fremdlast und Docker-Last zählen im gleitenden Mittel über diese Zeit; kurze Spitzen schalten nichts.",
         E.SEKUNDEN, R.LAST, 15, 3600, 15, szenario=Massnahmenart.HINTERGRUND_RECHNERLAST)] = 60.0
     last_drosseln_ab_prozent: Annotated[float, Regelwert(
-        "Drosseln ab", "Ab dieser Fremdlast bekommt Hintergrund auf dem Rechner nur die Grundinstanz einer Familie; weitere Instanzen ohne Auftrag "
+        "Fremdlast drosseln ab", "Ab dieser Fremdlast bekommt Hintergrund auf dem Rechner nur die Grundinstanz einer Familie; weitere Instanzen ohne Auftrag "
         "weichen sofort.", E.PROZENT, R.LAST, 1, 100, 1, szenario=Massnahmenart.HINTERGRUND_RECHNERLAST)] = 50.0
     last_anhalten_ab_prozent: Annotated[float, Regelwert(
-        "Anhalten ab", "Ab dieser Fremdlast wird Hintergrund auf dem Rechner nicht mehr zugeteilt, auch nicht nach der Fairness-Frist; laufende "
+        "Fremdlast anhalten ab", "Ab dieser Fremdlast wird Hintergrund auf dem Rechner nicht mehr zugeteilt, auch nicht nach der Fairness-Frist; laufende "
         "Aufträge rechnen zu Ende.", E.PROZENT, R.LAST, 1, 100, 1, szenario=Massnahmenart.HINTERGRUND_RECHNERLAST)] = 75.0
     last_abstand_prozent: Annotated[float, Regelwert(
-        "Zurück erst", "Eine Stufe gilt, bis die Fremdlast um so viele Punkte unter ihre Grenze fällt; so springt sie nicht bei jeder Schwankung.",
-        E.PUNKTE, R.LAST, 0, 50, 1, szenario=Massnahmenart.HINTERGRUND_RECHNERLAST)] = 10.0
+        "Zurück erst", "Eine Stufe gilt, bis Fremdlast und Docker-Last um so viele Punkte unter ihre Grenzen fallen; so springt sie nicht bei "
+        "jeder Schwankung.", E.PUNKTE, R.LAST, 0, 50, 1, szenario=Massnahmenart.HINTERGRUND_RECHNERLAST)] = 10.0
+    docker_drosseln_ab_prozent: Annotated[float, Regelwert(
+        "Docker-Last drosseln ab", "Ab dieser Docker-Last (Container ohne die von Anwendungen mit Hintergrundarbeit, Anteil aller Kerne des "
+        "Docker-Rechners) wird Hintergrund auf dem Rechner gedrosselt wie bei der Fremdlast.", E.PROZENT, R.LAST, 1, 100, 1,
+        szenario=Massnahmenart.HINTERGRUND_RECHNERLAST)] = 70.0
+    docker_anhalten_ab_prozent: Annotated[float, Regelwert(
+        "Docker-Last anhalten ab", "Ab dieser Docker-Last wird Hintergrund auf dem Rechner nicht mehr zugeteilt, wie bei der Fremdlast; laufende "
+        "Aufträge rechnen zu Ende.", E.PROZENT, R.LAST, 1, 100, 1, szenario=Massnahmenart.HINTERGRUND_RECHNERLAST)] = 90.0
 
     szenarien_an: dict[Massnahmenart, bool] = Field(default_factory=lambda: {a: a not in SZENARIEN_AB_WERK_AUS for a in Massnahmenart})
 

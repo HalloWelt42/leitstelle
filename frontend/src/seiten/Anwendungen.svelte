@@ -13,7 +13,7 @@
 
   const ALLE = Object.keys(FAEHIGKEIT) as F[];
   const KETTEN: F[] = ['text', 'einbettung', 'bild_beschreiben', 'bild_erzeugen'];
-  const leer = (): AnwendungDaten => ({ name: '', prioritaet: 1, faehigkeiten: ['text', 'einbettung', 'uebersetzen', 'bild_beschreiben', 'werkzeug'], zonen: ['heim'], extern_erlaubt: false, gleichzeitig: 4, ketten: {} });
+  const leer = (): AnwendungDaten => ({ name: '', prioritaet: 1, faehigkeiten: ['text', 'einbettung', 'uebersetzen', 'bild_beschreiben', 'werkzeug'], zonen: ['heim'], extern_erlaubt: false, gleichzeitig: 4, ketten: {}, docker_projekte: [] });
 
   let entwurf = $state<AnwendungDaten>(leer());
   let neuerSchluessel = $state<{ name: string; schluessel: string } | null>(null);
@@ -40,7 +40,8 @@
     schluessel = null;
     frage = null;
     const fuellung = g ? { name: g.name, prioritaet: g.prioritaet as Prioritaet, faehigkeiten: [...g.faehigkeiten], zonen: g.zonen.filter((z) => z !== 'extern'),
-                           extern_erlaubt: g.extern_erlaubt, gleichzeitig: g.gleichzeitig, ketten: structuredClone($state.snapshot(g.ketten)) } : leer();
+                           extern_erlaubt: g.extern_erlaubt, gleichzeitig: g.gleichzeitig, ketten: structuredClone($state.snapshot(g.ketten)),
+                           docker_projekte: [...g.docker_projekte] } : leer();
     entwurf = fuellung;
     ausgang = JSON.stringify(fuellung);
   });
@@ -57,6 +58,8 @@
   };
   const hatExtern = $derived(bild.modelle.some((m) => extern(m.familie)));
   const kette = (f: F): string[] => (entwurf.ketten as Record<string, string[]>)[f] ?? [];
+  // Docker-Projekte als Text mit Kommas; übernommen beim Verlassen des Felds (sonst verschluckte das Teilen das Komma beim Tippen)
+  const teilen = (text: string) => [...new Set(text.split(',').map((t) => t.trim()).filter(Boolean))];
 
   function kettenSetzen(f: F, neu: string[]) {
     const k = { ...(entwurf.ketten as Record<string, string[]>) };
@@ -183,6 +186,12 @@
             <button class="chip" class:aktiv={entwurf.extern_erlaubt} onclick={() => (entwurf.extern_erlaubt = !entwurf.extern_erlaubt)}
                     title="Externe Anbieter dürfen rechnen; Daten verlassen dann das Heimnetz"><i class="fa-solid fa-cloud"></i> Extern</button>
           </div>
+
+          <label class="feld-l" style="margin-top: var(--a4)"><span>Docker-Projekte <small>ihre Container im Docker-Rechner eines Rechners:
+            Compose-Projekte oder Containernamen, mit Komma getrennt. Hat die Anwendung Hintergrundarbeit, zählt deren Last nicht zur Docker-Last
+            (sonst bremste sich die Leitstelle an der eigenen Arbeit)</small></span>
+            <input class="eingabe" value={(entwurf.docker_projekte ?? []).join(', ')} placeholder="zum Beispiel fundus"
+                   onchange={(e) => (entwurf.docker_projekte = teilen(e.currentTarget.value))} /></label>
 
           <div class="etikett" style="margin-top: var(--a4)">Modellketten <span class="leise" style="text-transform:none; letter-spacing:0; font-weight:500">gilt, wenn die Anwendung kein Modell nennt; erstes verfügbares gewinnt</span></div>
           {#if hatExtern}<p class="leise klein kettenhinweis">Externe Modelle rechnen beim Anbieter: in der Kette nur, wenn lokal länger gewartet würde und die

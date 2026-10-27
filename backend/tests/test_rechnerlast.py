@@ -1,12 +1,13 @@
 """Last des Modell-Läufers und des Rechners (ZUSAMMENSPIEL Z6) in der Schein-Welt: Regel "Läufer arbeitet ohne Auftrag"
-(Vorgabe aus) und Regel "Hintergrund bei Rechnerlast" (Vorgabe an). Szenarien L01 bis L14 aus docs/SZENARIEN.md.
+(Vorgabe aus) und Regel "Hintergrund bei Rechnerlast" (Vorgabe an) mit Fremdlast und Docker-Last. Szenarien L01 bis L19
+und L24 bis L27 aus docs/SZENARIEN.md.
 
 Die Meldungen `knoten.last` des Maschinenraums kommen hier im Takt der Beobachtung (15 s) über denselben Weg in den
 Verbund wie im Betrieb (`last_uebernehmen`)."""
 
 from __future__ import annotations
 
-from leitstelle.kern.modelle import Prozesslast
+from leitstelle.kern.modelle import Containerlast, Dockerlast, Prozesslast
 from leitstelle.kern.rechnerlast import last_uebernehmen, ohne_auftrag
 from leitstelle.kern.werte import Auftragszustand as Z, Faehigkeit as F, Hintergrundstufe as S, Laeuferrolle as R, Massnahmenart as A
 from leitstelle.kern.werte import Modellzustand, Prioritaet as P
@@ -20,17 +21,18 @@ HAUPT = (807, R.HAUPT, 100.0, "")
 SONSTIG = (810, R.SONSTIG, 90.0, "")
 
 
-def melden(w: Welt, prozesse: list[tuple[int, R, float | None, str]], fremd: float | None = 10.0, knoten: str = "mac-128") -> None:
+def melden(w: Welt, prozesse: list[tuple[int, R, float | None, str]], fremd: float | None = 10.0, knoten: str = "mac-128",
+           docker: Dockerlast | None = None) -> None:
     """Eine Meldung knoten.last des Maschinenraums: (pid, Rolle, Prozent eines Kerns, Modelldatei) je Prozess."""
     liste = [Prozesslast(pid=pid, name="node (Läufer)" if rolle == R.ARBEITER else "Läufer", rolle=rolle, modelldatei=datei, gb=1.2,
                          cpu_prozent=cpu) for pid, rolle, cpu, datei in prozesse]
-    last_uebernehmen(w.verbund, knoten, True, 10, liste, fremd)
+    last_uebernehmen(w.verbund, knoten, True, 10, liste, fremd, docker=docker)
 
 
-def laufen(w: Welt, sekunden: float, prozesse, fremd: float | None = 10.0) -> None:
+def laufen(w: Welt, sekunden: float, prozesse, fremd: float | None = 10.0, docker: Dockerlast | None = None) -> None:
     """Die Welt laufen lassen; alle 15 s meldet der Maschinenraum dieselbe Last."""
     for _ in range(int(sekunden // TAKT_S)):
-        melden(w, prozesse(w) if callable(prozesse) else prozesse, fremd)
+        melden(w, prozesse(w) if callable(prozesse) else prozesse, fremd, docker=docker)
         w.laufen(TAKT_S)
 
 
@@ -210,7 +212,7 @@ def test_l15_ohne_messung_wird_freigegeben():
     w.verbund.knoten["mac-128"].last = None                                  # Maschinenraum getrennt
     w.laufen(10)
     k = w.verbund.knoten["mac-128"]
-    assert k.hintergrund_stufe == S.FREI and k.hintergrund_grund == "Fremdlast nicht mehr gemessen"
+    assert k.hintergrund_stufe == S.FREI and k.hintergrund_grund == "Last nicht mehr gemessen"
 
 
 def test_l16_regel_aus_laesst_die_stufe():
@@ -225,3 +227,65 @@ def test_l17_gespeichertes_regelwerk_ohne_die_neuen_szenarien():
     assert r.szenarien_an[A.LAEUFER_OHNE_AUFTRAG] is False and r.szenarien_an[A.HINTERGRUND_RECHNERLAST] is True
     assert r.szenarien_an[A.UMLEITEN] is False
 
+
+
+# ── Zweites Maß: Docker-Last ─────────────────────────────────────────────
+
+def docker(**last: float) -> Dockerlast:
+    """Ein Docker-Rechner mit 8 Kernen; je Container (Name gleich Compose-Projekt) Prozent eines Kerns."""
+    return Dockerlast(gemessen=True, kerne=8, speicher_gb=16.0,
+                      container=[Containerlast(name=f"{n}-1", projekt=n, cpu_prozent=cpu, gb=1.0) for n, cpu in last.items()])
+
+
+def _docker_stufen(w: Welt, folge: list[tuple[float, Dockerlast]]) -> list[S]:
+    aus = []
+    for fremd, d in folge:
+        laufen(w, 75, [HAUPT], fremd, docker=d)
+        aus.append(w.verbund.knoten["mac-128"].hintergrund_stufe)
+    return aus
+
+
+def test_l24_docker_last_drosselt_und_haelt_an_mit_eigenen_grenzen():
+    """Der Docker-Rechner zählt in Prozent seiner Kerne: 600 % von 8 Kernen sind 75 %, 760 % sind 95 %."""
+    w = welt_mit()
+    folge = [(10.0, docker(zusage=400)), (10.0, docker(zusage=600)), (10.0, docker(zusage=760)), (10.0, docker(zusage=600)), (10.0, docker(zusage=200))]
+    assert _docker_stufen(w, folge) == [S.FREI, S.GEDROSSELT, S.ANGEHALTEN, S.GEDROSSELT, S.FREI]
+    gruende = [m.grund for m in ausgefuehrt(w, A.HINTERGRUND_RECHNERLAST)]
+    assert gruende[0] == "Hintergrund auf Mac Studio gedrosselt (vorher frei): Docker-Last im Mittel 75 %, drosseln ab 70 %"
+    assert gruende[1] == "Hintergrund auf Mac Studio angehalten (vorher gedrosselt): Docker-Last im Mittel 90 %, anhalten ab 90 %"   # Mittel im Übergang
+    assert gruende[-1] == ("Hintergrund auf Mac Studio freigegeben (vorher gedrosselt): Fremdlast im Mittel 0 %, frei unter 40 %; "
+                           "Docker-Last im Mittel 50 %, frei unter 60 %")
+
+
+def test_l25_container_der_eigenen_hintergrundarbeit_zaehlen_nicht():
+    """Fundus rechnet im Hintergrund, sein Container ist dadurch voll: das ist Folge der eigenen Arbeit und darf den
+    Hintergrund nicht anhalten (sonst gäbe die Leitstelle ihn gleich wieder frei). Ohne Hintergrundarbeit zählt er."""
+    w = welt_mit()
+    w.verbund.anwendungen["fundus"].docker_projekte = ["fundus"]
+    hinten = w.auftrag("fundus", F.EINBETTUNG, laufzeit_s=600, prioritaet=P.HINTERGRUND)
+    assert _docker_stufen(w, [(10.0, docker(fundus=780)), (10.0, docker(fundus=780))]) == [S.FREI, S.FREI]
+    assert w.verbund.knoten["mac-128"].last.docker_last[-1][1] == 0.0
+    w.verbund.auftraege[hinten.kennung].zustand = Z.FERTIG                    # keine Hintergrundarbeit mehr: der Container zählt
+    assert _docker_stufen(w, [(10.0, docker(fundus=780))]) == [S.ANGEHALTEN]
+
+
+def test_l26_die_virtuelle_maschine_zaehlt_nicht_doppelt():
+    """Die Container rechnen in der virtuellen Maschine von Docker, auf dem Mac ein gewöhnlicher Prozess: der Maschinenraum
+    meldet ihre Last darum auch in der Fremdlast. Die Leitstelle zieht sie dort ab (Anteil aller 10 Kerne des Mac); sie
+    zählt nur als Docker-Last. Gehören die Container der eigenen Hintergrundarbeit, zählen sie in keinem Maß."""
+    w = welt_mit()
+    w.verbund.anwendungen["fundus"].docker_projekte = ["fundus"]
+    w.auftrag("fundus", F.EINBETTUNG, laufzeit_s=600, prioritaet=P.HINTERGRUND)
+    assert _docker_stufen(w, [(85.0, docker(fundus=780))]) == [S.FREI]       # 85 % gemeldet, davon 78 Punkte Container
+    assert w.verbund.knoten["mac-128"].last.fremd[-1][1] == 7.0
+
+
+def test_l27_das_hoehere_mass_gilt_und_nennt_sich():
+    """Fremdlast 65 % gemeldet, davon 10 Punkte Container: 55 % drosseln; dann die Docker-Last über ihrer Grenze zum Anhalten.
+    Danach hält die Fremdlast allein die Stufe (80 %, über 75 minus Abstand)."""
+    w = welt_mit()
+    assert _docker_stufen(w, [(65.0, docker(zusage=100)), (65.0, docker(zusage=760))]) == [S.GEDROSSELT, S.ANGEHALTEN]
+    k = w.verbund.knoten["mac-128"]
+    assert k.hintergrund_grund.startswith("Docker-Last ") and k.hintergrund_grund.endswith(", anhalten ab 90 %")
+    assert ausgefuehrt(w, A.HINTERGRUND_RECHNERLAST)[0].grund.endswith("Fremdlast im Mittel 55 %, drosseln ab 50 %")
+    assert _docker_stufen(w, [(80.0, docker(zusage=0))]) == [S.ANGEHALTEN]

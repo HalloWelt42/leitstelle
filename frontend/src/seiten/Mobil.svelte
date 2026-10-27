@@ -36,7 +36,7 @@
 
 <div class="seite-mobil telefonansicht">
   <header class="m-kopf">
-    <img src="/symbol-frei.svg" alt="" /><b>Leitstelle</b>
+    <img src="/symbol-frei.svg" alt="" /><b>{__MARKE__.name}</b><span class="m-zweck">{__MARKE__.zweck}</span>
     <span class="lage {lage.klasse}"><span class="punkt" class:lebt={kanal.verbunden}></span>{lage.wort}</span>
   </header>
 

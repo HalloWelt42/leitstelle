@@ -43,20 +43,76 @@ class Prozesslast(BaseModel):
     beenden_s: float | None = None    # seit dann lässt die Leitstelle ihn beenden (Regel oder von Hand); er löst nicht erneut aus
 
 
+class Appteillast(BaseModel):
+    """Ein laufender nativer Teil einer App des Stellwerks (knoten.last), vom Stellwerk gestartet, kein KI-Dienst."""
+
+    app: str
+    app_name: str
+    teil: str
+    name: str
+    pids: list[int] = Field(default_factory=list)
+    cpu_prozent: float | None = None  # Prozent eines Kerns; leer bei der ersten Messung
+    gb: float | None = None
+
+
+class Appslast(BaseModel):
+    """Die Apps des Stellwerks auf einem Rechner, wie sein Maschinenraum sie meldet. Ohne `gemessen` sagt `teile`
+    nichts; `meldung` sagt, warum (Stellwerk antwortet nicht, ältere Fassung ohne Prozessnummern)."""
+
+    gemessen: bool
+    meldung: str = ""
+    teile: list[Appteillast] = Field(default_factory=list)
+
+    @property
+    def gb(self) -> float:
+        return sum(t.gb or 0.0 for t in self.teile)
+
+
+class Containerlast(BaseModel):
+    """Ein laufender Container im Docker-Rechner eines Rechners."""
+
+    name: str
+    projekt: str = ""                 # Compose-Projekt; leer: ohne Compose gestartet
+    cpu_prozent: float | None = None  # Prozent eines Kerns des Docker-Rechners
+    gb: float | None = None
+
+
+class Dockerlast(BaseModel):
+    """Der Docker-Rechner eines Rechners (die virtuelle Maschine der Container). Ohne `gemessen` sagt der Rest nichts."""
+
+    gemessen: bool
+    kerne: int | None = None
+    speicher_gb: float | None = None
+    container: list[Containerlast] = Field(default_factory=list)
+
+
 class Rechnerlast(BaseModel):
-    """Was der Maschinenraum eines Rechners über die Last meldet (knoten.last), mit Verlauf. Die Fremdlast ist die Last
-    ohne Läufer und ohne Dienste des Maschinenraums, Anteil aller Kerne."""
+    """Was der Maschinenraum eines Rechners über die Last meldet (knoten.last), mit Verlauf (ZUSAMMENSPIEL Z6). Zwei
+    Maße im Fenster der Frist: die Fremdlast (ohne Läufer, Dienste des Maschinenraums, Apps des Stellwerks und ohne die
+    Container des Docker-Rechners, Anteil aller Kerne) und die Docker-Last (Container ohne die von Anwendungen mit
+    Hintergrundarbeit, Anteil des Docker-Rechners)."""
 
     zeit_s: float                     # letzte Meldung
     gemessen: bool                    # falsch: die Liste der Läufer-Prozesse sagt nichts (kein lsof, kein Läufer)
     kerne: int
     prozesse: list[Prozesslast] = Field(default_factory=list)
     fremd: list[tuple[float, float]] = Field(default_factory=list)   # (Zeit, Fremdlast in Prozent) je Messung im Fenster, älteste zuerst
+    apps: Appslast | None = None      # None: der Maschinenraum meldet keine Apps (kein Stellwerk eingetragen, ältere Fassung)
+    docker: Dockerlast | None = None  # None: der Maschinenraum meldet keinen Docker-Rechner (abgeschaltet, ältere Fassung)
+    docker_last: list[tuple[float, float]] = Field(default_factory=list)   # (Zeit, Docker-Last in Prozent) je Messung im Fenster
 
     def fremd_mittel(self, jetzt_s: float, frist_s: float) -> float | None:
         """Gleitendes Mittel der Fremdlast über die Frist; None ohne Messung darin."""
-        werte = [w for t, w in self.fremd if jetzt_s - t <= frist_s]
-        return sum(werte) / len(werte) if werte else None
+        return _mittel(self.fremd, jetzt_s, frist_s)
+
+    def docker_mittel(self, jetzt_s: float, frist_s: float) -> float | None:
+        """Gleitendes Mittel der Docker-Last über die Frist; None ohne Messung darin."""
+        return _mittel(self.docker_last, jetzt_s, frist_s)
+
+
+def _mittel(reihe: list[tuple[float, float]], jetzt_s: float, frist_s: float) -> float | None:
+    werte = [w for t, w in reihe if jetzt_s - t <= frist_s]
+    return sum(werte) / len(werte) if werte else None
 
 
 class Knoten(BaseModel):
@@ -169,6 +225,7 @@ class Anwendung(BaseModel):
     extern_erlaubt: bool = False
     ketten: dict[Faehigkeit, list[str]] = Field(default_factory=dict)   # Modellfamilien in Reihenfolge
     gleichzeitig: int = 4
+    docker_projekte: list[str] = Field(default_factory=list)   # ihre Container im Docker-Rechner: Compose-Projekte oder Containernamen
 
 
 class Auftrag(BaseModel):

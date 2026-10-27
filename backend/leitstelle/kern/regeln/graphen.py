@@ -191,9 +191,11 @@ EINBETTUNG_ZURUECKBAUEN = _graph("einbettung_zurueckbauen", "Einbettung zurückb
     E(von="a", nach="k1"), E(von="k1", nach="k2"), E(von="k2", nach="e_ok"),
 ])
 
-# Hintergrund bei Rechnerlast (ZUSAMMENSPIEL Z6): die Fremdlast eines Rechners (ohne Läufer und Dienste des Maschinenraums,
-# also der Mensch und seine Programme) im gleitenden Mittel setzt die Stufe seines Hintergrunds: ab der Grenze gedrosselt
-# (nur die Grundinstanz), ab der höheren angehalten; zurück erst unter Grenze minus Abstand. Vorgabe an.
+# Hintergrund bei Rechnerlast (ZUSAMMENSPIEL Z6): zwei Maße eines Rechners im gleitenden Mittel setzen die Stufe seines
+# Hintergrunds, das höhere gilt: die Fremdlast (ohne Läufer, Dienste des Maschinenraums, Apps des Stellwerks und
+# Container, also der Mensch und seine Programme) und die Docker-Last (Container ohne die von Anwendungen mit
+# Hintergrundarbeit). Ab der Grenze gedrosselt (nur die Grundinstanz), ab der höheren angehalten; zurück erst unter
+# Grenze minus Abstand. Vorgabe an.
 HINTERGRUND_RECHNERLAST = _graph("hintergrund_rechnerlast", "Hintergrund bei Rechnerlast", Massnahmenart.HINTERGRUND_RECHNERLAST, [
     K(id="a", art="ausloeser", baustein="rechnerlast"),
     K(id="p1", art="pruefung", baustein="last_ueber_grenze", parameter={"grenze": "anhalten"}),
@@ -202,11 +204,11 @@ HINTERGRUND_RECHNERLAST = _graph("hintergrund_rechnerlast", "Hintergrund bei Rec
     K(id="p4", art="pruefung", baustein="stufe_ist", parameter={"stufe": "gedrosselt"}),
     K(id="p5", art="pruefung", baustein="stufe_ist", parameter={"stufe": "frei"}),
     K(id="k1", art="aktion", baustein="hintergrund_auf_knoten_anhalten"),
-    K(id="k2", art="aktion", baustein="melden", parameter={"text": "Hintergrund auf {knoten} angehalten (vorher {vorher}): Fremdlast im Mittel {last}, anhalten ab {grenze_anhalten}"}),
+    K(id="k2", art="aktion", baustein="melden", parameter={"text": "Hintergrund auf {knoten} angehalten (vorher {vorher}): {mass} im Mittel {last}, anhalten ab {grenze_anhalten}"}),
     K(id="k3", art="aktion", baustein="hintergrund_drosseln"),
-    K(id="k4", art="aktion", baustein="melden", parameter={"text": "Hintergrund auf {knoten} gedrosselt (vorher {vorher}): Fremdlast im Mittel {last}, drosseln ab {grenze_drosseln}"}),
+    K(id="k4", art="aktion", baustein="melden", parameter={"text": "Hintergrund auf {knoten} gedrosselt (vorher {vorher}): {mass} im Mittel {last}, drosseln ab {grenze_drosseln}"}),
     K(id="k5", art="aktion", baustein="hintergrund_auf_knoten_freigeben"),
-    K(id="k6", art="aktion", baustein="melden", parameter={"text": "Hintergrund auf {knoten} freigegeben (vorher {vorher}): Fremdlast im Mittel {last}, frei unter {grenze_drosseln}"}),
+    K(id="k6", art="aktion", baustein="melden", parameter={"text": "Hintergrund auf {knoten} freigegeben (vorher {vorher}): {frei}"}),
     K(id="e_halt", art="ende", titel="angehalten"),
     K(id="e_drossel", art="ende", titel="gedrosselt"),
     K(id="e_frei", art="ende", titel="freigegeben"),

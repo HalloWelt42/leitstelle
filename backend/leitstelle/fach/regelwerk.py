@@ -113,6 +113,10 @@ def _zahl(x: float) -> str:
     return text.rstrip("0").rstrip(",")
 
 
+#: Grenzen, die zusammengehören: anhalten darf nicht unter drosseln liegen (je Maß der Regel "Hintergrund bei Rechnerlast")
+GRENZPAARE = [("last_anhalten_ab_prozent", "last_drosseln_ab_prozent"), ("docker_anhalten_ab_prozent", "docker_drosseln_ab_prozent")]
+
+
 def _neu(r: Regelwerk, a: RegelwerkAenderung) -> Regelwerk:
     """Das geänderte Regelwerk, geprüft: nur bekannte Werte, in ihren Grenzen, Anhalten nicht unter Drosseln."""
     felder = set(einstellbar())
@@ -137,9 +141,10 @@ def _neu(r: Regelwerk, a: RegelwerkAenderung) -> Regelwerk:
     except ValidationError as fehler:      # nach den Prüfungen oben nicht zu erwarten; dann mit dem Feld statt englischem Wortlaut
         feld = str(fehler.errors()[0]["loc"][0])
         raise Ablehnung("eingabe", f"{regelwert(feld).titel if feld in einstellbar() else feld} passt so nicht.") from fehler
-    if neu.last_anhalten_ab_prozent < neu.last_drosseln_ab_prozent:
-        raise Ablehnung("eingabe", f"{regelwert('last_anhalten_ab_prozent').titel} ({wert_text('last_anhalten_ab_prozent', neu.last_anhalten_ab_prozent)}) "
-                                   f"liegt unter {regelwert('last_drosseln_ab_prozent').titel} ({wert_text('last_drosseln_ab_prozent', neu.last_drosseln_ab_prozent)}).")
+    for anhalten, drosseln in GRENZPAARE:
+        if getattr(neu, anhalten) < getattr(neu, drosseln):
+            raise Ablehnung("eingabe", f"{regelwert(anhalten).titel} ({wert_text(anhalten, getattr(neu, anhalten))}) "
+                                       f"liegt unter {regelwert(drosseln).titel} ({wert_text(drosseln, getattr(neu, drosseln))}).")
     return neu
 
 

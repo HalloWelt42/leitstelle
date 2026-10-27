@@ -1,6 +1,6 @@
 """Am Leitstand vorbei: die Zugriffe auf Modelle eines Rechners, die nicht über die Leitstelle gehen (`knoten.fremde`),
-und die Last des Läufers und des Rechners (`knoten.last`, ZUSAMMENSPIEL Z6). Szenarien U06 bis U09 und L20 bis L23 aus
-docs/SZENARIEN.md, mit Leitstelle, Schein-Läufer und Schein-Agent auf echten Ports.
+und die Last des Läufers, der Apps, des Rechners und des Docker-Rechners (`knoten.last`, ZUSAMMENSPIEL Z6). Szenarien
+U06 bis U09 und L20 bis L23 und L28 aus docs/SZENARIEN.md, mit Leitstelle, Schein-Läufer und Schein-Agent auf echten Ports.
 
 Die Leitstelle ist die zentrale Steuerung und Überwachung; den Modell-Läufer spricht sie direkt an. Was an ihr vorbei
 auf Modelle zugreift, soll sichtbar sein, und wo es nötig ist, greift sie ein.
@@ -21,7 +21,8 @@ from leitstelle.kern.werte import Massnahmenart
 from leitstelle.konfig import Konfig
 from leitstelle.ports.ablage.datenbank import Datenbank
 from leitstelle.ports.ablage.repositorien import Ablage
-from leitstelle.protokoll.knoten import Befehlsart, Fremdart, Fremdzugriff, Fremdzugriffe, KnotenLast, Laeuferprozess, Laeuferrolle
+from leitstelle.protokoll.knoten import (AppsLast, AppTeil, Befehlsart, DockerContainer, DockerLast, Fremdart, Fremdzugriff, Fremdzugriffe,
+                                         KnotenLast, Laeuferprozess, Laeuferrolle)
 
 from schein.agent import ScheinAgent
 from schein.laeufer import schein_laeufer
@@ -267,4 +268,46 @@ async def test_l23_rechnerlast_haelt_hintergrund_an_und_gibt_ihn_frei(tmp_path):
         assert "Hintergrund auf Mac Studio angehalten (vorher frei): Fremdlast im Mittel 90 %, anhalten ab 75 %" in await _verlauf(a, "Hintergrund")
         await a.agent.trennen()                                                                  # ohne Maschinenraum keine Messung: frei
         await _warte_bis(await stufe("frei"))
-        assert (await _last(a))["stufe_grund"] == "Fremdlast nicht mehr gemessen"
+        assert (await _last(a))["stufe_grund"] == "Last nicht mehr gemessen"
+
+
+async def test_l28_apps_und_docker_rechner_im_lagebild(tmp_path):
+    """Die Apps des Stellwerks und der Docker-Rechner, wie der Maschinenraum sie meldet, stehen beim Rechner im Lagebild:
+    Apps je Teil mit Kernen und Speicher, Container mit der Anwendung, der sie gehören (Docker-Projekte), und die
+    Docker-Last. Die Fremdlast steht ohne die Container da (die virtuelle Maschine zählt nicht doppelt)."""
+    async with aufbau(tmp_path, regelwerk=_regeln()) as a:
+        r = await a.c.post("/api/anwendungen", json={"name": "Zusage", "docker_projekte": ["zusage", " zusage ", ""]})
+        assert r.status_code == 200, r.text
+        zusage = r.json()["kennung"]
+        anwendung = next(x for x in (await _lage(a))["anwendungen"] if x["kennung"] == zusage)
+        assert anwendung["docker_projekte"] == ["zusage"]                                        # bereinigt: ohne Leere und Doppelte
+        r = await a.c.post("/api/anwendungen", json={"name": "Falsch", "docker_projekte": ["zwei worte"]})
+        assert r.status_code == 422 and "zwei worte" in r.text
+
+        apps = AppsLast(teile=[AppTeil(app="befehlsdienst", app_name="Befehlsdienst", teil="dienst", name="Dienst", pids=[700], cpu_prozent=0.5, gb=0.05),
+                               AppTeil(app="fundus", app_name="Fundus", teil="qdrant", name="Vektorspeicher", pids=[960, 962], cpu_prozent=40.0, gb=4.0)])
+        docker = DockerLast(kerne=8, speicher_gb=16.0, container=[
+            DockerContainer(name="orbit-datenbank-1", projekt="orbit", cpu_prozent=12.0, gb=0.4),
+            DockerContainer(name="zusage-datenbank-1", projekt="zusage", cpu_prozent=200.0, gb=1.5)])
+        await a.agent.last_melden(KnotenLast(kerne=10, laeufer=[HAUPT], fremd_prozent=40.0, apps=apps, docker=docker))
+
+        async def gemeldet():
+            return (await _last(a))["docker"] is not None
+        await _warte_bis(gemeldet)
+        s = await _last(a)
+        assert s["apps"]["gemessen"] and s["apps"]["gb"] == 4.05
+        assert [(t["app_name"], t["name"], t["cpu_prozent"]) for t in s["apps"]["teile"]] == [("Fundus", "Vektorspeicher", 40.0), ("Befehlsdienst", "Dienst", 0.5)]
+        d = s["docker"]
+        assert d["gemessen"] and d["kerne"] == 8 and d["speicher_gb"] == 16.0
+        assert [(c["name"], c["anwendung"], c["hintergrund"]) for c in d["container"]] == [("zusage-datenbank-1", "Zusage", False), ("orbit-datenbank-1", None, False)]
+        assert d["last_prozent"] == 26.5 and d["last_mittel_prozent"] == 26.5                    # (200 + 12) % von 8 Kernen
+        assert s["fremd_prozent"] == 18.8                                                        # 40 % minus 21,2 Punkte Container auf 10 Kernen
+
+        await a.agent.last_melden(KnotenLast(kerne=10, laeufer=[HAUPT], fremd_prozent=40.0,
+                                             apps=AppsLast(gemessen=False, meldung="Stellwerk meldet keine Prozessnummern")))
+
+        async def ohne_zuordnung():
+            return (await _last(a))["apps"]["gemessen"] is False
+        await _warte_bis(ohne_zuordnung)
+        s = await _last(a)
+        assert s["apps"]["teile"] == [] and s["apps"]["meldung"] == "Stellwerk meldet keine Prozessnummern" and s["docker"] is None

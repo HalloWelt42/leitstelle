@@ -23,9 +23,9 @@ bereit), damit sich jede Anwendung auf die Lage einstellen kann.
   nicht überlaufen, verteilt die Arbeit und greift sinnvoll ein; dafür muss sie nicht jedes Bit durchschleifen.
   Anwendungen sprechen nur mit ihr (Fassade, auch `/v1/dienste/...`). Den Modell-Läufer spricht sie direkt an; die
   Dienste des Maschinenraums lauschen nur auf ihrem Rechner und sind über seine Durchleitung erreichbar. Was an ihr
-  vorbei auf Modelle eines Rechners zugreift und wie belastet Läufer und Rechner sind, meldet sein Maschinenraum
-  (`knoten.fremde`, `knoten.last`); die Leitstelle zeigt es beim Knoten und in der Übersicht (`fach/umgehungen.py`,
-  `kern/rechnerlast.py`) und greift nach ihren Regeln ein (ZUSAMMENSPIEL Z6).
+  vorbei auf Modelle eines Rechners zugreift und wie belastet Läufer, Apps des Stellwerks, Rechner und Docker-Rechner
+  sind, meldet sein Maschinenraum (`knoten.fremde`, `knoten.last`); die Leitstelle zeigt es beim Knoten und in der
+  Übersicht (`fach/umgehungen.py`, `kern/rechnerlast.py`) und greift nach ihren Regeln ein (ZUSAMMENSPIEL Z6, Z6b).
 - **Die Leitstelle sieht nur Fähigkeiten.** Eigene Webapps (Backend, Oberfläche, Datenbank, Abholer, mit oder ohne
   Docker) startet und stoppt das Stellwerk (Repo HalloWelt42/stellwerk), je Webapp mit allen Teilen; es hat keine
   Verbindung zur Leitstelle. Die Webapps halten selbst keine Modelle und nutzen KI nur über die Leitstelle.
@@ -231,7 +231,7 @@ Protokoll und lässt sich rückgängig machen oder als Regel abschalten ("so nic
 | Zeitfenster beginnt (Nacht) | **Verlagern** von Hintergrundarbeit auf den dafür freigegebenen Rechner | Regel Zeitfenster |
 | Dasselbe Modell auf zwei Rechnern, eines ohne Auftrag, anderswo fehlt Platz | **Doppel auflösen**: die ungenutzte Kopie entladen | nur bei Bedarf, Mindestverweildauer |
 | Lage wechselt auf angespannt oder Engpass | **Hintergrund bei Lage**: Hintergrundaufträge anhalten (nur zwischen Abschnitten), bei ruhiger Lage fortsetzen | Regel schaltbar; die Fairness bleibt: nach spätestens 15 min rückt Hintergrund auf Normal und läuft trotzdem |
-| Die Fremdlast eines Rechners (ohne Läufer und Dienste des Maschinenraums, also der Mensch und seine Programme) liegt im Mittel über der Grenze | **Hintergrund bei Rechnerlast** (ZUSAMMENSPIEL Z6): gedrosselt bekommt Hintergrund dort nur die Grundinstanz einer Familie und weitere Instanzen ohne Auftrag weichen sofort, angehalten wird Hintergrund dort nicht mehr zugeteilt; Normales bleibt unberührt | Regel schaltbar, Vorgabe an; Grenzen 50 und 75 % im Mittel über 60 s, zurück erst 10 Punkte darunter; angehalten gilt die Fairness nicht |
+| Die Fremdlast eines Rechners (ohne Läufer, Dienste des Maschinenraums, Apps des Stellwerks und Container, also der Mensch und seine Programme) oder seine Docker-Last (Container ohne die von Anwendungen mit Hintergrundarbeit) liegt im Mittel über der Grenze | **Hintergrund bei Rechnerlast** (ZUSAMMENSPIEL Z6, Z6b): das höhere Maß gilt; gedrosselt bekommt Hintergrund dort nur die Grundinstanz einer Familie und weitere Instanzen ohne Auftrag weichen sofort, angehalten wird Hintergrund dort nicht mehr zugeteilt; Normales bleibt unberührt | Regel schaltbar, Vorgabe an; Fremdlast 50 und 75 %, Docker-Last 70 und 90 %, im Mittel über 60 s, zurück erst 10 Punkte darunter; angehalten gilt die Fairness nicht |
 | Ein Arbeiter des Modell-Läufers rechnet seit der Frist über der Schwelle, ohne dass die Leitstelle dort etwas rechnen lässt | **Läufer arbeitet ohne Auftrag** (Z6): den Arbeiter vom Maschinenraum beenden lassen; der Läufer lädt bei Bedarf neu | Regel schaltbar, Vorgabe aus (dann nur Befund und Knopf von Hand); nicht bei einer Umgehung am Läufer; Schwelle 50 % eines Kerns, Frist 5 min; Schleifenschutz wie alle Regeln |
 
 Entscheidungen beruhen auf Messungen, nicht auf Geld: Ladezeit je Modellfamilie und Knoten, Startzeit je

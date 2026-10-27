@@ -43,10 +43,10 @@
 <header class="kopf">
   <div class="marke">
     <img class="marke-bild" src="/symbol-frei.svg" alt="" />
-    <span class="marke-name">Leitstelle</span>
+    <span class="marke-name">{__MARKE__.name}</span>
+    <span class="marke-zweck" title="Verteilt die Aufträge der Apps an die KI-Dienste und greift ein, wo es nötig ist"><span aria-hidden="true">·</span> {__MARKE__.zweck}</span>
     {#if bild}<span class="zahl">{bild.version}</span>{/if}
   </div>
-  <span class="rolle" title="Leitstelle verteilt Aufträge, Maschinenraum regelt KI, Stellwerk startet Anwendungen"><i class="fa-solid fa-tower-broadcast"></i>verteilt Aufträge</span>
 
   <div class="hauptregler" data-modus={modus} title="Hauptregler: wirkt sofort auf den ganzen Verbund">
     <span class="etikett">Betrieb</span>

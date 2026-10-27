@@ -10,7 +10,7 @@ schluessel_orte:
   - "Pi: `tresor.schluessel` im Datenordner; ohne ihn sind die im Tresor gespeicherten Schlüssel und Zugänge nicht lesbar"
   - "Datenbank (verschlüsselt mit dem Tresor): Schlüssel der Anwendungen, der Knoten (Maschinenraum) und externer Anbieter"
 einrichten: einrichten.sh
-stand: 383d2d7
+stand: 6d4870e
 ---
 
 # Leitstelle
@@ -21,7 +21,8 @@ Die Leitstelle steht zwischen den Apps und allen KI-Diensten. Apps sprechen nur 
 Schnittstelle im OpenAI-Format (`/v1/chat/completions`, `/v1/embeddings`, `/v1/models`) und über Fassadenwege zu den
 Diensten (`/v1/dienste/<name>/...`). Sie wählt je Auftrag Dienst, Modell und Rechner, reiht nach Priorität ein, plant
 den Speicher, lädt und entlädt Modelle und hält Dienste über den [[Maschinenraum]] des Rechners an oder startet sie.
-Die Oberfläche zeigt live, wer was rechnet und wer wartet.
+Die Oberfläche zeigt live, wer was rechnet und wer wartet. In Kopfzeile und Tab-Titel heißt sie "Leitstelle ·
+KI-Vermittlung".
 
 Ohne Leitstelle bekommen [[Fundus]], [[Assistent]], [[Vertonung]], [[Transkription]] und die übrigen Apps keine KI:
 keine Antworten, keine Einbettung, keine Stimme, kein Hören.
@@ -35,7 +36,8 @@ aus privaten Netzen erreichbar.
 - Pi nach [[Grundlage Pi]] mit Docker. Der Bau braucht Netz (Pakete, der Maschinenraum als echter Knoten in den
   Tests, die Gestaltung aus dem Repo des [[Appkern]] auf GitHub) und dauert, weil dabei alle Tests laufen.
 - Mac nach [[Grundlage Mac]] mit dem Modell-Läufer (Port 1234) und dem [[Maschinenraum]] als Knoten-Agent; für die
-  Last des Läufers und das Eingreifen (Arbeiter ohne Auftrag, Hintergrund bei Rechnerlast) dessen Fassung ab 0.15.0.
+  Last des Läufers und das Eingreifen (Arbeiter ohne Auftrag, Hintergrund bei Rechnerlast) dessen Fassung ab 0.15.0,
+  für den Docker-Rechner ab 0.16.0, für die Apps des [[Stellwerk]] ab 0.17.0 (das Stellwerk mit Prozessnummern je Teil).
 - Das Werkzeug handbuch am Mac ([[Grundlage Mac]]): `tools/ausrollen.sh` fragt es nach Ziel, Ordner und Datenordner
   (`handbuch ziel leitstelle`); das Repo `leitstelle-privat` als Ordner `privat/` trägt die Unterlagen des Hauses.
 - Keine andere App des Verbunds; die Leitstelle kommt gleich nach der [[Kellerwolke]].
@@ -86,12 +88,14 @@ Leitstelle direkt an; der Maschinenraum beobachtet ihn (dort Einstellung `nachba
 
 Probe: unter Dienste stehen die Modelle des Läufers mit Größe und Ladezustand, und er ist bereit; unter Knoten ist der Mac verbunden, meldet seinen Speicher und zeigt unter "Am
 Leitstand vorbei" eine Liste oder "Nichts gefunden", unter "Läufer und Last" die Prozesse des Läufers, die Fremdlast
-und den Hintergrund (ab Maschinenraum 0.15.0).
+und den Hintergrund (ab Maschinenraum 0.15.0), darunter "Apps des Rechners" und "Docker-Rechner".
 
 ### 5. Anwendungen
 
 Aus der Sicherung stehen sie schon da. Frisch je App eine Anwendung anlegen (Name, Priorität, Fähigkeiten, Zonen,
-Ketten; die Seite jeder App nennt ihre); der Schlüssel erscheint einmal und geht in die Einstellungen der App.
+Ketten; die Seite jeder App nennt ihre); der Schlüssel erscheint einmal und geht in die Einstellungen der App. Hat
+die App Container im Docker-Rechner eines Rechners, gehören ihre Compose-Projekte (etwa `fundus`) unter
+Docker-Projekte: solange sie Hintergrundarbeit hat, zählt deren Last nicht zur Docker-Last.
 
 Probe: die App meldet unter ihren Verbindungen die Leitstelle als verbunden, und ihr erster Auftrag erscheint in der
 Oberfläche der Leitstelle.
@@ -126,9 +130,15 @@ Dienst anhalten, Archiv in den Datenordner entpacken, starten; Probe wie in Schr
   Läufer lädt das Modell bei Bedarf neu. Die Regel "Läufer ohne Auftrag" täte das selbst, ist ab Werk aber aus;
   einschalten unter Regeln, Läufer und Last.
 - Hintergrundarbeit stockt auf einem Rechner: in der Übersicht steht "Hintergrund gedrosselt" oder "angehalten", weil
-  der Mensch den Rechner gerade braucht (Fremdlast ab 50 beziehungsweise 75 % im Mittel). Das gibt sich von selbst,
-  sobald die Last 10 Punkte unter die Grenze fällt; normale und dringende Aufträge sind nicht betroffen. Grenzen und
+  der Mensch den Rechner gerade braucht (Fremdlast ab 50 beziehungsweise 75 % im Mittel) oder sein Docker-Rechner
+  ausgelastet ist (Docker-Last ab 70 beziehungsweise 90 %); der Grund nennt das Maß. Das gibt sich von selbst, sobald
+  beide Maße 10 Punkte unter ihre Grenze fallen; normale und dringende Aufträge sind nicht betroffen. Grenzen und
   Abstand stehen unter Regeln, Läufer und Last; ausgeschaltet gibt die Regel jeden gebremsten Rechner sofort frei.
+  Bremst sich die Leitstelle an der eigenen Hintergrundarbeit in einem Container (die Docker-Last fällt, sobald der
+  Hintergrund steht), fehlen bei der Anwendung die Docker-Projekte.
+- Unter Knoten steht bei "Apps des Rechners" "Nicht zugeordnet": das Stellwerk antwortet dem Maschinenraum nicht oder
+  meldet keine Prozessnummern; der Grund steht dabei. Dann zählen die Apps wieder als Speicher am Leitstand vorbei und
+  zur Fremdlast.
 - Ein externer Anbieter lässt Aufträge warten ("Grenze von ... je Minute erreicht" oder "gesperrt bis"): unter Dienste
   stehen je Modell Anfragen und Token der letzten 60 Sekunden neben den Grenzen des Schlüssels; die Grenzen dort an die
   des Anbieters anpassen. Ob ein externes Modell Bilder versteht, belegt "Fähigkeiten prüfen" am Dienst (zählt gegen die

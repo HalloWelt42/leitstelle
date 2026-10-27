@@ -57,6 +57,7 @@ class AnwendungTabelle(Basis):
     extern_erlaubt: Mapped[bool] = mapped_column(Boolean, default=False)
     gleichzeitig: Mapped[int] = mapped_column(Integer, default=4)
     ketten: Mapped[dict[str, Any]] = mapped_column(JSON)
+    docker_projekte: Mapped[list[str]] = mapped_column(JSON, default=list)
     gesperrt: Mapped[bool] = mapped_column(Boolean, default=False)
     sperrgrund: Mapped[str] = mapped_column(Text, default="")
     angelegt_s: Mapped[float] = mapped_column(Float)

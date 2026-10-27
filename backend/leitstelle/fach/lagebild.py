@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from .. import version
 from ..kern.fenster import Frei, Nutzung
 from ..kern.modelle import Knoten, Massnahme, Regelwerk, Verbund
-from ..kern.rechnerlast import fremd_mittel, laeuferarbeit, ohne_auftrag_seit
+from ..kern.rechnerlast import anwendung_des_containers, docker_mittel, fremd_mittel, hintergrund_anwendungen, laeuferarbeit, ohne_auftrag_seit
 from ..protokoll.steckbrief import Steckbrief
 from ..kern.werte import (Auftragszustand, Automatik, Betriebsmodus, Dienstzustand, Faehigkeit, Hintergrundstufe, Knotenzustand, Laeuferrolle, Lage,
                           Modellzustand, Zone)
@@ -65,14 +65,57 @@ class LaeuferprozessSicht(BaseModel):
     beenden_s: float | None            # die Leitstelle lässt ihn gerade beenden
 
 
+class AppTeilSicht(BaseModel):
+    """Ein laufender nativer Teil einer App des Stellwerks: vom Stellwerk gestartet, kein KI-Dienst."""
+
+    app: str
+    app_name: str
+    teil: str
+    name: str
+    pids: list[int]
+    cpu_prozent: float | None          # Prozent eines Kerns; leer bei der ersten Messung
+    gb: float | None
+
+
+class AppsSicht(BaseModel):
+    """Apps des Stellwerks auf dem Rechner (`knoten.last.apps`, Maschinenraum ab 0.17.0 mit eingetragenem Stellwerk)."""
+
+    gemessen: bool                     # falsch: Stellwerk antwortet nicht oder meldet keine Prozessnummern; dann sagt teile nichts
+    meldung: str                       # warum nicht gemessen
+    teile: list[AppTeilSicht]          # größte Last zuerst
+    gb: float                          # Speicher aller Teile zusammen (steckt im Anteil System des Speicherbalkens)
+
+
+class ContainerSicht(BaseModel):
+    """Ein laufender Container im Docker-Rechner, mit der Zuordnung der Leitstelle."""
+
+    name: str
+    projekt: str                       # Compose-Projekt; leer: ohne Compose gestartet
+    cpu_prozent: float | None          # Prozent eines Kerns des Docker-Rechners
+    gb: float | None
+    anwendung: str | None              # Name der Anwendung, deren Docker-Projekte ihn nennen; None: keiner zugeordnet
+    hintergrund: bool                  # seine Anwendung hat gerade Hintergrundarbeit: zählt nicht zur Docker-Last
+
+
+class DockerSicht(BaseModel):
+    """Der Docker-Rechner eines Rechners (`knoten.last.docker`, Maschinenraum ab 0.16.0) und die Docker-Last daraus."""
+
+    gemessen: bool                     # falsch: Docker läuft nicht oder antwortet nicht; dann sagt der Rest nichts
+    kerne: int | None
+    speicher_gb: float | None
+    container: list[ContainerSicht]    # größte Last zuerst
+    last_prozent: float | None         # letzte Messung: Container ohne die von Anwendungen mit Hintergrundarbeit, Anteil des Docker-Rechners
+    last_mittel_prozent: float | None  # gleitendes Mittel über last_frist_s; zweites Maß der Regel "Hintergrund bei Rechnerlast"
+
+
 class LastSicht(BaseModel):
-    """Last von Läufer und Rechner (`knoten.last`) und was die Leitstelle daraus macht (ZUSAMMENSPIEL Z6)."""
+    """Last von Läufer, Apps, Rechner und Docker-Rechner (`knoten.last`) und was die Leitstelle daraus macht (ZUSAMMENSPIEL Z6)."""
 
     gemeldet: bool                     # der Maschinenraum meldet die Last (ab Fassung 0.15)
     gemessen: bool                     # die Liste der Läufer-Prozesse sagt etwas (lsof da, Läufer eingetragen)
     kerne: int | None
-    fremd_prozent: float | None        # letzte Messung, Anteil aller Kerne
-    fremd_mittel_prozent: float | None # gleitendes Mittel über last_frist_s; danach richtet sich die Stufe
+    fremd_prozent: float | None        # letzte Messung, Anteil aller Kerne, ohne die Container des Docker-Rechners
+    fremd_mittel_prozent: float | None # gleitendes Mittel über last_frist_s; danach (und nach der Docker-Last) richtet sich die Stufe
     laeufer: list[LaeuferprozessSicht]
     auftraege: int                     # Aufträge der Leitstelle, die gerade auf dem Läufer laufen oder ihm zugeteilt sind
     zuletzt_s: float | None            # wann zuletzt ein Auftrag der Leitstelle auf dem Läufer lief
@@ -80,6 +123,36 @@ class LastSicht(BaseModel):
     stufe: Hintergrundstufe            # Hintergrund auf diesem Rechner: frei, gedrosselt, angehalten
     stufe_grund: str
     stufe_seit_s: float | None
+    apps: AppsSicht | None             # None: der Maschinenraum meldet keine Apps (kein Stellwerk eingetragen, ältere Fassung)
+    docker: DockerSicht | None         # None: der Maschinenraum meldet keinen Docker-Rechner (abgeschaltet, ältere Fassung)
+
+
+def _last_zuerst(cpu: float | None, gb: float | None) -> tuple[float, float]:
+    return -(cpu or 0.0), -(gb or 0.0)
+
+
+def apps_sicht(k: Knoten) -> AppsSicht | None:
+    apps = k.last.apps if k.last else None
+    if apps is None:
+        return None
+    teile = sorted((AppTeilSicht(**t.model_dump()) for t in apps.teile), key=lambda t: _last_zuerst(t.cpu_prozent, t.gb))
+    return AppsSicht(gemessen=apps.gemessen, meldung=apps.meldung, teile=teile, gb=round(apps.gb, 2))
+
+
+def docker_sicht(v: Verbund, k: Knoten) -> DockerSicht | None:
+    docker = k.last.docker if k.last else None
+    if docker is None:
+        return None
+    hintergrund = hintergrund_anwendungen(v)
+    container = []
+    for c in docker.container:
+        a = anwendung_des_containers(v, c)
+        container.append(ContainerSicht(**c.model_dump(), anwendung=a.name if a else None, hintergrund=bool(a and a.kennung in hintergrund)))
+    mittel = docker_mittel(v, k)
+    return DockerSicht(gemessen=docker.gemessen, kerne=docker.kerne, speicher_gb=docker.speicher_gb,
+                       container=sorted(container, key=lambda c: _last_zuerst(c.cpu_prozent, c.gb)),
+                       last_prozent=k.last.docker_last[-1][1] if k.last and k.last.docker_last else None,
+                       last_mittel_prozent=round(mittel, 1) if mittel is not None else None)
 
 
 def last_sicht(v: Verbund, k: Knoten) -> LastSicht:
@@ -97,7 +170,8 @@ def last_sicht(v: Verbund, k: Knoten) -> LastSicht:
                      fremd_prozent=last.fremd[-1][1] if last and last.fremd else None,
                      fremd_mittel_prozent=round(mittel, 1) if mittel is not None else None, laeufer=laeufer,
                      auftraege=arbeit.auftraege, zuletzt_s=arbeit.zuletzt_s, umgehungen=list(k.laeufer_umgehungen),
-                     stufe=k.hintergrund_stufe, stufe_grund=k.hintergrund_grund, stufe_seit_s=k.hintergrund_seit_s)
+                     stufe=k.hintergrund_stufe, stufe_grund=k.hintergrund_grund, stufe_seit_s=k.hintergrund_seit_s,
+                     apps=apps_sicht(k), docker=docker_sicht(v, k))
 
 
 class KnotenSicht(BaseModel):
@@ -206,6 +280,7 @@ class AnwendungSicht(BaseModel):
     extern_erlaubt: bool
     gleichzeitig: int
     ketten: dict[str, list[str]]
+    docker_projekte: list[str]         # ihre Container im Docker-Rechner: Compose-Projekte oder Containernamen
     gesperrt: bool
     sperrgrund: str
     angelegt_s: float
@@ -288,7 +363,7 @@ def lagebild(b: Betrieb) -> Lagebild:
                                       auslaufend=bool(lauf and lauf.danach_sperren), schritte=list(lauf.schritte) if lauf else []))
     anwendungen = [AnwendungSicht(kennung=x.kennung, name=x.name, prioritaet=int(x.prioritaet), faehigkeiten=sorted(x.faehigkeiten, key=lambda f: f.value),
                                   zonen=sorted(x.zonen, key=lambda z: z.value), extern_erlaubt=x.extern_erlaubt, gleichzeitig=x.gleichzeitig,
-                                  ketten={f.value: k for f, k in x.ketten.items()}, gesperrt=x.gesperrt, sperrgrund=x.sperrgrund, angelegt_s=x.angelegt_s)
+                                  ketten={f.value: k for f, k in x.ketten.items()}, docker_projekte=list(x.docker_projekte), gesperrt=x.gesperrt, sperrgrund=x.sperrgrund, angelegt_s=x.angelegt_s)
                    for x in b.anwendungen.values()]
     return Lagebild(version=version(), zeit_s=b.uhr.jetzt(), modus=v.betriebsmodus, hintergrund_erlaubt=v.hintergrund_erlaubt,
                     hintergrund_an=v.hintergrund_an, lage=b.kern.lage, lage_grund=b.kern.lage_grund, automatik=r.automatik, regelwerk=r,

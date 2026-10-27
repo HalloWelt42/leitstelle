@@ -8,7 +8,9 @@
   import { DIENSTZUSTAND, KNOTENZUSTAND, knotenzustand } from '../lib/wort';
   import AgentFeld from '../teile/AgentFeld.svelte';
   import AmLeitstandVorbei from '../teile/AmLeitstandVorbei.svelte';
+  import DockerRechner from '../teile/DockerRechner.svelte';
   import Laeuferlast from '../teile/Laeuferlast.svelte';
+  import RechnerApps from '../teile/RechnerApps.svelte';
   import Ring from '../teile/Ring.svelte';
   import Speicherbalken from '../teile/Speicherbalken.svelte';
   import ZoneMarke from '../teile/ZoneMarke.svelte';
@@ -176,6 +178,10 @@
               </div>
             </div>
             <Laeuferlast knoten={k} regelwerk={bild.regelwerk} jetzt={bild.zeit_s} />
+            {#if k.last.gemeldet}
+              <RechnerApps knoten={k} />
+              <DockerRechner knoten={k} regelwerk={bild.regelwerk} />
+            {/if}
             <AmLeitstandVorbei fremde={k.fremde} verbunden={k.agent.verbunden} />
             {#if loeschen === k.kennung}
               <div class="bestaetigen"><i class="fa-solid fa-triangle-exclamation"></i><span>{k.name} entfernen? Geht nur, wenn keine Dienste mehr darauf eingerichtet sind.</span>

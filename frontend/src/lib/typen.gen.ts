@@ -238,6 +238,8 @@ export interface Regelwerk {
   last_drosseln_ab_prozent: number;
   last_anhalten_ab_prozent: number;
   last_abstand_prozent: number;
+  docker_drosseln_ab_prozent: number;
+  docker_anhalten_ab_prozent: number;
   szenarien_an: {
     [k: string]: boolean;
   };
@@ -330,7 +332,7 @@ export interface FremdzugriffSicht {
   deutung: Fremddeutung;
 }
 /**
- * Last von Läufer und Rechner (`knoten.last`) und was die Leitstelle daraus macht (ZUSAMMENSPIEL Z6).
+ * Last von Läufer, Apps, Rechner und Docker-Rechner (`knoten.last`) und was die Leitstelle daraus macht (ZUSAMMENSPIEL Z6).
  *
  * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "LastSicht".
@@ -348,6 +350,8 @@ export interface LastSicht {
   stufe: Hintergrundstufe;
   stufe_grund: string;
   stufe_seit_s: number | null;
+  apps: AppsSicht | null;
+  docker: DockerSicht | null;
 }
 /**
  * Ein Prozess des Modell-Läufers, wie der Maschinenraum ihn misst, mit dem Befund der Leitstelle.
@@ -364,6 +368,61 @@ export interface LaeuferprozessSicht {
   gb: number | null;
   ohne_auftrag_seit_s: number | null;
   beenden_s: number | null;
+}
+/**
+ * Apps des Stellwerks auf dem Rechner (`knoten.last.apps`, Maschinenraum ab 0.17.0 mit eingetragenem Stellwerk).
+ *
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "AppsSicht".
+ */
+export interface AppsSicht {
+  gemessen: boolean;
+  meldung: string;
+  teile: AppTeilSicht[];
+  gb: number;
+}
+/**
+ * Ein laufender nativer Teil einer App des Stellwerks: vom Stellwerk gestartet, kein KI-Dienst.
+ *
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "AppTeilSicht".
+ */
+export interface AppTeilSicht {
+  app: string;
+  app_name: string;
+  teil: string;
+  name: string;
+  pids: number[];
+  cpu_prozent: number | null;
+  gb: number | null;
+}
+/**
+ * Der Docker-Rechner eines Rechners (`knoten.last.docker`, Maschinenraum ab 0.16.0) und die Docker-Last daraus.
+ *
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "DockerSicht".
+ */
+export interface DockerSicht {
+  gemessen: boolean;
+  kerne: number | null;
+  speicher_gb: number | null;
+  container: ContainerSicht[];
+  last_prozent: number | null;
+  last_mittel_prozent: number | null;
+}
+/**
+ * Ein laufender Container im Docker-Rechner, mit der Zuordnung der Leitstelle.
+ *
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "ContainerSicht".
+ */
+export interface ContainerSicht {
+  name: string;
+  projekt: string;
+  cpu_prozent: number | null;
+  gb: number | null;
+  anwendung: string | null;
+  hintergrund: boolean;
 }
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
@@ -535,6 +594,7 @@ export interface AnwendungSicht {
   ketten: {
     [k: string]: string[];
   };
+  docker_projekte: string[];
   gesperrt: boolean;
   sperrgrund: string;
   angelegt_s: number;
@@ -869,6 +929,12 @@ export interface AnwendungDaten {
   ketten?: {
     [k: string]: string[];
   };
+  /**
+   * ihre Container im Docker-Rechner eines Rechners: Compose-Projekte oder Containernamen; deren Last zählt nicht, solange sie Hintergrundarbeit hat
+   *
+   * @maxItems 32
+   */
+  docker_projekte?: string[];
 }
 /**
  * Von Hand eingetragen, was ein Dienst nicht selbst über ein Modell sagt (PROTOKOLL 4.8); gilt je Modellfamilie

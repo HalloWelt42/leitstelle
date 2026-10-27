@@ -89,7 +89,8 @@ async def test_v06_grenzen_und_unbekanntes(tmp_path):
                                    ({"max_massnahmen_je_fenster": 2.5}, "eingabe", "ganze Zahl"),
                                    ({"geladene_zuerst": 1}, "eingabe", "an oder aus"),
                                    ({"automatik": "immer"}, "eingabe", "Selbst handeln"),
-                                   ({"last_anhalten_ab_prozent": 40}, "eingabe", "liegt unter Drosseln ab")]:
+                                   ({"last_anhalten_ab_prozent": 40}, "eingabe", "liegt unter Fremdlast drosseln ab"),
+                                   ({"docker_anhalten_ab_prozent": 60}, "eingabe", "liegt unter Docker-Last drosseln ab")]:
             r = await c.patch("/api/regelwerk", json={"werte": werte})
             assert r.status_code in (400, 404) and r.json()["grund"] == grund and satz in r.json()["begruendung"], r.text
         assert app.state.betrieb.verbund.regelwerk == Regelwerk(), "nichts übernommen"

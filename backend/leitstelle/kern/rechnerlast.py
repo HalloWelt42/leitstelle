@@ -6,6 +6,15 @@ Ein Arbeiter rechnet ohne Auftrag, wenn er seit der Frist (`laeufer_frist_s`) in
 (`laeufer_schwelle_prozent`, Prozent eines Kerns) rechnet und in diesem Fenster kein Auftrag der Leitstelle auf einem
 Modell eines Läufers dieses Rechners lief, zugeteilt war oder geladen wurde. Ob am Läufer zugleich ein Programm am
 Leitstand vorbei hängt, steht daneben (`Knoten.laeufer_umgehungen`); das deutet die Regel.
+
+Zwei Maße für die Regel "Hintergrund bei Rechnerlast", je Messung im Fenster der Frist:
+- Fremdlast: was der Maschinenraum als Fremdlast meldet (ohne Läufer, Dienste und Apps des Stellwerks), abzüglich der
+  Container des Docker-Rechners. Dessen virtuelle Maschine ist auf dem Rechner ein gewöhnlicher Prozess und steckt
+  darum in der gemeldeten Fremdlast; ihre Container zählen im zweiten Maß, nicht doppelt.
+- Docker-Last: die Last der Container in Prozent des Docker-Rechners, ohne die Container von Anwendungen, die gerade
+  Hintergrundarbeit haben (ein offener Auftrag mit Priorität Hintergrund). Deren Last folgt aus der eigenen
+  Hintergrundarbeit; zählte sie, drosselte die Leitstelle sich an ihr selbst und gäbe gleich wieder frei. Welche
+  Container zu einer Anwendung gehören, steht bei der Anwendung (`docker_projekte`: Compose-Projekte oder Namen).
 """
 
 from __future__ import annotations
@@ -13,9 +22,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 
-from .modelle import Dienst, Knoten, Prozesslast, Rechnerlast, Verbund
+from .modelle import Anwendung, Appslast, Containerlast, Dienst, Dockerlast, Knoten, Prozesslast, Rechnerlast, Verbund
 from .text import komma
-from .werte import Auftragszustand, Hintergrundstufe, Laeuferrolle, Modellzustand
+from .werte import OFFENE_ZUSTAENDE, Auftragszustand, Hintergrundstufe, Laeuferrolle, Modellzustand, Prioritaet
 
 #: Art der Dienste, die ein Modell-Läufer sind (Adapterart im Verzeichnis)
 ART_LAEUFER = "openai_kompatibel"
@@ -72,9 +81,10 @@ def ohne_auftrag(verbund: Verbund, k: Knoten) -> list[Prozesslast]:
     return [p for p in k.last.prozesse if arbeitet_ohne_auftrag(verbund, k.kennung, p)]
 
 
-def last_uebernehmen(verbund: Verbund, knoten: str, gemessen: bool, kerne_zahl: int, prozesse: list[Prozesslast], fremd_prozent: float | None) -> None:
+def last_uebernehmen(verbund: Verbund, knoten: str, gemessen: bool, kerne_zahl: int, prozesse: list[Prozesslast], fremd_prozent: float | None,
+                     apps: Appslast | None = None, docker: Dockerlast | None = None) -> None:
     """Eine Meldung knoten.last in den Verbund: je Prozess die Reihe über der Schwelle fortschreiben (dieselbe pid mit
-    derselben Modelldatei setzt sie fort, sonst beginnt sie neu), Vermerk "wird beendet" behalten, Fremdlast im Fenster
+    derselben Modelldatei setzt sie fort, sonst beginnt sie neu), Vermerk "wird beendet" behalten, beide Maße im Fenster
     der Frist halten. `prozesse` tragen die neue Messung (cpu_prozent), Reihe und Vermerk kommen von hier."""
     k = verbund.knoten[knoten]
     r, jetzt = verbund.regelwerk, verbund.zeit_s
@@ -85,15 +95,65 @@ def last_uebernehmen(verbund: Verbund, knoten: str, gemessen: bool, kerne_zahl: 
         ueber = p.cpu_prozent is not None and p.cpu_prozent >= r.laeufer_schwelle_prozent
         seit = (vorher.ueber_seit_s if vorher and vorher.ueber_seit_s is not None else jetzt) if ueber else None
         neu.append(p.model_copy(update={"ueber_seit_s": seit, "beenden_s": vorher.beenden_s if vorher else None}))
-    fremd = [(t, w) for t, w in (k.last.fremd if k.last else []) if jetzt - t < r.last_frist_s]
-    if fremd_prozent is not None:
-        fremd.append((jetzt, fremd_prozent))
-    k.last = Rechnerlast(zeit_s=jetzt, gemessen=gemessen, kerne=kerne_zahl, prozesse=neu, fremd=fremd)
+
+    def reihe(alt_reihe: list[tuple[float, float]], wert: float | None) -> list[tuple[float, float]]:
+        aus = [(t, w) for t, w in alt_reihe if jetzt - t < r.last_frist_s]
+        return aus + [(jetzt, wert)] if wert is not None else aus
+
+    fremd = None if fremd_prozent is None else round(max(0.0, fremd_prozent - container_anteil(docker, kerne_zahl)), 1)
+    k.last = Rechnerlast(zeit_s=jetzt, gemessen=gemessen, kerne=kerne_zahl, prozesse=neu, apps=apps, docker=docker,
+                         fremd=reihe(k.last.fremd if k.last else [], fremd),
+                         docker_last=reihe(k.last.docker_last if k.last else [], docker_last(verbund, docker)))
 
 
 def fremd_mittel(verbund: Verbund, k: Knoten) -> float | None:
     """Fremdlast des Rechners im gleitenden Mittel über `last_frist_s`; None ohne Messung darin."""
     return k.last.fremd_mittel(verbund.zeit_s, verbund.regelwerk.last_frist_s) if k.last else None
+
+
+def docker_mittel(verbund: Verbund, k: Knoten) -> float | None:
+    """Docker-Last des Rechners im gleitenden Mittel über `last_frist_s`; None ohne Messung darin."""
+    return k.last.docker_mittel(verbund.zeit_s, verbund.regelwerk.last_frist_s) if k.last else None
+
+
+# ── Docker-Rechner ───────────────────────────────────────────────────────
+def container_anteil(docker: Dockerlast | None, kerne_zahl: int) -> float:
+    """Was die Container rechnen, als Anteil aller Kerne des Rechners (0 bis 100); 0 ohne Messung. So viel steckt von der
+    virtuellen Maschine in der gemeldeten Fremdlast."""
+    if docker is None or not docker.gemessen or kerne_zahl <= 0:
+        return 0.0
+    return sum(c.cpu_prozent or 0.0 for c in docker.container) / kerne_zahl
+
+
+def hintergrund_anwendungen(verbund: Verbund) -> set[str]:
+    """Kennungen der Anwendungen, die gerade Hintergrundarbeit haben: ein offener Auftrag mit Priorität Hintergrund
+    (wartet, ist zugeteilt, läuft oder pausiert)."""
+    return {a.anwendung for a in verbund.auftraege.values() if a.prioritaet == Prioritaet.HINTERGRUND and a.zustand in OFFENE_ZUSTAENDE}
+
+
+def anwendung_des_containers(verbund: Verbund, c: Containerlast) -> Anwendung | None:
+    """Die Anwendung, zu der ein Container gehört: ihr Eintrag `docker_projekte` nennt sein Compose-Projekt oder seinen
+    Namen. Die erste passende, nach Kennung; None: keiner zugeordnet."""
+    for a in sorted(verbund.anwendungen.values(), key=lambda x: x.kennung):
+        if (c.projekt and c.projekt in a.docker_projekte) or c.name in a.docker_projekte:
+            return a
+    return None
+
+
+def zaehlt_zur_docker_last(verbund: Verbund, c: Containerlast, hintergrund: set[str]) -> bool:
+    """Zählt der Container zur Docker-Last? Nicht, wenn seine Anwendung gerade Hintergrundarbeit hat."""
+    a = anwendung_des_containers(verbund, c)
+    return a is None or a.kennung not in hintergrund
+
+
+def docker_last(verbund: Verbund, docker: Dockerlast | None) -> float | None:
+    """Docker-Last einer Messung: die Container ohne die von Anwendungen mit Hintergrundarbeit, in Prozent des
+    Docker-Rechners (0 bis 100); None ohne Messung oder ohne bekannte Kerne."""
+    if docker is None or not docker.gemessen or not docker.kerne:
+        return None
+    hintergrund = hintergrund_anwendungen(verbund)
+    summe = sum(c.cpu_prozent or 0.0 for c in docker.container if zaehlt_zur_docker_last(verbund, c, hintergrund))
+    return round(min(100.0, summe / docker.kerne), 1)
 
 
 # ── Sätze ────────────────────────────────────────────────────────────────

@@ -11,6 +11,8 @@ export const menge = (n: number | null | undefined): string =>
   n == null ? '-' : n >= 1_000_000 ? `${(n / 1_000_000).toLocaleString('de-DE', { maximumFractionDigits: 2 })} ${n === 1_000_000 ? 'Million' : 'Millionen'}` : ganz.format(n);
 /** Zahl mit fester Zahl an Nachkommastellen, deutsches Komma */
 export const komma = (n: number, stellen = 1): string => n.toLocaleString('de-DE', { minimumFractionDigits: stellen, maximumFractionDigits: stellen });
+/** Prozent eines Kerns als Kerne mit Komma (98 wird 1,0); ohne Wert ein Strich */
+export const kerne = (cpu_prozent: number | null | undefined): string => (cpu_prozent == null ? '-' : komma(cpu_prozent / 100, 1));
 
 /** Dauer in Worten: 4 s, 2 Minuten 10 s, 3 Stunden 5 Minuten */
 export function dauer(s: number | null | undefined): string {

@@ -6,6 +6,19 @@
  */
 @import './seiten.css';
 
+/* Kurzzweck neben dem Namen in der Kopfzeile (Name und Zweck aus marke.ts); in schmalen Fenstern weicht er mit dem Namen */
+.marke-zweck { font-weight: 500; font-size: var(--gross); letter-spacing: 0; color: var(--text-2); white-space: nowrap; }
+@media (max-width: 1240px) { .marke .marke-zweck { display: none; } }
+
+/* Blöcke zur Last eines Rechners (Läufer und Last, Apps des Rechners, Docker-Rechner): Etikett, Kennzahlenzeile, Tabelle */
+.lastblock { display: flex; flex-direction: column; gap: var(--a2); min-width: 0; }
+.lastblock .umbruch { overflow-wrap: anywhere; }
+.lastblock p { margin: 0; }
+.ll-werte { display: flex; gap: var(--a2) var(--a4); flex-wrap: wrap; align-items: center; font-size: var(--klein); color: var(--text-2); }
+.ll-werte i { color: var(--text-3); margin-right: 6px; }
+.ll-werte .zustand i { color: inherit; }
+.ll-werte b { font-family: var(--schrift-zahl); font-weight: 600; color: var(--text); }
+
 /* Seiteninhalt füllt den Rahmen: fester Kopf, eigenes Rollfeld */
 .seiteninhalt { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
@@ -16,6 +29,7 @@
 .budgetmarke > span { position: absolute; right: 8px; top: -24px; white-space: nowrap; font-size: var(--marke); font-weight: 700;
                       letter-spacing: 0.04em; color: var(--akzent); }
 .speicher .laedt { opacity: 0.55; }
+.speicher .apps { background: var(--sand); opacity: 0.7; }   /* Apps des Stellwerks: Teil von System, kein KI-Dienst */
 
 /* Rückmeldungen gestapelt unten rechts */
 .rueckmeldungen { position: fixed; right: var(--a5); bottom: calc(var(--fuss-hoehe) + var(--a4)); z-index: 40;

@@ -23,7 +23,8 @@ from pydantic import BaseModel
 from ..kern.fenster import Bedarf, Frei
 from ..kern.leitstelle import Leitstelle
 from ..kern.messungen import Messwerk
-from ..kern.modelle import Anwendung, Auftrag, Dienst, Knoten, Massnahme, Modell, Prozesslast, Verbund
+from ..kern.modelle import (Anwendung, Appslast, Appteillast, Auftrag, Containerlast, Dienst, Dockerlast, Knoten, Massnahme, Modell, Prozesslast,
+                            Verbund)
 from ..kern.rechnerlast import arbeitet_ohne_auftrag, befund, datei, laeuferarbeit, last_uebernehmen, ohne_auftrag
 from ..kern.werte import (WORT, Auftragszustand, Betriebsmodus, Dienstzustand, Faehigkeit, Hintergrundstufe, Laeuferrolle, Massnahmenzustand,
                           Modellzustand, Prioritaet, Zone)
@@ -287,7 +288,8 @@ class Betrieb:
     def anwendung_setzen(self, a: AnwendungEintrag) -> None:
         self.anwendungen[a.kennung] = a
         self.verbund.anwendungen[a.kennung] = Anwendung(kennung=a.kennung, name=a.name, prioritaet=a.prioritaet, faehigkeiten=set(a.faehigkeiten),
-                                                         zonen=set(a.zonen), extern_erlaubt=a.extern_erlaubt, ketten=dict(a.ketten), gleichzeitig=a.gleichzeitig)
+                                                         zonen=set(a.zonen), extern_erlaubt=a.extern_erlaubt, ketten=dict(a.ketten), gleichzeitig=a.gleichzeitig,
+                                                         docker_projekte=list(a.docker_projekte))
         self.geaendert()
 
     def anwendung_entfernen(self, kennung: str) -> None:
@@ -363,15 +365,20 @@ class Betrieb:
 
     # ── Last des Läufers und des Rechners (ZUSAMMENSPIEL Z6) ─────────────
     def agent_last(self, v: AgentVerbindung, last: KnotenLast) -> None:
-        """`knoten.last` im Takt der Beobachtung: in den Verbund (je Arbeiter die Reihe über der Schwelle, Fremdlast im
-        Fenster der Frist); neue und vergangene Befunde "rechnet ohne Auftrag" je einmal in den Verlauf."""
+        """`knoten.last` im Takt der Beobachtung: in den Verbund (je Arbeiter die Reihe über der Schwelle, Fremdlast und
+        Docker-Last im Fenster der Frist, Apps des Stellwerks und Docker-Rechner zur Anzeige); neue und vergangene Befunde
+        "rechnet ohne Auftrag" je einmal in den Verlauf."""
         k = self.verbund.knoten.get(v.knoten)
         if k is None:
             return
         self._zeit_setzen()
         prozesse = [Prozesslast(pid=p.pid, name=p.name, rolle=p.rolle, modelldatei=p.modelldatei, gb=p.gb, cpu_prozent=p.cpu_prozent)
                     for p in last.laeufer]
-        last_uebernehmen(self.verbund, v.knoten, last.gemessen, last.kerne, prozesse, last.fremd_prozent)
+        apps = None if last.apps is None else Appslast(gemessen=last.apps.gemessen, meldung=last.apps.meldung,
+                                                       teile=[Appteillast(**t.model_dump()) for t in last.apps.teile])
+        docker = None if last.docker is None else Dockerlast(gemessen=last.docker.gemessen, kerne=last.docker.kerne, speicher_gb=last.docker.speicher_gb,
+                                                             container=[Containerlast(**c.model_dump()) for c in last.docker.container])
+        last_uebernehmen(self.verbund, v.knoten, last.gemessen, last.kerne, prozesse, last.fremd_prozent, apps=apps, docker=docker)
         if last.gemessen:
             self._befunde_abgleichen(k)
         self.geaendert()

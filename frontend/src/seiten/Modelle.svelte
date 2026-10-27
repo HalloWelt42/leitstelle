@@ -3,6 +3,7 @@
   import { gb, prozent, uhrzeit, vor, zahl } from '../lib/format';
   import { kanal } from '../lib/kanal.svelte';
   import { tun } from '../lib/meldung.svelte';
+  import { systemteile } from '../lib/speicher';
   import type { Eignung, Lagebild, ModellSicht } from '../lib/typen.gen';
   import { EIGNUNG, FAEHIGKEIT, QUELLE, parameterText } from '../lib/wort';
   import { weg } from '../lib/weg.svelte';
@@ -118,6 +119,7 @@
       {#if gesperrt.length}<div class="kennzahl wartet"><b>{gesperrt.length}</b><span>Laden abgelehnt</span><small>neuer Versuch nach Pause</small></div>{/if}
     </div>
     {#each knotenMit.filter((k) => filterKnoten === 'alle' || filterKnoten === k.kennung) as k (k.kennung)}
+      {@const system = systemteile(k)}
       <div class="speicherkopf">
         <div class="sp-zeile">
           <span class="n">{k.name} <span class="leise klein">{gb(k.speicher_gb)}</span></span>
@@ -126,7 +128,8 @@
             <span><i class="fa-solid fa-square" style="color: var(--himmel)"></i>Text</span>
             <span><i class="fa-solid fa-square" style="color: var(--flieder)"></i>Bild</span>
             <span><i class="fa-solid fa-square" style="color: var(--petrol)"></i>Einbettung</span>
-            <span><i class="fa-solid fa-square" style="color: var(--stahl)"></i>System <span class="zahl">{gb(k.system_gb)}</span></span>
+            {#if system.apps > 0}<span title="Apps des Stellwerks: vom Stellwerk gestartet, kein KI-Dienst"><i class="fa-solid fa-square" style="color: var(--sand)"></i>Apps <span class="zahl">{gb(system.apps)}</span></span>{/if}
+            <span><i class="fa-solid fa-square" style="color: var(--stahl)"></i>System <span class="zahl">{gb(system.rest)}</span></span>
           </div>
         </div>
         <Speicherbalken knoten={k} modelle={bild.modelle} budgetmarke />

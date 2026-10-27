@@ -293,7 +293,7 @@ direkt an; eine Verbindung von ihrem Rechner ist darum vermutlich sie selbst.
 | U08 | Umgehungen verschwinden; dazwischen eine Meldung ohne Beobachtung | ohne Beobachtung weder weg noch da (Lagebild "nicht beobachtet"); nach dem Verschwinden je eine Meldung "nicht mehr gesehen", danach keine mehr |
 | U09 | Nachlauf | kurz fehlend und wieder da: nichts; erst nach dem Nachlauf seit dem letzten Sehen einmal weg; nach dem Trennen des Maschinenraums wird neu gemeldet |
 
-## 3d. Last des Läufers und des Rechners (`test_rechnerlast.py`, `test_am_leitstand_vorbei.py`)
+## 3d. Last des Läufers, der Apps, des Rechners und des Docker-Rechners (`test_rechnerlast.py`, `test_am_leitstand_vorbei.py`)
 
 ZUSAMMENSPIEL Z6. In der Schein-Welt kommt `knoten.last` alle 15 s über denselben Weg in den Verbund wie im Betrieb
 (L01 bis L17); L20 bis L23 mit Leitstelle, Schein-Läufer und Schein-Agent auf echten Ports. Die Messung selbst und das
@@ -314,13 +314,18 @@ Beenden mit nachgestellter Prozesstabelle, nachgestelltem lsof und nachgestellte
 | L12 | Angehalten, während ein Hintergrundauftrag läuft | er rechnet zu Ende |
 | L13 | Gedrosselt; vier Einbettungen im Hintergrund warten | keine weitere Instanz, die Grundinstanz arbeitet; kommen normale dazu, wird verstärkt |
 | L14 | Gedrosselt; eine weitere Einbettungsinstanz ohne Auftrag, eben noch genutzt | sofort entladen, "Hintergrund gedrosselt, kein Auftrag" (frei erst nach der Ruhezeit) |
-| L15 | Angehalten, dann keine Messung mehr (Maschinenraum getrennt) | freigegeben, "Fremdlast nicht mehr gemessen" |
+| L15 | Angehalten, dann keine Messung mehr (Maschinenraum getrennt) | freigegeben, "Last nicht mehr gemessen" |
 | L16 | Regel aus | die Stufe bleibt frei |
 | L17 | Gespeichertes Regelwerk ohne die neuen Szenarien | "Läufer ohne Auftrag" aus, "Hintergrund bei Rechnerlast" an, Gespeichertes bleibt |
 | L20 | `knoten.last` vom Schein-Agenten | Lagebild `last` mit Rollen, Kernen, Aufträgen der Leitstelle; Befund einmal im Verlauf; Beenden von Hand: Hauptprozess 409, Arbeiter ohne Auftrag 200 mit Befehl `laeufer_prozess_beenden` an den Agenten, danach "wird schon beendet" 409; verschwindet er, "ist beendet" im Verlauf |
 | L21 | Beenden von Hand gleich nach der ersten Messung | 409: "rechnet nicht seit der Frist über der Schwelle ohne Auftrag", kein Befehl |
 | L22 | Regel an | die Leitstelle schickt den Befehl selbst, Maßnahme im Lagebild |
 | L23 | Fremdlast 90 %, dann Maschinenraum getrennt | Hintergrund angehalten mit Grund und Meldung; ohne Messung wieder frei |
+| L24 | Docker-Last (8 Kerne) 50, 75, 95, 75, 25 % je 75 s | frei, gedrosselt, angehalten, gedrosselt, frei; Gründe nennen die Docker-Last und ihre Grenzen 70 und 90 %; beim Freigeben jedes gemessene Maß |
+| L25 | Container von Fundus voll, Fundus hat Hintergrundarbeit (Docker-Projekte `fundus`) | zählt nicht zur Docker-Last, Hintergrund bleibt frei; ohne Hintergrundarbeit zählt er und hält an |
+| L26 | Fremdlast 85 % gemeldet, davon 78 Punkte Container der eigenen Hintergrundarbeit | Fremdlast 7 %, Docker-Last 0: frei (die virtuelle Maschine zählt nicht doppelt) |
+| L27 | Fremdlast 55 %, dann Docker-Last 95 %, dann Fremdlast 80 % ohne Container | gedrosselt durch die Fremdlast, angehalten durch die Docker-Last, die Fremdlast hält die Stufe |
+| L28 | `knoten.last` mit Apps und Docker-Rechner vom Schein-Agenten; Anwendung mit Docker-Projekten | Lagebild: Apps je Teil mit Kernen und Speicher und zusammen, Container mit Anwendung, Docker-Last 26,5 %, Fremdlast ohne Container; Apps ohne Prozessnummern: nur der Vermerk; Docker-Projekte bereinigt, ungültige Namen 422 |
 
 ## 3e. Verwaltung (`test_dienste_bearbeiten.py`, `test_regelwerk.py`)
 
@@ -374,7 +379,7 @@ Beenden mit nachgestellter Prozesstabelle, nachgestelltem lsof und nachgestellte
 | Hintergrund bei Lage | angehalten | S31 |
 | | fortgesetzt | S31 |
 | | nichts zu tun | S20, S34 (im Verlauf) |
-| Hintergrund bei Rechnerlast | angehalten, gedrosselt, freigegeben | L10, L11, L23 |
+| Hintergrund bei Rechnerlast | angehalten, gedrosselt, freigegeben; nach Fremdlast und Docker-Last | L10, L11, L23, L24 bis L27 |
 | | Stufe bleibt | L10 (Abstand) |
 | Läufer arbeitet ohne Auftrag | beendet | L01, L22 |
 | | rechnet für ein Programm am Leitstand vorbei, nicht beendet | L02 |

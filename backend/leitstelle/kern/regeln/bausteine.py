@@ -13,7 +13,7 @@ from typing import Any, Callable
 
 from ..messungen import Messwerk
 from ..modelle import Auftrag, Modell, Verbund
-from ..rechnerlast import STUFENRANG, datei, dauer, fremd_mittel, kerne, ohne_auftrag, ohne_auftrag_seit, prozent
+from ..rechnerlast import STUFENRANG, datei, dauer, docker_mittel, fremd_mittel, kerne, ohne_auftrag, ohne_auftrag_seit, prozent
 from ..speicherplaner import planen
 from ..werte import Auftragszustand, Dienstzustand, Faehigkeit, Hintergrundstufe, Lage, Modellzustand, Prioritaet, Zone
 from ..zuteiler import hintergrund_gebremst, wirksame_prioritaet
@@ -246,21 +246,36 @@ def laeufer_arbeitet_ohne_auftrag(k: Kontext) -> list[Kontext]:
     return aus
 
 
+@dataclass(frozen=True)
+class Lastmass:
+    """Ein Maß der Regel "Hintergrund bei Rechnerlast": Name im Satz, Schlüssel im Kontext, Felder der Grenzen im Regelwerk."""
+
+    name: str
+    schluessel: str
+    drosseln: str
+    anhalten: str
+
+
+#: Die Maße der Regel; die Stufe ist die höhere aus beiden (kern/rechnerlast.py sagt, was sie messen)
+LASTMASSE = (Lastmass("Fremdlast", "fremd", "last_drosseln_ab_prozent", "last_anhalten_ab_prozent"),
+             Lastmass("Docker-Last", "docker", "docker_drosseln_ab_prozent", "docker_anhalten_ab_prozent"))
+NICHT_GEMESSEN = "Last nicht mehr gemessen"
+
+
 @baustein("rechnerlast", "ausloeser", "Rechnerlast",
-          "Je wachem Rechner mit Lastmessung ein Lauf je Takt, mit der Fremdlast im gleitenden Mittel über die Frist (Regelwerk). Ohne frische Messung "
-          "nur, solange sein Hintergrund nicht frei ist (dann geben die Prüfungen ihn frei).")
+          "Je wachem Rechner mit Lastmessung ein Lauf je Takt, mit Fremdlast und Docker-Last im gleitenden Mittel über die Frist (Regelwerk). Ohne "
+          "frische Messung nur, solange sein Hintergrund nicht frei ist (dann geben die Prüfungen ihn frei).")
 def rechnerlast(k: Kontext) -> list[Kontext]:
     v = k.verbund
     aus = []
     for kn in sorted(v.knoten.values(), key=lambda x: x.kennung):
         if kn.schlaeft:
             continue
-        mittel = fremd_mittel(v, kn)
-        if mittel is None and kn.hintergrund_stufe == Hintergrundstufe.FREI:
+        mittel = {"fremd": fremd_mittel(v, kn), "docker": docker_mittel(v, kn)}
+        if all(m is None for m in mittel.values()) and kn.hintergrund_stufe == Hintergrundstufe.FREI:
             continue
         aus.append(Kontext(verbund=v, messwerk=k.messwerk, instanz=kn.kennung, knoten_quelle=kn.kennung, knoten_ziel=kn.kennung,
-                           werte={"mittel": mittel, "last": prozent(mittel) if mittel is not None else "nicht gemessen",
-                                  "vorher": kn.hintergrund_stufe.value, "frist": f"{k.r.last_frist_s:.0f} s"}))
+                           werte={**mittel, "vorher": kn.hintergrund_stufe.value, "frist": f"{k.r.last_frist_s:.0f} s"}))
     return aus
 
 
@@ -625,18 +640,28 @@ def umgehung_am_laeufer(k: Kontext) -> bool:
     return bool(wer)
 
 
-@baustein("last_ueber_grenze", "pruefung", "Fremdlast über der Grenze?",
-          "Liegt die Fremdlast im Mittel mindestens bei der Grenze zum Drosseln oder Anhalten (Parameter; Werte im Regelwerk)? Gilt die Stufe schon, "
-          "heißt es erst unter der Grenze minus Abstand nein (gegen Flattern). Ohne Messung nein.", grenze="drosseln")
+@baustein("last_ueber_grenze", "pruefung", "Last über der Grenze?",
+          "Liegt die Fremdlast oder die Docker-Last im Mittel mindestens bei ihrer Grenze zum Drosseln oder Anhalten (Parameter; Werte im "
+          "Regelwerk)? Gilt die Stufe schon, heißt es erst unter der Grenze minus Abstand nein (gegen Flattern). Der Grund nennt das Maß, das "
+          "am weitesten über seiner Grenze liegt. Ohne Messung nein.", grenze="drosseln")
 def last_ueber_grenze(k: Kontext, grenze: str = "drosseln") -> bool:
     r, kn = k.r, k.verbund.knoten[k.knoten_quelle or ""]
-    stufe, wert = ((Hintergrundstufe.ANGEHALTEN, r.last_anhalten_ab_prozent) if grenze == "anhalten"
-                   else (Hintergrundstufe.GEDROSSELT, r.last_drosseln_ab_prozent))
-    if STUFENRANG[kn.hintergrund_stufe] >= STUFENRANG[stufe]:
-        wert -= r.last_abstand_prozent
-    k.werte[f"grenze_{grenze}"] = prozent(wert)
-    mittel = k.werte.get("mittel")
-    return mittel is not None and mittel >= wert
+    stufe = Hintergrundstufe.ANGEHALTEN if grenze == "anhalten" else Hintergrundstufe.GEDROSSELT
+    abstand = r.last_abstand_prozent if STUFENRANG[kn.hintergrund_stufe] >= STUFENRANG[stufe] else 0.0
+    gemessen = []                                   # (Maß, Mittel, wirksame Grenze)
+    for m in LASTMASSE:
+        mittel = k.werte.get(m.schluessel)
+        if mittel is not None:
+            gemessen.append((m, mittel, getattr(r, m.anhalten if grenze == "anhalten" else m.drosseln) - abstand))
+    if not gemessen:
+        k.werte["frei"] = NICHT_GEMESSEN
+        return False
+    ueber = [g for g in gemessen if g[1] >= g[2]]
+    m, mittel, wert = max(ueber or gemessen, key=lambda g: g[1] - g[2])
+    k.werte.update({"mass": m.name, "last": prozent(mittel), f"grenze_{grenze}": prozent(wert)})
+    if not ueber:
+        k.werte["frei"] = "; ".join(f"{m.name} im Mittel {prozent(x)}, frei unter {prozent(w)}" for m, x, w in gemessen)
+    return bool(ueber)
 
 
 @baustein("stufe_ist", "pruefung", "Hintergrund hat die Stufe?", "Hat der Hintergrund des Rechners die Stufe des Parameters (frei, gedrosselt, angehalten)?",
@@ -731,17 +756,20 @@ def _stufe_setzen(k: Kontext, stufe: Hintergrundstufe, grund: str) -> dict[str, 
 @baustein("hintergrund_drosseln", "aktion", "Hintergrund drosseln",
           "Hintergrundaufträge bekommen auf dem Rechner nur noch die Grundinstanz einer Familie, keine weitere; weitere Instanzen ohne Auftrag weichen sofort.")
 def hintergrund_drosseln(k: Kontext) -> dict[str, Any]:
-    return _stufe_setzen(k, Hintergrundstufe.GEDROSSELT, f"Fremdlast {k.werte['last']}, drosseln ab {k.werte.get('grenze_drosseln', '-')}")
+    return _stufe_setzen(k, Hintergrundstufe.GEDROSSELT, f"{k.werte['mass']} {k.werte['last']}, drosseln ab {k.werte.get('grenze_drosseln', '-')}")
 
 
 @baustein("hintergrund_auf_knoten_anhalten", "aktion", "Hintergrund auf dem Rechner anhalten",
           "Hintergrundaufträge werden auf dem Rechner nicht mehr zugeteilt, auch nicht nach der Fairness-Frist; laufende rechnen zu Ende.")
 def hintergrund_auf_knoten_anhalten(k: Kontext) -> dict[str, Any]:
-    return _stufe_setzen(k, Hintergrundstufe.ANGEHALTEN, f"Fremdlast {k.werte['last']}, anhalten ab {k.werte.get('grenze_anhalten', '-')}")
+    return _stufe_setzen(k, Hintergrundstufe.ANGEHALTEN, f"{k.werte['mass']} {k.werte['last']}, anhalten ab {k.werte.get('grenze_anhalten', '-')}")
 
 
 @baustein("hintergrund_auf_knoten_freigeben", "aktion", "Hintergrund auf dem Rechner freigeben", "Hintergrund darf auf dem Rechner wieder alles.")
 def hintergrund_auf_knoten_freigeben(k: Kontext) -> dict[str, Any]:
-    grund = (f"Fremdlast {k.werte['last']}, frei unter {k.werte.get('grenze_drosseln', '-')}" if k.werte.get("mittel") is not None
-             else "Fremdlast nicht mehr gemessen")
-    return _stufe_setzen(k, Hintergrundstufe.FREI, grund)
+    return _stufe_setzen(k, Hintergrundstufe.FREI, _frei(k))
+
+
+def _frei(k: Kontext) -> str:
+    """Warum der Hintergrund frei wird: jedes gemessene Maß mit seiner Grenze, sonst dass nichts mehr gemessen wird."""
+    return k.werte.get("frei") or NICHT_GEMESSEN

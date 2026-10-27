@@ -9,11 +9,12 @@ Prüfprotokoll.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 from urllib.parse import urlparse
 from uuid import uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from ..kern.text import aufzaehlung
 from ..kern.werte import Faehigkeit, Prioritaet, Zone
@@ -100,6 +101,10 @@ FELDWORT = {"name": "der Name", "adresse": "die Adresse", "zugang": "der Zugang"
             "abgleich_s": "der Abgleich", "einbettung_instanzen": "die Instanzen der Einbettung", "einbettung_spielraum_gb": "der Spielraum der Einbettung"}
 
 
+#: Name eines Compose-Projekts oder Containers, wie Docker ihn erlaubt
+DOCKERNAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
+
+
 class AnwendungDaten(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     prioritaet: Prioritaet = Prioritaet.NORMAL
@@ -108,6 +113,18 @@ class AnwendungDaten(BaseModel):
     extern_erlaubt: bool = False
     gleichzeitig: int = Field(default=4, ge=1, le=64)
     ketten: dict[Faehigkeit, list[str]] = Field(default_factory=dict)
+    docker_projekte: list[str] = Field(default_factory=list, max_length=32, description="ihre Container im Docker-Rechner eines Rechners: "
+                                       "Compose-Projekte oder Containernamen; deren Last zählt nicht, solange sie Hintergrundarbeit hat")
+
+    @field_validator("docker_projekte")
+    @classmethod
+    def _docker_projekte(cls, werte: list[str]) -> list[str]:
+        """Namen, wie Docker sie erlaubt (Buchstaben, Ziffern, Punkt, Strich, Unterstrich), ohne Leere und Doppelte."""
+        aus = list(dict.fromkeys(w.strip() for w in werte if w.strip()))
+        falsch = [w for w in aus if not DOCKERNAME.fullmatch(w)]
+        if falsch:
+            raise ValueError(f"Docker-Projekte nur aus Buchstaben, Ziffern, Punkt, Strich und Unterstrich, nicht {', '.join(falsch)}")
+        return aus
 
 
 def _rechnername(adresse: str) -> str | None:
@@ -315,7 +332,8 @@ class Verzeichnis:
         a = AnwendungEintrag(kennung=uuid4().hex, name=d.name.strip(), schluessel_fingerabdruck=fingerabdruck(schluessel),
                              schluessel_geheim=self.b.tresor.verschluesseln(schluessel), prioritaet=d.prioritaet, faehigkeiten=d.faehigkeiten,
                              zonen=d.zonen | {Zone.EXTERN} if d.extern_erlaubt else d.zonen - {Zone.EXTERN}, extern_erlaubt=d.extern_erlaubt,
-                             gleichzeitig=d.gleichzeitig, ketten=self._ketten_pruefen(d.ketten), angelegt_s=self.b.uhr.jetzt())
+                             gleichzeitig=d.gleichzeitig, ketten=self._ketten_pruefen(d.ketten), docker_projekte=d.docker_projekte,
+                             angelegt_s=self.b.uhr.jetzt())
         await self.b.ablage.anwendungen.speichern(a)
         self.b.anwendung_setzen(a)
         await self._pruefen(wer, "Anwendung angelegt, Schlüssel erzeugt", a.name)
@@ -327,7 +345,8 @@ class Verzeichnis:
             raise Ablehnung("unbekannt", "Diese Anwendung gibt es nicht.")
         zonen = d.zonen | {Zone.EXTERN} if d.extern_erlaubt else d.zonen - {Zone.EXTERN}
         a = alt.model_copy(update={"name": d.name.strip(), "prioritaet": d.prioritaet, "faehigkeiten": d.faehigkeiten, "zonen": zonen,
-                                   "extern_erlaubt": d.extern_erlaubt, "gleichzeitig": d.gleichzeitig, "ketten": self._ketten_pruefen(d.ketten)})
+                                   "extern_erlaubt": d.extern_erlaubt, "gleichzeitig": d.gleichzeitig, "ketten": self._ketten_pruefen(d.ketten),
+                                   "docker_projekte": d.docker_projekte})
         await self.b.ablage.anwendungen.speichern(a)
         self.b.anwendung_setzen(a)
         await self._pruefen(wer, "Anwendung geändert", a.name)

@@ -389,6 +389,57 @@ Neue Massnahmenart `HINTERGRUND_RECHNERLAST`, Vorgabe an. Stufe je Knoten `hinte
 - **Prüfung**: Szenarien L01 bis L23 ([SZENARIEN.md](SZENARIEN.md) Abschnitt 3d), Spiegeltest des Protokolls; im
   Maschinenraum `tests/test_laeuferlast.py` und die Instanztests in `tests/test_dienste.py`.
 
+### Stufe Z6b: Apps des Rechners und Docker-Rechner im Blick, Docker-Last als zweites Maß
+
+Anlass (27.10.2026, gemessen): Der Vektorspeicher des Fundus lief beim Einsortieren der Masseneinbettung bis 800 %, alle
+acht Kerne des Docker-Rechners; die Testdatenbank von Zusage im selben Docker-Rechner verhungerte. Die Leitstelle sah
+davon nichts, denn auf dem Mac erscheint der ganze Docker-Rechner als ein Prozess. Später lief der Vektorspeicher nativ
+als Teil des Fundus im Stellwerk, und die Beobachtung meldete ihn als Speicher am Leitstand vorbei. Nutzer:
+"Docker-Rechner in der Leitstelle sehen"; die Leitstelle ist zentrale Steuerung und Überwachung und soll alles sehen.
+Zuständigkeiten: der Maschinenraum hält nur KI-Dienste und misst, das Stellwerk steuert nur die Apps, die Leitstelle
+entscheidet.
+
+#### Messung (Maschinenraum)
+
+- `knoten.last.docker` (ab 0.16.0): Kerne und Speicher des Docker-Rechners, je laufendem Container Name,
+  Compose-Projekt, Prozessorlast (Prozent eines Kerns des Docker-Rechners, wie `docker stats`) und Speicher; nur lesend
+  über die Befehlszeile von Docker.
+- `knoten.last.apps` (ab 0.17.0): die Apps des Stellwerks. Im Takt der Beobachtung liest der Maschinenraum
+  `GET <nachbar.stellwerk>/api/stand` (Vorgabe `http://127.0.0.1:8550`, leer heißt aus) und ordnet jedem laufenden
+  nativen Teil die Prozesse zu, die das Stellwerk nennt (`pids`), samt Nachfahren, jeden nur einmal. Je Teil App, Teil,
+  Prozesse, Kerne und Speicher. Diese Prozesse zählen weder als fremder Speicher noch zur Fremdlast; spricht einer den
+  Läufer direkt an, bleibt das eine Umgehung. Antwortet das Stellwerk nicht oder meldet es keine Prozessnummern, ist
+  `gemessen` falsch und `meldung` sagt warum.
+
+#### Leitstelle
+
+- Anzeige beim Knoten unter "Läufer und Last": "Apps des Rechners" (App, Teil, Kerne, Speicher; vom Stellwerk gestartet,
+  kein KI-Dienst) und "Docker-Rechner" (Kerne, Speicher, Docker-Last, Container mit Last, die größte zuerst, mit der
+  Anwendung, der sie gehören; ruhende zusammen in einer Zeile). Im Speicherbalken ist der Anteil System geteilt in Apps
+  (gemessen, nie mehr als System) und den Rest.
+- Zuordnung von Containern zu Anwendungen: je Anwendung `docker_projekte` (Compose-Projekte oder Containernamen), auf
+  der Seite Anwendungen einstellbar; ein Container gehört zur ersten Anwendung (nach Kennung), die sein Projekt oder
+  seinen Namen nennt.
+- Regel "Hintergrund bei Rechnerlast" mit zweitem Maß, der **Docker-Last**: die Container ohne die von Anwendungen, die
+  gerade Hintergrundarbeit haben (ein offener Auftrag mit Priorität Hintergrund), in Prozent aller Kerne des
+  Docker-Rechners. Deren Last folgt aus der eigenen Hintergrundarbeit; zählte sie, drosselte die Leitstelle sich daran
+  selbst und gäbe gleich wieder frei. Eigene Grenzen `docker_drosseln_ab_prozent` (Vorgabe 70) und
+  `docker_anhalten_ab_prozent` (Vorgabe 90), gleiches Mittel (`last_frist_s`) und gleicher Abstand
+  (`last_abstand_prozent`); die Stufe ist die höhere aus beiden Maßen, der Grund nennt das Maß ("Docker-Last im Mittel
+  95 %, anhalten ab 90 %"). Frei wird der Hintergrund erst, wenn beide Maße unter Grenze minus Abstand liegen; der Satz
+  nennt dann jedes gemessene Maß.
+- Nicht doppelt zählen: die virtuelle Maschine von Docker ist auf dem Mac ein gewöhnlicher Prozess, ihre Rechenzeit
+  steckt darum in der gemeldeten Fremdlast. Die Leitstelle zieht die Last aller Container (als Anteil aller Kerne des
+  Rechners) von der gemeldeten Fremdlast ab; was bleibt, ist die Fremdlast, die sie zeigt und mittelt. Container der
+  eigenen Hintergrundarbeit zählen so in keinem Maß. Was die virtuelle Maschine darüber hinaus braucht, bleibt in der
+  Fremdlast.
+
+**Umsetzung** (Leitstelle 0.25.0, Maschinenraum 0.17.0, 27.10.2026): Spiegel des Protokolls um `AppTeil`, `AppsLast` und
+das Feld `apps` ergänzt; Kern `kern/rechnerlast.py` (Docker-Last, Abzug der Container, Zuordnung zu Anwendungen),
+Regelbausteine `rechnerlast` und `last_ueber_grenze` mit beiden Maßen (`LASTMASSE`), Grenzpaare im Regelwerk geprüft
+(anhalten nicht unter drosseln), Migration 0011 (`anwendungen.docker_projekte`). Prüfung: Szenarien L24 bis L28
+([SZENARIEN.md](SZENARIEN.md) Abschnitt 3d), im Maschinenraum `tests/test_apps.py`.
+
 ## Selbstauskunft: Steckbrief je Modell
 
 Nutzer 18.10.2026: "die modelle [können] auskunft über sich selber geben ... so kann eine anfrage einer software eine
