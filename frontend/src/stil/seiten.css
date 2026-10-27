@@ -218,9 +218,10 @@
   .seite-modelle .modelltabelle td { padding-top: 9px; padding-bottom: 9px; }
   .seite-modelle .modelltabelle .n { font-weight: 600; display: flex; align-items: center; gap: 7px; }
   .seite-modelle .modelltabelle .n i.schutz { color: var(--text-2); font-size: 14px; cursor: help; }
-  .seite-modelle .modelltabelle .zweit { font-size: var(--marke); color: var(--text-3); margin-top: 3px; white-space: nowrap; }
+  /* zweite Zeilen dürfen umbrechen: lange Sätze (Instanzen, Parameter, Proben) machten die Tabelle sonst breiter als ihren Raum */
+  .seite-modelle .modelltabelle .zweit { font-size: var(--marke); color: var(--text-3); margin-top: 3px; }
   .seite-modelle .modelltabelle .zweit .akzent { font-weight: 600; }
-  .seite-modelle .modelltabelle td.zahl .zweit { text-align: right; }
+  .seite-modelle .modelltabelle td.zahl .zweit { text-align: right; white-space: nowrap; }
   .seite-modelle .modelltabelle .dienst { font-size: var(--klein); }
   .seite-modelle .modelltabelle .knopf.stift { min-width: 0; width: 26px; height: 26px; color: var(--text-3); }
   .seite-modelle .modelltabelle .knopf.stift i { font-size: 12px; }
@@ -267,7 +268,9 @@
   .seite-knoten .kk-kopf h2 { font-size: var(--titel); margin-right: var(--a1); }
   .seite-knoten .kk-kopf .zustand { margin-left: auto; }
   .seite-knoten .kk-meta { display: flex; gap: var(--a3); flex-wrap: wrap; font-size: var(--klein); color: var(--text-2); margin-top: calc(-1 * var(--a2)); }
-  .seite-knoten .kk-koerper { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: var(--a3) var(--a4); }
+  /* Messung links, Dienste und Maschinenraum rechts; ist die Karte schmal (zwei Rechner zwischen 1100 und 1440 Pixeln), stehen
+     beide untereinander statt rechts eine Spalte von 94 Pixeln zu lassen */
+  .seite-knoten .kk-koerper { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: var(--a3) var(--a4); }
   .seite-knoten .kk-links, .seite-knoten .kk-rechts { display: flex; flex-direction: column; gap: var(--a3); min-width: 0; }
 
   /* Messwerte in einer Zeile: Symbol, Zahl, Wort */

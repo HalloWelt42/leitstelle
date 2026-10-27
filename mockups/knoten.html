@@ -18,7 +18,9 @@
   .kk-kopf h2 { font-size: var(--ls-gr-titel); margin-right: var(--ls-a1); }
   .kk-kopf .zustand { margin-left: auto; }
   .kk-meta { display: flex; gap: var(--ls-a3); flex-wrap: wrap; font-size: var(--ls-gr-klein); color: var(--ls-text-2); margin-top: calc(-1 * var(--ls-a2)); }
-  .kk-koerper { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: var(--ls-a3) var(--ls-a4); }
+  /* Messung links, Dienste und Maschinenraum rechts; ist die Karte schmal (zwei Rechner zwischen 1100 und 1440 Pixeln), stehen
+     beide untereinander statt rechts eine Spalte von 94 Pixeln zu lassen */
+  .kk-koerper { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: var(--ls-a3) var(--ls-a4); }
   .kk-links, .kk-rechts { display: flex; flex-direction: column; gap: var(--ls-a3); min-width: 0; }
 
   /* Messwerte in einer Zeile: Symbol, Zahl, Wort */

@@ -33,9 +33,10 @@
   .modelltabelle td { padding-top: 9px; padding-bottom: 9px; }
   .modelltabelle .n { font-weight: 600; display: flex; align-items: center; gap: 7px; }
   .modelltabelle .n i.schutz { color: var(--ls-text-2); font-size: 14px; cursor: help; }
-  .modelltabelle .zweit { font-size: var(--ls-gr-marke); color: var(--ls-text-3); margin-top: 3px; white-space: nowrap; }
+  /* zweite Zeilen dürfen umbrechen: lange Sätze (Instanzen, Parameter, Proben) machten die Tabelle sonst breiter als ihren Raum */
+  .modelltabelle .zweit { font-size: var(--ls-gr-marke); color: var(--ls-text-3); margin-top: 3px; }
   .modelltabelle .zweit .akzent { font-weight: 600; }
-  .modelltabelle td.zahl .zweit { text-align: right; }
+  .modelltabelle td.zahl .zweit { text-align: right; white-space: nowrap; }
   .modelltabelle .dienst { font-size: var(--ls-gr-klein); }
   .modelltabelle .knopf.stift { min-width: 0; width: 26px; height: 26px; color: var(--ls-text-3); }
   .modelltabelle .knopf.stift i { font-size: 12px; }
