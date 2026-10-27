@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+from contextlib import asynccontextmanager
+from types import SimpleNamespace
 
 import httpx
 from fastapi import FastAPI, Request
@@ -39,6 +41,14 @@ def schein_hetzner() -> FastAPI:
     @app.post("/api/v1/chat/completions")
     async def antworten(anfrage: Request):
         app.state.koerper = await anfrage.json()
+        if _mit_bild(app.state.koerper):                # Fähigkeitsprobe: das dichte Modell nimmt keine Bilder an, das Mischmodell sieht Rot
+            if app.state.koerper["model"] in ("Qwen/Qwen3.8-27B", "Qwen3.8-27B"):
+                return JSONResponse({"error": {"message": "image input is not supported for this model"}}, status_code=400)
+            stuecke = [{"choices": [{"index": 0, "delta": {"reasoning_content": "Das Bild ist einfarbig. "}}]},
+                       {"choices": [{"index": 0, "delta": {"content": "Rot."}, "finish_reason": "stop"}]},
+                       {"choices": [], "usage": {"prompt_tokens": 290, "completion_tokens": 12}}]
+            sse = "".join(f"data: {json.dumps({'id': 'b', 'model': app.state.koerper['model'], **t})}\n\n" for t in stuecke) + "data: [DONE]\n\n"
+            return StreamingResponse(iter([sse.encode()]), media_type="text/event-stream")
         if app.state.zu_viel:
             app.state.zu_viel -= 1
             return JSONResponse({"error": {"message": "rate limit"}}, status_code=429, headers={"Retry-After": "7"})
@@ -55,6 +65,10 @@ def schein_hetzner() -> FastAPI:
         return StreamingResponse(iter([sse.encode()]), media_type="text/event-stream")
 
     return app
+
+
+def _mit_bild(koerper: dict) -> bool:
+    return any(isinstance(n.get("content"), list) and any(t.get("type") == "image_url" for t in n["content"]) for n in koerper.get("messages") or [])
 
 
 class Umleitung(httpx.AsyncBaseTransport):
@@ -85,7 +99,7 @@ async def test_e19_externer_anbieter_grenze_ausfall_und_ueberlast(tmp_path):
             dienst = r.json()["kennung"]
             b = app.state.betrieb
             sicht = next(d for d in (await c.get("/api/lage")).json()["dienste"] if d["kennung"] == dienst)
-            assert sicht["zustand"] == "bereit" and sicht["anfragen_letzte_minute"] == 1 and sicht["anfragen_je_minute"] == 10
+            assert sicht["zustand"] == "bereit" and sicht["nutzung"]["anfragen"] == 1 and sicht["anfragen_je_minute"] == 10
             assert sicht["naechste_pruefung_s"] == uhr.zeit + k.extern_abgleich_s, "gesund: selten fragen, jede Abfrage zählt"
             namen = sorted(m["name"] for m in (await c.get("/api/lage")).json()["modelle"] if m["dienst"] == dienst)
             assert namen == ["Qwen3.6-35B-A3B", "Qwen3.8-27B"], "Namen mit gleichem root sind ein Modell"
@@ -161,3 +175,139 @@ async def test_e19_externer_anbieter_grenze_ausfall_und_ueberlast(tmp_path):
                 antwort = await asyncio.wait_for(anfrage, 10)
             assert antwort.status_code == 200 and antwort.json()["choices"][0]["message"]["content"] == "hallo"
             assert hetzner.state.pfade.count("/api/v1/chat/completions") == 4
+
+
+@asynccontextmanager
+async def hetzner_aufbau(tmp_path, uhr: Stelluhr, **grenzen):
+    """Leitstelle mit dem Schein-Anbieter wie Hetzner (zwei Modelle), Grenzen nach Wunsch, und einer Anwendung, die extern darf."""
+    hetzner = schein_hetzner()
+    async with laufend(hetzner) as ziel:
+        app = erstellen(Konfig(daten=tmp_path, oberflaeche=None), uhr=uhr, transport=Umleitung(ziel), mit_takt=False)
+        async with laufend(app) as url, httpx.AsyncClient(base_url=url, timeout=30) as c:
+            r = await c.post("/api/dienste", json={"adresse": "https://hetzner.test/api/v1", "extern": True, "zugang": "geheim", "name": "Hetzner",
+                                                   "anfragen_je_minute": 10, **grenzen})
+            assert r.status_code == 200, r.text
+            r2 = await c.post("/api/anwendungen", json={"name": "Probe", "zonen": ["heim", "extern"], "extern_erlaubt": True,
+                                                        "faehigkeiten": ["text", "bild_beschreiben"]})
+            async with httpx.AsyncClient(base_url=url + "/v1", timeout=30, headers={"Authorization": f"Bearer {r2.json()['schluessel']}"}) as anw:
+                yield SimpleNamespace(c=c, anw=anw, app=app, b=app.state.betrieb, dienst=r.json()["kennung"], hetzner=hetzner, url=url)
+
+
+async def _modelle(c, dienst: str) -> dict[str, dict]:
+    return {m["name"]: m for m in (await c.get("/api/lage")).json()["modelle"] if m["dienst"] == dienst}
+
+
+async def _dienst(c, dienst: str) -> dict:
+    return next(d for d in (await c.get("/api/lage")).json()["dienste"] if d["kennung"] == dienst)
+
+
+async def test_x01_zwei_modelle_einzeln_mit_steckbrief(tmp_path):
+    """Beide Modelle mit Kontext aus max_model_len, Parametern gesamt und aktiv (A3B: 3) und ihrer Rolle im Vergleich:
+    das Mischmodell schnell, das dichte gründlich, abgeleitet; für die Apps in /v1/models und /v1/steckbriefe."""
+    async with hetzner_aufbau(tmp_path, Stelluhr(), token_ein_je_minute=4_000_000, token_aus_je_minute=100_000) as h:
+        ms = await _modelle(h.c, h.dienst)
+        schnell, gruendlich = ms["Qwen3.6-35B-A3B"]["steckbrief"], ms["Qwen3.8-27B"]["steckbrief"]
+        assert (schnell["kontext"], schnell["parameter_mrd"], schnell["parameter_aktiv_mrd"]) == (262144, 35, 3)
+        assert (gruendlich["parameter_mrd"], gruendlich["parameter_aktiv_mrd"]) == (27, 27)
+        assert schnell["eignung"] == ["lange_texte", "schnell"] and gruendlich["eignung"] == ["lange_texte", "gruendlich"]
+        assert schnell["zweck"].startswith("Schnell") and schnell["herkunft"]["zweck"] == "abgeleitet" and schnell["herkunft"]["parameter_aktiv_mrd"] == "abgeleitet"
+        assert schnell["token_aus_je_minute"] == 100_000 and schnell["zone"] == "extern"
+        assert all(m["zustand"] == "geladen" and m["gb"] == 0 for m in ms.values()), "beim Anbieter immer bereit, ohne Speicher"
+        daten = {m["id"]: m["x-leitstelle"] for m in (await h.anw.get("/models")).json()["data"]}
+        assert {"Qwen/Qwen3.6-35B-A3B", "Qwen/Qwen3.8-27B"} <= set(daten) and daten["Qwen/Qwen3.8-27B"]["steckbrief"]["eignung"][-1] == "gruendlich"
+        assert [m["id"] for m in (await h.anw.get("/steckbriefe", params={"eignung": "schnell"})).json()["data"]] == ["Qwen/Qwen3.6-35B-A3B"]
+        # von Hand: aktive Parameter für ein Mischmodell, dessen Name es nicht sagt
+        r = await h.c.put("/api/steckbriefe", json={"familie": "Qwen/Qwen3.8-27B", "parameter_aktiv_mrd": 4})
+        assert r.status_code == 200
+        gruendlich = (await _modelle(h.c, h.dienst))["Qwen3.8-27B"]["steckbrief"]
+        assert gruendlich["parameter_aktiv_mrd"] == 4 and gruendlich["herkunft"]["parameter_aktiv_mrd"] == "hand" and "gruendlich" not in gruendlich["eignung"]
+
+
+async def test_x02_nutzung_je_modell_und_token_grenze(tmp_path):
+    """Je Modell Anfragen und Token im Fenster neben dem ganzen Schlüssel; die Grenze der Token heraus hält die Leitstelle
+    ein (geschätzt aus max_tokens, nach der Antwort echt aus usage)."""
+    uhr = Stelluhr()
+    async with hetzner_aufbau(tmp_path, uhr, token_aus_je_minute=10) as h:
+        r = await h.anw.post("/chat/completions", json={"model": "Qwen3.8-27B", "messages": [{"role": "user", "content": "hallo"}]})
+        assert r.status_code == 200 and r.json()["usage"] == {"prompt_tokens": 3, "completion_tokens": 7}
+        ms = await _modelle(h.c, h.dienst)
+        assert ms["Qwen3.8-27B"]["nutzung"] == {"anfragen": 1, "token_ein": 3, "token_aus": 7, "geschaetzt": False}
+        assert ms["Qwen3.6-35B-A3B"]["nutzung"]["anfragen"] == 0 and ms["Qwen3.8-27B"]["belegt"] == 0 and ms["Qwen3.8-27B"]["plaetze"] == 4
+        d = await _dienst(h.c, h.dienst)
+        assert d["nutzung"]["anfragen"] == 2 and d["nutzung"]["token_aus"] == 7 and d["token_aus_je_minute"] == 10, "mit der Abfrage der Modelle"
+        anfrage = asyncio.create_task(h.anw.post("/chat/completions", json={"model": "Qwen3.8-27B", "max_tokens": 5, "messages": []}))
+        for _ in range(100):
+            wartend = [a for a in h.b.verbund.auftraege.values() if a.zustand.value == "eingereiht"]
+            if wartend:
+                break
+            await asyncio.sleep(0.02)
+        assert "Grenze von 10 Token heraus je Minute erreicht" in wartend[0].begruendung
+        assert wartend[0].voraussichtlich_s == 60
+        assert (await _dienst(h.c, h.dienst))["frei_in_s"] == 0, "eine Anfrage ohne max_tokens passt noch: sie verlangt keine Token heraus"
+        uhr.zeit += 61
+        h.b.anstossen()
+        antwort = await asyncio.wait_for(anfrage, 10)
+        assert antwort.status_code == 200 and h.hetzner.state.pfade.count("/api/v1/chat/completions") == 2
+
+
+async def test_x03_strom_ohne_verbrauchswunsch_der_app(tmp_path):
+    """Zum Anbieter fordert die Leitstelle den Verbrauch an (Token heraus aus usage im Strom); eine Anwendung, die ihn nicht
+    wollte, bekommt kein Stück ohne choices."""
+    async with hetzner_aufbau(tmp_path, Stelluhr()) as h:
+        r = await h.anw.post("/chat/completions", json={"model": "Qwen3.8-27B", "stream": True, "messages": [{"role": "user", "content": "hallo"}]})
+        assert r.status_code == 200 and h.hetzner.state.koerper["stream_options"] == {"include_usage": True}
+        teile = [json.loads(z[6:]) for z in r.text.splitlines() if z.startswith("data: {")]
+        assert teile and all(t.get("choices") for t in teile), "kein Stück nur mit usage"
+        kennung = r.headers["x-leitstelle-auftrag"]
+        for _ in range(100):                           # der Verlauf wird im Hintergrund geschrieben
+            e = (await h.c.get(f"/api/auftraege/{kennung}")).json()
+            if e["zustand"] == "fertig":
+                break
+            await asyncio.sleep(0.05)
+        assert (e["token_ein"], e["token_aus"]) == (3, 7)
+        r = await h.anw.post("/chat/completions", json={"model": "Qwen3.8-27B", "stream": True, "stream_options": {"include_usage": True}, "messages": []})
+        assert any('"usage"' in z for z in r.text.splitlines()), "wer es will, bekommt es"
+
+
+async def test_x04_faehigkeitsprobe_von_hand(tmp_path):
+    """Bild beschreiben nur, wenn belegt: je Modell ein kleines Bild mit einer Frage, von Hand ausgelöst; Ergebnis mit
+    Zeitpunkt im Steckbrief (Quelle gemessen), in den Fähigkeiten, im Prüfprotokoll; jede Probe zählt; nach dem Neustart da."""
+    uhr = Stelluhr()
+    async with hetzner_aufbau(tmp_path, uhr) as h:
+        vorher = (await _dienst(h.c, h.dienst))["nutzung"]["anfragen"]
+        r = await h.c.post(f"/api/dienste/{h.dienst}/faehigkeiten_pruefen")
+        assert r.status_code == 200, r.text
+        aus = {x["name"]: x for x in r.json()}
+        assert aus["Qwen3.6-35B-A3B"]["ausgang"] == "belegt" and "Rot" in aus["Qwen3.6-35B-A3B"]["meldung"]
+        assert aus["Qwen3.8-27B"]["ausgang"] == "nicht_belegt" and "image input is not supported" in aus["Qwen3.8-27B"]["meldung"]
+        ms = await _modelle(h.c, h.dienst)
+        assert "bild_beschreiben" in ms["Qwen3.6-35B-A3B"]["faehigkeiten"] and "bild_beschreiben" not in ms["Qwen3.8-27B"]["faehigkeiten"]
+        probe = ms["Qwen3.6-35B-A3B"]["steckbrief"]["geprueft"][0]
+        assert probe["faehigkeit"] == "bild_beschreiben" and probe["belegt"] and probe["zeit_s"] == uhr.zeit
+        assert ms["Qwen3.6-35B-A3B"]["steckbrief"]["herkunft"]["geprueft"] == "gemessen"
+        d = await _dienst(h.c, h.dienst)
+        assert d["nutzung"]["anfragen"] == vorher + 2 and d["nutzung"]["token_ein"] >= 290, "jede Probe zählt, mit ihrem Verbrauch"
+        pruef = [e["was"] for e in (await h.c.get("/api/pruefprotokoll")).json()["eintraege"]]
+        assert "Fähigkeiten geprüft: Qwen3.6-35B-A3B Bild beschreiben belegt und Qwen3.8-27B Bild beschreiben nicht belegt" in pruef
+        bild = {"role": "user", "content": [{"type": "text", "text": "Was ist das?"}, {"type": "image_url", "image_url": {"url": "data:image/png;base64,AA"}}]}
+        r = await h.anw.post("/chat/completions", json={"model": "Qwen/Qwen3.6-35B-A3B", "messages": [bild]})
+        assert r.status_code == 200 and r.json()["choices"][0]["message"]["content"] == "Rot."
+        r = await h.anw.post("/chat/completions", json={"model": "Qwen3.8-27B", "messages": [bild]})
+        assert r.status_code == 404 and r.json()["error"]["code"] == "kein_modell", "ohne belegte Fähigkeit kein Bild an dieses Modell"
+        assert (await h.c.post("/api/dienste/gibt-es-nicht/faehigkeiten_pruefen")).status_code == 404
+    async with hetzner_aufbau(tmp_path / "neu", Stelluhr()) as h2:
+        assert "bild_beschreiben" not in (await _modelle(h2.c, h2.dienst))["Qwen3.6-35B-A3B"]["faehigkeiten"], "frische Ablage: nichts geprüft"
+    hetzner = schein_hetzner()
+    async with laufend(hetzner) as ziel:
+        app = erstellen(Konfig(daten=tmp_path, oberflaeche=None), uhr=Stelluhr(), transport=Umleitung(ziel), mit_takt=False)
+        async with laufend(app) as url, httpx.AsyncClient(base_url=url, timeout=30) as c:
+            d = next(x for x in (await c.get("/api/lage")).json()["dienste"] if x["name"] == "Hetzner")
+            assert "bild_beschreiben" in (await _modelle(c, d["kennung"]))["Qwen3.6-35B-A3B"]["faehigkeiten"], "nach dem Neustart geladen"
+
+
+async def test_x05_probe_nur_innerhalb_der_grenze(tmp_path):
+    """Die Probe kostet je Modell eine Anfrage; reicht die Grenze dafür nicht, lehnt die Leitstelle mit Wartezeit ab."""
+    async with hetzner_aufbau(tmp_path, Stelluhr(), anfragen_je_minute=2) as h:
+        r = await h.c.post(f"/api/dienste/{h.dienst}/faehigkeiten_pruefen")
+        assert r.status_code == 429 and r.json()["grund"] == "grenze" and "Grenze von 2 Anfragen je Minute erreicht" in r.json()["begruendung"]
+        assert h.hetzner.state.pfade.count("/api/v1/chat/completions") == 0

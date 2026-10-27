@@ -124,7 +124,7 @@ async def _vermitteln(request: Request, pfad: str, faehigkeit: Faehigkeit) -> Re
     titel = _titel(request, faehigkeit)
     verm = vermittlung(request)
     try:
-        v = verm.annehmen(app.kennung, faehigkeit, koerper.get("model"), _prioritaet(request, app), titel, _arbeit(request), _extern(request))
+        v = verm.annehmen(app.kennung, faehigkeit, koerper.get("model"), _prioritaet(request, app), titel, _arbeit(request), _extern(request), koerper=koerper)
     except Ablehnung as a:
         return ablehnung_antwort(request, a)
 

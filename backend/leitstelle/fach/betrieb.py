@@ -20,6 +20,7 @@ from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from pydantic import BaseModel
 
+from ..kern.fenster import Bedarf, Frei
 from ..kern.leitstelle import Leitstelle
 from ..kern.messungen import Messwerk
 from ..kern.modelle import Anwendung, Auftrag, Dienst, Knoten, Massnahme, Modell, Prozesslast, Verbund
@@ -27,8 +28,8 @@ from ..kern.rechnerlast import arbeitet_ohne_auftrag, befund, datei, laeuferarbe
 from ..kern.werte import (WORT, Auftragszustand, Betriebsmodus, Dienstzustand, Faehigkeit, Hintergrundstufe, Laeuferrolle, Massnahmenzustand,
                           Modellzustand, Prioritaet, Zone)
 from ..konfig import Konfig
-from ..ports.ablage.eintraege import (Adapterart, AnwendungEintrag, AuftragEintrag, Ausgang, BetriebEinstellung, Bewegung, DienstEintrag, KnotenEintrag,
-                                      PruefEintrag, Richtung, Schlafstand, Schritt, SteckbriefEintrag)
+from ..ports.ablage.eintraege import (Adapterart, AnwendungEintrag, AuftragEintrag, Ausgang, BetriebEinstellung, Bewegung, DienstEintrag,
+                                      FaehigkeitsprobeEintrag, KnotenEintrag, PruefEintrag, Richtung, Schlafstand, Schritt, SteckbriefEintrag)
 from ..ports.agenten import AgentGetrennt, AgentVerbindung, Agentenvermittlung
 from ..ports.ablage.repositorien import Ablage
 from ..ports.dienste import AdapterFabrik, DienstAdapter, DienstFehler, ModellBericht, agent_adresse
@@ -40,7 +41,7 @@ from ..protokoll.umschlag import umschlag
 from .ereignisse import Ereignisbus
 from .fehler import Ablehnung, Zusatz
 from .schreibfolge import Schreibfolge
-from .steckbrief import messwerte_aus, zusammensetzen
+from .steckbrief import Grenzen, aktive_parameter, messwerte_aus, rollen, zusammensetzen
 from .umgehungen import Umgehungsbuch, beschreibung, deuten, kurz, umgehungen
 from ..kern.text import komma, schlaf_satz
 
@@ -153,6 +154,7 @@ class Betrieb:
         self.abrisse: dict[str, int] = {}                         # je Dienst: abgerissene Anfragen in Folge
         self.auskunft: dict[str, Selbstauskunft] = {}            # je Modell: was der Dienst über es sagt
         self.steckbriefe_hand: dict[str, SteckbriefEintrag] = {}  # je Familie: von Hand eingetragen
+        self.proben: dict[str, dict[Faehigkeit, FaehigkeitsprobeEintrag]] = {}   # je Familie: Fähigkeitsproben von Hand (fach/faehigkeitsprobe.py)
         self.gemessen: dict[str, Messwerte] = {}                  # je Familie: aus dem Verlauf
         self._letzte_messung = 0.0
         self.orte: dict[str, ModellOrt] = {}
@@ -191,6 +193,8 @@ class Betrieb:
             self.anwendung_setzen(a)
         self.aliasse = {a.alias: a.familie for a in await self.ablage.aliasse.alle()}
         self.steckbriefe_hand = {e.familie: e for e in await self.ablage.steckbriefe.alle()}
+        for p in await self.ablage.proben.alle():
+            self.proben.setdefault(p.familie, {})[p.faehigkeit] = p
         await self.abgleichen()
         await self._messwerte_holen()
         if mit_schleife:
@@ -255,13 +259,16 @@ class Betrieb:
             self._nebenbei(alt_adapter.schliessen())
         self.dienste[d.kennung] = d
         zugang = self.tresor.entschluesseln(d.zugang_geheim) if d.zugang_geheim else None
-        self.adapter[d.kennung] = self.fabrik(d.art, d.adresse, zugang, lambda k=d.kennung: self.verbund.anfrage_gesendet(k, self.uhr.jetzt()))
+        self.adapter[d.kennung] = self.fabrik(d.art, d.adresse, zugang, lambda name, k=d.kennung: self.verbund.anfrage_gesendet(
+            k, self.uhr.jetzt(), self.familie_am_dienst(k, name)))
         self.pruefstand.pop(d.kennung, None)            # geändert: sofort neu prüfen
         alt = self.verbund.dienste.get(d.kennung)
         self.verbund.dienste[d.kennung] = Dienst(kennung=d.kennung, name=d.name, knoten=d.knoten, art=d.art.value,
                                                   faehigkeiten=alt.faehigkeiten if alt else set(), zustand=alt.zustand if alt else Dienstzustand.NICHT_ERREICHBAR,
                                                   installiert=False, extern=d.extern, plaetze=d.plaetze, anfragen_je_minute=d.anfragen_je_minute,
-                                                  anfragen_s=alt.anfragen_s if alt else [], gesperrt_bis_s=alt.gesperrt_bis_s if alt else None,
+                                                  token_ein_je_minute=d.token_ein_je_minute, token_aus_je_minute=d.token_aus_je_minute,
+                                                  gesendet=alt.gesendet if alt else [], token=alt.token if alt else [],
+                                                  gesperrt_bis_s=alt.gesperrt_bis_s if alt else None,
                                                   einbettung_instanzen=d.einbettung_instanzen, einbettung_spielraum_gb=d.einbettung_spielraum_gb)
         self.geaendert()
 
@@ -683,14 +690,55 @@ class Betrieb:
         lade = self.messwerk.ladezeiten.get(f"{m.familie}@{d.knoten}") if d.knoten else None
         if lade and lade.anzahl:
             gemessen.ladezeit_s = round(lade.wert, 1)
-        return zusammensetzen(m, self.auskunft.get(m.kennung, Selbstauskunft()), self.steckbriefe_hand.get(m.familie),
-                              self.ort(m.kennung).kontext, zone, d.anfragen_je_minute, gemessen)
+        # Schnell und gründlich nur bei externen Anbietern: sie sagen über ihre Modelle nichts außer Namen und Kontext; im eigenen
+        # Netz beschreibt der Modell-Läufer seine Modelle selbst, und ein Vergleich über beliebige Modelle eines Läufers trüge nicht
+        rolle = rollen([(x, aktive_parameter(x, self.steckbriefe_hand.get(x.familie))[0]) for x in self.verbund.modelle_von(m.dienst)]).get(m.kennung) \
+            if d.extern else None
+        return zusammensetzen(m, self.auskunft.get(m.kennung, Selbstauskunft()), self.steckbriefe_hand.get(m.familie), self.ort(m.kennung).kontext, zone,
+                              Grenzen(anfragen_je_minute=d.anfragen_je_minute, token_ein_je_minute=d.token_ein_je_minute,
+                                      token_aus_je_minute=d.token_aus_je_minute),
+                              gemessen, rolle, list(self.proben.get(m.familie, {}).values()))
+
+    def frei(self, dienst: str, bedarf: Bedarf | None = None) -> Frei:
+        """Jetzt: wann der Dienst Anfragen mit diesem Bedarf annimmt (Grenzen je Minute, Sperre nach Überlast)."""
+        self._zeit_setzen()
+        return self.verbund.frei(dienst, bedarf)
+
+    def familie_am_dienst(self, dienst: str, name: str | None) -> str | None:
+        """Die Modellfamilie zu einem Namen, den eine Anfrage an diesen Dienst nennt (Schlüssel, Instanz, Name beim Anbieter)."""
+        if not name:
+            return None
+        for kennung, m in self.verbund.modelle.items():
+            ort = self.orte.get(kennung)
+            if m.dienst == dienst and (name == m.familie or (ort is not None and (name == ort.schluessel or name in ort.instanzen))):
+                return m.familie
+        return None
+
+    def mit_proben(self, familie: str, faehigkeiten: set[Faehigkeit]) -> set[Faehigkeit]:
+        """Fähigkeiten eines Modells nach seinen Proben: belegte kommen dazu, widerlegte fallen weg (Bild beschreiben bei
+        externen Anbietern nur, wenn belegt)."""
+        proben = self.proben.get(familie, {})
+        return (faehigkeiten | {f for f, p in proben.items() if p.belegt}) - {f for f, p in proben.items() if not p.belegt}
+
+    def probe_uebernehmen(self, p: FaehigkeitsprobeEintrag) -> None:
+        """Ergebnis einer Fähigkeitsprobe: sofort in die Modelle der Familie und die Fähigkeiten ihrer Dienste (nicht erst
+        beim nächsten Abgleich, der bei externen Anbietern selten ist)."""
+        self.proben.setdefault(p.familie, {})[p.faehigkeit] = p
+        for m in self.verbund.modelle.values():
+            if m.familie == p.familie:
+                if p.belegt:
+                    m.faehigkeiten.add(p.faehigkeit)
+                else:
+                    m.faehigkeiten.discard(p.faehigkeit)
+                d = self.verbund.dienste[m.dienst]
+                d.faehigkeiten = set().union(*(x.faehigkeiten for x in self.verbund.modelle_von(d.kennung)))
+        self.geaendert()
 
     async def steckbrief_setzen(self, e: SteckbriefEintrag, wer: str) -> None:
         """Von Hand: ganz leer entfernt den Eintrag, dann gilt wieder nur die Auskunft des Dienstes."""
         if not any(m.familie == e.familie for m in self.verbund.modelle.values()):
             raise Ablehnung("unbekannt", "Dieses Modell gibt es im Verbund nicht.")
-        if e.zweck.strip() or e.eignung or e.sprachen:
+        if e.zweck.strip() or e.eignung or e.sprachen or e.parameter_aktiv_mrd:
             await self.ablage.steckbriefe.speichern(e)
             self.steckbriefe_hand[e.familie] = e
         else:
@@ -702,12 +750,14 @@ class Betrieb:
     def _modell_abgleichen(self, kennung: str, d: Dienst, mb: ModellBericht, steuerbar: bool, jetzt: float) -> None:
         unbekannte_groesse = mb.parameter_mrd is None
         m = self.verbund.modelle.get(kennung)
+        familie = mb.familie or mb.schluessel
+        faehigkeiten = self.mit_proben(familie, set(mb.faehigkeiten))
         if m is None:
-            m = Modell(kennung=kennung, name=mb.name, dienst=d.kennung, familie=mb.familie or mb.schluessel, faehigkeiten=set(mb.faehigkeiten), gb=mb.gb,
+            m = Modell(kennung=kennung, name=mb.name, dienst=d.kennung, familie=familie, faehigkeiten=faehigkeiten, gb=mb.gb,
                        parameter_mrd=mb.parameter_mrd or 0.0, geschuetzt_fest=mb.einbettung or unbekannte_groesse)
             self.verbund.modelle[kennung] = m
         else:
-            m.name, m.faehigkeiten, m.gb = mb.name, set(mb.faehigkeiten), mb.gb
+            m.name, m.faehigkeiten, m.gb = mb.name, faehigkeiten, mb.gb
             m.parameter_mrd, m.geschuetzt_fest = mb.parameter_mrd or 0.0, mb.einbettung or unbekannte_groesse
         m.schutz_vorgabe, m.gb_jetzt, m.plaetze = mb.schutz, mb.gb_jetzt, mb.plaetze
         # Einbettungsmodelle eines steuerbaren Läufers: Höchstzahl der Instanzen aus dem Eintrag des Dienstes (ZUSAMMENSPIEL Z5)
@@ -843,7 +893,8 @@ class Betrieb:
 
     # ── Aufträge ─────────────────────────────────────────────────────────
     def anlegen(self, anwendung: str, faehigkeit: Faehigkeit, festes_modell: str | None, prioritaet: Prioritaet | None, titel: str,
-                arbeit: str | None = None, extern: list[str] | None = None, instanz: str | None = None) -> tuple[Auftrag, Lauf]:
+                arbeit: str | None = None, extern: list[str] | None = None, instanz: str | None = None,
+                token: tuple[int, int] = (0, 0)) -> tuple[Auftrag, Lauf]:
         app = self.anwendungen[anwendung]
         if self.verbund.betriebsmodus == Betriebsmodus.HALT:
             raise Ablehnung("halt", "Der Hauptregler steht auf Halt; es wird nichts gerechnet.")
@@ -852,7 +903,8 @@ class Betrieb:
         self._zeit_setzen()
         a = Auftrag(kennung=uuid4().hex, anwendung=anwendung, faehigkeit=faehigkeit, prioritaet=app.prioritaet if prioritaet is None else prioritaet,
                     eingang_s=self.verbund.zeit_s, festes_modell=festes_modell, anhaltbar=False, laufzeit_s=0.0,
-                    arbeit=f"{anwendung}:{arbeit}" if arbeit else None, extern_familien=list(extern or []), feste_instanz=instanz)
+                    arbeit=f"{anwendung}:{arbeit}" if arbeit else None, extern_familien=list(extern or []), feste_instanz=instanz,
+                    token_ein_geschaetzt=token[0], token_aus_geschaetzt=token[1])
         self.verbund.arbeiten_aufraeumen()
         self.verbund.arbeit_zaehlen(a, titel)
         lauf = Lauf(a.kennung, titel)

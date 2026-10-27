@@ -93,3 +93,29 @@ async def test_migration_mit_altbestand(tmp_path):
     assert a is not None and a.schritte == [] and a.eingang_s == 5.0 and a.arbeit is None
     assert await Ablage(db).bewegungen.neueste() == ([], 0)
     await db.schliessen()
+
+
+async def test_x07_migration_0010_token_grenzen_und_proben(tmp_path):
+    """Ein Hetzner-Eintrag aus 0.23 (nur Anfragegrenze) und ein Steckbrief von Hand bleiben; Token-Grenzen und aktive
+    Parameter sind leer, Fähigkeitsproben lassen sich speichern."""
+    import sqlite3
+    from alembic import command
+    from leitstelle.kern.werte import Faehigkeit
+    from leitstelle.ports.ablage.datenbank import alembic_konfig
+    from leitstelle.ports.ablage.eintraege import FaehigkeitsprobeEintrag
+    pfad = tmp_path / "alt.sqlite"
+    command.upgrade(alembic_konfig(pfad), "0009")
+    with sqlite3.connect(pfad) as v:
+        v.execute("INSERT INTO dienste (kennung, name, art, adresse, knoten, extern, zugang_geheim, plaetze, anfragen_je_minute, abgleich_s,"
+                  " einbettung_instanzen, einbettung_spielraum_gb) VALUES ('h', 'Hetzner Experimental', 'extern_openai', 'https://inference.hetzner.com/api/v1',"
+                  " NULL, 1, NULL, 4, 10, 900, 1, 4.0)")
+        v.execute("INSERT INTO steckbriefe (familie, zweck, eignung, sprachen) VALUES ('Qwen/Qwen3.8-27B', 'Gründlich', '[]', '[]')")
+    db = Datenbank(pfad)
+    await db.oeffnen()
+    ablage = Ablage(db)
+    d = (await ablage.dienste.alle())[0]
+    assert d.anfragen_je_minute == 10 and d.token_ein_je_minute is None and d.token_aus_je_minute is None
+    assert (await ablage.steckbriefe.alle())[0].parameter_aktiv_mrd is None
+    await ablage.proben.speichern(FaehigkeitsprobeEintrag(familie="Qwen/Qwen3.8-27B", faehigkeit=Faehigkeit.BILD_BESCHREIBEN, belegt=False, zeit_s=5.0))
+    assert [(p.familie, p.belegt) for p in await ablage.proben.alle()] == [("Qwen/Qwen3.8-27B", False)]
+    await db.schliessen()

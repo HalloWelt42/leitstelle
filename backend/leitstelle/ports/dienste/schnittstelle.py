@@ -52,6 +52,13 @@ class Durchleitung(BaseModel):
     inhalt: bytes = b""
 
 
+class Verbrauch(BaseModel):
+    """Token einer Antwort, wie der Dienst sie nennt (`usage`); None: nicht genannt."""
+
+    token_ein: int | None = None
+    token_aus: int | None = None
+
+
 class DienstFehler(Exception):
     """Der Dienst hat abgelehnt oder ist gestört. `grund` ist ein Wort aus PROTOKOLL.md Abschnitt 7."""
 
@@ -67,6 +74,7 @@ class Strom(Protocol):
 
     status: int
     kopf: dict[str, str]
+    verbrauch: Verbrauch | None         # Token der Antwort, sobald der Dienst sie genannt hat (sonst None)
 
     def zeilen(self) -> AsyncIterator[bytes]: ...
     def stuecke(self) -> AsyncIterator[bytes]: ...

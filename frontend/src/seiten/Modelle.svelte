@@ -1,10 +1,10 @@
 <script lang="ts">
   import { api, type FreigabePlan } from '../lib/api';
-  import { gb, prozent, vor, zahl } from '../lib/format';
+  import { gb, prozent, uhrzeit, vor, zahl } from '../lib/format';
   import { kanal } from '../lib/kanal.svelte';
   import { tun } from '../lib/meldung.svelte';
   import type { Eignung, Lagebild, ModellSicht } from '../lib/typen.gen';
-  import { EIGNUNG, QUELLE } from '../lib/wort';
+  import { EIGNUNG, FAEHIGKEIT, QUELLE, parameterText } from '../lib/wort';
   import { weg } from '../lib/weg.svelte';
   import Faehigkeit from '../teile/Faehigkeit.svelte';
   import Speicherbalken from '../teile/Speicherbalken.svelte';
@@ -18,21 +18,21 @@
   let plan = $state<FreigabePlan | null>(null);
   let jetzt = $state(kanal.jetzt());
   // Steckbrief von Hand: leere Felder lassen die Auskunft des Dienstes stehen (PROTOKOLL 4.8)
-  let steckbrief = $state<{ kennung: string; familie: string; zweck: string; eignung: Eignung[]; sprachen: string } | null>(null);
+  let steckbrief = $state<{ kennung: string; familie: string; zweck: string; eignung: Eignung[]; sprachen: string; aktiv: number | null } | null>(null);
   const EIGNUNGEN = Object.keys(EIGNUNG) as Eignung[];
   const vonHand = (m: ModellSicht, feld: string) => m.steckbrief.herkunft?.[feld] === 'hand';
 
   function steckbriefBeginnen(m: ModellSicht) {
     const s = m.steckbrief;
     steckbrief = { kennung: m.kennung, familie: m.familie, zweck: vonHand(m, 'zweck') ? s.zweck ?? '' : '', eignung: vonHand(m, 'eignung') ? [...(s.eignung ?? [])] : [],
-                   sprachen: vonHand(m, 'sprachen') ? (s.sprachen ?? []).join(', ') : '' };
+                   sprachen: vonHand(m, 'sprachen') ? (s.sprachen ?? []).join(', ') : '', aktiv: vonHand(m, 'parameter_aktiv_mrd') ? s.parameter_aktiv_mrd ?? null : null };
   }
 
   async function steckbriefSpeichern(leeren = false) {
     if (!steckbrief) return;
-    const e = leeren ? { familie: steckbrief.familie, zweck: '', eignung: [], sprachen: [] }
+    const e = leeren ? { familie: steckbrief.familie, zweck: '', eignung: [], sprachen: [], parameter_aktiv_mrd: null }
       : { familie: steckbrief.familie, zweck: steckbrief.zweck.trim(), eignung: steckbrief.eignung,
-          sprachen: steckbrief.sprachen.split(/[\s,]+/).map((x) => x.trim().toLowerCase()).filter(Boolean) };
+          sprachen: steckbrief.sprachen.split(/[\s,]+/).map((x) => x.trim().toLowerCase()).filter(Boolean), parameter_aktiv_mrd: steckbrief.aktiv || null };
     if (await tun(() => api.steckbriefSetzen(e), leeren ? 'Eintrag von Hand entfernt' : 'Steckbrief gespeichert')) steckbrief = null;
   }
 
@@ -46,7 +46,8 @@
   }
 
   function herkunft(m: ModellSicht): string {
-    return Object.entries(m.steckbrief.herkunft ?? {}).map(([feld, q]) => `${feld === 'parameter_mrd' ? 'Parameter' : feld[0].toUpperCase() + feld.slice(1)}: ${QUELLE[q]}`).join(' · ');
+    const FELD: Record<string, string> = { parameter_mrd: 'Parameter', parameter_aktiv_mrd: 'Aktive Parameter', geprueft: 'Fähigkeitsprobe' };
+    return Object.entries(m.steckbrief.herkunft ?? {}).map(([feld, q]) => `${FELD[feld] ?? feld[0].toUpperCase() + feld.slice(1)}: ${QUELLE[q]}`).join(' · ');
   }
 
   $effect(() => {
@@ -63,6 +64,9 @@
   const gesperrt = $derived(bild.modelle.filter((m) => m.ladesperre_bis_s && m.ladesperre_bis_s > jetzt));
   const wartenAuf = (m: ModellSicht) => bild.auftraege.filter((a) => a.zustand !== 'laeuft' && a.familie_wunsch === m.familie).length;
   const steuerbar = (m: ModellSicht) => !!dienst(m.dienst)?.steuerbar && !dienst(m.dienst)?.extern;
+  const extern = (m: ModellSicht) => !!dienst(m.dienst)?.extern;
+  // Beim Anbieter wird nichts geladen: bereit, rechnet oder nach Überlast gesperrt
+  const gesperrtBis = (m: ModellSicht) => { const b = dienst(m.dienst)?.gesperrt_bis_s; return b != null && b > jetzt ? b : null; };
   const knotenMit = $derived(bild.knoten.filter((k) => bild.modelle.some((m) => m.knoten === k.kennung)));
   const hatExtern = $derived(bild.dienste.some((d) => d.extern));
 
@@ -150,23 +154,30 @@
               <tr>
                 <td><div class="n"><span title={gemessen(m)}>{m.name}</span>{#if m.geschuetzt}<i class="fa-solid fa-shield-halved schutz" title="Geschützt: unter der Schutzgrenze, Einbettung oder ohne bekannte Größe; die Leitstelle entlädt es nie von selbst. Von Hand geht es."></i>{/if}
                   <button class="knopf ohne symbol stift" onclick={() => steckbriefBeginnen(m)} title="Steckbrief ergänzen: wofür das Modell gemacht ist (geht der Auskunft des Dienstes vor)"><i class="fa-solid fa-pen"></i></button></div>
-                  <div class="zweit">{#if m.zusatz}<span title="Von der Leitstelle bei Andrang gestartet; weicht bei Speichermangel vor allen anderen">weitere Instanz, weicht zuerst</span>{:else if worte(m) === WORTE.prozess}Programm im Maschinenraum des Rechners{#if m.instanzen_hoechstens > 1}<span title="Bei Andrang startet die Leitstelle weitere Instanzen, wenn Speicher frei ist (Dienstdatei: instanzen)">, bis zu <span class="zahl">{m.instanzen_hoechstens}</span> Instanzen</span>{/if}{:else}<span class="zahl">{m.parameter_mrd ? `${zahl(m.parameter_mrd)} Milliarden` : 'Größe unbekannt'}</span> · zuletzt {vor(m.letzte_nutzung_s, jetzt)}{#if m.instanzen_hoechstens > 1}<span title="Bei Andrang lädt die Leitstelle weitere Instanzen, bis zur Speichergrenze mit Spielraum (Eintrag des Dienstes); bei Ruhe baut sie zurück">, bis zu <span class="zahl">{m.instanzen_hoechstens}</span> Instanzen</span>{/if}{/if}</div>
+                  <div class="zweit">{#if m.zusatz}<span title="Von der Leitstelle bei Andrang gestartet; weicht bei Speichermangel vor allen anderen">weitere Instanz, weicht zuerst</span>{:else if worte(m) === WORTE.prozess}Programm im Maschinenraum des Rechners{#if m.instanzen_hoechstens > 1}<span title="Bei Andrang startet die Leitstelle weitere Instanzen, wenn Speicher frei ist (Dienstdatei: instanzen)">, bis zu <span class="zahl">{m.instanzen_hoechstens}</span> Instanzen</span>{/if}{:else}<span class="zahl">{parameterText(m.steckbrief)}</span> · zuletzt {vor(m.letzte_nutzung_s, jetzt)}{#if m.instanzen_hoechstens > 1}<span title="Bei Andrang lädt die Leitstelle weitere Instanzen, bis zur Speichergrenze mit Spielraum (Eintrag des Dienstes); bei Ruhe baut sie zurück">, bis zu <span class="zahl">{m.instanzen_hoechstens}</span> Instanzen</span>{/if}{/if}</div>
                   {#if m.steckbrief.zweck || m.steckbrief.eignung?.length || m.steckbrief.sprachen?.length}<div class="steckbrief" title={herkunft(m)}>
                     {#if m.steckbrief.zweck}<span class="zweck">{m.steckbrief.zweck}</span>{/if}
                     {#each m.steckbrief.eignung ?? [] as e (e)}<span class="eignung">{EIGNUNG[e]}</span>{/each}
-                    {#if m.steckbrief.sprachen?.length}<span class="eignung sprache">{m.steckbrief.sprachen.join(', ')}</span>{/if}</div>{/if}</td>
+                    {#if m.steckbrief.sprachen?.length}<span class="eignung sprache">{m.steckbrief.sprachen.join(', ')}</span>{/if}</div>{/if}
+                  {#each m.steckbrief.geprueft ?? [] as p (p.faehigkeit)}<div class="zweit" title={p.meldung}><i class="fa-solid fa-flask"></i> {FAEHIGKEIT[p.faehigkeit].wort} {p.belegt ? 'belegt' : 'nicht belegt'}, geprüft {uhrzeit(p.zeit_s)}</div>{/each}</td>
                 <td data-titel="Fähigkeiten"><div class="marken">{#each m.faehigkeiten.filter((f) => f !== 'uebersetzen' && f !== 'werkzeug') as f (f)}<Faehigkeit wert={f} />{/each}</div></td>
                 <td data-titel="Dienst"><div class="dienst">{dienst(m.dienst)?.name}</div><div class="zweit">{knotenName(m.knoten)}</div></td>
-                <td data-titel="Größe" class="zahl"><div title={m.gb_jetzt != null ? 'Bedarf, mit dem die Leitstelle plant; darunter der gerade gemessene Wert' : ''}>{m.gb ? gb(m.gb) : '-'}</div>
-                  {#if m.gb_jetzt != null}<div class="zweit">jetzt {gb(m.gb_jetzt)}</div>{/if}</td>
-                <td data-titel="Zustand"><Zustand art="modell" wert={m.zustand} dreht />
+                <td data-titel="Größe" class="zahl">{#if extern(m)}<div title="Rechnet beim Anbieter; die Leitstelle plant dafür keinen Speicher" aria-label="rechnet beim Anbieter">-</div>
+                  {:else}<div title={m.gb_jetzt != null ? 'Bedarf, mit dem die Leitstelle plant; darunter der gerade gemessene Wert' : ''}>{m.gb ? gb(m.gb) : '-'}</div>
+                  {#if m.gb_jetzt != null}<div class="zweit">jetzt {gb(m.gb_jetzt)}</div>{/if}{/if}</td>
+                <td data-titel="Zustand">{#if extern(m)}{@const bis = gesperrtBis(m)}
+                    <span class="zustand umbruch {bis ? 'wartet' : m.zustand === 'rechnet' ? 'laeuft' : 'fertig'}" title="Der Anbieter lädt seine Modelle selbst; nach Überlast (429 oder 5xx) wartet die Leitstelle bis zum Ende der Sperre">
+                      <i class="fa-solid {bis ? 'fa-hand' : 'fa-cloud'}"></i>{bis ? `Gesperrt bis ${uhrzeit(bis, true)}` : m.zustand === 'rechnet' ? 'Rechnet beim Anbieter' : 'Beim Anbieter bereit'}</span>
+                  {:else}<Zustand art="modell" wert={m.zustand} dreht />{/if}
                   <div class="zweit">{#if m.ladesperre_bis_s && m.ladesperre_bis_s > jetzt}<span class="akzent" title="Der Dienst hat das Laden abgelehnt; bis zum Ende der Pause plant die Leitstelle keinen neuen Versuch">abgelehnt: {m.ladesperre_grund}</span>
                     {:else if m.auftraege_aktiv}<span class="zahl">{m.auftraege_aktiv}</span> {m.auftraege_aktiv === 1 ? 'Auftrag läuft' : 'Aufträge laufen'}{#if m.plaetze > 1}<span title="So viele Aufträge rechnet der Dienst nebeneinander (Dienstdatei des Maschinenraums oder Eintrag des Dienstes)">, <span class="zahl">{m.plaetze}</span> Plätze</span>{/if}
                     {:else if warten}<span class="akzent"><span class="zahl">{warten}</span> {warten === 1 ? 'Auftrag wartet' : 'Aufträge warten'} darauf</span>
                     {:else if m.gehalten_von}<span title="Eine begonnene Arbeit hat es eben genutzt; für andere Anfragen weicht es nicht, bis die Frist ohne Nutzung um ist">bleibt für {m.gehalten_von}</span>
+                    {:else if extern(m)}<span title="Laufende und zugeteilte Aufträge; die Plätze gelten je Modell"><span class="zahl">{m.belegt}</span> von <span class="zahl">{m.plaetze}</span> Plätzen belegt</span>
                     {:else if m.zustand !== 'frei'}{m.geladen_seit_s ? `${worte(m).geladen} ${vor(m.geladen_seit_s, jetzt)}` : worte(m) === WORTE.prozess ? 'lief schon vorher' : 'schon vorher geladen'}{/if}</div></td>
                 <td>
-                  {#if !steuerbar(m)}<span class="zweit" title="Dieser Dienst lädt selbst; die Leitstelle steuert seinen Speicher nicht">lädt selbst</span>
+                  {#if extern(m)}<span class="zweit" title="Der Anbieter lädt seine Modelle selbst; nichts zu laden oder zu entladen">beim Anbieter</span>
+                  {:else if !steuerbar(m)}<span class="zweit" title="Dieser Dienst lädt selbst; die Leitstelle steuert seinen Speicher nicht">lädt selbst</span>
                   {:else if worte(m) === WORTE.prozess && m.geschuetzt && m.zustand !== 'frei'}<span class="zweit" title="Laut Dienstdatei darf die Leitstelle ihn nicht anhalten; das geht nur im Maschinenraum des Rechners">nur im Maschinenraum</span>
                   {:else if m.zustand === 'rechnet' || m.zustand === 'laedt'}<button class="knopf klein" disabled title="Rechnet oder startet gerade; erst danach möglich">{worte(m).entladen}</button>
                   {:else if m.zustand === 'geladen'}<button class="knopf klein" onclick={() => (frage = { modell: m, laden: false })} title="{worte(m).entladen}: gibt {gb(m.gb)} frei">{worte(m).entladen}</button>
@@ -179,6 +190,8 @@
                     <label class="feld-l"><span>Zweck <small>{vonHand(m, 'zweck') ? 'von Hand' : m.steckbrief.zweck ? 'leer lässt die Auskunft des Dienstes' : 'der Dienst sagt nichts'}</small></span>
                       <input class="eingabe" bind:value={steckbrief.zweck} maxlength="300" placeholder={vonHand(m, 'zweck') ? '' : m.steckbrief.zweck || 'wofür das Modell gemacht ist, ein Satz'} /></label>
                     <label class="feld-l"><span>Sprachen <small>Kürzel, etwa de, en</small></span><input class="eingabe" bind:value={steckbrief.sprachen} placeholder={(m.steckbrief.sprachen ?? []).join(', ')} /></label>
+                    {#if m.parameter_mrd}<label class="feld-l"><span>Aktive Parameter <small>Milliarden je Schritt, für Mischmodelle, deren Name es nicht sagt; leer: {m.steckbrief.parameter_aktiv_mrd != null && !vonHand(m, 'parameter_aktiv_mrd') ? `abgeleitet ${zahl(m.steckbrief.parameter_aktiv_mrd)}` : 'aus dem Namen'}</small></span>
+                      <input class="eingabe" type="number" min="0.1" step="0.1" bind:value={steckbrief.aktiv} /></label>{/if}
                   </div>
                   <div class="feld-l" style="margin-top: var(--a3)"><span>Eignung <small>{steckbrief.eignung.length ? 'ersetzt die Angabe des Dienstes' : 'keine gewählt: es gilt die Angabe des Dienstes'}</small></span>
                     <div class="filter">{#each EIGNUNGEN as e (e)}<button class="chip" class:aktiv={steckbrief.eignung.includes(e)}
@@ -239,3 +252,8 @@
     </div>
   </div>
 </div>
+
+<style>
+  /* beim Anbieter: der Zustand ist ein Satz und darf in schmalen Karten umbrechen */
+  :global(.seite-modelle .modelltabelle .zustand.umbruch) { white-space: normal; }
+</style>

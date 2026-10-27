@@ -6,6 +6,9 @@ const eins = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 1, maximumF
 export const zahl = (n: number | null | undefined): string => (n == null ? '-' : ganz.format(n));
 export const gb = (n: number | null | undefined): string => (n == null ? '-' : `${eins.format(n)} GB`);
 export const prozent = (anteil: number): string => `${ganz.format(Math.round(anteil * 100))} %`;
+/** Große Mengen lesbar, ohne Abkürzung: 4000000 -> 4 Millionen, 100000 -> 100.000 */
+export const menge = (n: number | null | undefined): string =>
+  n == null ? '-' : n >= 1_000_000 ? `${(n / 1_000_000).toLocaleString('de-DE', { maximumFractionDigits: 2 })} ${n === 1_000_000 ? 'Million' : 'Millionen'}` : ganz.format(n);
 /** Zahl mit fester Zahl an Nachkommastellen, deutsches Komma */
 export const komma = (n: number, stellen = 1): string => n.toLocaleString('de-DE', { minimumFractionDigits: stellen, maximumFractionDigits: stellen });
 

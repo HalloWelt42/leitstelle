@@ -24,6 +24,8 @@
   let neuZone = $state<Zone>('heim');
   let plaetze = $state(4);
   let grenze = $state<number | null>(null);
+  let tokenEin = $state<number | null>(null);
+  let tokenAus = $state<number | null>(null);
   let nameGeaendert = $state(false);
   // Begonnener Anschluss (Adresse eingetragen oder schon erkannt): keine neue Fassung mittendrin laden
   arbeit.bearbeitung(() => adresse.trim() !== '' || erkennung !== null);
@@ -62,7 +64,8 @@
       : null;
     const r = await tun(() => api.dienstAnlegen({ adresse: erkennung!.adresse, name: name.trim() || null, zugang: zugang || null, extern: art === 'extern',
       knoten: art === 'dienst' && knotenWahl !== 'neu' ? knotenWahl : null, neuer_knoten: neuerKnoten, plaetze,
-      anfragen_je_minute: grenze || null }), 'Dienst angeschlossen');
+      anfragen_je_minute: grenze || null, token_ein_je_minute: art === 'extern' ? tokenEin || null : null,
+      token_aus_je_minute: art === 'extern' ? tokenAus || null : null }), 'Dienst angeschlossen');
     if (r) weg.gehe('dienste');
   }
 
@@ -137,7 +140,11 @@
               <div class="pruef"><i class="fa-solid fa-check"></i><span class="k">Plätze</span>
                 <span class="v"><input class="eingabe" type="number" min="1" max="64" style="height:34px; width: 90px" bind:value={plaetze} title="Gleichzeitige Aufträge je geladenem Modell" /> <span class="leise">gleichzeitige Aufträge je Modell</span></span></div>
               {#if art === 'extern'}<div class="pruef"><i class="fa-solid fa-gauge"></i><span class="k">Grenze</span>
-                <span class="v"><input class="eingabe" type="number" min="1" max="100000" style="height:34px; width: 90px" bind:value={grenze} title="So viele Anfragen je Minute nimmt der Anbieter an; leer heißt keine Grenze" /> <span class="leise">Anfragen je Minute (leer: keine)</span></span></div>{/if}
+                <span class="v"><input class="eingabe" type="number" min="1" max="100000" style="height:34px; width: 90px" bind:value={grenze} title="So viele Anfragen je Minute nimmt der Anbieter an; leer heißt keine Grenze" /> <span class="leise">Anfragen je Minute (leer: keine)</span></span></div>
+              <div class="pruef"><i class="fa-solid fa-gauge"></i><span class="k">Token</span>
+                <span class="v"><input class="eingabe" type="number" min="1" style="height:34px; width: 130px" bind:value={tokenEin} title="So viele Token hinein je Minute nimmt der Anbieter an (gleitend, je Schlüssel); leer heißt keine Grenze" placeholder="hinein" />
+                  <input class="eingabe" type="number" min="1" style="height:34px; width: 130px" bind:value={tokenAus} title="So viele Token heraus je Minute liefert der Anbieter (gleitend, je Schlüssel); leer heißt keine Grenze" placeholder="heraus" />
+                  <span class="leise">je Minute, hinein und heraus (leer: keine)</span></span></div>{/if}
             {/if}
           </div>
           <div class="tun" style="margin-top: var(--a4); display: flex; gap: var(--a2)">

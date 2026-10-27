@@ -60,7 +60,9 @@ class DienstDaten(BaseModel):
     neuer_knoten: KnotenDaten | None = None
     extern: bool = False
     plaetze: int = Field(default=4, ge=1, le=64)
-    anfragen_je_minute: int | None = Field(default=None, ge=1, le=100000)   # Grenze des Anbieters
+    anfragen_je_minute: int | None = Field(default=None, ge=1, le=100000)   # Grenzen des Anbieters je Minute (gleitend, je Schlüssel)
+    token_ein_je_minute: int | None = Field(default=None, ge=1, le=10**10)
+    token_aus_je_minute: int | None = Field(default=None, ge=1, le=10**10)
     abgleich_s: float | None = Field(default=None, ge=1, le=86400)         # Abstand der Zustandsabfrage, wenn gesund
     einbettung_instanzen: int = Field(default=1, ge=1, le=32)              # Instanzen je Einbettungsmodell bei Andrang
     einbettung_spielraum_gb: float = Field(default=4.0, ge=0, le=512)      # bleibt im Budget frei
@@ -75,6 +77,8 @@ class DienstAenderung(BaseModel):
     zugang: str | None = Field(default=None, max_length=500)  # "" entfernt den Zugang, None lässt ihn
     plaetze: int | None = Field(default=None, ge=1, le=64)
     anfragen_je_minute: int | None = Field(default=None, ge=0, le=100000)  # 0 entfernt die Grenze, None lässt sie
+    token_ein_je_minute: int | None = Field(default=None, ge=0, le=10**10) # ebenso
+    token_aus_je_minute: int | None = Field(default=None, ge=0, le=10**10)
     abgleich_s: float | None = Field(default=None, ge=0, le=86400)         # 0 heißt Vorgabe, None lässt ihn
     einbettung_instanzen: int | None = Field(default=None, ge=1, le=32)
     einbettung_spielraum_gb: float | None = Field(default=None, ge=0, le=512)
@@ -85,13 +89,14 @@ class DienstAenderung(BaseModel):
 #: seiner Dienstdatei, einen Zugang braucht er nicht (er meldet sich mit dem Schlüssel seines Rechners). Einstellbar ist
 #: dort nur der Name; alles andere wäre ein Regler ohne Wirkung.
 AENDERBAR: dict[Adapterart, tuple[str, ...]] = {
-    Adapterart.OPENAI_KOMPATIBEL: ("name", "adresse", "zugang", "plaetze", "anfragen_je_minute", "abgleich_s", "einbettung_instanzen",
-                                   "einbettung_spielraum_gb"),
-    Adapterart.EXTERN_OPENAI: ("name", "adresse", "zugang", "plaetze", "anfragen_je_minute", "abgleich_s"),
+    Adapterart.OPENAI_KOMPATIBEL: ("name", "adresse", "zugang", "plaetze", "anfragen_je_minute", "token_ein_je_minute", "token_aus_je_minute",
+                                   "abgleich_s", "einbettung_instanzen", "einbettung_spielraum_gb"),
+    Adapterart.EXTERN_OPENAI: ("name", "adresse", "zugang", "plaetze", "anfragen_je_minute", "token_ein_je_minute", "token_aus_je_minute", "abgleich_s"),
     Adapterart.AGENT: ("name",),
 }
 
 FELDWORT = {"name": "der Name", "adresse": "die Adresse", "zugang": "der Zugang", "plaetze": "die Plätze", "anfragen_je_minute": "die Grenze je Minute",
+            "token_ein_je_minute": "die Grenze der Token hinein", "token_aus_je_minute": "die Grenze der Token heraus",
             "abgleich_s": "der Abgleich", "einbettung_instanzen": "die Instanzen der Einbettung", "einbettung_spielraum_gb": "der Spielraum der Einbettung"}
 
 
@@ -121,7 +126,8 @@ def _gewuenschte_werte(e: DienstEintrag, d: DienstAenderung) -> dict[str, Any]:
         neu["zugang"] = d.zugang
     werte: dict[str, Any] = {"plaetze": d.plaetze, "einbettung_instanzen": d.einbettung_instanzen, "einbettung_spielraum_gb": d.einbettung_spielraum_gb,
                              # 0 entfernt eine Grenze und heißt beim Abgleich die Vorgabe der Konfiguration
-                             "anfragen_je_minute": None if d.anfragen_je_minute is None else d.anfragen_je_minute or None,
+                             **{f: None if getattr(d, f) is None else getattr(d, f) or None
+                                for f in ("anfragen_je_minute", "token_ein_je_minute", "token_aus_je_minute")},
                              "abgleich_s": None if d.abgleich_s is None else d.abgleich_s or None}
     gesetzt = {f for f in werte if getattr(d, f) is not None}
     neu |= {f: w for f, w in werte.items() if f in gesetzt and w != getattr(e, f)}
@@ -239,7 +245,8 @@ class Verzeichnis:
         e = DienstEintrag(kennung=uuid4().hex, name=d.name or ("Modell-Läufer " + (self.b.knoten[knoten].name if knoten else rechner)),
                           art=_art(d.extern), adresse=adresse, knoten=knoten, extern=d.extern,
                           zugang_geheim=self.b.tresor.verschluesseln(d.zugang) if d.zugang else None, plaetze=d.plaetze,
-                          anfragen_je_minute=d.anfragen_je_minute, abgleich_s=d.abgleich_s,
+                          anfragen_je_minute=d.anfragen_je_minute, token_ein_je_minute=d.token_ein_je_minute, token_aus_je_minute=d.token_aus_je_minute,
+                          abgleich_s=d.abgleich_s,
                           einbettung_instanzen=d.einbettung_instanzen, einbettung_spielraum_gb=d.einbettung_spielraum_gb)
         await self.b.ablage.dienste.speichern(e)
         self.b.dienst_setzen(e)

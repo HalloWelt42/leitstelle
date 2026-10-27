@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
 from .. import version
-from ..fach import regelwerk
+from ..fach import faehigkeitsprobe, regelwerk
 from ..fach.fehler import Ablehnung
 from ..fach.lagebild import lagebild
 from ..fach.verzeichnis import AnwendungDaten, DienstAenderung, DienstDaten, KnotenDaten
@@ -246,6 +246,13 @@ async def dienst_pruefen(kennung: str, request: Request):
     """Jetzt prüfen: fragt den Dienst sofort, auch im Ausfall (sonst in wachsenden Abständen)."""
     zustand = await _fachlich(betrieb(request).dienst_pruefen(kennung, wer(request)))
     return {"dienst": kennung, "zustand": zustand}
+
+
+@router.post("/dienste/{kennung}/faehigkeiten_pruefen")
+async def faehigkeiten_pruefen(kennung: str, request: Request) -> list[faehigkeitsprobe.Probenergebnis]:
+    """Fähigkeitsprobe von Hand (externe Anbieter): je Modell eine kleine Aufgabe, etwa ein Bild mit einer Frage; zählt gegen
+    die Grenzen des Anbieters. Belegte und nicht belegte Fähigkeiten stehen danach mit Zeitpunkt im Steckbrief."""
+    return await _fachlich(faehigkeitsprobe.pruefen(betrieb(request), kennung, wer(request)))
 
 
 @router.delete("/dienste/{kennung}")

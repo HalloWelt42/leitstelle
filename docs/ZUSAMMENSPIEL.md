@@ -146,9 +146,32 @@ Grenzen von Hetzner Experimental (Doku des Anbieters, Stand 24.07.2026; je Schl�
 | Anfrage als Strom, Modell fängt an | Kopf nach 1 bis 2 s, danach beliebig lang (624 s und 20 min), Lücken höchstens 4,7 s |
 | Anfrage als Strom, Modell ausgelastet | kein Kopf, nach 300 s 504 vom Vorschaltrechner (2 von 3 Anfragen an Qwen 3.8 am Abend des 18.10.) |
 
-Umgesetzt in 0.17.2: 502, 503 und 504 externer Anbieter gelten als Überlast. Die Token-Grenzen je Minute sind nicht
-eingebaut; eine einzelne Anfrage bleibt weit darunter. Messungen zum Modellvergleich laufen mit den lokalen Modellen
-(Entscheidung 19.10.2026: dasselbe Modell ist lokal da), Hetzner bleibt Entlastung im Betrieb.
+Umgesetzt in 0.17.2: 502, 503 und 504 externer Anbieter gelten als Überlast. Messungen zum Modellvergleich laufen mit
+den lokalen Modellen (Entscheidung 19.10.2026: dasselbe Modell ist lokal da), Hetzner bleibt Entlastung im Betrieb.
+
+**Hetzner klar abgebildet** (0.24.0, Nutzer 27.10.2026 im Dialog, alle vier Punkte gewählt):
+
+- **Zwei Modelle einzeln**: Dienste und Übersicht nennen Qwen3.6-35B-A3B und Qwen3.8-27B mit Kontext (`max_model_len`),
+  Parametern gesamt und aktiv und ihrer Art im Vergleich: das Mischmodell (3 von 35 Milliarden je Schritt aktiv)
+  schnell, das dichte (27 Milliarden) gründlich. Bei externen Anbietern heißt es "beim Anbieter bereit" (gesperrt bis
+  ..., nach 429 oder Überlast), nie "geladen", und statt einer Größe steht "-" (rechnet beim Anbieter).
+- **Steckbrief**: `parameter_aktiv_mrd` aus dem Namen (`A3B`), sonst gleich gesamt, von Hand überschreibbar; Eignung
+  `schnell` und `gruendlich` mit Zweck abgeleitet, wenn ein externer Anbieter beide Bauarten anbietet (im eigenen Netz
+  beschreibt der Läufer seine Modelle selbst, dort keine Ableitung). Bild beschreiben nur, wenn belegt: die
+  Fähigkeitsprobe (von Hand, "Fähigkeiten prüfen" am Dienst) schickt je Modell ein kleines rotes Bild mit der Frage nach
+  der Farbe; nennt die Antwort Rot, ist die Fähigkeit belegt, lehnt der Anbieter das Bild ab oder antwortet anders, nicht.
+  Ergebnis mit Zeitpunkt im Steckbrief (`geprueft`, Quelle gemessen) und in den Fähigkeiten; Überlast, keine Antwort in
+  `faehigkeitsprobe_s` (Vorgabe 120 s) oder Abriss lassen das bisherige stehen. Jede Probe zählt gegen die Grenzen;
+  reichen sie nicht, lehnt die Leitstelle mit Wartezeit ab (429 `grenze`).
+- **Nutzung und Grenzen je Modell** (`kern/fenster.py`): jede gesendete Anfrage zählt mit dem Modell, das sie nennt;
+  Token hinein und heraus je Minute sind Einstellungen des Dienstes wie die Anfragegrenze, und die Leitstelle hält sie
+  ein. Vor dem Senden zählt die Schätzung aus der Länge (3 Zeichen je Token, ein Bild 1500, heraus höchstens
+  `max_tokens`), nach der Antwort der echte Verbrauch aus `usage` (im Strom fordert der Adapter ihn an und gibt das Stück
+  nur weiter, wenn die Anwendung es selbst wollte). Token hinein zählen ab dem Senden, heraus ab dem Ende; eine Anfrage
+  mit Überlast verbraucht nichts. Je Modell stehen Anfragen, Token und belegte Plätze, darüber der gemeinsame Schlüssel.
+- **Gezielt wählbar**: beide Modelle stehen in `/v1/models` mit Steckbrief; in Anwendungen und Ketten als Wahl mit
+  "extern" und ihrer Art. In einer Kette rechnet ein externes Modell nur beim Ausweichen und mit Erlaubnis der App;
+  verlangt die App es als `model`, gilt es direkt. Die Wahl bleibt bei der App (ANBINDUNG 2.2).
 
 ### Stufe Z5: Einbettung verstärken (mehrere Instanzen im Modell-Läufer)
 

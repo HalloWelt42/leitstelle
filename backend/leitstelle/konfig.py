@@ -40,6 +40,8 @@ class Konfig(BaseSettings):
                                                               "er wacht selten in Sekunden auf")
     fremde_nachlauf_s: float = Field(default=60.0, description="so lange muss ein Zugriff am Leitstand vorbei fehlen, bis er als weg gemeldet wird; "
                                                                 "ein Programm, das den Läufer immer wieder kurz anspricht, gilt so als ein Zugriff")
+    faehigkeitsprobe_s: float = Field(default=120.0, description="so lange wartet die Leitstelle je Modell auf die Antwort einer Fähigkeitsprobe "
+                                                                  "(von Hand am Dienst ausgelöst); danach ist das Ergebnis unklar und das bisherige bleibt")
     laeufer_befehl_s: float = Field(default=60.0, description="so lange wartet die Leitstelle auf die Antwort des Maschinenraums, wenn er einen "
                                                                "Arbeiter des Läufers beenden soll (er selbst wartet bis zu seiner Anhaltezeit)")
     bildablaeufe: dict[str, BildablaufEinstellung] = Field(

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from .fenster import Bedarf, Frei, Gesendet, Nutzung, Tokenbuchung, aufraeumen, frei_in_s, im_fenster, nutzung, zahl
 from .regelwerk import Regelwerk
 from .werte import (
     IM_SPEICHER,
@@ -102,8 +103,11 @@ class Dienst(BaseModel):
     startzeit_s: float = 3.0          # Vorgabe ohne Messung
     extern: bool = False
     plaetze: int = 1                  # gleichzeitige Aufträge je Modell
-    anfragen_je_minute: int | None = None   # Grenze des Anbieters; die Leitstelle hält sie ein
-    anfragen_s: list[float] = Field(default_factory=list)   # Zeitpunkte gesendeter Anfragen im gleitenden Fenster
+    anfragen_je_minute: int | None = None   # Grenzen des Anbieters je Minute (gleitend, je Schlüssel); die Leitstelle hält sie ein
+    token_ein_je_minute: int | None = None
+    token_aus_je_minute: int | None = None
+    gesendet: list[Gesendet] = Field(default_factory=list)       # gesendete Anfragen im gleitenden Fenster (kern/fenster.py)
+    token: list[Tokenbuchung] = Field(default_factory=list)      # Token je Anfrage, geschätzt oder echt
     gesperrt_bis_s: float | None = None     # nach Überlast des Dienstes (429, extern auch 5xx)
     einbettung_instanzen: int = 1           # so viele Instanzen je Einbettungsmodell darf die Leitstelle laden (Modell-Läufer)
     einbettung_spielraum_gb: float = 4.0    # so viel bleibt im Budget des Rechners frei, wenn sie Einbettungsinstanzen lädt
@@ -196,6 +200,13 @@ class Auftrag(BaseModel):
     arbeit: str | None = None         # Arbeit der Anwendung, zu der die Anfrage gehört (Kopf X-Leitstelle-Arbeit)
     extern_familien: list[str] = Field(default_factory=list)   # Erlaubnisliste der App für externe Modelle (Kopf X-Leitstelle-Extern)
     feste_instanz: str | None = None  # Folgeaufruf an genau diese Modellinstanz (Kopf X-Leitstelle-Instanz)
+    token_ein_geschaetzt: int = 0     # aus der Länge der Anfrage, für die Grenzen je Minute; nach der Antwort zählt der echte Verbrauch
+    token_aus_geschaetzt: int = 0     # höchstens so viele verlangt die Anfrage (max_tokens); 0: nicht bekannt
+
+    @property
+    def bedarf(self) -> Bedarf:
+        """Was der Auftrag von den Grenzen seines Dienstes je Minute braucht: eine Anfrage und seine Token."""
+        return Bedarf(anfragen=1, token_ein=self.token_ein_geschaetzt, token_aus=self.token_aus_geschaetzt)
 
     @property
     def offen(self) -> bool:
@@ -234,9 +245,6 @@ class Massnahme(BaseModel):
     modell: str | None = None         # Modellfamilie
     richtung: str | None = None       # laden, entladen, umleiten (Hauptrichtung)
     bewegungen: list[str] = Field(default_factory=list)   # "laden:familie@knoten", "entladen:familie@knoten" für den Flatterschutz
-
-
-ANFRAGE_FENSTER_S = 60.0              # Grenzen gelten je Minute
 
 
 class Verbund(BaseModel):
@@ -313,26 +321,69 @@ class Verbund(BaseModel):
             return m.plaetze or 1
         return min(d.plaetze, m.plaetze) if m.plaetze else d.plaetze
 
-    def anfrage_gesendet(self, dienst: str, zeit_s: float) -> None:
-        """Jede Anfrage an den Dienst (Arbeit, Wiederholung, Zustandsabfrage) zählt für seine Grenze."""
+    # ── Grenzen je Minute (kern/fenster.py) ──────────────────────────────
+    def anfrage_gesendet(self, dienst: str, zeit_s: float, familie: str | None = None) -> None:
+        """Jede Anfrage an den Dienst (Arbeit, Wiederholung, Zustandsabfrage) zählt für seine Grenze, mit dem Modell, das sie nennt."""
         d = self.dienste.get(dienst)
         if d is not None:
-            d.anfragen_s = [t for t in d.anfragen_s if zeit_s - t < ANFRAGE_FENSTER_S] + [zeit_s]
+            d.gesendet, d.token = aufraeumen(d.gesendet, d.token, zeit_s)
+            d.gesendet.append(Gesendet(zeit_s=zeit_s, familie=familie))
 
-    def anfrage_frei_in_s(self, dienst: str, schon_vergeben: int = 0) -> float:
-        """Sekunden, bis der Dienst die nächste Anfrage annimmt (0: jetzt): Sperre nach Überlast und Grenze je Minute. Es
-        zählen die gesendeten Anfragen der letzten Minute, zugeteilte, die noch nicht gesendet sind, und `schon_vergeben`
-        (in diesem Zuteillauf)."""
+    def token_vorbuchen(self, dienst: str, kennung: str, familie: str | None, ein: int, aus: int, zeit_s: float) -> None:
+        """Vor dem Senden: die geschätzten Token zählen sofort (eine neue Buchung derselben Kennung ersetzt die alte)."""
+        d = self.dienste.get(dienst)
+        if d is not None:
+            d.gesendet, d.token = aufraeumen(d.gesendet, d.token, zeit_s)
+            d.token = [t for t in d.token if t.kennung != kennung] + [Tokenbuchung(kennung=kennung, familie=familie, zeit_s=zeit_s, ende_s=zeit_s,
+                                                                                        token_ein=ein, token_aus=aus)]
+
+    def token_abschliessen(self, dienst: str, kennung: str, zeit_s: float, ein: int | None = None, aus: int | None = None) -> None:
+        """Nach der Antwort: der echte Verbrauch ersetzt die Schätzung (fehlt er, bleibt die Schätzung); Token heraus zählen
+        ab jetzt."""
+        d = self.dienste.get(dienst)
+        for t in d.token if d is not None else []:
+            if t.kennung == kennung and t.offen:
+                t.token_ein = t.token_ein if ein is None else ein
+                t.token_aus = t.token_aus if aus is None else aus
+                t.ende_s, t.offen = zeit_s, False
+
+    def token_streichen(self, dienst: str, kennung: str) -> None:
+        """Der Anbieter hat die Anfrage mit Überlast abgelehnt: sie hat keine Token verbraucht."""
+        d = self.dienste.get(dienst)
+        if d is not None:
+            d.token = [t for t in d.token if not (t.kennung == kennung and t.offen)]
+
+    def nutzung(self, dienst: str, familie: str | None = None) -> Nutzung:
+        """Anfragen und Token im gleitenden Fenster, für den ganzen Dienst (Schlüssel) oder ein Modell."""
         d = self.dienste[dienst]
-        warten = max(0.0, (d.gesperrt_bis_s or 0.0) - self.zeit_s)
+        return nutzung(d.gesendet, d.token, self.zeit_s, familie)
+
+    def frei(self, dienst: str, dazu: Bedarf | None = None) -> Frei:
+        """Wann der Dienst Anfragen mit dem Bedarf `dazu` annimmt (Vorgabe: eine Anfrage) und welche Grenze bindet: Sperre
+        nach Überlast, Anfragen, Token hinein und heraus je Minute. Es zählen das Fenster, zugeteilte und noch nicht gesendete
+        Aufträge und `dazu` (in diesem Zuteillauf vergeben und die neue Anfrage)."""
+        d = self.dienste[dienst]
+        dazu = dazu if dazu is not None else Bedarf(anfragen=1)
+        offen = sum((a.bedarf for a in self.auftraege.values() if a.dienst == dienst and a.zustand == Auftragszustand.ZUGETEILT), Bedarf()) + dazu
+        jetzt = self.zeit_s
+        kandidaten = [Frei(in_s=max(0.0, (d.gesperrt_bis_s or 0.0) - jetzt), grund="Dienst meldete Überlast")]
         if d.anfragen_je_minute:
-            fenster = sorted(t for t in d.anfragen_s if self.zeit_s - t < ANFRAGE_FENSTER_S)
-            offen = sum(1 for a in self.auftraege.values() if a.dienst == dienst and a.zustand == Auftragszustand.ZUGETEILT) + schon_vergeben
-            zuviel = len(fenster) + offen - d.anfragen_je_minute + 1
-            if zuviel > 0:
-                frei = fenster[zuviel - 1] + ANFRAGE_FENSTER_S - self.zeit_s if zuviel <= len(fenster) else ANFRAGE_FENSTER_S
-                warten = max(warten, frei)
-        return round(warten, 1)
+            kandidaten.append(Frei(in_s=frei_in_s([(g.zeit_s, 1) for g in d.gesendet if im_fenster(g.zeit_s, jetzt)], offen.anfragen, d.anfragen_je_minute, jetzt),
+                                   grund=f"Grenze von {zahl(d.anfragen_je_minute)} Anfragen je Minute erreicht"))
+        if d.token_ein_je_minute:
+            kandidaten.append(Frei(in_s=frei_in_s([(t.zeit_s, t.token_ein) for t in d.token if im_fenster(t.zeit_s, jetzt)], offen.token_ein,
+                                                  d.token_ein_je_minute, jetzt),
+                                   grund=f"Grenze von {zahl(d.token_ein_je_minute)} Token hinein je Minute erreicht"))
+        if d.token_aus_je_minute:
+            kandidaten.append(Frei(in_s=frei_in_s([(t.ende_s, t.token_aus) for t in d.token if im_fenster(t.ende_s, jetzt)], offen.token_aus,
+                                                  d.token_aus_je_minute, jetzt),
+                                   grund=f"Grenze von {zahl(d.token_aus_je_minute)} Token heraus je Minute erreicht"))
+        engpass = max(kandidaten, key=lambda f: f.in_s)
+        return Frei(in_s=round(engpass.in_s, 1), grund=engpass.grund if engpass.in_s > 0 else "")
+
+    def anfrage_frei_in_s(self, dienst: str, dazu: Bedarf | None = None) -> float:
+        """Sekunden, bis der Dienst Anfragen mit diesem Bedarf annimmt (0: jetzt); siehe `frei`."""
+        return self.frei(dienst, dazu).in_s
 
     def belegung(self, modell: str) -> list[Auftrag]:
         """Aufträge, die das Modell halten: laufende und schon zugeteilte."""

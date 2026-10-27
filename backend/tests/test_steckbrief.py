@@ -3,7 +3,7 @@ Fassade nur für Modelle, die die Anwendung nutzen darf."""
 
 from __future__ import annotations
 
-from leitstelle.fach.steckbrief import messwerte_aus, zusammensetzen
+from leitstelle.fach.steckbrief import Grenzen, messwerte_aus, zusammensetzen
 from leitstelle.kern.modelle import Modell
 from leitstelle.kern.werte import Auftragszustand, Eignung, Faehigkeit as F, Prioritaet, Zone
 from leitstelle.ports.ablage.eintraege import AuftragEintrag, SteckbriefEintrag
@@ -19,14 +19,15 @@ def _modell(parameter_mrd: float = 27) -> Modell:
 
 def test_von_hand_vor_dienst_vor_abgeleitet():
     dienst = Selbstauskunft(zweck="vom Dienst", eignung=[Eignung.DENKEN], quantisierung="4bit")
-    s = zusammensetzen(_modell(), dienst, None, 262144, Zone.HEIM, None, Messwerte())
+    s = zusammensetzen(_modell(), dienst, None, 262144, Zone.HEIM, Grenzen(), Messwerte())
     assert s.zweck == "vom Dienst" and s.eignung == [Eignung.DENKEN, Eignung.LANGE_TEXTE] and s.quantisierung == "4bit"
     assert s.herkunft["zweck"] == Quelle.DIENST and s.herkunft["kontext"] == Quelle.DIENST and "gemessen" not in s.herkunft
+    assert s.parameter_aktiv_mrd == 27 and s.herkunft["parameter_aktiv_mrd"] == Quelle.ABGELEITET, "ohne A..B im Namen: dicht"
     hand = SteckbriefEintrag(familie="probe/modell", zweck="von Hand", eignung=[Eignung.SCHNELL], sprachen=["de"])
-    s = zusammensetzen(_modell(), dienst, hand, 262144, Zone.EXTERN, 10, Messwerte(auftraege=3))
+    s = zusammensetzen(_modell(), dienst, hand, 262144, Zone.EXTERN, Grenzen(anfragen_je_minute=10), Messwerte(auftraege=3))
     assert s.zweck == "von Hand" and s.eignung == [Eignung.SCHNELL], "von Hand ersetzt, nichts wird dazu abgeleitet"
     assert s.sprachen == ["de"] and s.herkunft["eignung"] == Quelle.HAND and s.zone == Zone.EXTERN and s.anfragen_je_minute == 10
-    leer = zusammensetzen(_modell(parameter_mrd=0), Selbstauskunft(), None, 8192, Zone.HEIM, None, Messwerte())
+    leer = zusammensetzen(_modell(parameter_mrd=0), Selbstauskunft(), None, 8192, Zone.HEIM, Grenzen(), Messwerte())
     assert leer.zweck == "" and leer.eignung == [] and leer.parameter_mrd is None and leer.herkunft == {"kontext": Quelle.DIENST}
 
 

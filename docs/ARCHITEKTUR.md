@@ -115,7 +115,7 @@ Schlüssel sind UUIDs; nach außen zeigen wir Wörter, nie Schlüssel.
 | Begriff | Bedeutung | Wichtige Felder |
 |---|---|---|
 | Knoten | ein Rechner mit Agent | Kennung, Name, Zone (heim, fern, extern), Adresse, Messwerte, Zustand (erreichbar, nicht erreichbar, wartung), Regeln (Budget, Zeitfenster) |
-| Dienst | ein Anbieter von Fähigkeiten auf einem Knoten oder extern | Kennung, Art (Adapter), Adresse, Fähigkeiten, Modelle, Zustand (bereit, aus, startet, pausiert, nicht erreichbar, Ausfall), Grenze je Minute, Besonderheiten, Kosten |
+| Dienst | ein Anbieter von Fähigkeiten auf einem Knoten oder extern | Kennung, Art (Adapter), Adresse, Fähigkeiten, Modelle, Zustand (bereit, aus, startet, pausiert, nicht erreichbar, Ausfall), Grenzen je Minute (Anfragen, Token hinein und heraus), Besonderheiten, Kosten |
 | Modell | ein ladbares Modell eines Dienstes | Kennung, Name, Aliasse (Namen beim Anbieter: Schlüssel und Instanz-Kennung), Fähigkeit, Größe, Kontext, Parameterzahl, Zustand (frei, lädt, geladen, rechnet, extern), geschützt |
 | Fähigkeit | was ein Auftrag braucht | Werteliste: text, einbettung, uebersetzen, hoeren, bild_beschreiben, bild_erzeugen, bild_freistellen, musik, stimme, stimme_klonen, werkzeug; erweiterbar über die Registry |
 | Anwendung | ein angemeldeter Verbraucher | Kennung, Name, Schlüssel (verschlüsselt), erlaubte Fähigkeiten, Zonen, Kostengrenze, Vorgabe-Priorität, Kette je Fähigkeit, Herkunft (Adressen), Umbau-Stufe, Signalkanal ja/nein |

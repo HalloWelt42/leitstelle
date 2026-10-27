@@ -228,9 +228,11 @@ einen Steckbrief. Die Leitstelle setzt ihn aus drei Quellen zusammen und nennt j
 | `faehigkeiten` | wie überall im Protokoll (`text`, `uebersetzen`, `stimme`, ...) |
 | `kontext` | größter Kontext in Token |
 | `parameter_mrd` | Parameter in Milliarden (Gesamtzahl, nicht die aktiven) |
+| `parameter_aktiv_mrd` | je Schritt aktive Parameter in Milliarden: bei Mischmodellen weniger (aus dem Namen, `A3B` heißt 3, oder von Hand), sonst gleich gesamt |
 | `quantisierung` | wie der Dienst sie nennt (`4bit`, `FP8`) |
 | `zone` | `heim`, `fern` oder `extern`; extern heißt: Daten verlassen das Heimnetz |
-| `anfragen_je_minute` | Grenze des Anbieters, wenn er eine hat |
+| `anfragen_je_minute`, `token_ein_je_minute`, `token_aus_je_minute` | Grenzen des Anbieters je Minute (gleitend, je Schlüssel), wenn er welche hat |
+| `geprueft` | Fähigkeitsproben der Leitstelle (Quelle `gemessen`): je Fähigkeit `belegt`, `zeit_s` und die gekürzte Antwort als `meldung` |
 | `gemessen` | `auftraege` (Grundlage), `rechenzeit_s`, `erstes_stueck_s`, `token_je_s` (Median der jüngsten 100 fertigen Aufträge), `ladezeit_s` (gleitender Mittelwert) |
 | `herkunft` | je Feld die Quelle: `dienst`, `hand`, `gemessen`, `abgeleitet` |
 
@@ -241,8 +243,8 @@ einen Steckbrief. Die Leitstelle setzt ihn aus drei Quellen zusammen und nennt j
 | `denken` | schließt schrittweise; für schwierige Fragen, dauert länger |
 | `programmieren` | für Quelltext |
 | `lange_texte` | großer Kontext; abgeleitet ab 100 000 Token, wenn niemand etwas anderes sagt |
-| `schnell` | kurze Wartezeit, auch auf Kosten der Tiefe |
-| `gruendlich` | beste Ergebnisse, auch auf Kosten der Zeit |
+| `schnell` | kurze Wartezeit, auch auf Kosten der Tiefe; bei externen Anbietern abgeleitet für das Mischmodell, wenn der Anbieter auch ein dichtes anbietet |
+| `gruendlich` | beste Ergebnisse, auch auf Kosten der Zeit; bei externen Anbietern abgeleitet für das dichte Modell im selben Vergleich |
 
 **Quellen und Vorrang.** Von Hand Eingetragenes geht vor, dann die Auskunft des Dienstes, dann Abgeleitetes. Ein
 Eintrag von Hand gilt je Modellfamilie (dasselbe Modell auf zwei Rechnern teilt ihn); ein leeres Feld lässt die
@@ -251,7 +253,7 @@ Auskunft des Dienstes stehen. Was die Dienste selbst sagen:
 | Dienst | Selbstauskunft |
 |---|---|
 | Modell-Läufer (`openai_kompatibel` mit nativer Schnittstelle) | Beschreibung der Modellkarte als Zweck, `capabilities.reasoning` als `denken`, Quantisierung, Kontext, Parameter, Bilder und Werkzeuge (als Fähigkeiten) |
-| Externer Anbieter (`extern_openai`) | Kontext (`max_model_len`), Parameter aus dem Namen; Zweck und Eignung trägt man von Hand ein |
+| Externer Anbieter (`extern_openai`) | Kontext (`max_model_len`), Parameter gesamt und aktiv aus dem Namen; im Vergleich der Textmodelle des Anbieters abgeleitet schnell (Mischmodell, für kurze Aufgaben) und gründlich (dicht, für lange Texte) mit passendem Zweck; Bild beschreiben nur, wenn eine Fähigkeitsprobe es belegt (von Hand am Dienst, `POST /api/dienste/<kennung>/faehigkeiten_pruefen`: je Modell ein kleines Bild mit einer Frage, zählt gegen die Grenzen) |
 | Maschinenraum (Knoten-Agent) | aus der Dienstdatei: `beschreibung` als Zweck, `eignung`, `sprachen`; im Bericht `knoten.dienste` je Dienst als `selbstauskunft` |
 
 **Abfrage.** `GET /v1/steckbriefe` (Fassade, Schlüssel der Anwendung) mit den Filtern `faehigkeit`, `eignung` und
@@ -259,7 +261,8 @@ Auskunft des Dienstes stehen. Was die Dienste selbst sagen:
 Fähigkeit und Eignung müssen passen; bei `sprache` kommen zuerst die Modelle, die sie ausdrücklich können, dann die
 ohne Angabe, darin geladene vor freien. `GET /v1/models` trägt denselben Steckbrief je Eintrag unter
 `x-leitstelle.steckbrief`. Von Hand eintragen: `PUT /api/steckbriefe` (Verwaltung, Heimnetz) mit `familie`, `zweck`,
-`eignung`, `sprachen`; alles leer entfernt den Eintrag.
+`eignung`, `sprachen`, `parameter_aktiv_mrd`; alles leer entfernt den Eintrag. Die Wahl zwischen Modellen bleibt bei der
+Anwendung: sie nennt das gewünschte als `model` (bei externen zusätzlich mit Erlaubnis) oder sucht über die Eignung.
 
 ```json
 {"object": "list", "data": [{"id": "qwen/qwen3-next-80b", "name": "Qwen3 Next 80B", "geladen": true,

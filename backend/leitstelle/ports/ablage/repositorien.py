@@ -11,13 +11,14 @@ from ...kern.messungen import Messwerk, Mittel
 from ...kern.modelle import Massnahme, Regelwerk
 from ...kern.werte import Auftragszustand, Faehigkeit, Massnahmenart, Massnahmenzustand, OFFENE_ZUSTAENDE, Prioritaet, Zone
 from .datenbank import Datenbank
-from .eintraege import (AliasEintrag, AnwendungEintrag, AuftragEintrag, BetriebEinstellung, Bewegung, DienstEintrag, Kennzahlen, KnotenEintrag, PruefEintrag,
-                        Schlafstand, SteckbriefEintrag)
+from .eintraege import (AliasEintrag, AnwendungEintrag, AuftragEintrag, BetriebEinstellung, Bewegung, DienstEintrag, FaehigkeitsprobeEintrag, Kennzahlen,
+                        KnotenEintrag, PruefEintrag, Schlafstand, SteckbriefEintrag)
 from .tabellen import (
     AliasTabelle,
     AnwendungTabelle,
     AuftragTabelle,
     BewegungTabelle,
+    FaehigkeitsprobeTabelle,
     SteckbriefTabelle,
     DienstTabelle,
     EinstellungTabelle,
@@ -125,7 +126,8 @@ class SteckbriefAblage:
 
     async def alle(self) -> list[SteckbriefEintrag]:
         async with self.db.sitzung() as s:
-            return [SteckbriefEintrag(familie=z.familie, zweck=z.zweck, eignung=list(z.eignung), sprachen=list(z.sprachen))
+            return [SteckbriefEintrag(familie=z.familie, zweck=z.zweck, eignung=list(z.eignung), sprachen=list(z.sprachen),
+                                      parameter_aktiv_mrd=z.parameter_aktiv_mrd)
                     for z in (await s.scalars(select(SteckbriefTabelle))).all()]
 
     async def speichern(self, e: SteckbriefEintrag) -> None:
@@ -135,6 +137,23 @@ class SteckbriefAblage:
     async def loeschen(self, familie: str) -> None:
         async with self.db.sitzung() as s, s.begin():
             await s.execute(delete(SteckbriefTabelle).where(SteckbriefTabelle.familie == familie))
+
+
+class ProbenAblage:
+    """Fähigkeitsproben: je Familie und Fähigkeit das letzte Ergebnis."""
+
+    FELDER = tuple(FaehigkeitsprobeEintrag.model_fields)
+
+    def __init__(self, db: Datenbank) -> None:
+        self.db = db
+
+    async def alle(self) -> list[FaehigkeitsprobeEintrag]:
+        async with self.db.sitzung() as s:
+            return [FaehigkeitsprobeEintrag(**_felder(z, *self.FELDER)) for z in (await s.scalars(select(FaehigkeitsprobeTabelle))).all()]
+
+    async def speichern(self, e: FaehigkeitsprobeEintrag) -> None:
+        async with self.db.sitzung() as s, s.begin():
+            await s.merge(FaehigkeitsprobeTabelle(**e.model_dump(mode="json")))
 
 
 class AuftragAblage:
@@ -332,3 +351,4 @@ class Ablage:
         self.pruefung = PruefAblage(db)
         self.bewegungen = BewegungsAblage(db)
         self.steckbriefe = SteckbriefAblage(db)
+        self.proben = ProbenAblage(db)

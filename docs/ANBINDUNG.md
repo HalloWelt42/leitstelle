@@ -88,6 +88,11 @@ Die Anwendung ändert nur die Adresse ihres Modell-Läufers und bekommt einen Sc
   (PROTOKOLL 6.2); etwa für eine Auswahl "Bilder erzeugen mit".
 - `GET /v1/steckbriefe` (Filter `faehigkeit`, `eignung`, `sprache`): wofür welches Modell gemacht ist
   (PROTOKOLL 4.8); dieselben Steckbriefe stehen in `GET /v1/models` unter `x-leitstelle.steckbrief`.
+- Externe Modelle gezielt wählen: bietet ein Anbieter ein Mischmodell mit wenigen aktiven Parametern und ein dichtes
+  an, heißt das erste im Steckbrief `schnell` (für kurze Aufgaben) und das zweite `gruendlich` (für lange Texte und
+  schwierige Fragen). Die Wahl bleibt bei der Anwendung: das gewünschte Modell als `model` nennen (und die Zone extern
+  erlaubt haben) oder auf die Erlaubnisliste setzen; die Leitstelle wählt dann nur beim Ausweichen. Grenzen je Minute
+  des Anbieters (Anfragen, Token hinein und heraus) hält die Leitstelle ein; wer darüber läge, wartet mit Hinweis.
 - Mehr gleichzeitige Aufträge als erlaubt warten in der Warteschlange statt abgelehnt zu werden.
 - Fehlt `model`, setzt die Leitstelle das erste passende Modell der Kette ein.
 - Reasoning-Modelle mit leerem Inhalt: die Leitstelle wiederholt mit größerem Budget und entfernt die

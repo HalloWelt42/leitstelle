@@ -38,6 +38,8 @@ class DienstTabelle(Basis):
     zugang_geheim: Mapped[str | None] = mapped_column(Text, nullable=True)
     plaetze: Mapped[int] = mapped_column(Integer, default=4)
     anfragen_je_minute: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    token_ein_je_minute: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    token_aus_je_minute: Mapped[int | None] = mapped_column(Integer, nullable=True)
     abgleich_s: Mapped[float | None] = mapped_column(Float, nullable=True)
     einbettung_instanzen: Mapped[int] = mapped_column(Integer, default=1)
     einbettung_spielraum_gb: Mapped[float] = mapped_column(Float, default=4.0)
@@ -66,6 +68,18 @@ class SteckbriefTabelle(Basis):
     zweck: Mapped[str] = mapped_column(Text, default="")
     eignung: Mapped[list[str]] = mapped_column(JSON, default=list)
     sprachen: Mapped[list[str]] = mapped_column(JSON, default=list)
+    parameter_aktiv_mrd: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+
+class FaehigkeitsprobeTabelle(Basis):
+    """Je Modellfamilie und Fähigkeit das Ergebnis der letzten Probe von Hand."""
+
+    __tablename__ = "faehigkeitsproben"
+    familie: Mapped[str] = mapped_column(String(255), primary_key=True)
+    faehigkeit: Mapped[str] = mapped_column(String(30), primary_key=True)
+    belegt: Mapped[bool] = mapped_column(Boolean)
+    zeit_s: Mapped[float] = mapped_column(Float)
+    meldung: Mapped[str] = mapped_column(Text, default="")
 
 
 class AliasTabelle(Basis):

@@ -1,8 +1,9 @@
 // Wörter, Symbole und Farben zu den Schlüsseln des Kerns. Gedruckt wird nie ein Schlüssel.
 import type {
   Auftragszustand, Betriebsmodus, Dienstzustand, Eignung, Faehigkeit, Fremdart, Fremddeutung, Hintergrundstufe, KnotenSicht, Knotenzustand,
-  Laeuferrolle, Lage, Massnahmenart, Massnahmenzustand, Modellzustand, Quelle, Zone,
+  Laeuferrolle, Lage, Massnahmenart, Massnahmenzustand, Modellzustand, Probenausgang, Quelle, Steckbrief, Zone,
 } from './typen.gen';
+import { zahl } from './format';
 
 export const FAEHIGKEIT: Record<Faehigkeit, { wort: string; symbol: string; farbe: string; klasse: string }> = {
   text: { wort: 'Text', symbol: 'fa-comment-dots', farbe: 'var(--himmel)', klasse: 'text' },
@@ -83,6 +84,24 @@ export const FREMDDEUTUNG: Record<Fremddeutung, string> = {
 export const EIGNUNG: Record<Eignung, string> = {
   denken: 'Denkt schrittweise', programmieren: 'Programmieren', lange_texte: 'Lange Texte', schnell: 'Schnell', gruendlich: 'Gründlich',
 };
+
+/** Ausgang einer Fähigkeitsprobe (von Hand am externen Dienst) */
+export const PROBENAUSGANG: Record<Probenausgang, string> = { belegt: 'belegt', nicht_belegt: 'nicht belegt', unklar: 'unklar' };
+
+/** Parameter eines Modells: gesamt und je Schritt aktiv (Mischmodelle) */
+export function parameterText(s: Steckbrief): string {
+  const g = s.parameter_mrd, a = s.parameter_aktiv_mrd;
+  if (!g) return 'Größe unbekannt';
+  return a && a < g ? `${zahl(g)} Milliarden, davon ${zahl(a)} aktiv` : `${zahl(g)} Milliarden`;
+}
+
+/** Art eines Modells externer Anbieter im Vergleich (Steckbrief: Eignung schnell oder gründlich, vom Kern abgeleitet oder von Hand) */
+export function art(s: Steckbrief): { wort: string; satz: string } | null {
+  const g = zahl(s.parameter_mrd), a = zahl(s.parameter_aktiv_mrd);
+  if (s.eignung?.includes('schnell')) return { wort: 'schnell', satz: `Mischmodell: ${a} von ${g} Milliarden Parametern je Schritt aktiv; für kurze Aufgaben` };
+  if (s.eignung?.includes('gruendlich')) return { wort: 'gründlich', satz: `dicht: alle ${g} Milliarden Parameter je Schritt aktiv; für lange Texte und schwierige Fragen` };
+  return null;
+}
 
 export const QUELLE: Record<Quelle, string> = {
   dienst: 'sagt der Dienst', hand: 'von Hand eingetragen', gemessen: 'gemessen', abgeleitet: 'abgeleitet',

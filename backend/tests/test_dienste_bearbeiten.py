@@ -12,7 +12,7 @@ async def _dienste(c) -> dict[str, dict]:
     return {d["art"]: d for d in (await c.get("/api/lage")).json()["dienste"]}
 
 
-async def test_dienst_des_maschinenraums_nur_der_name(tmp_path):
+async def test_v01_bis_v03_dienst_des_maschinenraums_nur_der_name(tmp_path):
     async with aufbau(tmp_path) as a:
         d = await _dienste(a.c)
         agent, laeufer = d["agent"], d["openai_kompatibel"]

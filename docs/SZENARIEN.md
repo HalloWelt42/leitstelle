@@ -1,7 +1,7 @@
 # Szenarienkatalog: geprüftes Verhalten des Entscheidungskerns
 
-Jedes Szenario ist ein Test in `backend/tests/`; die Nummer (S01 bis S53 für den Kern, E01 bis E16 Ende zu Ende, R01 bis R07 Schlaf)
-steht im Testnamen. Alles ist
+Jedes Szenario ist ein Test in `backend/tests/`; die Nummer (S01 bis S53 für den Kern, E01 bis E16 Ende zu Ende, R01 bis R07 Schlaf,
+V01 bis V07 Verwaltung, X01 bis X07 externe Anbieter) steht im Testnamen. Alles ist
 gemockt: kein echter Modell-Läufer, kein Netz, keine Uhr. Die Schein-Welt (`backend/leitstelle/simulation/`)
 bildet den echten Bestand nach (8 Anwendungen, 5 Anbindungen, 4 Knoten, 14 Modellinstanzen) und kennt eine
 verborgene Wahrheit, die die Leitstelle nur über Messungen erfährt. Ihre Namen sind erfunden und stehen so in
@@ -333,6 +333,18 @@ Beenden mit nachgestellter Prozesstabelle, nachgestelltem lsof und nachgestellte
 | V05 | Regel "Läufer ohne Auftrag" an, Frist und Warnschwelle ändern, eine zurück auf die Vorgabe, neu starten | wirkt sofort und steht im Lagebild; Prüfprotokoll "Regelwert Frist (Läufer und Last): 5 min auf 10 min" und "Regel Läufer ohne Auftrag: aus auf an"; gespeichert nur die Abweichungen; nach dem Neustart geladen |
 | V06 | Wert außerhalb der Grenzen, unbekannter Wert, Bruch bei einer Anzahl, Schalter mit Zahl, unbekannte Automatik, Anhalten unter Drosseln | 400 `eingabe` beziehungsweise 404 `unbekannt` mit Satz; nichts übernommen, nichts gespeichert |
 | V07 | Regel "Hintergrund bei Rechnerlast" aus, während ein Rechner gedrosselt ist; Automatik auf Vorschlagen, während Hintergrund nach Lage angehalten ist | der Rechner wird frei, Hintergrund läuft wieder; beides im Verlauf ("wirkt nicht mehr") |
+
+## 3f. Externer Anbieter wie Hetzner (`test_extern.py`, `test_zuteiler.py`, `test_ablage.py`)
+
+| Nr. | Situation | Erwartet |
+|---|---|---|
+| X01 | Anbieter mit Qwen3.6-35B-A3B und Qwen3.8-27B | beide einzeln mit Kontext 262.144, Parametern 35 (3 aktiv) und 27 (27 aktiv, dicht); Eignung schnell beziehungsweise gründlich samt Zweck abgeleitet; in `/v1/models` und `/v1/steckbriefe?eignung=schnell`; immer bereit, Größe 0; aktive Parameter von Hand gehen vor und heben den Vergleich auf |
+| X02 | Chat an Qwen3.8-27B, dann einer mit `max_tokens` 5 bei einer Grenze von 10 Token heraus | Nutzung des Modells 1 Anfrage, 3 Token hinein, 7 heraus (echt aus usage), des Schlüssels mit der Abfrage der Modelle; der zweite wartet mit "Grenze von 10 Token heraus je Minute erreicht" 60 s und läuft danach |
+| X03 | Strom ohne `stream_options` | zum Anbieter mit `include_usage`; die Anwendung bekommt kein Stück ohne `choices`, der Verlauf hat die Token; wer es verlangt, bekommt es |
+| X04 | Fähigkeiten prüfen | je Modell eine Anfrage mit Bild; das Mischmodell belegt Bild beschreiben (Antwort "Rot."), das dichte nicht (400 des Anbieters); Fähigkeiten, Steckbrief mit Zeitpunkt (Quelle gemessen), Prüfprotokoll, Nutzung; ein Bild an das dichte ist danach `kein_modell`; nach dem Neustart geladen |
+| X05 | Fähigkeiten prüfen bei einer Grenze von 2 Anfragen (eine schon durch die Abfrage der Modelle) | 429 `grenze` mit Satz, keine Anfrage an den Anbieter |
+| X06 | Grenzen der Token im Kern (Schein-Welt) | geschätzte Token offener Anfragen zählen sofort, der echte Verbrauch ersetzt sie; ein großer Auftrag wartet mit Grund und Frist, ein kleiner läuft; Token heraus zählen ab dem Ende |
+| X07 | Datenbank aus 0.23 (Revision 0009) mit Hetzner und Steckbrief von Hand | Migration 0010: Token-Grenzen und aktive Parameter leer, Proben speicherbar |
 
 ## 4. Zweige je Vorlage
 

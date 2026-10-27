@@ -20,9 +20,17 @@ import httpx
 from ...kern.werte import GIB, Eignung
 from ...kern.werte import Faehigkeit as F
 from ...protokoll.knoten import Selbstauskunft
-from .schnittstelle import Dienstbericht, DienstFehler, Durchleitung, ModellBericht
+from .schnittstelle import Dienstbericht, DienstFehler, Durchleitung, ModellBericht, Verbrauch
 
 TEXT_FAEHIGKEITEN = {F.TEXT, F.UEBERSETZEN}
+MODELL_ERWEITERUNG = "leitstelle_modell"     # trägt den Modellnamen einer Anfrage bis zum Haken, der sie zählt
+
+
+def verbrauch_aus(usage: Any) -> Verbrauch | None:
+    """`usage` im OpenAI-Format als Verbrauch."""
+    if not isinstance(usage, dict):
+        return None
+    return Verbrauch(token_ein=usage.get("prompt_tokens"), token_aus=usage.get("completion_tokens"))
 
 
 def _milliarden(params: str | None) -> float | None:
@@ -97,6 +105,7 @@ class HttpStrom:
         self._geschlossen = False
         self.status = antwort.status_code
         self.kopf = {k.lower(): v for k, v in antwort.headers.items()}
+        self.verbrauch: Verbrauch | None = None
 
     async def zeilen(self) -> AsyncIterator[bytes]:
         try:
@@ -130,7 +139,7 @@ class OpenAIKompatibel:
     ueberlast_status = frozenset({429})
 
     def __init__(self, adresse: str, zugang: str | None = None, verbindung_s: float = 10.0, transport: httpx.AsyncBaseTransport | None = None,
-                 beim_senden: Callable[[], None] | None = None) -> None:
+                 beim_senden: Callable[[str | None], None] | None = None) -> None:
         basis = adresse.rstrip("/")
         if basis.endswith("/v1"):
             basis = basis[:-3]
@@ -142,9 +151,10 @@ class OpenAIKompatibel:
                                          timeout=httpx.Timeout(connect=verbindung_s, read=None, write=None, pool=None),
                                          event_hooks={"request": [self._gesendet]} if beim_senden else {})
 
-    async def _gesendet(self, _anfrage: httpx.Request) -> None:
+    async def _gesendet(self, anfrage: httpx.Request) -> None:
+        """Jede Anfrage zählt, mit dem Modell, das sie nennt (nur Anfragen über `anfrage` kennen es)."""
         if self._beim_senden:
-            self._beim_senden()
+            self._beim_senden(anfrage.extensions.get(MODELL_ERWEITERUNG))
 
     async def schliessen(self) -> None:
         await self._client.aclose()
@@ -219,8 +229,9 @@ class OpenAIKompatibel:
 
     # ── Durchleiten ──────────────────────────────────────────────────────
     async def anfrage(self, pfad: str, koerper: dict[str, Any]) -> HttpStrom:
+        anfrage = self._client.build_request("POST", pfad, json=koerper, extensions={MODELL_ERWEITERUNG: koerper.get("model")})
         try:
-            antwort = await self._client.send(self._client.build_request("POST", pfad, json=koerper), stream=True)
+            antwort = await self._client.send(anfrage, stream=True)
         except httpx.HTTPError as fehler:
             raise DienstFehler("dienst_nicht_erreichbar", _ursache(fehler), wiederholbar=True) from fehler
         return HttpStrom(antwort)
@@ -245,10 +256,11 @@ class GesammelteAntwort:
     """Eine ganze Antwort, die der Adapter aus einem Strom des Anbieters zusammengesetzt hat (die Anwendung wollte keinen
     Strom). Verhält sich wie ein Strom mit einem einzigen Stück."""
 
-    def __init__(self, inhalt: bytes) -> None:
+    def __init__(self, inhalt: bytes, verbrauch: Verbrauch | None = None) -> None:
         self._inhalt = inhalt
         self.status = 200
         self.kopf = {"content-type": "application/json"}
+        self.verbrauch = verbrauch
 
     async def zeilen(self) -> AsyncIterator[bytes]:
         for zeile in self._inhalt.splitlines():
@@ -298,6 +310,41 @@ async def strom_zusammensetzen(zeilen: AsyncIterator[bytes]) -> dict[str, Any]:
             **({"usage": verbrauch} if verbrauch else {})}
 
 
+class VerbrauchsStrom:
+    """Strom eines Anbieters, bei dem die Leitstelle den Verbrauch angefordert hat (`stream_options.include_usage`): sie
+    liest ihn aus dem Stück mit `usage` und reicht ein Stück ohne `choices` nur weiter, wenn die Anwendung selbst darum
+    bat (nicht jeder Leser kennt es)."""
+
+    def __init__(self, strom: HttpStrom, weiterreichen: bool) -> None:
+        self._strom = strom
+        self._weiterreichen = weiterreichen
+        self.status = strom.status
+        self.kopf = strom.kopf
+        self.verbrauch: Verbrauch | None = None
+
+    async def zeilen(self) -> AsyncIterator[bytes]:
+        async for zeile in self._strom.zeilen():
+            if zeile.startswith(b"data: ") and b'"usage"' in zeile:
+                try:
+                    teil = json.loads(zeile[6:])
+                except ValueError:
+                    teil = None
+                if isinstance(teil, dict) and teil.get("usage"):
+                    self.verbrauch = verbrauch_aus(teil["usage"])
+                    if not teil.get("choices") and not self._weiterreichen:
+                        continue
+            yield zeile
+
+    def stuecke(self) -> AsyncIterator[bytes]:
+        return self._strom.stuecke()
+
+    async def lesen(self) -> bytes:
+        return await self._strom.lesen()
+
+    async def schliessen(self) -> None:
+        await self._strom.schliessen()
+
+
 class ExternOpenAI(OpenAIKompatibel):
     """Externer Anbieter im OpenAI-Format (zuerst Hetzner): nur `/v1/models`, nie Laden oder Entladen; mehrere Namen
     mit gleichem `root` sind ein Modell (Hetzner nennt jedes Modell zweimal). Jede Anfrage zählt für die Grenze je
@@ -330,20 +377,25 @@ class ExternOpenAI(OpenAIKompatibel):
                                          kontext=namen[0].get("max_model_len")))
         return Dienstbericht(erreichbar=True, steuerbar=False, modelle=modelle, meldung="externer Anbieter: immer bereit, Laden übernimmt der Anbieter")
 
-    async def anfrage(self, pfad: str, koerper: dict[str, Any]) -> HttpStrom | GesammelteAntwort:
+    async def anfrage(self, pfad: str, koerper: dict[str, Any]) -> HttpStrom | VerbrauchsStrom | GesammelteAntwort:
         """Immer als Strom zum Anbieter: Vorschaltrechner externer Anbieter brechen stille Anfragen nach einer Frist ab
         (Hetzner: 504 nach 300 s, gemessen 18.10.2026 an einem denkenden Modell); im Strom fließen die Token laufend.
-        Wollte die Anwendung keinen Strom, setzt der Adapter die Antwort zusammen."""
-        if koerper.get("stream") or not pfad.rstrip("/").endswith("chat/completions"):
+        Wollte die Anwendung keinen Strom, setzt der Adapter die Antwort zusammen. Den Verbrauch (`usage`) fordert er
+        immer an: die Grenzen des Anbieters zählen Token."""
+        if not pfad.rstrip("/").endswith("chat/completions"):
             return await super().anfrage(pfad, koerper)
-        strom = await super().anfrage(pfad, {**koerper, "stream": True, "stream_options": {"include_usage": True}})
+        optionen = koerper.get("stream_options") or {}
+        mit_verbrauch = {**koerper, "stream": True, "stream_options": {**optionen, "include_usage": True}}
+        strom = await super().anfrage(pfad, mit_verbrauch)
         if strom.status >= 400:
             return strom
+        if koerper.get("stream"):
+            return VerbrauchsStrom(strom, weiterreichen=bool(optionen.get("include_usage")))
         try:
             antwort = await strom_zusammensetzen(strom.zeilen())
         finally:
             await strom.schliessen()
-        return GesammelteAntwort(json.dumps(antwort, ensure_ascii=False).encode())
+        return GesammelteAntwort(json.dumps(antwort, ensure_ascii=False).encode(), verbrauch_aus(antwort.get("usage")))
 
     async def laden(self, schluessel: str) -> str:
         raise DienstFehler("nicht_steuerbar", "Ein externer Anbieter lädt seine Modelle selbst.")

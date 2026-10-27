@@ -6,6 +6,7 @@
   import type { AuftragEintrag, AuftragSicht, Kennzahlen, Lagebild } from '../lib/typen.gen';
   import { weg } from '../lib/weg.svelte';
   import { FAEHIGKEIT, HINTERGRUNDSTUFE, KNOTENZUSTAND, LAGE, MASSNAHME, PRIORITAET, knotenzustand } from '../lib/wort';
+  import AnbieterModelle from '../teile/AnbieterModelle.svelte';
   import Faehigkeit from '../teile/Faehigkeit.svelte';
   import Laeuferlast from '../teile/Laeuferlast.svelte';
   import Netzbild from '../teile/Netzbild.svelte';
@@ -49,6 +50,9 @@
   const mitLast = $derived(bild.knoten.filter((k) => k.last.gemeldet));
   const ohneAuftrag = $derived(bild.knoten.flatMap((k) => k.last.laeufer.filter((p) => p.ohne_auftrag_seit_s != null).map((p) => ({ k, p }))));
   const gebremst = $derived(bild.knoten.filter((k) => k.last.stufe !== 'frei'));
+  // Externe Anbieter: ihre Modelle einzeln mit Art, Kontext, Plätzen und Nutzung im Fenster (beim Anbieter wird nichts geladen)
+  const externe = $derived(bild.dienste.filter((d) => d.extern));
+  const anbietermodelle = (d: string) => bild.modelle.filter((m) => m.dienst === d && !m.zusatz);
   const ausgefuehrt = $derived(bild.massnahmen.filter((m) => m.zustand === 'ausgefuehrt' || m.zustand === 'gesperrt' || m.zustand === 'geplant').slice(0, 6));
 
   function meldungsart(text: string): string {
@@ -175,6 +179,16 @@
         </div>
       </div>
 
+      {#if externe.length}
+        <div class="karte anbieterkarte">
+          <h3><i class="fa-solid fa-cloud"></i>Externe Anbieter <span class="rechts">rechnen beim Anbieter</span></h3>
+          {#each externe as d (d.kennung)}
+            <div class="anbieter-kopf"><b>{d.name}</b>{#if d.zustand !== 'bereit'}<Zustand art="dienst" wert={d.zustand} />{/if}</div>
+            <AnbieterModelle dienst={d} modelle={anbietermodelle(d.kennung)} {jetzt} knapp />
+          {/each}
+        </div>
+      {/if}
+
       {#if mitLast.length}
         <div class="karte lastkarte">
           <h3><i class="fa-solid fa-microchip"></i>Läufer und Last <span class="rechts">je Rechner</span></h3>
@@ -226,7 +240,8 @@
   .lagezeile b.ruhig { color: var(--gut); }
   .speicher-zeile { margin-top: 6px; }
   .vorbei-hinweis { margin-bottom: var(--a4); }
-  .lastkarte { display: flex; flex-direction: column; gap: var(--a2); }
+  .lastkarte, .anbieterkarte { display: flex; flex-direction: column; gap: var(--a2); }
+  .anbieter-kopf { display: flex; flex-wrap: wrap; align-items: center; gap: var(--a2); }
   :global(.seite-uebersicht .lauf .titel) { display: block; color: var(--text); }
   :global(.seite-uebersicht .lauf.zuletzt) { grid-template-columns: 34px minmax(0, 1fr) 110px 90px; color: inherit; margin-top: 2px; }
   :global(.seite-uebersicht .wartet-k .eintrag .t a) { color: var(--text); }

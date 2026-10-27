@@ -32,15 +32,28 @@ class Messwerte(BaseModel):
     ladezeit_s: float | None = None
 
 
+class Faehigkeitsprobe(BaseModel):
+    """Eine Fähigkeit, die die Leitstelle mit einer kleinen Aufgabe geprüft hat (von Hand ausgelöst, Quelle gemessen)."""
+
+    faehigkeit: Faehigkeit
+    belegt: bool                      # die Probe hat die Fähigkeit gezeigt; falsch: abgelehnt oder falsch beantwortet
+    zeit_s: float                     # Zeitpunkt der Probe (Sekunden seit 1970)
+    meldung: str = ""                 # was der Dienst antwortete, gekürzt
+
+
 class Steckbrief(BaseModel):
     zweck: str = ""                                          # ein Satz: wofür gemacht oder optimiert
     eignung: list[Eignung] = Field(default_factory=list)
     sprachen: list[str] = Field(default_factory=list)        # ISO 639-1; leer: nicht angegeben
     faehigkeiten: list[Faehigkeit] = Field(default_factory=list)
     kontext: int | None = None                               # Token
-    parameter_mrd: float | None = None
+    parameter_mrd: float | None = None                       # gesamt
+    parameter_aktiv_mrd: float | None = None                 # je Schritt aktiv: bei Mischmodellen weniger (A3B: 3), sonst gleich gesamt
     quantisierung: str | None = None
     zone: Zone = Zone.HEIM                                   # wo gerechnet wird; extern heißt: Daten verlassen das Heimnetz
-    anfragen_je_minute: int | None = None                    # Grenze des Anbieters
+    anfragen_je_minute: int | None = None                    # Grenzen des Anbieters je Minute (gleitend, je Schlüssel)
+    token_ein_je_minute: int | None = None
+    token_aus_je_minute: int | None = None
+    geprueft: list[Faehigkeitsprobe] = Field(default_factory=list)   # Fähigkeitsproben der Leitstelle (Quelle gemessen)
     gemessen: Messwerte = Field(default_factory=Messwerte)
     herkunft: dict[str, Quelle] = Field(default_factory=dict)   # je Angabe, woher sie stammt

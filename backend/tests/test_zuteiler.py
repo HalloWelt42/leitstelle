@@ -196,6 +196,35 @@ def test_grenze_je_minute_des_externen_anbieters(welt):
     assert v.anfrage_frei_in_s("extern-anbieter") == 30.0
 
 
+def test_x06_token_grenzen_je_minute_des_externen_anbieters(welt):
+    """Hetzner zählt je Schlüssel auch Token hinein und heraus (gleitend 60 s). Geschätzte Token offener Anfragen zählen
+    sofort, der echte Verbrauch ersetzt sie; Token heraus zählen ab dem Ende der Antwort. Wer darüber läge, wartet mit der
+    Grenze als Grund; Nutzung je Modell und für den ganzen Schlüssel."""
+    v = welt.verbund
+    d = v.dienste["extern-anbieter"]
+    d.token_ein_je_minute, d.token_aus_je_minute = 10_000, 1_000
+    v.anfrage_gesendet("extern-anbieter", v.zeit_s - 20, "qwen-35b-extern")
+    v.token_vorbuchen("extern-anbieter", "frueher", "qwen-35b-extern", 6_000, 800, v.zeit_s - 20)
+    assert v.nutzung("extern-anbieter").geschaetzt and v.nutzung("extern-anbieter", "qwen-27b-extern").anfragen == 0
+    v.token_abschliessen("extern-anbieter", "frueher", v.zeit_s - 10, ein=5_000, aus=900)
+    n = v.nutzung("extern-anbieter", "qwen-35b-extern")
+    assert (n.anfragen, n.token_ein, n.token_aus, n.geschaetzt) == (1, 5_000, 900, False), "echter Verbrauch ersetzt die Schätzung"
+    gross = welt.auftrag("fundus", F.TEXT, festes_modell="qwen-35b-extern")
+    gross.token_ein_geschaetzt, gross.token_aus_geschaetzt = 6_000, 50
+    klein = welt.auftrag("fundus", F.TEXT, festes_modell="qwen-35b-extern")
+    klein.token_ein_geschaetzt, klein.token_aus_geschaetzt = 100, 50
+    e = zuteilen(v, Messwerk())
+    assert [z.auftrag for z in e.zuteilungen] == [klein.kennung], "der kleine passt noch ins Fenster, der große nicht"
+    w = next(x for x in e.wartend if x.auftrag == gross.kennung)
+    assert "Grenze von 10.000 Token hinein je Minute erreicht" in w.begruendung and w.voraussichtlich_s == 40.0
+    v.token_streichen("extern-anbieter", "frueher")
+    assert v.nutzung("extern-anbieter").token_ein == 5_000, "abgeschlossene Buchungen streicht nur eine Überlast vor der Antwort"
+    klein2 = welt.auftrag("fundus", F.TEXT, festes_modell="qwen-35b-extern")
+    klein2.token_aus_geschaetzt = 150
+    w = next(x for x in zuteilen(v, Messwerk()).wartend if x.auftrag == klein2.kennung)
+    assert "Grenze von 1.000 Token heraus je Minute erreicht" in w.begruendung and w.voraussichtlich_s == 50.0, "heraus zählt ab dem Ende"
+
+
 
 def test_folgeaufruf_an_dieselbe_instanz(welt):
     """X-Leitstelle-Instanz: ein Folgeaufruf (Ergebnis abholen) geht nur an die genannte Instanz, auch wenn eine andere

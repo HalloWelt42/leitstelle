@@ -19,7 +19,7 @@ STATUS: dict[str, int] = {
     "unbekannter_schluessel": 401, "faehigkeit_nicht_erlaubt": 403, "zone_nicht_erlaubt": 403, "herkunft_nicht_erlaubt": 403,
     "kontingent": 429, "gesperrt": 429, "halt": 503, "wartung": 503, "kein_modell": 404, "kein_dienst": 503,
     "dienst_nicht_erreichbar": 503, "rechner_schlaeft": 503, "modell_passt_nicht": 503, "dienst_fehler": 502, "nutzer": 409, "anwendung": 499,
-    "unbekannt": 404, "in_gebrauch": 409, "doppelt": 409, "instanz_weg": 409, "adresse": 422, "knoten_fehlt": 422, "nicht_aenderbar": 422, "nicht_anhaltbar": 409,
+    "unbekannt": 404, "in_gebrauch": 409, "doppelt": 409, "instanz_weg": 409, "adresse": 422, "knoten_fehlt": 422, "nicht_aenderbar": 422, "nicht_pruefbar": 422, "grenze": 429, "nicht_anhaltbar": 409,
 }
 
 

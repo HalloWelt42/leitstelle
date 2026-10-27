@@ -149,6 +149,11 @@ export type Regelgruppe = 'selbststeuerung' | 'speicher' | 'ausweichen' | 'hinte
  */
 export type Einheit =
   'sekunden' | 'gb' | 'milliarden' | 'prozent' | 'punkte' | 'prozent_kern' | 'anteil' | 'anzahl' | 'faktor' | 'schalter' | 'wahl';
+/**
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "Probenausgang".
+ */
+export type Probenausgang = 'belegt' | 'nicht_belegt' | 'unklar';
 export type Zone3 = 'heim' | 'fern' | 'extern';
 export type Prioritaet1 = 0 | 1 | 2 | 3;
 /**
@@ -169,6 +174,7 @@ export interface Leitstelle {
   Umschlag?: Umschlag;
   Bewegung?: Bewegung;
   RegelwerkSicht?: RegelwerkSicht;
+  Probenergebnis?: Probenergebnis;
   KnotenDaten?: KnotenDaten;
   DienstDaten?: DienstDaten;
   DienstAenderung?: DienstAenderung;
@@ -376,8 +382,12 @@ export interface DienstSicht {
   plaetze: number;
   zugang: boolean;
   anfragen_je_minute: number | null;
-  anfragen_letzte_minute: number;
+  token_ein_je_minute: number | null;
+  token_aus_je_minute: number | null;
+  nutzung: Nutzung;
   frei_in_s: number;
+  frei_grund: string;
+  gesperrt_bis_s: number | null;
   fehlschlaege: number;
   naechste_pruefung_s: number | null;
   abgleich_s: number | null;
@@ -385,6 +395,18 @@ export interface DienstSicht {
   einbettung_instanzen: number;
   einbettung_spielraum_gb: number;
   aenderbar: string[];
+}
+/**
+ * Anfragen und Token im gleitenden Fenster; Token offener Anfragen sind geschätzt.
+ *
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "Nutzung".
+ */
+export interface Nutzung {
+  anfragen: number;
+  token_ein: number;
+  token_aus: number;
+  geschaetzt: boolean;
 }
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
@@ -405,7 +427,9 @@ export interface ModellSicht {
   geladen_seit_s: number | null;
   letzte_nutzung_s: number | null;
   auftraege_aktiv: number;
+  belegt: number;
   plaetze: number;
+  nutzung: Nutzung;
   gehalten_von: string | null;
   steckbrief: Steckbrief;
   instanzen_hoechstens: number;
@@ -424,13 +448,29 @@ export interface Steckbrief {
   faehigkeiten?: Faehigkeit[];
   kontext?: number | null;
   parameter_mrd?: number | null;
+  parameter_aktiv_mrd?: number | null;
   quantisierung?: string | null;
   zone?: Zone1;
   anfragen_je_minute?: number | null;
+  token_ein_je_minute?: number | null;
+  token_aus_je_minute?: number | null;
+  geprueft?: Faehigkeitsprobe[];
   gemessen?: Messwerte1;
   herkunft?: {
     [k: string]: Quelle;
   };
+}
+/**
+ * Eine Fähigkeit, die die Leitstelle mit einer kleinen Aufgabe geprüft hat (von Hand ausgelöst, Quelle gemessen).
+ *
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "Faehigkeitsprobe".
+ */
+export interface Faehigkeitsprobe {
+  faehigkeit: Faehigkeit;
+  belegt: boolean;
+  zeit_s: number;
+  meldung: string;
 }
 /**
  * Aus den jüngsten fertigen Aufträgen des Modells (Mittelwerte als Median, Ladezeit als gleitender Mittelwert).
@@ -754,6 +794,17 @@ export interface Wahl {
 }
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "Probenergebnis".
+ */
+export interface Probenergebnis {
+  familie: string;
+  name: string;
+  faehigkeit: Faehigkeit;
+  ausgang: Probenausgang;
+  meldung: string;
+}
+/**
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "KnotenDaten".
  */
 export interface KnotenDaten {
@@ -779,6 +830,8 @@ export interface DienstDaten {
   extern?: boolean;
   plaetze?: number;
   anfragen_je_minute?: number | null;
+  token_ein_je_minute?: number | null;
+  token_aus_je_minute?: number | null;
   abgleich_s?: number | null;
   einbettung_instanzen?: number;
   einbettung_spielraum_gb?: number;
@@ -796,6 +849,8 @@ export interface DienstAenderung {
   zugang?: string | null;
   plaetze?: number | null;
   anfragen_je_minute?: number | null;
+  token_ein_je_minute?: number | null;
+  token_aus_je_minute?: number | null;
   abgleich_s?: number | null;
   einbettung_instanzen?: number | null;
   einbettung_spielraum_gb?: number | null;
@@ -827,6 +882,7 @@ export interface SteckbriefEintrag {
   zweck?: string;
   eignung?: Eignung[];
   sprachen?: string[];
+  parameter_aktiv_mrd?: number | null;
 }
 /**
  * Von Hand: einzelne Werte und Schalter; was fehlt, bleibt.

@@ -27,6 +27,35 @@ NEUVERSUCHE_UEBERLAST = 3           # Dienst meldete Überlast (429, extern auch
 NEUVERSUCHE_ABRISS = 2              # Verbindung zum Dienst abgerissen (etwa ReadError am Modell-Läufer): derselbe Auftrag noch einmal
 ABRISS_PAUSE_S = 1.0                # kurze Pause vor dem Neuversuch
 UEBERLAST_WARTE_S = 60.0            # Sperre, wenn der Dienst kein Retry-After nennt
+# Token vor dem Senden, für die Grenzen je Minute (kern/fenster.py); nach der Antwort zählt der echte Verbrauch. Eher zu viel
+# als zu wenig: deutsche Texte haben 3 bis 4 Zeichen je Token, ein Bild kostet je nach Größe einige hundert bis tausend
+ZEICHEN_JE_TOKEN = 3
+TOKEN_JE_BILD = 1500
+TOKEN_JE_NACHRICHT = 4              # Rahmen je Nachricht (Rolle, Trennzeichen)
+
+
+def token_schaetzen(koerper: dict[str, Any]) -> tuple[int, int]:
+    """Token einer Anfrage im OpenAI-Format, geschätzt aus der Länge: hinein aus Nachrichten, Werkzeugen und Eingabe
+    (Einbettung), heraus höchstens `max_completion_tokens` oder `max_tokens`, sonst 0 (nicht bekannt)."""
+    zeichen = bilder = nachrichten = 0
+    for n in koerper.get("messages") or []:
+        nachrichten += 1
+        inhalt = n.get("content") if isinstance(n, dict) else None
+        teile = [inhalt] if isinstance(inhalt, str) else inhalt if isinstance(inhalt, list) else []
+        for t in teile:
+            if isinstance(t, str):
+                zeichen += len(t)
+            elif isinstance(t, dict) and t.get("type") == "text":
+                zeichen += len(str(t.get("text") or ""))
+            elif isinstance(t, dict):
+                bilder += 1
+    if koerper.get("tools"):
+        zeichen += len(json.dumps(koerper["tools"], ensure_ascii=False))
+    eingabe = koerper.get("input")
+    for t in [eingabe] if isinstance(eingabe, str) else eingabe if isinstance(eingabe, list) else []:
+        zeichen += len(t) if isinstance(t, str) else 0
+    aus = koerper.get("max_completion_tokens") or koerper.get("max_tokens") or 0
+    return -(-zeichen // ZEICHEN_JE_TOKEN) + bilder * TOKEN_JE_BILD + nachrichten * TOKEN_JE_NACHRICHT, int(aus) if isinstance(aus, (int, float)) else 0
 
 
 def warte_s_aus(kopf: dict[str, str]) -> float:
@@ -78,13 +107,15 @@ class Vermittlung:
 
     # ── Annehmen ─────────────────────────────────────────────────────────
     def annehmen(self, anwendung: str, faehigkeit: Faehigkeit, modellwunsch: str | None, prioritaet: Prioritaet | None, titel: str,
-                 arbeit: str | None = None, extern: list[str] | None = None, instanz: str | None = None) -> Vorgang:
+                 arbeit: str | None = None, extern: list[str] | None = None, instanz: str | None = None, koerper: dict[str, Any] | None = None) -> Vorgang:
+        """Ein Aufruf wird ein Auftrag; aus dem Körper schätzt die Leitstelle seine Token für die Grenzen je Minute."""
         familie = None
         if modellwunsch and modellwunsch not in ("auto", "leitstelle"):
             familie = self.betrieb.familie_fuer(modellwunsch)
             if familie is None:
                 raise self.betrieb.unbekannt(modellwunsch)
-        auftrag, lauf = self.betrieb.anlegen(anwendung, faehigkeit, familie, prioritaet, titel, arbeit, extern, instanz)
+        auftrag, lauf = self.betrieb.anlegen(anwendung, faehigkeit, familie, prioritaet, titel, arbeit, extern, instanz,
+                                             token=token_schaetzen(koerper) if koerper else (0, 0))
         v = Vorgang(auftrag=auftrag, lauf=lauf)
         if lauf.ende.is_set():                         # sofort abgelehnt (Rechte, Zone, kein Modell)
             self._abschliessen(v, Auftragszustand.ABGELEHNT, lauf.grund, lauf.begruendung)
@@ -94,6 +125,8 @@ class Vermittlung:
     def _abschliessen(self, v: Vorgang, zustand: Auftragszustand, grund: str | None = None, begruendung: str | None = None) -> None:
         if not v.abgeschlossen:
             v.abgeschlossen = True
+            # der echte Verbrauch ersetzt die Schätzung; ohne ihn (Abbruch, Fehler) bleibt sie stehen
+            self.betrieb.verbund.token_abschliessen(v.auftrag.dienst or "", v.auftrag.kennung, self.betrieb.uhr.jetzt(), v.messung.token_ein, v.messung.token_aus)
             self.betrieb.abschliessen(v.auftrag.kennung, zustand, v.messung, grund, begruendung)
 
     def aufraeumen(self, v: Vorgang) -> None:
@@ -151,6 +184,7 @@ class Vermittlung:
         v.knoten = a.knoten
         anfrage = {**koerper, "model": ort.anfragename}
         start = b.uhr.jetzt()
+        b.verbund.token_vorbuchen(a.dienst or "", a.kennung, modell.familie if modell else None, a.token_ein_geschaetzt, a.token_aus_geschaetzt, start)
         try:
             antwort = await self._bis_ende(b.adapter[a.dienst or ""].anfrage(pfad, anfrage), v.lauf)
         except _Abbruch:
@@ -171,6 +205,7 @@ class Vermittlung:
         try:
             if antwort.status in b.adapter[a.dienst or ""].ueberlast_status and v.neuversuche < NEUVERSUCHE_UEBERLAST:
                 b.dienst_ueberlastet(a.dienst or "", warte_s_aus(antwort.kopf), antwort.status)
+                b.verbund.token_streichen(a.dienst or "", a.kennung)     # abgelehnt: kein Verbrauch
                 self._zurueckstellen(v)
                 raise _Neuversuch()
             if antwort.status >= 400:
@@ -204,6 +239,7 @@ class Vermittlung:
                     return
             finally:
                 v.lauf.abbrecher = None
+                self._verbrauch_uebernehmen(v, antwort)
             if v.lauf.ende.is_set():
                 raise _Abbruch()
             self._abschliessen(v, Auftragszustand.FERTIG)
@@ -211,6 +247,13 @@ class Vermittlung:
             yield self._abbruch_ende(v, strom)
         finally:
             await antwort.schliessen()
+
+    @staticmethod
+    def _verbrauch_uebernehmen(v: Vorgang, antwort: Strom) -> None:
+        """Verbrauch, den der Adapter aus dem Strom gelesen hat (etwa ein Stück, das die Anwendung nicht verlangt hat)."""
+        if antwort.verbrauch is not None:
+            v.messung.token_ein = antwort.verbrauch.token_ein if antwort.verbrauch.token_ein is not None else v.messung.token_ein
+            v.messung.token_aus = antwort.verbrauch.token_aus if antwort.verbrauch.token_aus is not None else v.messung.token_aus
 
     @staticmethod
     def _nicht_geladen(text: str) -> bool:
@@ -231,6 +274,7 @@ class Vermittlung:
         b = self.betrieb
         a = v.auftrag
         v.neuversuche += 1
+        b.verbund.token_abschliessen(a.dienst or "", a.kennung, b.uhr.jetzt())      # was noch gebucht ist, zählt bis zum Fensterende
         m = b.verbund.modelle.get(a.modell or "")
         if m is not None:
             m.auftraege_aktiv = max(0, m.auftraege_aktiv - 1)

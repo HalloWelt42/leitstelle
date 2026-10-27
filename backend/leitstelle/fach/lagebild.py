@@ -6,12 +6,13 @@ from __future__ import annotations
 from pydantic import BaseModel
 
 from .. import version
-from ..kern.modelle import ANFRAGE_FENSTER_S, Knoten, Massnahme, Regelwerk, Verbund
+from ..kern.fenster import Frei, Nutzung
+from ..kern.modelle import Knoten, Massnahme, Regelwerk, Verbund
 from ..kern.rechnerlast import fremd_mittel, laeuferarbeit, ohne_auftrag_seit
 from ..protokoll.steckbrief import Steckbrief
 from ..kern.werte import (Auftragszustand, Automatik, Betriebsmodus, Dienstzustand, Faehigkeit, Hintergrundstufe, Knotenzustand, Laeuferrolle, Lage,
                           Modellzustand, Zone)
-from ..ports.ablage.eintraege import Schritt
+from ..ports.ablage.eintraege import DienstEintrag, Schritt
 from ..protokoll.knoten import Fremdzugriff, Fremdzugriffe, Messwerte
 from .betrieb import Betrieb
 from .umgehungen import Fremddeutung, deuten
@@ -133,9 +134,13 @@ class DienstSicht(BaseModel):
     meldung: str
     plaetze: int
     zugang: bool
-    anfragen_je_minute: int | None     # Grenze des Anbieters
-    anfragen_letzte_minute: int        # gesendete Anfragen im Fenster
+    anfragen_je_minute: int | None     # Grenzen des Anbieters je Minute (gleitend, je Schlüssel); None: keine
+    token_ein_je_minute: int | None
+    token_aus_je_minute: int | None
+    nutzung: Nutzung                   # gesendete Anfragen und Token im Fenster, alle Modelle des Dienstes zusammen (Schlüssel)
     frei_in_s: float                   # bis zur nächsten erlaubten Anfrage (0: jetzt)
+    frei_grund: str                    # welche Grenze bindet ("" wenn frei)
+    gesperrt_bis_s: float | None       # nach Überlast des Anbieters (429, extern auch 5xx)
     fehlschlaege: int                  # Prüfungen ohne Antwort in Folge
     naechste_pruefung_s: float | None  # Zeitpunkt der nächsten Zustandsabfrage (None: meldet sich selbst)
     abgleich_s: float | None           # Abstand der Zustandsabfrage, wenn gesund, von Hand; None: die Vorgabe
@@ -160,7 +165,9 @@ class ModellSicht(BaseModel):
     geladen_seit_s: float | None
     letzte_nutzung_s: float | None
     auftraege_aktiv: int
+    belegt: int                        # laufende und zugeteilte Aufträge (Plätze belegt)
     plaetze: int
+    nutzung: Nutzung                   # Anfragen und Token dieses Modells im Fenster seines Dienstes
     gehalten_von: str | None          # Titel der begonnenen Arbeit, für die es nicht weicht
     steckbrief: Steckbrief             # wofür es gemacht ist, was es kann, wie es sich verhält (PROTOKOLL 4.8)
     instanzen_hoechstens: int          # so viele Instanzen darf die Leitstelle starten
@@ -228,6 +235,23 @@ class Lagebild(BaseModel):
     meldungen: list[Meldung]
 
 
+def dienst_sicht(b: Betrieb, d: DienstEintrag) -> DienstSicht:
+    v = b.verbund
+    k = v.dienste.get(d.kennung)            # fehlt nur in dem Augenblick, in dem ein Dienst entfernt wird
+    frei = v.frei(d.kennung) if k else Frei()
+    return DienstSicht(kennung=d.kennung, name=d.name, art=d.art.value, adresse=d.adresse, knoten=d.knoten, extern=d.extern,
+                       zustand=k.zustand if k else Dienstzustand.NICHT_ERREICHBAR, steuerbar=b.steuerbar.get(d.kennung, False),
+                       meldung=b.dienst_meldung.get(d.kennung, ""), plaetze=d.plaetze, zugang=d.zugang_geheim is not None,
+                       anfragen_je_minute=d.anfragen_je_minute, token_ein_je_minute=d.token_ein_je_minute, token_aus_je_minute=d.token_aus_je_minute,
+                       nutzung=v.nutzung(d.kennung) if k else Nutzung(), frei_in_s=frei.in_s, frei_grund=frei.grund,
+                       gesperrt_bis_s=k.gesperrt_bis_s if k else None,
+                       fehlschlaege=b.pruefstand[d.kennung].fehlschlaege if d.kennung in b.pruefstand else 0,
+                       naechste_pruefung_s=None if d.kennung in b.adapter and b.adapter[d.kennung].meldet_sich_selbst
+                       else b.pruefstand[d.kennung].naechste_s if d.kennung in b.pruefstand else None,
+                       abgleich_s=d.abgleich_s, abgleich_vorgabe_s=b.abgleich_vorgabe_s(d),
+                       einbettung_instanzen=d.einbettung_instanzen, einbettung_spielraum_gb=d.einbettung_spielraum_gb, aenderbar=list(AENDERBAR[d.art]))
+
+
 def lagebild(b: Betrieb) -> Lagebild:
     v = b.verbund
     r = v.regelwerk
@@ -245,22 +269,11 @@ def lagebild(b: Betrieb) -> Lagebild:
                                   zustand=k.zustand, schlaeft_seit_s=k.schlaeft_seit_s, budget_fest_gb=k.budget_fest_gb, hintergrund_von=e.hintergrund_von, hintergrund_bis=e.hintergrund_bis, agent=agent,
                                   fremde=fremde_sicht(av.fremde if av else Fremdzugriffe(beobachtet=False), b.laeufer_direkt(k.kennung)),
                                   last=last_sicht(v, k)))
-    dienste = [DienstSicht(kennung=d.kennung, name=d.name, art=d.art.value, adresse=d.adresse, knoten=d.knoten, extern=d.extern,
-                           zustand=v.dienste[d.kennung].zustand if d.kennung in v.dienste else Dienstzustand.NICHT_ERREICHBAR,
-                           steuerbar=b.steuerbar.get(d.kennung, False), meldung=b.dienst_meldung.get(d.kennung, ""), plaetze=d.plaetze,
-                           zugang=d.zugang_geheim is not None, anfragen_je_minute=d.anfragen_je_minute,
-                           anfragen_letzte_minute=sum(1 for t in v.dienste[d.kennung].anfragen_s if v.zeit_s - t < ANFRAGE_FENSTER_S) if d.kennung in v.dienste else 0,
-                           frei_in_s=v.anfrage_frei_in_s(d.kennung) if d.kennung in v.dienste else 0.0,
-                           fehlschlaege=b.pruefstand[d.kennung].fehlschlaege if d.kennung in b.pruefstand else 0,
-                           naechste_pruefung_s=None if d.kennung in b.adapter and b.adapter[d.kennung].meldet_sich_selbst
-                           else b.pruefstand[d.kennung].naechste_s if d.kennung in b.pruefstand else None,
-                           abgleich_s=d.abgleich_s, abgleich_vorgabe_s=b.abgleich_vorgabe_s(d),
-                           einbettung_instanzen=d.einbettung_instanzen, einbettung_spielraum_gb=d.einbettung_spielraum_gb,
-                           aenderbar=list(AENDERBAR[d.art])) for d in b.dienste.values()]
+    dienste = [dienst_sicht(b, d) for d in b.dienste.values()]
     modelle = [ModellSicht(kennung=m.kennung, name=m.name, familie=m.familie, dienst=m.dienst, knoten=v.dienste[m.dienst].knoten if m.dienst in v.dienste else None,
                            faehigkeiten=sorted(m.faehigkeiten, key=lambda f: f.value), gb=m.gb, gb_jetzt=m.gb_jetzt, parameter_mrd=m.parameter_mrd, zustand=m.zustand,
                            geschuetzt=m.geschuetzt(r.schutzgrenze_mrd), geladen_seit_s=m.geladen_seit_s, letzte_nutzung_s=m.letzte_nutzung_s,
-                           auftraege_aktiv=m.auftraege_aktiv, plaetze=v.plaetze(m),
+                           auftraege_aktiv=m.auftraege_aktiv, belegt=len(v.belegung(m.kennung)), plaetze=v.plaetze(m), nutzung=v.nutzung(m.dienst, m.familie),
                            gehalten_von=w.titel if (w := v.arbeit_haelt(m.kennung)) else None, steckbrief=b.steckbrief(m), instanzen_hoechstens=m.instanzen_hoechstens, zusatz=m.zusatz,
                            ladesperre_bis_s=m.ladesperre_bis_s, ladesperre_grund=m.ladesperre_grund)
                for m in sorted(v.modelle.values(), key=lambda x: (x.dienst, -x.gb))]

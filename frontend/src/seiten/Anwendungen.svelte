@@ -5,7 +5,7 @@
   import { meldungen, tun } from '../lib/meldung.svelte';
   import type { AnwendungDaten, AnwendungSicht, Faehigkeit as F, Lagebild, Prioritaet, Zone } from '../lib/typen.gen';
   import { weg } from '../lib/weg.svelte';
-  import { FAEHIGKEIT, PRIORITAET } from '../lib/wort';
+  import { FAEHIGKEIT, PRIORITAET, art } from '../lib/wort';
   import Faehigkeit from '../teile/Faehigkeit.svelte';
   import ZoneMarke from '../teile/ZoneMarke.svelte';
 
@@ -47,6 +47,15 @@
 
   const modelleFuer = (f: F) => [...new Map(bild.modelle.filter((m) => m.faehigkeiten.includes(f)).map((m) => [m.familie, m])).values()];
   const modellName = (familie: string) => bild.modelle.find((m) => m.familie === familie)?.name ?? familie;
+  // Externe Modelle (beim Anbieter): in der Kette nur beim Ausweichen und mit Erlaubnis der App; ihre Art im Vergleich
+  const extern = (familie: string) => bild.modelle.some((m) => m.familie === familie && bild.dienste.find((d) => d.kennung === m.dienst)?.extern);
+  const wahlName = (familie: string) => {
+    const m = bild.modelle.find((x) => x.familie === familie);
+    if (!m || !extern(familie)) return modellName(familie);
+    const a = art(m.steckbrief);
+    return `${m.name} (extern${a ? `, ${a.wort}` : ''})`;
+  };
+  const hatExtern = $derived(bild.modelle.some((m) => extern(m.familie)));
   const kette = (f: F): string[] => (entwurf.ketten as Record<string, string[]>)[f] ?? [];
 
   function kettenSetzen(f: F, neu: string[]) {
@@ -176,12 +185,15 @@
           </div>
 
           <div class="etikett" style="margin-top: var(--a4)">Modellketten <span class="leise" style="text-transform:none; letter-spacing:0; font-weight:500">gilt, wenn die Anwendung kein Modell nennt; erstes verfügbares gewinnt</span></div>
+          {#if hatExtern}<p class="leise klein kettenhinweis">Externe Modelle rechnen beim Anbieter: in der Kette nur, wenn lokal länger gewartet würde und die
+            Anwendung sie auf ihre Erlaubnisliste setzt; nennt sie eines als Modell, gilt es direkt. Das schnelle taugt für kurze Aufgaben, das
+            gründliche für lange Texte; die Wahl bleibt bei der Anwendung.</p>{/if}
           {#each KETTEN.filter((f) => entwurf.faehigkeiten?.includes(f)) as f (f)}
             <div class="modellkette">
               <div><Faehigkeit wert={f} /></div>
               <div class="kette">
                 {#each kette(f) as fam, i (fam)}
-                  <span class="schritt" title={fam}><i class="fa-solid fa-brain"></i>{modellName(fam)}
+                  <span class="schritt" title={extern(fam) ? `${fam}: extern, nur beim Ausweichen und wenn die Anwendung es erlaubt` : fam}><i class="fa-solid {extern(fam) ? 'fa-cloud' : 'fa-brain'}"></i>{wahlName(fam)}
                     {#if i > 0}<button class="knopf ohne symbol klein" onclick={() => verschieben(f, i, -1)} title="Nach vorn"><i class="fa-solid fa-arrow-left"></i></button>{/if}
                     <button class="knopf ohne symbol klein" onclick={() => kettenSetzen(f, kette(f).filter((x) => x !== fam))} title="Aus der Kette nehmen"><i class="fa-solid fa-xmark"></i></button></span>
                   {#if i < kette(f).length - 1}<span class="pfeil"></span>{/if}
@@ -189,7 +201,7 @@
                 <select class="eingabe" style="height: 34px; max-width: 260px" bind:value={kettenWahl[f]}
                         onchange={() => { if (kettenWahl[f]) { kettenSetzen(f, [...kette(f), kettenWahl[f]]); kettenWahl[f] = ''; } }} title="Modell ans Ende der Kette setzen">
                   <option value="">Modell anfügen</option>
-                  {#each modelleFuer(f).filter((m) => !kette(f).includes(m.familie)) as m (m.familie)}<option value={m.familie}>{m.name}</option>{/each}
+                  {#each modelleFuer(f).filter((m) => !kette(f).includes(m.familie)) as m (m.familie)}<option value={m.familie}>{wahlName(m.familie)}</option>{/each}
                 </select>
               </div>
             </div>

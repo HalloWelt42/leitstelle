@@ -44,7 +44,9 @@ class DienstEintrag(BaseModel):
     extern: bool = False
     zugang_geheim: str | None = None   # verschlüsselt im Tresor; nur wenn die Gegenstelle einen verlangt
     plaetze: int = 4                   # gleichzeitige Aufträge je geladenem Modell
-    anfragen_je_minute: int | None = None   # Grenze des Anbieters (Hetzner etwa 10); die Leitstelle hält sie ein
+    anfragen_je_minute: int | None = None   # Grenzen des Anbieters je Minute, gleitend je Schlüssel (Hetzner 10 Anfragen,
+    token_ein_je_minute: int | None = None  # 4 Mio. Token hinein, 100.000 heraus); die Leitstelle hält sie ein
+    token_aus_je_minute: int | None = None
     abgleich_s: float | None = None    # Abstand der Zustandsabfrage, wenn der Dienst gesund ist (None: Vorgabe der Konfig)
     einbettung_instanzen: int = 1      # Modell-Läufer: so viele Instanzen je Einbettungsmodell bei Andrang (1: keine weiteren)
     einbettung_spielraum_gb: float = 4.0   # so viel bleibt im Budget des Rechners frei, wenn weitere Einbettungsinstanzen laden
@@ -75,6 +77,7 @@ class SteckbriefEintrag(BaseModel):
     zweck: str = Field(default="", max_length=300)
     eignung: list[Eignung] = Field(default_factory=list)
     sprachen: list[str] = Field(default_factory=list)
+    parameter_aktiv_mrd: float | None = Field(default=None, gt=0, le=10000)   # Mischmodelle, deren Name es nicht sagt
 
     @field_validator("sprachen")
     @classmethod
@@ -83,6 +86,16 @@ class SteckbriefEintrag(BaseModel):
         if falsch:
             raise ValueError(f"Sprachen als zwei Kleinbuchstaben nach ISO 639-1 (de, en, fr), nicht {', '.join(falsch)}")
         return werte
+
+
+class FaehigkeitsprobeEintrag(BaseModel):
+    """Ergebnis der letzten Probe einer Fähigkeit eines Modells (von Hand ausgelöst, PROTOKOLL 4.8)."""
+
+    familie: str
+    faehigkeit: Faehigkeit
+    belegt: bool                       # die Probe hat die Fähigkeit gezeigt; falsch: abgelehnt oder falsch beantwortet
+    zeit_s: float
+    meldung: str = ""
 
 
 class AliasEintrag(BaseModel):

@@ -129,6 +129,10 @@ Dienst anhalten, Archiv in den Datenordner entpacken, starten; Probe wie in Schr
   der Mensch den Rechner gerade braucht (Fremdlast ab 50 beziehungsweise 75 % im Mittel). Das gibt sich von selbst,
   sobald die Last 10 Punkte unter die Grenze fällt; normale und dringende Aufträge sind nicht betroffen. Grenzen und
   Abstand stehen unter Regeln, Läufer und Last; ausgeschaltet gibt die Regel jeden gebremsten Rechner sofort frei.
+- Ein externer Anbieter lässt Aufträge warten ("Grenze von ... je Minute erreicht" oder "gesperrt bis"): unter Dienste
+  stehen je Modell Anfragen und Token der letzten 60 Sekunden neben den Grenzen des Schlüssels; die Grenzen dort an die
+  des Anbieters anpassen. Ob ein externes Modell Bilder versteht, belegt "Fähigkeiten prüfen" am Dienst (zählt gegen die
+  Grenzen).
 - Eine Maßnahme der Selbststeuerung stört: unter Regeln abschalten oder ihre Werte ändern (wirkt sofort, steht im
   Prüfprotokoll); "von Hand" zeigt, was von der Vorgabe abweicht, der Pfeil daneben stellt sie wieder her.
 - Gespeicherte Schlüssel sind unlesbar: `tresor.schluessel` fehlt oder gehört zu einer anderen Datenbank.

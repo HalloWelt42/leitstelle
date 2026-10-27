@@ -114,9 +114,9 @@ async def test_externer_anbieter_wie_hetzner():
 
     gezaehlt = []
     async with laufend(app) as adresse:
-        a = ExternOpenAI(adresse + "/api/v1", "geheim", beim_senden=lambda: gezaehlt.append(1))
+        a = ExternOpenAI(adresse + "/api/v1", "geheim", beim_senden=gezaehlt.append)
         b = await a.zustand()
-        assert gesehen == ["/api/v1/models"] and len(gezaehlt) == 1
+        assert gesehen == ["/api/v1/models"] and gezaehlt == [None], "die Zustandsabfrage zählt, ohne Modell"
         assert b.erreichbar and not b.steuerbar
         m = {x.schluessel: x for x in b.modelle}
         assert set(m) == {"Qwen/Qwen3.6-35B-A3B", "Qwen/Qwen3.8-27B"}
