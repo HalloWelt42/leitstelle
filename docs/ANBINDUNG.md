@@ -18,7 +18,7 @@ verbindlich, was noch nicht läuft, ist so gekennzeichnet.
 |---|---|
 | Anwendung | ein Programm, das Aufträge abgibt (Zusage, Fundus, TubeVault, Codehilfe) |
 | Dienst | ein Programm, das rechnet (Modell-Läufer, Sprachdienst, Hörer, Bild-Werkbank, externer Anbieter) |
-| Knoten | ein Rechner mit Agent (Mac Studio, MacBook, Pi, Server) |
+| Knoten | ein Rechner mit Agent (MacBook, Pi, Server) |
 | Fähigkeit | was ein Auftrag braucht: text, einbettung, uebersetzen, hoeren, bild_beschreiben, bild_erzeugen, stimme, musik, werkzeug |
 | Kette | geordnete Liste von Modellfamilien je Fähigkeit und Anwendung; die Leitstelle nimmt das erste, das passt |
 | Zone | heim, vpn, extern; die Anwendung bestimmt, wo ihre Daten rechnen dürfen |
@@ -102,7 +102,7 @@ Die Anwendung ändert nur die Adresse ihres Modell-Läufers und bekommt einen Sc
 | 429 | `gesperrt` | Anwendung gesperrt (von Hand oder nach Auslaufen) | `Retry-After` beachten, Hinweis zeigen |
 | 503 | `halt` | Hauptregler steht auf Halt | Hinweis zeigen, nach `Retry-After` erneut |
 | 503 | `dienst_nicht_erreichbar`, `modell_passt_nicht` | Dienst weg, oder er hat das Laden dreimal abgelehnt | Hinweis zeigen, später erneut |
-| 503 | `rechner_schlaeft` | der Rechner mit dem Modell schläft; `error.x-leitstelle.rechner` nennt ihn, `Retry-After` 60 s | "wartet, bis Mac Studio wach ist" zeigen und ohne Grenze erneut versuchen, bis er wach ist (Abbrechen erlauben) |
+| 503 | `rechner_schlaeft` | der Rechner mit dem Modell schläft; `error.x-leitstelle.rechner` nennt ihn, `Retry-After` 60 s | "wartet, bis MacBook M4 Max 128 GB wach ist" zeigen und ohne Grenze erneut versuchen, bis er wach ist (Abbrechen erlauben) |
 | 502 | `dienst_fehler` | der Dienst hat den Auftrag nicht geschafft; `wiederholbar` im Text | einmal wiederholen, wenn wiederholbar |
 
 - Bricht der Nutzer einen Auftrag in der Leitstelle sofort ab, endet der Strom mit einem letzten Stück

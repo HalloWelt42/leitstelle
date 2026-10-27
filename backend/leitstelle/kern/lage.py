@@ -1,7 +1,7 @@
 """Lagebeurteilung: ruhig, angespannt, engpass, mit Begründung.
 
 Ein schlafender Rechner ist kein Ausfall: er zählt weder als nicht erreichbar noch als Knoten mit offenen Aufträgen
-(die Apps warten selbst, bis er wach ist). Er steht nur als Hinweis in der Begründung, "Mac Studio schläft".
+(die Apps warten selbst, bis er wach ist). Er steht nur als Hinweis in der Begründung, "MacBook M4 Max 128 GB schläft".
 """
 
 from __future__ import annotations

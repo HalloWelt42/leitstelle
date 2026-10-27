@@ -83,7 +83,7 @@
         <div class="etikett">Was wird angeschlossen?</div>
         <div class="arten">
           <button class="art-karte" class:an={art === 'dienst'} onclick={() => { art = 'dienst'; erkennung = null; }}
-                  title="Ein Modell-Läufer im eigenen Netz, zum Beispiel auf dem Mac Studio"><i class="fa-solid fa-plug"></i><b>Dienst im eigenen Netz</b><span>Läuft schon irgendwo. Adresse genügt.</span></button>
+                  title="Ein Modell-Läufer im eigenen Netz, zum Beispiel auf dem MacBook"><i class="fa-solid fa-plug"></i><b>Dienst im eigenen Netz</b><span>Läuft schon irgendwo. Adresse genügt.</span></button>
           <button class="art-karte" class:an={art === 'extern'} onclick={() => { art = 'extern'; erkennung = null; }}
                   title="Anbieter im Internet mit OpenAI-Schnittstelle und Schlüssel"><i class="fa-solid fa-cloud"></i><b>Externer Anbieter</b><span>Adresse und Schlüssel, nur über https.</span></button>
           <a class="art-karte" href={weg.pfad('anwendungen', 'neu')} onclick={(e) => weg.klick(e, 'anwendungen', 'neu')}
@@ -91,7 +91,7 @@
         </div>
 
         <div class="feldreihe" style="margin-top: var(--a4)">
-          <label class="feld-l"><span>Adresse <small>{art === 'extern' ? 'zum Beispiel https://anbieter.example/v1' : 'zum Beispiel 192.168.1.20:1234 oder mac-studio.local:1234'}</small></span>
+          <label class="feld-l"><span>Adresse <small>{art === 'extern' ? 'zum Beispiel https://anbieter.example/v1' : 'zum Beispiel 192.168.1.20:1234 oder macbook.local:1234'}</small></span>
             <input class="eingabe" bind:value={adresse} onkeydown={(e) => e.key === 'Enter' && erkennen()} placeholder={art === 'extern' ? 'https://' : 'Rechner:Port'} /></label>
           <label class="feld-l"><span>Zugang <small>Schlüssel oder Token, nur wenn der Dienst einen verlangt</small></span>
             <span class="feld-l zeile-feld"><input class="eingabe" type={zugangSehen ? 'text' : 'password'} bind:value={zugang} placeholder="leer lassen, wenn nicht nötig" />
@@ -124,7 +124,7 @@
                   </span></div>
                 {#if knotenWahl === 'neu'}
                   <div class="feldreihe">
-                    <label class="feld-l"><span>Name des Rechners</span><input class="eingabe" bind:value={neuName} placeholder="zum Beispiel Mac Studio" /></label>
+                    <label class="feld-l"><span>Name des Rechners</span><input class="eingabe" bind:value={neuName} placeholder="zum Beispiel MacBook M4 Max 128 GB" /></label>
                     <label class="feld-l"><span>Speicher in GB <small>Pflicht, bis ein Maschinenraum misst</small></span><input class="eingabe" type="number" min="1" bind:value={neuSpeicher} placeholder="128" /></label>
                     <label class="feld-l"><span>Zone</span><select class="eingabe" bind:value={neuZone}><option value="heim">Heimnetz</option><option value="fern">Über VPN</option></select></label>
                   </div>

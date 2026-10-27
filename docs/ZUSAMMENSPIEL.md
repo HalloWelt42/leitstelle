@@ -163,7 +163,7 @@ schon geladenen Modells lädt eine weitere Instanz; ihre Kennung vergibt der Lä
 erreicht eine bestimmte Instanz, wenn `model` deren Kennung nennt; Entladen per `instance_id`. Einbettungsinstanzen
 melden kein `parallel`. Laden einer Instanz: 47 bis 61 s (Rechner unter Last, 9,5 GB Auslagerung).
 
-**Messung** (23.10.2026 am Mac Studio, 128 GB; Abschnitte wie die Quelle "Entwicklung" des Fundus: Code und Doku,
+**Messung** (23.10.2026 am MacBook M4 Max 128 GB; Abschnitte wie die Quelle "Entwicklung" des Fundus: Code und Doku,
 im Mittel 1700 Zeichen; je Instanz ein Strom; die Fundus-Einbettung lief auf der Grundinstanz weiter, in Lauf 2 dazu
 eine Transkription; Speicher aus der Maschinenraum-Messung):
 
@@ -196,7 +196,7 @@ Maschinenraum danach dem System zu.
   Familie (Grundinstanz trägt den Schlüssel, weitere sind `zusatz`); Einbettungsmodelle haben je Instanz einen Platz.
   Die Leitstelle verteilt so Stapel über die Instanzen: jeder geht an eine freie Instanz, sonst wartet er bei ihr.
 - **Eintrag des Dienstes** (Oberfläche: Dienste, bearbeiten): `Einbettung: Instanzen` (Höchstzahl je
-  Einbettungsmodell, Vorgabe 1, am Mac Studio 2 nach der Messung im Betrieb, siehe unten) und `Einbettung: Spielraum` (GB, die im Budget des
+  Einbettungsmodell, Vorgabe 1, am MacBook M4 Max 128 GB 2 nach der Messung im Betrieb, siehe unten) und `Einbettung: Spielraum` (GB, die im Budget des
   Rechners frei bleiben, Vorgabe 4: 8 Instanzen zu je 0,4 GB mehr als geplant plus Toleranz).
 - **Regel "Einbettung verstärken"**: warten Einbettungsaufträge länger als `einbettung_andrang_s` (10 s) auf eine
   Instanz, lädt die Leitstelle in einer Maßnahme so viele weitere, wie Aufträge warten (abzüglich ladender), bis zur
@@ -226,7 +226,7 @@ Urteil: lohnt sich höchstens bis 2 Instanzen. Zwei Instanzen bringen 40 % mehr 
 verliert dabei schon rund 40 % Tempo; ab 4 kostet jede weitere Instanz das 80B mehr, als sie der Einbettung bringt
 (8 Instanzen: 1,7-fach, das 80B fast stehend). Speicher ist nicht die Grenze (1 GB je Instanz); Grafik- und
 Leistungsanzeige bleiben flach, die Instanzen teilen sich den Rechenweg des Läufers mit dem Gesprächsmodell. Vorgabe am
-Mac Studio deshalb 2. Befunde nebenbei: der Läufer reißt gelegentlich Verbindungen ab (ReadError, auch vorher und bei
+MacBook M4 Max 128 GB deshalb 2. Befunde nebenbei: der Läufer reißt gelegentlich Verbindungen ab (ReadError, auch vorher und bei
 Fundus); die Leitstelle setzt ihn dann 5 s auf "nicht erreichbar" und lehnt solange alle Aufträge ab, mit mehr
 Instanzen häufiger (offen). Fundus schickte live nur einen Stapel gleichzeitig; mit einem Stapel entsteht kein Andrang.
 
@@ -408,7 +408,7 @@ Aufträge hingen, außer bei Automatik "selbst".
 | Wer wartet | die App (Appkern `geduldig`, ohne Grenze, mit Abbrechen); die Leitstelle hält keine Anfrage fest, sie antwortet 503 `rechner_schlaeft` mit Retry-After 60 s und den Rechnern in `error.x-leitstelle.rechner` |
 | Laufende Aufträge beim Einschlafen | enden mit `rechner_schlaeft`, auch ohne Automatik; zugeteilte und wartende entscheidet der Zuteiler neu |
 | Dienste auf dem schlafenden Rechner | Zustand `schlaeft`: keine Prüfung, keine Fehlschläge; beim Aufwachen Prüfstand zurück und sofort prüfen |
-| Lage | bleibt ruhig, "Mac Studio schläft" als Hinweis; nirgends als Gefahr gezeigt |
+| Lage | bleibt ruhig, "MacBook M4 Max 128 GB schläft" als Hinweis; nirgends als Gefahr gezeigt |
 | Neustart der Leitstelle im Schlaf | der Schlaf bleibt vermerkt (Einstellungsablage, Schlüssel `schlaf`); unbekannte Namen auf einem schlafenden Rechner heißen `rechner_schlaeft` |
 | Von Hand | "Nicht mehr warten" auf der Knotenseite beendet den Schlafzustand; Prüfprotokoll |
 | Zonenfehler | 403 nur, wenn die Zone wirklich nicht passt; unangekündigt verschwundene Rechner geben 503 `dienst_nicht_erreichbar` |

@@ -24,7 +24,7 @@ zuerst dort, dann im Code.
 
 ## Staffel 1: Kern mit Fassade
 
-Ziel: eine Anwendung ohne Umbau läuft über die Leitstelle gegen den Modell-Läufer auf dem Mac Studio.
+Ziel: eine Anwendung ohne Umbau läuft über die Leitstelle gegen den Modell-Läufer auf dem MacBook M4 Max 128 GB.
 
 - Backend `backend/leitstelle/` nach ARCHITEKTUR.md: kern (Modelle, Zustände, Zuteiler, Speicherplaner,
   Lage), fach (Vermittlung, Speicherverwaltung, Signalgeber), ports (Adapter `openai_kompatibel` mit

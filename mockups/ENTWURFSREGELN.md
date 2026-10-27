@@ -21,7 +21,7 @@ hält sich daran, damit die Seiten untereinander konsistent bleiben.
 
 - Nur die Beispielwelt aus `gemeinsam.js` (KNOTEN, DIENSTE, MODELLE, ANWENDUNGEN, AUFTRAEGE). Keine neuen Rechner,
   Dienste, Modelle oder Anwendungen erfinden. Zahlen im Kopf, in der Fußleiste und auf den Seiten müssen zusammenpassen
-  (3 laufen, 2 warten, 1 pausiert, 67 heute fertig, 1 Fehler, 5 von 6 Knoten, Mac Studio 96 Prozent, extern 0,42 Euro).
+  (3 laufen, 2 warten, 1 pausiert, 67 heute fertig, 1 Fehler, 5 von 6 Knoten, der große Rechner der Beispielwelt 96 Prozent, extern 0,42 Euro).
 - Wörter statt Schlüssel: Zustände, Fähigkeiten, Zonen und Prioritäten immer über `WORT` ausgeben oder die Bausteine
   `zustand()`, `faehigkeit()`, `zone()` nutzen. Nie `laeuft` oder `wartet_speicher` drucken.
 - Zahlen in der Zahlenschrift (`.zahl`), deutsches Format (1.240, 84,7 GB, 0,42 Euro, 14:56).

@@ -357,7 +357,7 @@ sie nutzen darf (Fähigkeit und Zone). Je Dienst ein Eintrag, gleich wie viele I
 
 ```json
 {"object": "list", "data": [{"kennung": "bildschmiede", "name": "Bildschmiede", "faehigkeiten": ["bild_erzeugen"],
-                             "zustand": "aus", "rechner": ["Mac Studio"]}]}
+                             "zustand": "aus", "rechner": ["MacBook M4 Max 128 GB"]}]}
 ```
 
 | `zustand` | Bedeutung |
@@ -410,7 +410,7 @@ vorhanden, die Originalmeldung des Dienstes in `meldung`.
 
 `rechner_schlaeft`: das Modell liegt nur auf Rechnern, die schlafen (4.2). Die Fassade antwortet mit 503,
 `Retry-After` 60 s (einstellbar, `LEITSTELLE_SCHLAF_WIEDER_S`) und den Namen der Rechner in `error.x-leitstelle.rechner`;
-der Satz lautet zum Beispiel "Mac Studio schläft; der Auftrag kann erst laufen, wenn er wach ist." Die Leitstelle hält
+der Satz lautet zum Beispiel "MacBook M4 Max 128 GB schläft; der Auftrag kann erst laufen, wenn er wach ist." Die Leitstelle hält
 die Anfrage nicht selbst fest: die Anwendung wartet und versucht es erneut (der Appkern ohne Grenze, bis er wach ist).
 Ein abgebrochener Strom trägt die Namen im letzten Stück unter `x-leitstelle.rechner`. `zone_nicht_erlaubt` (403)
 heißt nur noch, dass die Zone wirklich nicht passt; ein Rechner, der unangekündigt verschwunden ist, gibt
@@ -436,7 +436,7 @@ Leitstelle       -> Kiste        signal.speicher        knoten mac-128, zustand 
 Leitstelle       -> Zusage       auftrag.ergebnis       (der Textauftrag endet)
 Leitstelle       -> Kiste        signal.modell          modell glm-vision, zustand wird_geladen, dauer_s 14
 Leitstelle       -> Kiste        signal.modell          zustand bereit
-Leitstelle       -> Kiste        auftrag.laeuft         zuteilung Modell-Läufer, GLM 4.6V Flash, Mac Studio, Heimnetz
+Leitstelle       -> Kiste        auftrag.laeuft         zuteilung Modell-Läufer, GLM 4.6V Flash, MacBook M4 Max 128 GB, Heimnetz
 Leitstelle       -> Kiste        auftrag.ergebnis       text "...", messung dauer 3.8 s
 ```
 

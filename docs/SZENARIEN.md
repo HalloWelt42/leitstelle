@@ -4,8 +4,9 @@ Jedes Szenario ist ein Test in `backend/tests/`; die Nummer (S01 bis S53 für de
 steht im Testnamen. Alles ist
 gemockt: kein echter Modell-Läufer, kein Netz, keine Uhr. Die Schein-Welt (`backend/leitstelle/simulation/`)
 bildet den echten Bestand nach (8 Anwendungen, 5 Anbindungen, 4 Knoten, 14 Modellinstanzen) und kennt eine
-verborgene Wahrheit, die die Leitstelle nur über Messungen erfährt. Jeder Zweig jeder Regelvorlage ist mit
-mindestens einem Szenario belegt (Abschnitt 3).
+verborgene Wahrheit, die die Leitstelle nur über Messungen erfährt. Ihre Namen sind erfunden und stehen so in
+`simulation/standard.py` ("Mac Studio" ist der große Rechner der Schein-Welt; der echte heißt MacBook M4 Max 128 GB).
+Jeder Zweig jeder Regelvorlage ist mit mindestens einem Szenario belegt (Abschnitt 3).
 
 ```bash
 cd backend && .venv/bin/python -m pytest            # alle Szenarien

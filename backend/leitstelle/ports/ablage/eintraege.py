@@ -39,7 +39,7 @@ class DienstEintrag(BaseModel):
     kennung: str
     name: str
     art: Adapterart = Adapterart.OPENAI_KOMPATIBEL
-    adresse: str                       # Basisadresse, zum Beispiel http://mac-studio.local:1234
+    adresse: str                       # Basisadresse, zum Beispiel http://macbook.local:1234
     knoten: str | None = None          # None heißt externer Anbieter
     extern: bool = False
     zugang_geheim: str | None = None   # verschlüsselt im Tresor; nur wenn die Gegenstelle einen verlangt
