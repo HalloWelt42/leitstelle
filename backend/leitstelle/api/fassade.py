@@ -12,6 +12,8 @@ import asyncio
 import base64
 import json
 import re
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Any
 from urllib.parse import unquote
 
@@ -32,6 +34,27 @@ from .gemeinsam import ablehnung_antwort, betrieb, fehler_antwort, konfig, vermi
 router = APIRouter()
 
 PRIORITAET_WORT = {"hintergrund": Prioritaet.HINTERGRUND, "normal": Prioritaet.NORMAL, "hoch": Prioritaet.HOCH, "dringend": Prioritaet.DRINGEND}
+
+
+GETRENNT = "Die Anwendung hat die Verbindung getrennt."
+
+
+@asynccontextmanager
+async def _solange_die_anwendung_wartet(request: Request, v: Vorgang) -> AsyncIterator[None]:
+    """Für Antworten ohne Strom: geht die Anwendung, solange ihr Auftrag wartet oder rechnet, endet er wie beim Stoppen.
+    Der Abbruch reicht dann bis zum Dienst (die Leitstelle schließt ihre Verbindung, der Dienst hört auf). Ein Strom
+    braucht das nicht: dort sieht Starlette das Schließen selbst. Den Körper hat die Fassade schon gelesen; danach kommt auf
+    der Verbindung nur noch die Nachricht, dass sie zu ist."""
+    async def wache() -> None:
+        while (await request.receive())["type"] != "http.disconnect":
+            await asyncio.sleep(0.1)
+        v.lauf.beenden_mit("anwendung", GETRENNT)
+
+    aufgabe = asyncio.create_task(wache())
+    try:
+        yield
+    finally:
+        aufgabe.cancel()
 
 
 def _anwendung(request: Request) -> AnwendungEintrag | None:
@@ -142,9 +165,10 @@ async def _vermitteln(request: Request, pfad: str, faehigkeit: Faehigkeit) -> Re
 
     teile: list[bytes] = []
     try:
-        async for teil in verm.ausfuehren(v, pfad, koerper, False, getrennt=request.is_disconnected):
-            if not isinstance(teil, Wartet):
-                teile.append(teil)
+        async with _solange_die_anwendung_wartet(request, v):
+            async for teil in verm.ausfuehren(v, pfad, koerper, False):
+                if not isinstance(teil, Wartet):
+                    teile.append(teil)
     except Ablehnung as a:
         return ablehnung_antwort(request, a)
     finally:
@@ -220,9 +244,10 @@ async def bilder(request: Request) -> Response:
         return StreamingResponse(_bilder_strom(request, v, anfrage, seed), media_type="text/event-stream",
                                  headers={**_kopf(request, v), "Cache-Control": "no-cache"})
     try:
-        async for _ in verm.warten(v, getrennt=request.is_disconnected):
-            pass
-        erzeugung = await verm.bilder_erzeugen(v, anfrage, seed)
+        async with _solange_die_anwendung_wartet(request, v):
+            async for _ in verm.warten(v):
+                pass
+            erzeugung = await verm.bilder_erzeugen(v, anfrage, seed)
     except Ablehnung as a:
         antwort = ablehnung_antwort(request, a)
         antwort.headers.update(_kopf(request, v))
@@ -254,7 +279,7 @@ async def _bilder_strom(request: Request, v: Vorgang, anfrage: BildAnfrage, seed
     finally:
         # ohne `await`: reißt die Anwendung ab, wird dieser Rest abgebrochen; der Auftrag braucht seinen Endzustand trotzdem
         if arbeit is not None and not arbeit.done():
-            v.lauf.beenden_mit("anwendung", "Die Anwendung hat die Verbindung getrennt.")
+            v.lauf.beenden_mit("anwendung", GETRENNT)
         verm.aufraeumen(v)
 
 
@@ -283,9 +308,10 @@ async def dienst(request: Request, name: str, pfad: str) -> Response:
     anfrage = Durchleitung(methode=request.method, pfad=pfad, abfrage=request.url.query, inhalt=await request.body(),
                            kopf={k: w for k, w in request.headers.items() if k.lower() not in OHNE_KOPF})
     try:
-        async for _ in verm.warten(v, getrennt=request.is_disconnected):
-            pass
-        antwort = await verm.roh_anfragen(v, anfrage)
+        async with _solange_die_anwendung_wartet(request, v):
+            async for _ in verm.warten(v):
+                pass
+            antwort = await verm.roh_anfragen(v, anfrage)
     except Ablehnung as a:
         verm.aufraeumen(v)
         fehler = ablehnung_antwort(request, a)

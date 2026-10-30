@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import secrets
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -139,8 +139,9 @@ class Vermittlung:
         self._abschliessen(v, Auftragszustand.ABGEBROCHEN, "anwendung", "Die Anwendung hat die Verbindung getrennt.")
 
     # ── Warten ───────────────────────────────────────────────────────────
-    async def warten(self, v: Vorgang, getrennt: Callable[[], Awaitable[bool]] | None = None) -> AsyncIterator[Wartet]:
-        """Bis Modell und Platz bereit sind; gibt alle `hinweis_s` den Stand. Ablehnung oder Abbruch als `Ablehnung`."""
+    async def warten(self, v: Vorgang) -> AsyncIterator[Wartet]:
+        """Bis Modell und Platz bereit sind; gibt alle `hinweis_s` den Stand. Ablehnung oder Abbruch als `Ablehnung` (auch
+        wenn die Anwendung gegangen ist: das setzt die Fassade als Ende des Laufs)."""
         lauf = v.lauf
         seit_hinweis = 0.0
         while not lauf.freigabe.is_set():
@@ -156,9 +157,6 @@ class Vermittlung:
             if fertig:
                 continue
             seit_hinweis += 1.0
-            if getrennt and await getrennt():
-                self.aufraeumen(v)
-                raise Ablehnung("anwendung", "Die Anwendung hat die Verbindung getrennt.")
             if seit_hinweis >= self.konfig.hinweis_s:
                 seit_hinweis = 0.0
                 yield Wartet(*self.betrieb.wartehinweis(v.auftrag))
@@ -494,11 +492,10 @@ class Vermittlung:
         self._abschliessen(v, Auftragszustand.FERTIG)
         return Bilderzeugung(ergebnis=ergebnis, auftrag=auftrag, familie=familie, dauer_s=dauer)
 
-    async def ausfuehren(self, v: Vorgang, pfad: str, koerper: dict[str, Any], strom: bool,
-                         getrennt: Callable[[], Awaitable[bool]] | None = None) -> AsyncIterator[bytes | Wartet]:
+    async def ausfuehren(self, v: Vorgang, pfad: str, koerper: dict[str, Any], strom: bool) -> AsyncIterator[bytes | Wartet]:
         """Warten und Durchleiten in einem, mit Neuversuch, wenn der Dienst das Modell inzwischen selbst entladen hat."""
         while True:
-            async for w in self.warten(v, getrennt):
+            async for w in self.warten(v):
                 yield w
             try:
                 async for teil in self.durchleiten(v, pfad, koerper, strom):

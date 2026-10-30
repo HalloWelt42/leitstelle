@@ -382,14 +382,66 @@ async def test_b09_abbruch_und_fehler_des_bilddienstes(tmp_path):
         assert e["zustand"] == "abgebrochen" and e["grund"] == "nutzer"
         m = next(x for x in (await c.get("/api/lage")).json()["modelle"] if x["familie"] == "bildwerk-moss-image")
         assert m["zustand"] == "geladen" and m["auftraege_aktiv"] == 0
-        # Ob der Dienst das Schließen sieht, liegt an der Durchleitung des Maschinenraums: sie reicht es erst weiter, wenn
-        # der Dienst antwortet (Befund 27.10.2026, Maschinenraum 0.17.0); direkt am Dienst greift es sofort (B04)
+        # der Abbruch reicht durch die Durchleitung des Maschinenraums bis zum Dienst: er hört auf zu rechnen (HELF-24;
+        # bis Maschinenraum 0.17.2 wartete die Durchleitung auf seine Antwort und er rechnete zu Ende)
+        await _dienst_hat_abgebrochen(dienst, 1)
 
     async with aufbau(tmp_path / "fehler", rechenzeit_s=0.1, startzeit_s=0.5) as (c, anw, kopf, _dienst):
         r = await anw.post("/v1/images/generations", headers=kopf, json={"prompt": "Fehler beim Rechnen", "model": "bildwerk-moss-image"})
         assert r.status_code == 502 and r.json()["error"]["code"] == "dienst_fehler" and "Speicher erschöpft" in r.json()["error"]["message"]
-        e = (await c.get(f"/api/auftraege/{r.headers['x-leitstelle-auftrag']}")).json()
+        e = await _endzustand(c, r.headers["x-leitstelle-auftrag"])
         assert (e["zustand"], e["grund"]) == ("fehlgeschlagen", "dienst_fehler") and "(500)" in e["begruendung"]
+
+
+async def _endzustand(c: httpx.AsyncClient, kennung: str) -> dict:
+    """Der Auftrag mit seinem Endzustand: die Ablage schreibt ihn im Hintergrund (Schreibfolge), kurz nach der Antwort."""
+    e = {}
+    for _ in range(100):
+        e = (await c.get(f"/api/auftraege/{kennung}")).json()
+        if e["zustand"] in ("fertig", "abgebrochen", "fehlgeschlagen", "abgelehnt"):
+            break
+        await asyncio.sleep(0.05)
+    return e
+
+
+async def _dienst_hat_abgebrochen(dienst: httpx.AsyncClient, anzahl: int) -> None:
+    """Der Schein-Bilddienst hat so viele Rechnungen abgebrochen, weil seine Verbindung zuging, und rechnet nichts mehr."""
+    lage = {}
+    for _ in range(100):
+        lage = (await dienst.get("/lage")).json()
+        if lage["abgebrochen"] >= anzahl and not lage["laufend"]:
+            break
+        await asyncio.sleep(0.05)
+    assert (lage["abgebrochen"], lage["laufend"], lage["fertig"]) == (anzahl, 0, 0), lage
+
+
+async def _bis_der_dienst_rechnet(c: httpx.AsyncClient, dienst: httpx.AsyncClient) -> str:
+    for _ in range(400):
+        if await _laeuft(dienst) and (await dienst.get("/lage")).json()["laufend"]:
+            break
+        await asyncio.sleep(0.05)
+    offen = [a for a in (await c.get("/api/lage")).json()["auftraege"] if a["faehigkeit"] == "bild_erzeugen" and a["zustand"] == "laeuft"]
+    assert len(offen) == 1
+    return offen[0]["kennung"]
+
+
+@pytest.mark.parametrize("strom", [True, False])
+async def test_b12_anwendung_geht_und_der_bilddienst_hoert_auf(tmp_path, strom):
+    """B12 (HELF-24): bricht die Anwendung ab (Verbindung zu), während der Bilddienst rechnet, endet ihr Auftrag in der
+    Leitstelle, und der Abbruch reicht über die Durchleitung des Maschinenraums bis zum Dienst: er hört sofort auf. Mit
+    Strom und ohne; ohne Strom sah die Leitstelle das Gehen bis 0.26.0 nur, solange der Auftrag noch wartete."""
+    async with aufbau(tmp_path, rechenzeit_s=30, startzeit_s=0.5) as (c, anw, kopf, dienst):
+        arbeit = asyncio.create_task(anw.post("/v1/images/generations", headers=kopf,
+                                              json={"prompt": "lang", "model": "bildwerk-moss-image", "stream": strom}))
+        kennung = await _bis_der_dienst_rechnet(c, dienst)
+        arbeit.cancel()                                        # die Anwendung geht: ihre Verbindung ist zu
+        with pytest.raises(asyncio.CancelledError):
+            await arbeit
+        await _dienst_hat_abgebrochen(dienst, 1)
+        e = await _endzustand(c, kennung)
+        assert (e["zustand"], e["grund"]) == ("abgebrochen", "anwendung"), e
+        m = next(x for x in (await c.get("/api/lage")).json()["modelle"] if x["familie"] == "bildwerk-moss-image")
+        assert m["zustand"] == "geladen" and m["auftraege_aktiv"] == 0
 
 
 async def _laeuft(dienst: httpx.AsyncClient) -> bool:

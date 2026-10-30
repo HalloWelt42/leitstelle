@@ -466,6 +466,11 @@ Leitstelle gegangen ist. Ein abgebrochenes Bild rechnet im Dienst deshalb zu End
 Dienst so lange auf dessen Sperre. Direkt am Dienst greift der Abbruch sofort (B04). Abhilfe gehört in den
 Maschinenraum (Durchleitung: Trennen der Leitstelle beobachten und die Anfrage an den Dienst dann schließen).
 
+Behoben (30.10.2026, HELF-24, Maschinenraum 0.17.3, Leitstelle 0.26.1): die Durchleitung beobachtet die Verbindung der
+Leitstelle, solange sie auf die Antwort des Dienstes wartet, und schließt dann ihre Anfrage an den Dienst; der Dienst hört
+beim nächsten Schritt auf. Dazu sieht die Fassade das Gehen einer Anwendung jetzt auch bei Antworten ohne Strom, während
+der Auftrag rechnet (vorher nur, solange er wartete): sie beendet den Auftrag wie beim Stoppen. Prüfung B09 und B12.
+
 **Umsetzung** (Leitstelle 0.26.0, 27.10.2026): Bildablauf `ports/dienste/bilder/bildformat.py` neben dem für ComfyUI,
 Wahl an einer Stelle (`bildablauf_waehlen`), Bild-Steckbrief im Steckbrief (`bild`, PROTOKOLL 4.8) mit Ablage
 (Migration 0012), Bildregeln `fach/bildregeln.py`, Wahl der App (`model`, `alternativen`, sonst ihre Kette, sonst
