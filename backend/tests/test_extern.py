@@ -261,7 +261,7 @@ async def test_x03_strom_ohne_verbrauchswunsch_der_app(tmp_path):
         kennung = r.headers["x-leitstelle-auftrag"]
         for _ in range(100):                           # der Verlauf wird im Hintergrund geschrieben
             e = (await h.c.get(f"/api/auftraege/{kennung}")).json()
-            if e["zustand"] == "fertig":
+            if e.get("zustand") == "fertig":          # vorher 404 ohne Zustand, solange er nicht geschrieben ist
                 break
             await asyncio.sleep(0.05)
         assert (e["token_ein"], e["token_aus"]) == (3, 7)

@@ -398,7 +398,7 @@ async def _endzustand(c: httpx.AsyncClient, kennung: str) -> dict:
     e = {}
     for _ in range(100):
         e = (await c.get(f"/api/auftraege/{kennung}")).json()
-        if e["zustand"] in ("fertig", "abgebrochen", "fehlgeschlagen", "abgelehnt"):
+        if e.get("zustand") in ("fertig", "abgebrochen", "fehlgeschlagen", "abgelehnt"):
             break
         await asyncio.sleep(0.05)
     return e

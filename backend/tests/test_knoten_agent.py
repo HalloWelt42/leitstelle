@@ -313,7 +313,7 @@ async def test_a08_anfrage_an_einen_dienst_nur_ueber_die_leitstelle(tmp_path):
                 assert (await anw.get("/v1/dienste/probe/hallo.txt")).status_code == 401
 
             async def fertig():
-                return (await c.get(f"/api/auftraege/{auftrag}")).json()["zustand"] == "fertig"
+                return (await c.get(f"/api/auftraege/{auftrag}")).json().get("zustand") == "fertig"
             await _warte_bis(fertig)
             e = (await c.get(f"/api/auftraege/{auftrag}")).json()
             assert e["faehigkeit"] == "stimme" and e["erstes_stueck_s"] is not None
