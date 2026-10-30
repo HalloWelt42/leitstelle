@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+from contextlib import suppress
 from typing import Any
 
 from fastapi import HTTPException, Request
@@ -13,6 +15,10 @@ from ..fach.fehler import Ablehnung, Zusatz, fehler_inhalt
 from ..fach.verzeichnis import Verzeichnis
 from ..fach.vermittlung import Vermittlung
 from ..konfig import Konfig
+from ..ports.ablage.repositorien import Ablage
+
+# So lange wartet ein Lesen höchstens auf Schreibungen, die noch in der Schreibfolge stehen.
+GESCHRIEBEN_WARTEN_S = 2.0
 
 # HTTP-Status je Grundwort (PROTOKOLL.md Abschnitt 7 und Verwaltung)
 STATUS: dict[str, int] = {
@@ -51,6 +57,16 @@ def ablehnung_als_fehler(a: Ablehnung) -> HTTPException:
 
 def betrieb(request: Request) -> Betrieb:
     return request.app.state.betrieb
+
+
+async def geschrieben(request: Request) -> Ablage:
+    """Die Ablage, nachdem eingereihte Schreibungen durch sind: was die Leitstelle gerade getan hat (ein Auftrag endet, ein
+    Modell wird entladen), steht dann auch im Gelesenen. Ohne das las ein Aufruf kurz nach dem Ende eines Auftrags noch den
+    alten Stand oder gar keinen. Höchstens GESCHRIEBEN_WARTEN_S; die Schreibungen selbst laufen davon unberührt weiter."""
+    b = betrieb(request)
+    with suppress(TimeoutError):
+        await asyncio.wait_for(b.schreibfolge.leeren(), GESCHRIEBEN_WARTEN_S)
+    return b.ablage
 
 
 def vermittlung(request: Request) -> Vermittlung:

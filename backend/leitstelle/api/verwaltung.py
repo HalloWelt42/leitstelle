@@ -15,7 +15,7 @@ from ..fach.lagebild import lagebild
 from ..fach.verzeichnis import AnwendungDaten, DienstAenderung, DienstDaten, KnotenDaten
 from ..kern.werte import Auftragszustand, Betriebsmodus
 from ..ports.ablage.eintraege import SteckbriefEintrag
-from .gemeinsam import ablehnung_als_fehler, betrieb, nur_heimnetz, verzeichnis, wer
+from .gemeinsam import ablehnung_als_fehler, betrieb, geschrieben, nur_heimnetz, verzeichnis, wer
 
 router = APIRouter(prefix="/api", dependencies=[Depends(nur_heimnetz)])
 
@@ -78,20 +78,20 @@ async def kennzahlen(request: Request):
     """Heute (seit Mitternacht, Ortszeit) abgeschlossene Aufträge."""
     from datetime import datetime
     mitternacht = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
-    return await betrieb(request).ablage.auftraege.kennzahlen(mitternacht)
+    return await (await geschrieben(request)).auftraege.kennzahlen(mitternacht)
 
 
 # ── Aufträge ─────────────────────────────────────────────────────────────
 @router.get("/auftraege")
 async def auftraege(request: Request, ab: int = Query(0, ge=0), anzahl: int = Query(50, ge=1, le=200),
                     anwendung: str | None = None, zustand: Auftragszustand | None = None):
-    eintraege, gesamt = await betrieb(request).ablage.auftraege.seite(ab, anzahl, anwendung, zustand)
+    eintraege, gesamt = await (await geschrieben(request)).auftraege.seite(ab, anzahl, anwendung, zustand)
     return {"eintraege": eintraege, "gesamt": gesamt, "ab": ab, "anzahl": anzahl}
 
 
 @router.get("/auftraege/{kennung}")
 async def auftrag(kennung: str, request: Request):
-    e = await betrieb(request).ablage.auftraege.holen(kennung)
+    e = await (await geschrieben(request)).auftraege.holen(kennung)
     if e is None:
         raise ablehnung_als_fehler(Ablehnung("unbekannt", "Diesen Auftrag gibt es nicht."))
     return e
@@ -105,7 +105,7 @@ async def stoppen(kennung: str, daten: StoppDaten, request: Request):
 
 @router.get("/massnahmen")
 async def massnahmen(request: Request, ab: int = Query(0, ge=0), anzahl: int = Query(50, ge=1, le=200)):
-    eintraege, gesamt = await betrieb(request).ablage.massnahmen.neueste(anzahl, ab)
+    eintraege, gesamt = await (await geschrieben(request)).massnahmen.neueste(anzahl, ab)
     return {"eintraege": eintraege, "gesamt": gesamt, "ab": ab, "anzahl": anzahl}
 
 
@@ -132,7 +132,7 @@ async def steckbrief_setzen(daten: SteckbriefEintrag, request: Request):
 @router.get("/bewegungen")
 async def bewegungen(request: Request, ab: int = Query(0, ge=0), anzahl: int = Query(50, ge=1, le=200)):
     """Laden und Entladen als Rohdaten, neueste zuerst."""
-    eintraege, gesamt = await betrieb(request).ablage.bewegungen.neueste(anzahl, ab)
+    eintraege, gesamt = await (await geschrieben(request)).bewegungen.neueste(anzahl, ab)
     return {"eintraege": eintraege, "gesamt": gesamt, "ab": ab, "anzahl": anzahl}
 
 
