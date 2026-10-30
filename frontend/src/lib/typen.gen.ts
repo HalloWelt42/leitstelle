@@ -137,7 +137,7 @@ export type Zone2 = 'heim' | 'fern' | 'extern';
  * via the `definition` "Richtung".
  */
 export type Richtung = 'laden' | 'entladen';
-export type Ausgang = 'ok' | 'abgelehnt' | 'gescheitert';
+export type Ausgang = 'ok' | 'abgelehnt' | 'gescheitert' | 'von_aussen';
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "Regelgruppe".
@@ -160,7 +160,7 @@ export type Prioritaet1 = 0 | 1 | 2 | 3;
  * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "Ausgang".
  */
-export type Ausgang1 = 'ok' | 'abgelehnt' | 'gescheitert';
+export type Ausgang1 = 'ok' | 'abgelehnt' | 'gescheitert' | 'von_aussen';
 
 export interface Leitstelle {
   Lagebild?: Lagebild;

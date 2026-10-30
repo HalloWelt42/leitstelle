@@ -175,6 +175,7 @@ class Betrieb:
         self.schreibfolge = Schreibfolge()   # alles, was im Hintergrund in die Ablage geht, in der Reihenfolge des Geschehens
         self._schleife: asyncio.Task | None = None
         self._letzter_abgleich = 0.0
+        self._zuletzt_gesehen_s: dict[str, float] = {}   # je Dienst: wann sein Bestand zuletzt gelesen wurde (für fremde Bewegungen)
         self._letzte_umschichtung = 0.0
         self.aenderung = 0                  # zählt Änderungen; das Lagebild wird nur bei Änderung neu gesendet
 
@@ -605,10 +606,13 @@ class Betrieb:
             self._modell_abgleichen(kennung, d, mb, bericht.steuerbar, jetzt)
         for m in [m for m in self.verbund.modelle.values() if m.dienst == dienst and m.kennung not in gesehen]:
             if not self.verbund.belegung(m.kennung) and m.kennung not in self.ladeaufgaben:   # eine startende Instanz meldet sich gleich
+                if m.zustand == Modellzustand.GELADEN:   # die Leitstelle setzt beim eigenen Entladen vorher frei
+                    self._fremd_bewegt(m.kennung, Richtung.ENTLADEN, jetzt)
                 self.verbund.modelle.pop(m.kennung, None)
                 self.orte.pop(m.kennung, None)
                 self.auskunft.pop(m.kennung, None)
         d.faehigkeiten = set().union(*(m.faehigkeiten for m in self.verbund.modelle_von(dienst))) if self.verbund.modelle_von(dienst) else set()
+        self._zuletzt_gesehen_s[dienst] = jetzt
 
     def _kennung_fuer(self, dienst: str, mb: ModellBericht) -> str:
         """Eine weitere Instanz, die die Leitstelle gestartet hat, behält ihre Kennung: geplant wurde sie unter
@@ -858,7 +862,10 @@ class Betrieb:
             m.zustand = Modellzustand.GELADEN
             m.geladen_seit_s, m.letzte_nutzung_s = None, jetzt
             self.melden(f"{m.name} auf {d.name} ist geladen (von außen oder beim Start der Leitstelle)")
+            if d.kennung in self._zuletzt_gesehen_s:     # beim ersten Blick nach dem Start ist nichts fremd bewegt
+                self._fremd_bewegt(kennung, Richtung.LADEN, jetzt)
         elif not mb.geladen and m.zustand == Modellzustand.GELADEN and kennung not in self.ladeaufgaben:
+            self._fremd_bewegt(kennung, Richtung.ENTLADEN, jetzt)
             m.zustand = Modellzustand.FREI
             m.geladen_seit_s = None
             ort.instanzen = []
@@ -1292,6 +1299,15 @@ class Betrieb:
                 self.melden(f"Entladen von {m.name} gescheitert: {f.meldung}; der nächste Abgleich zeigt den wahren Stand")
             else:
                 self._bewegung(modell, Richtung.ENTLADEN, start)
+
+    def _fremd_bewegt(self, modell: str, richtung: Richtung, jetzt: float) -> None:
+        """Geladen oder entladen, ohne dass die Leitstelle es tat: dauerhaft in den Bewegungen, damit sich später zeigt, wann
+        es geschah und wer es gewesen sein kann (HELF-29). Bemerkt wird es beim Abgleich, geschehen ist es seit dem letzten."""
+        d = self.verbund.dienste[self.verbund.modelle[modell].dienst]
+        vorher = self._zuletzt_gesehen_s.get(d.kennung)
+        seit = f"; vorher gesehen vor {komma(jetzt - vorher)} s" if vorher is not None else ""
+        tat = "geladen" if richtung == Richtung.LADEN else "entladen"
+        self._bewegung(modell, richtung, jetzt, Ausgang.VON_AUSSEN, f"nicht von der Leitstelle {tat}, bemerkt beim Abgleich von {d.name}{seit}")
 
     def _bewegung(self, modell: str, richtung: Richtung, start: float, ausgang: Ausgang = Ausgang.OK, meldung: str = "") -> None:
         """Laden und Entladen als Rohdatum in den Verlauf."""

@@ -183,6 +183,7 @@ class Ausgang(str, Enum):
     OK = "ok"
     ABGELEHNT = "abgelehnt"           # der Dienst hat das Laden abgelehnt (etwa zu wenig Speicher)
     GESCHEITERT = "gescheitert"       # Fehler beim Entladen; der nächste Abgleich zeigt den wahren Stand
+    VON_AUSSEN = "von_aussen"         # nicht die Leitstelle: der Dienst selbst oder ein Programm an ihr vorbei (bemerkt beim Abgleich)
 
 
 class Bewegung(BaseModel):

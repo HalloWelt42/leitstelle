@@ -275,6 +275,43 @@ async def test_e10_vom_dienst_selbst_entladenes_modell_wird_neu_geladen(tmp_path
         assert lage.ladevorgaenge == ["qwen/qwen3-next-80b"]
 
 
+async def _bewegungen(c) -> list[dict]:
+    return (await c.get("/api/bewegungen", params={"anzahl": 200})).json()["eintraege"]
+
+
+async def test_e21_fremdes_laden_und_entladen_steht_dauerhaft_in_den_bewegungen(tmp_path):
+    """HELF-29, messen statt raten: lädt oder entlädt jemand anderes ein Modell (der Läufer selbst, ein Programm an der
+    Leitstelle vorbei, ein Neustart), steht das als Bewegung mit Ausgang `von_aussen` in der Ablage, mit dem Abstand zum
+    letzten Blick. Beim Start der Leitstelle ist nichts fremd bewegt; was die Leitstelle selbst lädt und entlädt, nie."""
+    async with aufbau(tmp_path) as (c, anw, lage, app):
+        await asyncio.sleep(1.0)                                     # einige Abgleiche nach dem Start
+        assert not [b for b in await _bewegungen(c) if b["ausgang"] == "von_aussen"]
+
+        lage.modelle["qwen/qwen3-next-80b"].instanzen.clear()       # entladen am Leitstand vorbei
+
+        async def fremd_entladen() -> bool:
+            return any(b["ausgang"] == "von_aussen" and b["richtung"] == "entladen" for b in await _bewegungen(c))
+        await _warte_bis(fremd_entladen)
+        b = next(b for b in await _bewegungen(c) if b["ausgang"] == "von_aussen")
+        assert (b["familie"], b["name"]) == ("qwen/qwen3-next-80b", "Qwen3 Next 80B")
+        assert b["meldung"].startswith("nicht von der Leitstelle entladen, bemerkt beim Abgleich von ") and "vorher gesehen vor" in b["meldung"]
+
+        lage.modelle["zai-org/glm-4.6v-flash"].instanzen.append("zai-org/glm-4.6v-flash")   # geladen am Leitstand vorbei
+
+        async def fremd_geladen() -> bool:
+            return any(b["ausgang"] == "von_aussen" and b["richtung"] == "laden" and b["familie"] == "zai-org/glm-4.6v-flash"
+                       for b in await _bewegungen(c))
+        await _warte_bis(fremd_geladen)
+
+        # was die Leitstelle selbst tut, ist nie fremd: das 80B laden (für einen Auftrag) und die Brille entladen (für Platz)
+        r = await anw.post("/chat/completions", json={"model": "qwen/qwen3-next-80b", "messages": []})
+        assert r.status_code == 200, r.text
+        app.state.betrieb.modell_entladen(next(m.kennung for m in app.state.betrieb.verbund.modelle.values() if m.familie == "zai-org/glm-4.6v-flash"))
+        await asyncio.sleep(1.0)
+        fremd = [(b["richtung"], b["familie"]) for b in await _bewegungen(c) if b["ausgang"] == "von_aussen"]
+        assert sorted(fremd) == [("entladen", "qwen/qwen3-next-80b"), ("laden", "zai-org/glm-4.6v-flash")], fremd
+
+
 async def test_e11_heimnetz_schutz_fuer_verwaltung(tmp_path):
     async with aufbau(tmp_path) as (c, anw, lage, app):
         app.state.konfig.erlaubte_netze = ["10.99.0.0/16"]
@@ -397,6 +434,7 @@ async def test_e19_einbettung_verstaerken_mit_weiteren_instanzen_des_laeufers(tm
             return lage.modelle["text-embedding-bge-m3"].instanzen == ["text-embedding-bge-m3"]
         await _warte_bis(zurueckgebaut, 15)
         await _warte_bis(lambda: _nur_grundinstanz(c), 5)
+        assert not [b for b in await _bewegungen(c) if b["ausgang"] == "von_aussen"], "eigene Instanzen sind nie fremd"
 
 
 async def _nur_grundinstanz(c) -> bool:

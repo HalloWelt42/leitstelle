@@ -71,7 +71,9 @@ umgesetzt; Vorrang und Wahl beim Entladen waren schon so (größtes ungenutztes 
 - **Messwerte als Rohdaten**: Lade-, Warte- und Rechenzeiten je Modell und Knoten bleiben als Reihe, damit sich die
   Regeln aus dem Verlauf einstellen lassen (Nutzer: "da wir loggen, können wir die logs ... zum verbessern nutzen").
   Warte- und Rechenzeiten stehen in den Aufträgen (`/api/auftraege`), jedes Laden und Entladen mit Beginn, Dauer und
-  Ausgang in `/api/bewegungen`.
+  Ausgang in `/api/bewegungen`. Auch fremdes: lädt oder entlädt jemand anderes ein Modell (der Dienst selbst, ein Programm
+  an der Leitstelle vorbei, ein Neustart des Läufers), steht es dort mit Ausgang `von_aussen`, dem Zeitpunkt, an dem der
+  Abgleich es bemerkte, und dem Abstand zum Blick davor (HELF-29, seit 0.27.0; Szenario E21).
 
 ### Stufe Z3: mehrere Instanzen kleiner Dienste
 
