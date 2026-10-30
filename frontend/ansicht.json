@@ -1,0 +1,6 @@
+{
+  "anmeldung": false,
+  "seiten": [
+    { "name": "mobil", "pfad": "/mobil", "nur": [375, 390, 430] }
+  ]
+}

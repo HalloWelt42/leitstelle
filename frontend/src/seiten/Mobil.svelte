@@ -34,13 +34,13 @@
   const stoppen = (k: string, m: 'sofort' | 'auslaufen') => tun(() => api.stoppen(k, m, 'vom Telefon'), m === 'sofort' ? 'Gestoppt' : 'Läuft aus').then(() => (wahl = null));
 </script>
 
-<div class="seite-mobil telefonansicht">
-  <header class="m-kopf">
+<div class="seite-mobil telefonansicht" data-rahmen="app">
+  <header class="m-kopf" data-rahmen="kopf">
     <img src="/symbol-frei.svg" alt="" /><b>{__MARKE__.name}</b><span class="m-zweck">{__MARKE__.zweck}</span>
     <span class="lage {lage.klasse}"><span class="punkt" class:lebt={kanal.verbunden}></span>{lage.wort}</span>
   </header>
 
-  <div class="m-inhalt">
+  <div class="m-inhalt" data-rahmen="inhalt">
     <NeueFassung telefon />
     {#if !bild}
       <div class="m-karte"><p>Verbinde mit der Leitstelle ...</p></div>
@@ -124,7 +124,7 @@
     {/if}
   </div>
 
-  <nav class="m-fuss">
+  <nav class="m-fuss" data-rahmen="fuss">
     <a href="#lage" class:aktiv={blatt === 'lage'} onclick={(e) => { e.preventDefault(); blatt = 'lage'; }}><i class="fa-solid fa-tower-observation"></i>Lage</a>
     <a href="#auftraege" class:aktiv={blatt === 'auftraege'} onclick={(e) => { e.preventDefault(); blatt = 'auftraege'; }}><i class="fa-solid fa-list-check"></i>Aufträge
       {#if wartend.length}<span class="pille zaehler warnung">{wartend.length}</span>{/if}</a>
@@ -134,12 +134,8 @@
 </div>
 
 <style>
-  .telefonansicht { height: 100dvh; display: flex; flex-direction: column; background: var(--hg);
-                    padding: calc(env(safe-area-inset-top) + var(--oben-luft, 0px)) env(safe-area-inset-right) 0 env(safe-area-inset-left); } /* kein Abstand über dem Home-Balken (Nutzervorgabe 20.10.2026) */
-  /* Vom Home-Bildschirm (iOS 26): unter Uhr und Kamera-Insel fängt das System Berührungen ab, darum etwas Luft */
-  @media (display-mode: standalone) and (pointer: coarse) { :global(.seite-mobil) { --oben-luft: 14px; } }
-  :global(.seite-mobil .m-kopf) { padding-top: 14px; }
-  :global(.seite-mobil .m-fuss) { padding-bottom: 14px; }
+  /* Höhe, sicherer Rand, Kopf- und Fußleiste und Seitenrand allein aus dem Rahmen des Appkerns (stil/rahmen.css) */
+  .telefonansicht { background: var(--hg); }
   .m-schalter { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; font-weight: 600; min-height: 44px; }
   .m-meldung { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 8px; padding: 8px 0; border-top: 1px solid var(--rand); font-size: var(--klein); }
   .m-meldung:first-child { border-top: 0; }
