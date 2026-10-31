@@ -63,6 +63,10 @@ umgesetzt; Vorrang und Wahl beim Entladen waren schon so (größtes ungenutztes 
   "bleibt für ...", der Speicherplan nennt die Arbeit als Grund. Der Verlauf trägt die Arbeit je Auftrag, damit sich
   Frist und Schwelle aus echten Abläufen einstellen lassen.
 - **Einbettung zuerst**: in der Warteschlange vor jedem Text, auch einem dringenden; geladen bleibt sie (geschützt).
+  Seit 31.10.2026 (HELF-89, Leitstelle 0.29.0) gilt das nur noch für Suchen und Fragen: Masseneinbettung (Priorität
+  Hintergrund) ist Arbeit nur bei Ruhe, kommt zuletzt und nur, wenn keine andere Arbeit läuft oder wartet (Nutzer:
+  "Einbettungen sind nicht so privilegiert, die können auch laufen, wenn nichts los ist"). Einstellbar unter Regeln,
+  Nur bei Ruhe: Fähigkeiten, bis zu welcher Priorität, Ruhe ab (Vorgabe 60 s).
 - **Entladen nur bei Not**: wer weicht, bestimmt die Rangfolge (siehe unten); nie ein rechnendes, zugeteiltes oder
   geschütztes Modell (unter 10B, Einbettung); Mindestverweildauer bleibt.
 - **Erst frei, dann laden**: ein Laden wartet, bis jedes laufende Entladen auf demselben Rechner zurück ist (vorher

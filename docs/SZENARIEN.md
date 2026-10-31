@@ -209,6 +209,23 @@ Budget = Speicher minus dem Größeren aus Reserve (18 GB) und System, oder ein 
 | S48 | Schutzvorgabe eines Dienstes | geht der Regel nach Parameterzahl vor: erlaubt der Dienst das Anhalten, darf auch ein Modell ohne Parameterzahl weichen; verbietet er es, bleibt auch ein großes stehen |
 | S49 | Bedarf und Ist-Wert | verplant (Budget) wird der Bedarf, als belegt gilt der gemessene Ist-Wert |
 
+### Arbeit nur bei Ruhe (`test_nur_bei_ruhe.py`, HELF-89)
+
+| Nr | Szenario | Erwartung |
+|---|---|---|
+| S54 | Masseneinbettung (Fundus, Hintergrund), sonst nichts los | rechnet im ersten Takt |
+| S55 | Hörlauf läuft, Masseneinbettung kommt | wartet in `wartet_ruhe` mit "wartet auf Ruhe ... (TubeVault)"; nach dem Hören noch die Ruhezeit (60 s), dann gleich |
+| S56 | Einbettungsstapel rechnet, dann kommt ein Hörlauf und der nächste Stapel | der laufende Stapel rechnet zu Ende (kein Abbruch), der nächste wartet bis Ende des Hörens plus Ruhezeit |
+| S57 | Suche (Einbettung mit Priorität normal) während des Hörens | läuft sofort, die Masseneinbettung wartet |
+| S58 | Einstellungen: Ruhe ab 0 s, keine Fähigkeit, bis Priorität normal, Text statt Einbettung | gleich nach dem Ende; wie vor HELF-89; auch die Suche wartet; Hintergrundtext wartet, Einbettung nicht |
+| S59 | Fairness-Frist 60 s, Hören läuft 400 s | Arbeit nur bei Ruhe rückt nicht auf, sie wartet weiter |
+| S60 | Sechs Stapel warten auf Ruhe, eine weitere Einbettungsinstanz ist geladen | kein Einbettung verstärken, Lage ruhig, die weitere Instanz weicht nach der Ruhe der Einbettung |
+| S61 | Anderer Auftrag wartet auf einen belegten Platz | zählt wie laufende Arbeit: die Einbettung wartet, bis auch er fertig ist plus Ruhezeit |
+| E21 | Echte Ports: Text strömt, Masseneinbettung per HTTP (Kopf hintergrund) | Zustand `wartet_ruhe`, Anfrage bleibt offen, Suche (normal) kommt sofort, Masse nach Text plus Ruhezeit mit Vektoren |
+| V08 | Regelwerk, Gruppe Nur bei Ruhe | drei Werte mit Möglichkeiten, Änderung im Prüfprotokoll mit Worten, falsche Werte abgelehnt, leere Liste schaltet ab |
+
+Gegentest: an der Fassung davor (0.28.0) scheitern alle außer S54.
+
 ### Schlaf eines Rechners im Kern (`test_zuteiler.py`)
 
 | Nr | Szenario | Erwartung |

@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 import httpx
 
 from leitstelle.api.app import erstellen
-from leitstelle.kern.regelwerk import Regelwerk, einstellbar, regelwert
+from leitstelle.kern.regelwerk import Einheit, Regelwerk, einstellbar, regelwert
 from leitstelle.kern.werte import Automatik, Hintergrundstufe, Massnahmenart
 from leitstelle.konfig import Konfig
 from leitstelle.ports.ablage.datenbank import Datenbank
@@ -43,7 +43,10 @@ def test_jeder_wert_hat_bedeutung_und_grenzen_um_die_vorgabe():
         rw = regelwert(f)
         assert rw.titel and rw.erklaerung.endswith(".") and rw.gruppe
         w = getattr(vorgabe, f)
-        if isinstance(w, (int, float)) and not isinstance(w, bool):
+        if rw.einheit in (Einheit.WAHL, Einheit.MEHRFACH):
+            moeglich = {x for x, _ in rw.wahl}
+            assert moeglich and all(x.value in moeglich for x in (w if isinstance(w, list) else [w])), f
+        elif isinstance(w, (int, float)) and not isinstance(w, bool):
             assert rw.min is not None and rw.max is not None and rw.min <= w <= rw.max, f
 
 

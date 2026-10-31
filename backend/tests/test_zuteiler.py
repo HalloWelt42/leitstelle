@@ -172,10 +172,13 @@ def test_plaetze_je_modell_maschinenraum_bestimmt_eintrag_begrenzt(welt):
 
 def test_einbettung_zuerst(welt):
     """Nutzer 18.10.2026: Einbettung hat höchste Priorität, vor jedem Text, auch einem dringenden; untereinander gilt
-    wieder die Priorität."""
+    wieder die Priorität. Seit 31.10.2026 ausgenommen: Masseneinbettung (Hintergrund) ist Arbeit nur bei Ruhe und kommt
+    zuletzt; ohne die Regel (keine Fähigkeit nur bei Ruhe) gilt die alte Reihenfolge."""
     text = welt.auftrag("zusage", F.TEXT, prioritaet=P.DRINGEND)
     spaet = welt.auftrag("fundus", F.EINBETTUNG, prioritaet=P.HINTERGRUND)
     such = welt.auftrag("fundus", F.EINBETTUNG, prioritaet=P.NORMAL)
+    assert [a.kennung for a in reihenfolge(welt.verbund)] == [such.kennung, text.kennung, spaet.kennung]
+    welt.verbund.regelwerk = welt.verbund.regelwerk.model_copy(update={"ruhe_faehigkeiten": []})
     assert [a.kennung for a in reihenfolge(welt.verbund)] == [such.kennung, spaet.kennung, text.kennung]
 
 

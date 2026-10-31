@@ -128,6 +128,7 @@ class Welt:
                 a.zustand = Auftragszustand.ABGEBROCHEN
                 a.teilergebnis = a.fortschritt_s > 0
                 a.ende_s = self.verbund.zeit_s
+                self.verbund.auftrag_beendet(a)
                 if a.modell:
                     m = self.verbund.modelle[a.modell]
                     m.auftraege_aktiv = max(0, m.auftraege_aktiv - 1)
@@ -229,6 +230,7 @@ class Welt:
             if a.fortschritt_s >= a.laufzeit_s:
                 a.zustand = Auftragszustand.FERTIG
                 a.ende_s = v.zeit_s
+                v.auftrag_beendet(a)
                 m = v.modelle[a.modell]
                 m.auftraege_aktiv = max(0, m.auftraege_aktiv - 1)
                 m.letzte_nutzung_s = v.zeit_s

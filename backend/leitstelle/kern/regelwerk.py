@@ -17,7 +17,7 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel, Field, field_validator
 
-from .werte import SZENARIEN_AB_WERK_AUS, Automatik, Massnahmenart
+from .werte import SZENARIEN_AB_WERK_AUS, WORT, Automatik, Faehigkeit, Massnahmenart, Prioritaet
 
 
 class Einheit(str, Enum):
@@ -32,6 +32,7 @@ class Einheit(str, Enum):
     FAKTOR = "faktor"
     SCHALTER = "schalter"             # an oder aus
     WAHL = "wahl"                     # einer aus mehreren Werten
+    MEHRFACH = "mehrfach"             # beliebig viele aus mehreren Werten (Liste)
 
 
 class Regelgruppe(str, Enum):
@@ -39,6 +40,7 @@ class Regelgruppe(str, Enum):
     SPEICHER = "speicher"
     AUSWEICHEN = "ausweichen"
     HINTERGRUND = "hintergrund"
+    RUHE = "ruhe"
     EINBETTUNG = "einbettung"
     LAST = "last"
 
@@ -55,6 +57,9 @@ GRUPPEN: dict[Regelgruppe, Gruppe] = {
     Regelgruppe.AUSWEICHEN: Gruppe("Kette und Ausweichen", "Wohin ein wartender Auftrag ausweicht: andere Modelle seiner Kette, andere "
                                                            "Rechner oder ein externer Anbieter, den die Anwendung erlaubt."),
     Regelgruppe.HINTERGRUND: Gruppe("Hintergrund", "Wann Hintergrundarbeit wartet und wohin sie bevorzugt geht."),
+    Regelgruppe.RUHE: Gruppe("Nur bei Ruhe", "Arbeit der niedrigsten Stufe: sie bekommt nur ein Modell, wenn keine andere Arbeit läuft "
+                                             "oder wartet, und gibt nach, sobald etwas anderes kommt; der laufende Auftrag rechnet zu Ende, "
+                                             "die übrigen warten auf die nächste Ruhe."),
     Regelgruppe.EINBETTUNG: Gruppe("Einbettung", "Weitere Instanzen eines Einbettungsmodells bei Andrang und ihr Rückbau."),
     Regelgruppe.LAST: Gruppe("Läufer und Last", "Arbeiter des Modell-Läufers ohne Auftrag und Hintergrund bei Last des Menschen am Rechner."),
 }
@@ -72,6 +77,7 @@ class Regelwert:
     max: float | None = None
     schritt: float | None = None
     szenario: Massnahmenart | None = None   # gehört zu dieser Maßnahme; None: gilt für mehrere
+    wahl: tuple[tuple[Any, str], ...] = ()  # bei Wahl und Mehrfach: die möglichen Werte (wie im JSON) mit Wort
 
 
 @dataclass(frozen=True)
@@ -122,6 +128,8 @@ SZENARIEN: dict[Massnahmenart, Szenario] = {
 
 #: Wörter der Automatik (WAHL)
 AUTOMATIK_WORT = {Automatik.AUS: "Aus", Automatik.VORSCHLAGEN: "Vorschlagen", Automatik.SELBST: "Selbst handeln"}
+#: Wörter der Prioritäten (WAHL "nur bei Ruhe bis")
+PRIORITAET_WORT = {Prioritaet.HINTERGRUND: "Hintergrund", Prioritaet.NORMAL: "Normal", Prioritaet.HOCH: "Hoch", Prioritaet.DRINGEND: "Dringend"}
 
 R = Regelgruppe
 E = Einheit
@@ -132,7 +140,8 @@ class Regelwerk(BaseModel):
 
     automatik: Annotated[Automatik, Regelwert(
         "Automatik", "Aus: keine Regel greift. Vorschlagen: Maßnahmen erscheinen als Vorschlag in der Übersicht, nichts geschieht. "
-        "Selbst handeln: die Leitstelle führt sie aus und meldet sie mit Grund.", E.WAHL, R.SELBSTSTEUERUNG)] = Automatik.SELBST
+        "Selbst handeln: die Leitstelle führt sie aus und meldet sie mit Grund.", E.WAHL, R.SELBSTSTEUERUNG,
+        wahl=tuple((a.value, w) for a, w in AUTOMATIK_WORT.items()))] = Automatik.SELBST
     gewinnfaktor: Annotated[float, Regelwert(
         "Gewinnfaktor", "Eine Maßnahme, die lädt oder umleitet, muss so viel mal mehr Wartezeit sparen, als sie selbst kostet (Ladezeit gemessen).",
         E.FAKTOR, R.SELBSTSTEUERUNG, 0.5, 10, 0.1)] = 2.0
@@ -185,7 +194,19 @@ class Regelwerk(BaseModel):
 
     hintergrund_spaetestens_s: Annotated[float, Regelwert(
         "Hintergrund spätestens nach", "Nach dieser Wartezeit rückt ein Hintergrundauftrag auf Normal, damit nichts verhungert (nicht bei "
-        "Hintergrund angehalten wegen Rechnerlast).", E.SEKUNDEN, R.HINTERGRUND, 60, 86400, 60)] = 900.0
+        "Hintergrund angehalten wegen Rechnerlast, nicht für Arbeit nur bei Ruhe).", E.SEKUNDEN, R.HINTERGRUND, 60, 86400, 60)] = 900.0
+
+    ruhe_faehigkeiten: Annotated[list[Faehigkeit], Regelwert(
+        "Fähigkeiten nur bei Ruhe", "Aufträge dieser Fähigkeiten (bis zur Priorität unten) sind Arbeit der niedrigsten Stufe: zugeteilt "
+        "nur, wenn keine andere Arbeit läuft oder wartet. Keine: alles wie bisher.", E.MEHRFACH, R.RUHE,
+        wahl=tuple((f.value, WORT[f.value]) for f in Faehigkeit))] = Field(default_factory=lambda: [Faehigkeit.EINBETTUNG])
+    ruhe_bis_prioritaet: Annotated[Prioritaet, Regelwert(
+        "Nur bei Ruhe bis Priorität", "Aufträge dieser Fähigkeiten bis zu dieser Priorität (wie die Anwendung sie schickt) warten auf "
+        "Ruhe; höhere laufen wie gewohnt. Hintergrund: Masseneinbettung wartet, Suchen und Fragen einer App nicht.", E.WAHL, R.RUHE,
+        wahl=tuple((p.value, w) for p, w in PRIORITAET_WORT.items()))] = Prioritaet.HINTERGRUND
+    ruhe_ab_s: Annotated[float, Regelwert(
+        "Ruhe ab", "So lange nach dem Ende der letzten anderen Arbeit gilt es als ruhig; erst dann bekommt Arbeit nur bei Ruhe wieder "
+        "ein Modell. Überbrückt die Pausen zwischen den Schritten einer Arbeit.", E.SEKUNDEN, R.RUHE, 0, 86400, 10)] = 60.0
 
     einbettung_andrang_s: Annotated[float, Regelwert(
         "Andrang ab", "Warten Einbettungen so lange auf eine Instanz, lädt die Leitstelle weitere.", E.SEKUNDEN, R.EINBETTUNG, 1, 3600, 1, szenario=Massnahmenart.EINBETTUNG_VERSTAERKEN)] = 10.0
@@ -220,6 +241,13 @@ class Regelwerk(BaseModel):
     docker_anhalten_ab_prozent: Annotated[float, Regelwert(
         "Docker-Last anhalten ab", "Ab dieser Docker-Last wird Hintergrund auf dem Rechner nicht mehr zugeteilt, wie bei der Fremdlast; laufende "
         "Aufträge rechnen zu Ende.", E.PROZENT, R.LAST, 1, 100, 1, szenario=Massnahmenart.HINTERGRUND_RECHNERLAST)] = 90.0
+
+    @field_validator("ruhe_faehigkeiten")
+    @classmethod
+    def _ruhe_geordnet(cls, werte: list[Faehigkeit]) -> list[Faehigkeit]:
+        """Jede Fähigkeit einmal, in der Reihenfolge der Aufzählung: so ist die Liste ein Wert wie jeder andere (Vergleich mit
+        der Vorgabe, Prüfprotokoll)."""
+        return [f for f in Faehigkeit if f in set(werte)]
 
     szenarien_an: dict[Massnahmenart, bool] = Field(default_factory=lambda: {a: a not in SZENARIEN_AB_WERK_AUS for a in Massnahmenart})
 

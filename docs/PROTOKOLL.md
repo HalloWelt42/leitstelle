@@ -152,7 +152,7 @@ führt einen Spiegel, den ein Test deckungsgleich hält.
 | Art | Richtung | Nutzlast |
 |---|---|---|
 | `auftrag.anlegen` | Anwendung an Leitstelle | `faehigkeit`, `titel` (für Menschen), `eingabe` (je Fähigkeit, siehe 5), `modell` oder `kette` (optional, sonst Kette der Anwendung), `prioritaet` (optional), `streaming` (true/false), `anhaltbar` (true, wenn die Anwendung mit Pausen leben kann), `frist` (optional, bis wann sinnvoll), `x-*` |
-| `auftrag.angenommen` | Leitstelle an Anwendung | `auftrag` (Kennung), `platz` in der Warteschlange, `zustand` (eingereiht, zugeteilt, wartet_speicher), `voraussichtlich_start_s`, `zuteilung` (Dienst, Modell, Knoten, Zone) wenn bekannt, `begruendung` |
+| `auftrag.angenommen` | Leitstelle an Anwendung | `auftrag` (Kennung), `platz` in der Warteschlange, `zustand` (eingereiht, zugeteilt, wartet_speicher, wartet_ruhe), `voraussichtlich_start_s`, `zuteilung` (Dienst, Modell, Knoten, Zone) wenn bekannt, `begruendung` |
 | `auftrag.abgelehnt` | Leitstelle an Anwendung | `grund` (faehigkeit_nicht_erlaubt, zone_nicht_erlaubt, kostengrenze, kontingent, gesperrt, kein_dienst), `begruendung` |
 | `auftrag.laeuft` | Leitstelle an Anwendung | `auftrag`, `zuteilung`, `gestartet` |
 | `auftrag.fortschritt` | Leitstelle an Anwendung | `auftrag`, `prozent` (0 bis 100 oder null), `schritt` (Wort), `abschnitt`, `abschnitte`, `rest_s` (Schätzung), `token`, `token_s` |

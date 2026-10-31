@@ -3,7 +3,7 @@
   // Werte. Bedeutung, Einheit, Grenzen und Vorgabe kommen vom Kern, die gültigen Werte live aus dem Lagebild. Jede
   // Änderung wirkt sofort und steht mit alt und neu im Prüfprotokoll. Kein Graph-Editor (Staffel 5).
   import { meldungen, tun } from '../lib/meldung.svelte';
-  import { EINHEIT, aktuell, ausEingabe, eingabeWert, grenzeEingabe, regelbeschreibung, schalten, wertText } from '../lib/regelwerk.svelte';
+  import { EINHEIT, aktuell, ausEingabe, eingabeWert, gleich, grenzeEingabe, regelbeschreibung, schalten, umgeschaltet, wertText } from '../lib/regelwerk.svelte';
   import type { Lagebild, Massnahmenart, Regelgruppe, RegelwertSicht } from '../lib/typen.gen';
   import { weg } from '../lib/weg.svelte';
 
@@ -14,7 +14,7 @@
   });
 
   const SYMBOL: Record<Regelgruppe, string> = {
-    selbststeuerung: 'fa-wand-magic-sparkles', speicher: 'fa-memory', ausweichen: 'fa-shuffle', hintergrund: 'fa-layer-group',
+    selbststeuerung: 'fa-wand-magic-sparkles', speicher: 'fa-memory', ausweichen: 'fa-shuffle', hintergrund: 'fa-layer-group', ruhe: 'fa-moon',
     einbettung: 'fa-diagram-project', last: 'fa-microchip',
   };
   const gruppen = $derived(regelbeschreibung.sicht?.gruppen ?? []);
@@ -22,12 +22,12 @@
   const r = $derived(bild.regelwerk);
   const an = (art: Massnahmenart) => r.szenarien_an[art] ?? false;
   const wert = (w: RegelwertSicht) => aktuell(r, w.feld);
-  const vonHand = (w: RegelwertSicht) => wert(w) !== w.vorgabe;
+  const vonHand = (w: RegelwertSicht) => !gleich(wert(w), w.vorgabe);
   const abweichend = (g: (typeof gruppen)[number]) => g.werte.filter(vonHand).length + g.szenarien.filter((s) => an(s.art) !== s.vorgabe).length;
   const alleSzenarien = $derived(gruppen.flatMap((g) => g.szenarien));
   const automatik = $derived(gruppen.flatMap((g) => g.werte).find((w) => w.feld === 'automatik'));
 
-  async function aendern(w: RegelwertSicht, neu: string | number | boolean, feld?: HTMLInputElement) {
+  async function aendern(w: RegelwertSicht, neu: RegelwertSicht['wert'], feld?: HTMLInputElement) {
     const ok = await tun(() => regelbeschreibung.aendern({ werte: { [w.feld]: neu } }), `${w.titel}: ${wertText(w, neu)}`);
     if (ok === undefined && feld) feld.value = String(eingabeWert(w, wert(w)));   // abgelehnt: wieder der gültige Wert
   }
@@ -57,6 +57,13 @@
         <span class="leise klein">{wert(w) ? 'an' : 'aus'}</span>
         <button class="schalter" class:an={!!wert(w)} role="switch" aria-checked={!!wert(w)} aria-label={w.titel}
                 title="{w.titel}: {wert(w) ? 'an, ausschalten' : 'aus, einschalten'}" onclick={() => aendern(w, !wert(w))}></button>
+      {:else if w.einheit === 'mehrfach'}
+        {@const liste = wert(w) as string[]}
+        <span class="stufen mehrfach" role="group" aria-label={w.titel}>
+          {#each w.wahl as x (x.wert)}<button class:an={liste.includes(String(x.wert))} aria-pressed={liste.includes(String(x.wert))}
+                                              title="{x.wort}: {liste.includes(String(x.wert)) ? 'gilt, abwählen' : 'gilt nicht, wählen'}"
+                                              onclick={() => aendern(w, umgeschaltet(w, liste, String(x.wert)))}>{x.wort}</button>{/each}
+        </span>
       {:else if w.einheit === 'wahl'}
         <span class="stufen" title={w.erklaerung}>
           {#each w.wahl as x (x.wert)}<button class:an={wert(w) === x.wert} onclick={() => wert(w) !== x.wert && aendern(w, x.wert)}>{x.wort}</button>{/each}

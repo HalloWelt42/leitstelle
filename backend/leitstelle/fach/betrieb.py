@@ -1032,6 +1032,7 @@ class Betrieb:
             self.schreibfolge.einreihen(self.ablage.messungen.speichern(self.messwerk))
         a.zustand = zustand
         a.ende_s = jetzt
+        self.verbund.auftrag_beendet(a)
         a.grund = grund
         if begruendung:
             a.begruendung = begruendung

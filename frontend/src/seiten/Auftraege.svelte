@@ -99,13 +99,13 @@
 
   // Prozesskette: Angenommen, Wartet (falls gewartet), Zugeteilt (falls geladen werden musste), Läuft, Ende.
   // Jede Stufe hat eine Nummer; erledigt ist, was vor der aktuellen liegt.
-  const STUFE: Record<Auftragszustand, number> = { eingereiht: 1, wartet_speicher: 1, zugeteilt: 2, laeuft: 3, pausiert: 3, fertig: 4, abgebrochen: 4, fehlgeschlagen: 4, abgelehnt: 4 };
+  const STUFE: Record<Auftragszustand, number> = { eingereiht: 1, wartet_speicher: 1, wartet_ruhe: 1, zugeteilt: 2, laeuft: 3, pausiert: 3, fertig: 4, abgebrochen: 4, fehlgeschlagen: 4, abgelehnt: 4 };
   const kette = $derived.by(() => {
     if (!einzel) return [];
     const z = einzel.zustand;
     const jetztStufe = STUFE[z];
     const besucht = new Set(einzel.schritte.map((s) => s.zustand));
-    const gewartet = besucht.has('wartet_speicher') || einzel.schritte.filter((s) => s.zustand === 'eingereiht').length > 1 || jetztStufe === 1;
+    const gewartet = besucht.has('wartet_speicher') || besucht.has('wartet_ruhe') || einzel.schritte.filter((s) => s.zustand === 'eingereiht').length > 1 || jetztStufe === 1;
     const glieder: { wort: string; symbol: string; nr: number }[] = [{ wort: 'Angenommen', symbol: 'fa-inbox', nr: 0 }];
     if (gewartet) glieder.push({ wort: 'Wartet', symbol: 'fa-hourglass-half', nr: 1 });
     if (besucht.has('zugeteilt') || z === 'zugeteilt') glieder.push({ wort: 'Zugeteilt', symbol: 'fa-brain', nr: 2 });

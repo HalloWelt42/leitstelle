@@ -8,20 +8,22 @@ Leitstelle zurück, sobald sie nicht mehr wirkt.
 
 from __future__ import annotations
 
+from enum import Enum
+
 from pydantic import BaseModel, Field, ValidationError
 
-from ..kern.regelwerk import AUTOMATIK_WORT, GRUPPEN, SZENARIEN, Einheit, Regelgruppe, Regelwerk, einstellbar, regelwert
+from ..kern.regelwerk import GRUPPEN, SZENARIEN, Einheit, Regelgruppe, Regelwerk, einstellbar, regelwert
 from ..kern.umschichter import zuruecknehmen
-from ..kern.werte import WORT, Automatik, Massnahmenart
+from ..kern.werte import WORT, Massnahmenart
 from ..ports.ablage.eintraege import PruefEintrag
 from .betrieb import Betrieb
 from .fehler import Ablehnung
 
-Wert = bool | int | float | str
+Wert = bool | int | float | str | list[str]
 
 
 class Wahl(BaseModel):
-    wert: str
+    wert: str | int
     wort: str
 
 
@@ -35,7 +37,7 @@ class RegelwertSicht(BaseModel):
     min: float | None
     max: float | None
     schritt: float | None
-    wahl: list[Wahl]                   # bei Einheit wahl: die möglichen Werte mit Wort
+    wahl: list[Wahl]                   # bei Einheit wahl und mehrfach: die möglichen Werte mit Wort
     szenario: Massnahmenart | None     # gehört zu dieser Maßnahme; None: gilt für mehrere
 
 
@@ -81,13 +83,16 @@ def sicht(r: Regelwerk) -> RegelwerkSicht:
                 continue
             werte.append(RegelwertSicht(feld=feld, titel=rw.titel, erklaerung=rw.erklaerung, einheit=rw.einheit, wert=_json(getattr(r, feld)),
                                         vorgabe=_json(getattr(vorgabe, feld)), min=rw.min, max=rw.max, schritt=rw.schritt, szenario=rw.szenario,
-                                        wahl=[Wahl(wert=a.value, wort=w) for a, w in AUTOMATIK_WORT.items()] if rw.einheit == Einheit.WAHL else []))
+                                        wahl=[Wahl(wert=x, wort=w) for x, w in rw.wahl]))
         gruppen.append(RegelgruppeSicht(gruppe=g, titel=beschreibung.titel, erklaerung=beschreibung.erklaerung, szenarien=szenarien, werte=werte))
     return RegelwerkSicht(gruppen=gruppen)
 
 
-def _json(wert: Wert) -> Wert:
-    return wert.value if isinstance(wert, Automatik) else wert
+def _json(wert: object) -> Wert:
+    """Ein Wert des Regelwerks wie im JSON: Aufzählungen als ihr Wert, Listen als Liste dieser Werte."""
+    if isinstance(wert, list):
+        return [_json(x) for x in wert]
+    return wert.value if isinstance(wert, Enum) else wert
 
 
 def wert_text(feld: str, wert: Wert) -> str:
@@ -95,8 +100,11 @@ def wert_text(feld: str, wert: Wert) -> str:
     e = regelwert(feld).einheit
     if e == Einheit.SCHALTER:
         return "an" if wert else "aus"
-    if e == Einheit.WAHL:
-        return AUTOMATIK_WORT[Automatik(wert)]
+    if e in (Einheit.WAHL, Einheit.MEHRFACH):
+        woerter = dict(regelwert(feld).wahl)
+        if e == Einheit.WAHL:
+            return woerter.get(_json(wert), str(wert))
+        return ", ".join(woerter.get(_json(x), str(x)) for x in wert) or "keine"
     zahl = float(wert)
     if e == Einheit.SEKUNDEN:
         if zahl >= 3600 and zahl % 3600 == 0:
@@ -128,8 +136,11 @@ def _neu(r: Regelwerk, a: RegelwerkAenderung) -> Regelwerk:
             if not isinstance(wert, bool):
                 raise Ablehnung("eingabe", f"{rw.titel} ist an oder aus.")
         elif rw.einheit == Einheit.WAHL:
-            if wert not in {x.value for x in Automatik}:
-                raise Ablehnung("eingabe", f"{rw.titel} ist einer dieser Werte: {', '.join(AUTOMATIK_WORT.values())}.")
+            if isinstance(wert, bool) or wert not in {x for x, _ in rw.wahl}:
+                raise Ablehnung("eingabe", f"{rw.titel} ist einer dieser Werte: {', '.join(w for _, w in rw.wahl)}.")
+        elif rw.einheit == Einheit.MEHRFACH:
+            if not isinstance(wert, list) or any(x not in {y for y, _ in rw.wahl} for x in wert):
+                raise Ablehnung("eingabe", f"{rw.titel} ist eine Auswahl aus: {', '.join(w for _, w in rw.wahl)}.")
         elif isinstance(wert, bool) or not isinstance(wert, (int, float)):
             raise Ablehnung("eingabe", f"{rw.titel} braucht eine Zahl.")
         elif rw.einheit == Einheit.ANZAHL and wert != int(wert):

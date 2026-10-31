@@ -38,6 +38,7 @@
   const laufend = $derived(bild.auftraege.filter((a) => a.zustand === 'laeuft'));
   const wartend = $derived(bild.auftraege.filter((a) => a.zustand !== 'laeuft'));
   const aufSpeicher = $derived(wartend.filter((a) => a.zustand === 'wartet_speicher').length);
+  const aufRuhe = $derived(wartend.filter((a) => a.zustand === 'wartet_ruhe').length);
   const erreichbar = $derived(bild.knoten.filter((k) => k.erreichbar));
   const namen = (z: string) => bild.knoten.filter((k) => knotenzustand(k) === z).map((k) => k.name);
   const anwendung = (k: string) => bild.anwendungen.find((a) => a.kennung === k)?.name ?? 'unbekannt';
@@ -78,7 +79,7 @@
     </div>
     <div class="kennzahlen">
       <div class="kennzahl laeuft"><b>{laufend.length}</b><span>Läuft</span></div>
-      <div class="kennzahl wartet"><b>{wartend.length}</b><span>Wartet</span>{#if aufSpeicher}<small>{aufSpeicher} davon auf Speicher</small>{/if}</div>
+      <div class="kennzahl wartet"><b>{wartend.length}</b><span>Wartet</span>{#if aufSpeicher}<small>{aufSpeicher} davon auf Speicher</small>{/if}{#if aufRuhe}<small>{aufRuhe} davon auf Ruhe</small>{/if}</div>
       <div class="kennzahl erfolg"><b>{kennzahlen?.fertig ?? '-'}</b><span>Heute fertig</span>
         {#if kennzahlen?.wartezeit_mittel_s != null}<small>mittlere Wartezeit {dauer(kennzahlen.wartezeit_mittel_s)}</small>{/if}</div>
       <div class="kennzahl fehler"><b>{kennzahlen?.fehler ?? '-'}</b><span>Fehler heute</span>{#if kennzahlen?.abgebrochen}<small>{kennzahlen.abgebrochen} abgebrochen</small>{/if}</div>

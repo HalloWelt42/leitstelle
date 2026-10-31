@@ -316,6 +316,14 @@ class Massnahme(BaseModel):
     bewegungen: list[str] = Field(default_factory=list)   # "laden:familie@knoten", "entladen:familie@knoten" für den Flatterschutz
 
 
+class Ruhe(BaseModel):
+    """Ob Arbeit "nur bei Ruhe" gerade ein Modell bekommen darf, mit Grund und, wenn nur die Ruhezeit fehlt, wie lange noch."""
+
+    frei: bool
+    grund: str = ""
+    in_s: float | None = None
+
+
 class Verbund(BaseModel):
     """Der ganze Zustand, über den der Kern entscheidet."""
 
@@ -330,6 +338,7 @@ class Verbund(BaseModel):
     hintergrund_an: bool = True       # Regel "Hintergrund bei Lage" (mit Fairness: nach der Frist rückt Hintergrund trotzdem auf)
     hintergrund_erlaubt: bool = True  # Schalter am Hauptregler: aus heißt ohne Ausnahme angehalten
     hintergrund_knoten_bevorzugt: str | None = None
+    andere_arbeit_ende_s: float | None = None   # Ende des letzten Auftrags, der nicht "nur bei Ruhe" ist; None: seit dem Start keiner
     zeit_s: float = 0.0
     stunde: int = 12                  # Uhrzeit für Zeitfenster
     massnahmen: list[Massnahme] = Field(default_factory=list)
@@ -503,7 +512,41 @@ class Verbund(BaseModel):
             del self.arbeiten[k]
 
     def wartende_auf_familie(self, familie: str) -> list[Auftrag]:
-        return [a for a in self.wartende_auftraege() if a.festes_modell == familie or self.erste_familie(a) == familie]
+        """Wartende Aufträge, die diese Familie brauchen und deshalb ihre Modelle halten; wer auf Ruhe wartet, hält nichts
+        (sonst blieben Modelle und weitere Instanzen für Arbeit geladen, die gerade gar nicht rechnen darf)."""
+        return [a for a in self.wartende_auftraege()
+                if a.zustand != Auftragszustand.WARTET_RUHE and (a.festes_modell == familie or self.erste_familie(a) == familie)]
+
+    # ── Arbeit nur bei Ruhe (Regelwerk, Gruppe "Nur bei Ruhe") ───────────
+    def nur_bei_ruhe(self, a: Auftrag) -> bool:
+        """Ist der Auftrag Arbeit der niedrigsten Stufe? Seine Fähigkeit steht in der Liste und seine Priorität, wie die
+        Anwendung sie schickt, liegt nicht über der Grenze (die Fairness-Frist hebt sie dafür nicht an)."""
+        r = self.regelwerk
+        return a.faehigkeit in r.ruhe_faehigkeiten and a.prioritaet <= r.ruhe_bis_prioritaet
+
+    def andere_arbeit(self) -> list[Auftrag]:
+        """Offene Aufträge, die nicht nur bei Ruhe laufen: laufen, sind zugeteilt, warten oder sind pausiert."""
+        return [a for a in self.offene_auftraege() if not self.nur_bei_ruhe(a)]
+
+    def ruhe(self) -> Ruhe:
+        """Darf Arbeit nur bei Ruhe jetzt ein Modell bekommen? Nur wenn keine andere Arbeit offen ist und die letzte seit der
+        Ruhezeit vorbei ist."""
+        andere = self.andere_arbeit()
+        if andere:
+            # Begründung ohne Zahlen, die sich ständig ändern: jede neue Begründung ist ein Schritt im Verlauf des Auftrags
+            apps = sorted({self.anwendungen[a.anwendung].name if a.anwendung in self.anwendungen else a.anwendung for a in andere})
+            return Ruhe(frei=False, grund=f"wartet auf Ruhe: andere Arbeit läuft oder wartet ({', '.join(apps)})")
+        if self.andere_arbeit_ende_s is not None:
+            rest = self.regelwerk.ruhe_ab_s - (self.zeit_s - self.andere_arbeit_ende_s)
+            if rest > 0:
+                return Ruhe(frei=False, grund=f"wartet auf Ruhe: andere Arbeit ist eben zu Ende, Ruhe gilt nach {self.regelwerk.ruhe_ab_s:.0f} s",
+                            in_s=round(rest, 1))
+        return Ruhe(frei=True)
+
+    def auftrag_beendet(self, a: Auftrag) -> None:
+        """Ende eines Auftrags (fertig, abgebrochen, gescheitert, abgelehnt): endet andere Arbeit, beginnt die Ruhezeit neu."""
+        if not self.nur_bei_ruhe(a):
+            self.andere_arbeit_ende_s = self.zeit_s
 
     def erste_familie(self, auftrag: Auftrag) -> str | None:
         kette = self.kette(auftrag)

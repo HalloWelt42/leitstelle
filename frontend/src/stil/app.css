@@ -44,6 +44,8 @@
 .seite .ansicht { margin-top: auto; display: flex; flex-direction: column; gap: var(--a2); padding: var(--a3) var(--a1) 0; }
 .seite .ansicht .stufen button { flex: 1; padding: 0 6px; white-space: nowrap; font-size: var(--marke); min-width: 0; }
 .seite .ansicht .stufen { display: flex; }
+/* Mehrfachauswahl im Regelwerk (etwa Fähigkeiten nur bei Ruhe): Stufenknöpfe, die umbrechen */
+.einstellung .wert .stufen.mehrfach { flex-wrap: wrap; justify-content: flex-end; max-width: 560px; }
 @media (max-width: 1240px) { .seite .ansicht { display: none; } }
 
 /* Breiter Dialog (Anschluss, Stoppen) */

@@ -32,6 +32,7 @@ type Zustandsbild = { wort: string; symbol: string; klasse: string };
 export const AUFTRAGSZUSTAND: Record<Auftragszustand, Zustandsbild> = {
   eingereiht: { wort: 'Wartet', symbol: 'fa-hourglass-half', klasse: 'wartet' },
   wartet_speicher: { wort: 'Wartet auf Speicher', symbol: 'fa-memory', klasse: 'wartet' },
+  wartet_ruhe: { wort: 'Wartet auf Ruhe', symbol: 'fa-moon', klasse: 'wartet' },
   zugeteilt: { wort: 'Zugeteilt', symbol: 'fa-arrow-right-to-bracket', klasse: 'wartet' },
   laeuft: { wort: 'Läuft', symbol: 'fa-circle-play', klasse: 'laeuft' },
   pausiert: { wort: 'Pausiert', symbol: 'fa-circle-pause', klasse: 'pausiert' },

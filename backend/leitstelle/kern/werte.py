@@ -51,6 +51,7 @@ class Zone(str, Enum):
 class Auftragszustand(str, Enum):
     EINGEREIHT = "eingereiht"
     WARTET_SPEICHER = "wartet_speicher"
+    WARTET_RUHE = "wartet_ruhe"       # Arbeit "nur bei Ruhe": wartet, bis keine andere Arbeit läuft oder wartet (Regelwerk)
     ZUGETEILT = "zugeteilt"
     LAEUFT = "laeuft"
     PAUSIERT = "pausiert"
@@ -60,8 +61,9 @@ class Auftragszustand(str, Enum):
     ABGELEHNT = "abgelehnt"
 
 
-OFFENE_ZUSTAENDE = frozenset({Auftragszustand.EINGEREIHT, Auftragszustand.WARTET_SPEICHER, Auftragszustand.ZUGETEILT, Auftragszustand.LAEUFT, Auftragszustand.PAUSIERT})
-WARTENDE_ZUSTAENDE = frozenset({Auftragszustand.EINGEREIHT, Auftragszustand.WARTET_SPEICHER})
+OFFENE_ZUSTAENDE = frozenset({Auftragszustand.EINGEREIHT, Auftragszustand.WARTET_SPEICHER, Auftragszustand.WARTET_RUHE, Auftragszustand.ZUGETEILT,
+                              Auftragszustand.LAEUFT, Auftragszustand.PAUSIERT})
+WARTENDE_ZUSTAENDE = frozenset({Auftragszustand.EINGEREIHT, Auftragszustand.WARTET_SPEICHER, Auftragszustand.WARTET_RUHE})
 
 
 class Modellzustand(str, Enum):
@@ -158,7 +160,7 @@ WORT: dict[str, str] = {
     "text": "Text", "einbettung": "Einbettung", "uebersetzen": "Übersetzen", "hoeren": "Hören",
     "bild_beschreiben": "Bild beschreiben", "bild_erzeugen": "Bild erzeugen", "stimme": "Stimme", "stimme_klonen": "Stimmklon", "sprecher_erkennen": "Sprecher erkennen",
     "sprecher_trennen": "Sprecher trennen", "musik": "Musik", "werkzeug": "Werkzeuge", "ton": "Ton bearbeiten",
-    "eingereiht": "Eingereiht", "wartet_speicher": "Wartet auf Speicher", "zugeteilt": "Zugeteilt", "laeuft": "Läuft", "pausiert": "Pausiert",
+    "eingereiht": "Eingereiht", "wartet_speicher": "Wartet auf Speicher", "wartet_ruhe": "Wartet auf Ruhe", "zugeteilt": "Zugeteilt", "laeuft": "Läuft", "pausiert": "Pausiert",
     "fertig": "Fertig", "abgebrochen": "Abgebrochen", "fehlgeschlagen": "Fehlgeschlagen", "abgelehnt": "Abgelehnt",
     "umleiten": "Umleiten", "leerlauf_raeumen": "Leerlauf räumen", "vorwaermen": "Vorwärmen", "kette_ausweichen": "Kette ausweichen",
     "extern_ausweichen": "Extern ausweichen", "umverteilen": "Umverteilen", "verlagern": "Verlagern", "doppel_aufloesen": "Doppel auflösen",

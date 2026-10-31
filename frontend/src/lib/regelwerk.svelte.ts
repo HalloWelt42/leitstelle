@@ -39,6 +39,7 @@ const SEKUNDEN_JE = [[3600, 3600, 'h'], [60, 120, 'min']] as const;
 export function wertText(w: RegelwertSicht, wert: Wert): string {
   if (w.einheit === 'schalter') return wert ? 'an' : 'aus';
   if (w.einheit === 'wahl') return w.wahl.find((x) => x.wert === wert)?.wort ?? String(wert);
+  if (w.einheit === 'mehrfach') return (wert as string[]).map((x) => w.wahl.find((y) => y.wert === x)?.wort ?? x).join(', ') || 'keine';
   const n = Number(wert);
   const zahl = (x: number) => x.toLocaleString('de-DE', { maximumFractionDigits: 2 });
   switch (w.einheit) {
@@ -56,6 +57,13 @@ export function wertText(w: RegelwertSicht, wert: Wert): string {
     default: return zahl(n);
   }
 }
+
+/** Gleiche Werte (Listen der Mehrfachauswahl nach Inhalt) */
+export const gleich = (a: Wert, b: Wert): boolean => (Array.isArray(a) && Array.isArray(b) ? a.length === b.length && a.every((x, i) => x === b[i]) : a === b);
+
+/** Mehrfachauswahl: die Liste mit oder ohne `x`, in der Reihenfolge der Möglichkeiten (wie der Kern sie hält) */
+export const umgeschaltet = (w: RegelwertSicht, liste: string[], x: string): string[] =>
+  w.wahl.map((y) => String(y.wert)).filter((y) => (y === x ? !liste.includes(x) : liste.includes(y)));
 
 /** Einheit neben dem Eingabefeld; Anteile werden als Prozent eingegeben */
 export const EINHEIT: Record<string, string> = {

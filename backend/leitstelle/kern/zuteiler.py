@@ -1,7 +1,9 @@
 """Zuteiler: welcher Dienst, welches Modell, welcher Knoten für einen wartenden Auftrag.
 
 Reihenfolge der Prüfung (ARCHITEKTUR 5.1): Rechte der Anwendung, Kette, Speicher, Plätze,
-Priorität mit Fairness, Direktweg. Jede Entscheidung trägt eine Begründung in Worten. Hintergrund folgt dazu der Stufe
+Priorität mit Fairness, Direktweg. Jede Entscheidung trägt eine Begründung in Worten. Arbeit "nur bei Ruhe" (Regelwerk)
+kommt zuletzt und nur, wenn keine andere Arbeit offen ist und die Ruhezeit seit der letzten vorbei ist; sonst wartet sie
+im Zustand `wartet_ruhe`. Hintergrund folgt dazu der Stufe
 jedes Rechners nach seiner Fremdlast (ZUSAMMENSPIEL Z6): gedrosselt nur die Grundinstanz, angehalten nichts.
 Der Zuteiler lädt nicht selbst; er sagt, was zu laden wäre (Zuteilung mit laden=True), das
 Ausführen übernimmt der Vollzug (Dienst-Adapter, im Test der Schein-Verbund).
@@ -159,10 +161,11 @@ def _mit_vergebenem(vergeben: dict[str, Bedarf], dienst: str, a: Auftrag) -> Bed
 
 
 def reihenfolge(verbund: Verbund) -> list[Auftrag]:
-    """Einbettung zuerst (Nutzer 18.10.2026: "höchste Priorität"; kurz, und Suchen warten sonst hinter langen Texten),
-    dann nach Priorität, dann nach Eingang."""
+    """Arbeit nur bei Ruhe zuletzt (Nutzer 31.10.2026: "nicht so privilegiert, die können auch laufen, wenn nichts los
+    ist"); davor Einbettung zuerst (Nutzer 18.10.2026: "höchste Priorität"; kurz, und Suchen warten sonst hinter langen
+    Texten), dann nach Priorität, dann nach Eingang."""
     return sorted(verbund.wartende_auftraege(),
-                  key=lambda a: (a.faehigkeit != Faehigkeit.EINBETTUNG, -wirksame_prioritaet(verbund, a), a.eingang_s))
+                  key=lambda a: (verbund.nur_bei_ruhe(a), a.faehigkeit != Faehigkeit.EINBETTUNG, -wirksame_prioritaet(verbund, a), a.eingang_s))
 
 
 def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> Zuteilergebnis:
@@ -179,11 +182,15 @@ def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> 
     for a in verbund.offene_auftraege():
         if a.zustand in (Auftragszustand.LAEUFT, Auftragszustand.ZUGETEILT):
             je_anwendung[a.anwendung] = je_anwendung.get(a.anwendung, 0) + 1
+    ruhe = verbund.ruhe()
 
     for a in reihenfolge(verbund):
         app = verbund.anwendungen[a.anwendung]
         if a.faehigkeit not in app.faehigkeiten:
             ergebnis.abgelehnt.append(Wartegrund(auftrag=a.kennung, zustand=Auftragszustand.ABGELEHNT, grund="faehigkeit_nicht_erlaubt", begruendung="Fähigkeit für diese Anwendung nicht erlaubt"))
+            continue
+        if not ruhe.frei and verbund.nur_bei_ruhe(a):
+            ergebnis.wartend.append(Wartegrund(auftrag=a.kennung, zustand=Auftragszustand.WARTET_RUHE, begruendung=ruhe.grund, voraussichtlich_s=ruhe.in_s))
             continue
         if a.prioritaet == Prioritaet.HINTERGRUND and not verbund.hintergrund_erlaubt:
             ergebnis.wartend.append(Wartegrund(auftrag=a.kennung, zustand=Auftragszustand.EINGEREIHT, begruendung="Hintergrund ist am Hauptregler angehalten"))

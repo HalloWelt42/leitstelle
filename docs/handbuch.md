@@ -156,6 +156,11 @@ Dienst anhalten, Archiv in den Datenordner entpacken, starten; Probe wie in Schr
   Abstand stehen unter Regeln, Läufer und Last; ausgeschaltet gibt die Regel jeden gebremsten Rechner sofort frei.
   Bremst sich die Leitstelle an der eigenen Hintergrundarbeit in einem Container (die Docker-Last fällt, sobald der
   Hintergrund steht), fehlen bei der Anwendung die Docker-Projekte.
+- Einbettungen stehen lange auf "Wartet auf Ruhe": gewollt. Masseneinbettung (Priorität Hintergrund) ist Arbeit nur
+  bei Ruhe; sie bekommt erst ein Modell, wenn keine andere Arbeit läuft oder wartet und die letzte seit 60 s vorbei
+  ist. Der laufende Stapel rechnet zu Ende, dann warten die übrigen; die Anfrage der App bleibt offen (kein Fehler,
+  keine Zeitüberschreitung). Suchen und Fragen (Priorität normal) warten nicht. Welche Fähigkeiten, bis zu welcher
+  Priorität und wie lange Ruhe sein muss, steht unter Regeln, Nur bei Ruhe; ohne Fähigkeit dort gilt die Regel nicht.
 - Unter Knoten steht bei "Apps des Rechners" "Nicht zugeordnet": das Stellwerk antwortet dem Maschinenraum nicht oder
   meldet keine Prozessnummern; der Grund steht dabei. Dann zählen die Apps wieder als Speicher am Leitstand vorbei und
   zur Fremdlast.

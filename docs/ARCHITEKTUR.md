@@ -133,6 +133,7 @@ Schlüssel sind UUIDs; nach außen zeigen wir Wörter, nie Schlüssel.
                 │             │           ├-> auslaufend -> fertig
                 │             │           └-> abgebrochen
                 ├-> wartet_speicher -> zugeteilt
+                ├-> wartet_ruhe -> zugeteilt (Arbeit nur bei Ruhe, sobald nichts anderes läuft oder wartet)
                 └-> abgelehnt
  jeder Zustand -> fehlgeschlagen
 ```
@@ -161,7 +162,10 @@ Reihenfolge der Prüfung:
 5. Priorität: dringend > hoch > normal > hintergrund; innerhalb gleicher Stufe nach Eingang.
    Fairness: eine Anwendung bekommt höchstens den eingestellten Anteil der Plätze, Hintergrund kommt
    spätestens nach der eingestellten Wartezeit dran. Dringend darf laufende Hintergrundarbeit
-   anhalten, wenn der Adapter das kann.
+   anhalten, wenn der Adapter das kann. Arbeit nur bei Ruhe (Regelwerk, Gruppe "Nur bei Ruhe"; ab Werk
+   Einbettung mit Priorität Hintergrund) kommt zuletzt und nur, wenn keine andere Arbeit läuft oder
+   wartet und die letzte seit der Ruhezeit (Vorgabe 60 s) vorbei ist; sonst `wartet_ruhe`. Ein
+   laufender Auftrag rechnet zu Ende, die Fairness-Frist hebt sie nicht an.
 6. Direktweg: Ist das Modell geladen und frei und die Priorität dringend oder hoch, geht der
    Auftrag ohne Umweg über die Warteschlange zum Dienst (Latenz für Sprachassistent und
    Schreibhilfe).

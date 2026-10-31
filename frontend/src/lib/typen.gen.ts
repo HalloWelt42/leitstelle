@@ -18,6 +18,25 @@ export type Automatik = 'aus' | 'vorschlagen' | 'selbst';
 export type Automatik1 = 'aus' | 'vorschlagen' | 'selbst';
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "Faehigkeit".
+ */
+export type Faehigkeit =
+  | 'text'
+  | 'einbettung'
+  | 'uebersetzen'
+  | 'hoeren'
+  | 'bild_beschreiben'
+  | 'bild_erzeugen'
+  | 'stimme'
+  | 'stimme_klonen'
+  | 'sprecher_erkennen'
+  | 'sprecher_trennen'
+  | 'musik'
+  | 'werkzeug'
+  | 'ton';
+export type Prioritaet = 0 | 1 | 2 | 3;
+/**
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "Zone".
  */
 export type Zone = 'heim' | 'fern' | 'extern';
@@ -55,24 +74,6 @@ export type Hintergrundstufe = 'frei' | 'gedrosselt' | 'angehalten';
 export type Dienstzustand = 'bereit' | 'aus' | 'startet' | 'pausiert' | 'nicht_erreichbar' | 'ausfall' | 'schlaeft';
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
- * via the `definition` "Faehigkeit".
- */
-export type Faehigkeit =
-  | 'text'
-  | 'einbettung'
-  | 'uebersetzen'
-  | 'hoeren'
-  | 'bild_beschreiben'
-  | 'bild_erzeugen'
-  | 'stimme'
-  | 'stimme_klonen'
-  | 'sprecher_erkennen'
-  | 'sprecher_trennen'
-  | 'musik'
-  | 'werkzeug'
-  | 'ton';
-/**
- * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "Modellzustand".
  */
 export type Modellzustand = 'frei' | 'laedt' | 'geladen' | 'rechnet';
@@ -94,7 +95,16 @@ export type Quelle = 'dienst' | 'hand' | 'gemessen' | 'abgeleitet';
  * via the `definition` "Auftragszustand".
  */
 export type Auftragszustand =
-  'eingereiht' | 'wartet_speicher' | 'zugeteilt' | 'laeuft' | 'pausiert' | 'fertig' | 'abgebrochen' | 'fehlgeschlagen' | 'abgelehnt';
+  | 'eingereiht'
+  | 'wartet_speicher'
+  | 'wartet_ruhe'
+  | 'zugeteilt'
+  | 'laeuft'
+  | 'pausiert'
+  | 'fertig'
+  | 'abgebrochen'
+  | 'fehlgeschlagen'
+  | 'abgelehnt';
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "Massnahmenart".
@@ -123,7 +133,7 @@ export type Massnahmenzustand = 'geplant' | 'ausgefuehrt' | 'geprueft_ohne_aktio
  * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "Prioritaet".
  */
-export type Prioritaet = 0 | 1 | 2 | 3;
+export type Prioritaet1 = 0 | 1 | 2 | 3;
 /**
  * Wie die Leitstelle mit einem Dienst spricht. Neue Arten kommen mit neuen Adaptern dazu.
  *
@@ -142,20 +152,31 @@ export type Ausgang = 'ok' | 'abgelehnt' | 'gescheitert' | 'von_aussen';
  * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "Regelgruppe".
  */
-export type Regelgruppe = 'selbststeuerung' | 'speicher' | 'ausweichen' | 'hintergrund' | 'einbettung' | 'last';
+export type Regelgruppe = 'selbststeuerung' | 'speicher' | 'ausweichen' | 'hintergrund' | 'ruhe' | 'einbettung' | 'last';
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "Einheit".
  */
 export type Einheit =
-  'sekunden' | 'gb' | 'milliarden' | 'prozent' | 'punkte' | 'prozent_kern' | 'anteil' | 'anzahl' | 'faktor' | 'schalter' | 'wahl';
+  | 'sekunden'
+  | 'gb'
+  | 'milliarden'
+  | 'prozent'
+  | 'punkte'
+  | 'prozent_kern'
+  | 'anteil'
+  | 'anzahl'
+  | 'faktor'
+  | 'schalter'
+  | 'wahl'
+  | 'mehrfach';
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "Probenausgang".
  */
 export type Probenausgang = 'belegt' | 'nicht_belegt' | 'unklar';
 export type Zone3 = 'heim' | 'fern' | 'extern';
-export type Prioritaet1 = 0 | 1 | 2 | 3;
+export type Prioritaet2 = 0 | 1 | 2 | 3;
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "Ausgang".
@@ -229,6 +250,9 @@ export interface Regelwerk {
   geladene_zuerst: boolean;
   extern_schwelle_s: number;
   hintergrund_spaetestens_s: number;
+  ruhe_faehigkeiten: Faehigkeit[];
+  ruhe_bis_prioritaet: Prioritaet;
+  ruhe_ab_s: number;
   einbettung_andrang_s: number;
   einbettung_schonfrist_s: number;
   einbettung_ruhe_s: number;
@@ -686,7 +710,7 @@ export interface AuftragEintrag {
   kennung: string;
   anwendung: string;
   faehigkeit: Faehigkeit;
-  prioritaet: Prioritaet;
+  prioritaet: Prioritaet1;
   titel: string;
   zustand: Auftragszustand;
   grund: string | null;
@@ -888,8 +912,8 @@ export interface RegelwertSicht {
   titel: string;
   erklaerung: string;
   einheit: Einheit;
-  wert: boolean | number | string;
-  vorgabe: boolean | number | string;
+  wert: boolean | number | string | string[];
+  vorgabe: boolean | number | string | string[];
   min: number | null;
   max: number | null;
   schritt: number | null;
@@ -901,7 +925,7 @@ export interface RegelwertSicht {
  * via the `definition` "Wahl".
  */
 export interface Wahl {
-  wert: string;
+  wert: string | number;
   wort: string;
 }
 /**
@@ -973,7 +997,7 @@ export interface DienstAenderung {
  */
 export interface AnwendungDaten {
   name: string;
-  prioritaet?: Prioritaet1;
+  prioritaet?: Prioritaet2;
   faehigkeiten?: Faehigkeit[];
   zonen?: Zone[];
   extern_erlaubt?: boolean;
@@ -1010,7 +1034,7 @@ export interface SteckbriefEintrag {
  */
 export interface RegelwerkAenderung {
   werte?: {
-    [k: string]: boolean | number | string;
+    [k: string]: boolean | number | string | string[];
   };
   szenarien_an?: {
     [k: string]: boolean;
