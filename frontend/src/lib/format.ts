@@ -3,6 +3,8 @@
 const ganz = new Intl.NumberFormat('de-DE');
 const eins = new Intl.NumberFormat('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
+/** Modellname mit Aufgabe als Text, wo nur Text geht (Auswahllisten, Hinweise): "Whisper Large V3 · Spracherkennung" */
+export const modellText = (m: { name: string; aufgabe?: string }): string => (m.aufgabe ? `${m.name} · ${m.aufgabe}` : m.name);
 export const zahl = (n: number | null | undefined): string => (n == null ? '-' : ganz.format(n));
 export const gb = (n: number | null | undefined): string => (n == null ? '-' : `${eins.format(n)} GB`);
 export const prozent = (anteil: number): string => `${ganz.format(Math.round(anteil * 100))} %`;

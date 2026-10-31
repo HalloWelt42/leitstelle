@@ -184,6 +184,7 @@ class Dienst(BaseModel):
 class Modell(BaseModel):
     kennung: str
     name: str
+    aufgabe: str = ""                 # klein hinter dem Namen ("Whisper Large V3 · Spracherkennung"), vom Dienst gemeldet
     dienst: str
     familie: str                      # gleiches Modell auf mehreren Diensten trägt dieselbe Familie
     faehigkeiten: set[Faehigkeit]     # ein Textmodell kann auch übersetzen; eine Instanz, ein Speicherblock

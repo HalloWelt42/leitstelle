@@ -1,23 +1,23 @@
 <script lang="ts">
-  // Die Programme im Maschinenraum eines Rechners einzeln: Name mit Kurzzweck (ihre Fähigkeiten), Zustand als Programm
+  // Die Programme im Maschinenraum eines Rechners einzeln: Modellname mit Aufgabe, Zustand als Programm
   // (aus, startet, läuft, rechnet), Zweck aus der Dienstdatei, bei Bilddiensten was ihr Modell annimmt (Bild-Steckbrief),
   // dazu Bedarf und Plätze. Laden heißt hier Starten, Entladen Anhalten; beides steht bei den Modellen.
   import { gb, zahl } from '../lib/format';
   import type { ModellSicht } from '../lib/typen.gen';
-  import { FAEHIGKEIT, bildregeln } from '../lib/wort';
+  import { bildregeln } from '../lib/wort';
+  import Modellname from './Modellname.svelte';
   import Zustand from './Zustand.svelte';
 
   let { modelle }: { modelle: ModellSicht[] } = $props();
 
   const PROZESS: Record<string, string> = { frei: 'Aus', laedt: 'Startet', geladen: 'Läuft', rechnet: 'Rechnet' };
-  const kurzzweck = (m: ModellSicht) => m.faehigkeiten.map((f) => FAEHIGKEIT[f].wort).join(', ');
 </script>
 
 <ul class="programme">
   {#each modelle as m (m.kennung)}
     <li>
       <div class="pg-kopf">
-        <b>{m.name}</b><span class="pg-zweck" title="Wofür das Programm da ist: seine Fähigkeiten laut Dienstdatei">· {kurzzweck(m)}</span>
+        <b><Modellname name={m.name} aufgabe={m.aufgabe} /></b>
         <span class="pg-zustand" title="Programm im Maschinenraum: die Leitstelle startet es, wenn ein Auftrag es braucht, und hält es an, wenn ein anderer den Speicher braucht">
           <Zustand art="modell" wert={m.zustand} wort={PROZESS[m.zustand]} dreht /></span>
       </div>
@@ -42,7 +42,6 @@
   li { display: flex; flex-direction: column; gap: 6px; padding: var(--a2) var(--a3); background: var(--karte); border-radius: var(--r2); min-width: 0; }
   .pg-kopf { display: flex; flex-wrap: wrap; align-items: center; gap: var(--a1) var(--a2); }
   .pg-kopf b { overflow-wrap: anywhere; }
-  .pg-zweck { color: var(--text-2); cursor: help; }
   .pg-zustand { margin-left: auto; }
   .pg-satz { color: var(--text-2); display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; cursor: help; }
   .pg-regeln { display: flex; flex-wrap: wrap; gap: 4px 6px; cursor: help; }

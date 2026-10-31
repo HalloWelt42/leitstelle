@@ -152,7 +152,7 @@ async def test_bilder_und_dienste_ueber_die_fassade(tmp_path):
             async with httpx.AsyncClient(base_url=url, timeout=60) as anw:
                 r = await anw.get("/v1/dienste", headers=bild)
                 assert r.status_code == 200 and r.json() == {"object": "list", "data": [
-                    {"kennung": "bildschmiede", "name": "Bildschmiede", "zweck": "", "faehigkeiten": ["bild_erzeugen"], "zustand": "aus", "rechner": ["Mac Studio"],
+                    {"kennung": "bildschmiede", "name": "Bildschmiede", "aufgabe": "Bilderzeugung", "zweck": "", "faehigkeiten": ["bild_erzeugen"], "zustand": "aus", "rechner": ["Mac Studio"],
                      "bild": None}]}
                 assert (await anw.get("/v1/dienste", headers=text)).json()["data"] == []      # nur, was die Anwendung nutzen darf
                 assert (await anw.get("/v1/dienste", headers={"Authorization": "Bearer falsch"})).status_code == 401

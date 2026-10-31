@@ -116,9 +116,9 @@ erzeugen, braucht sie die Fähigkeit "Bild erzeugen". Das Bildmodell wählt die 
 nutzen, steht das als ihre Wahl in ihrer Kette für Bilder. Die Leitstelle sucht nie selbst ein Modell aus. Der erste Auftrag startet den Dienst (MOSS-Image bis 5 Minuten); danach liest die
 Leitstelle seinen Steckbrief und behält ihn.
 
-Probe: unter Dienste steht bei "Dienste auf <Mac>" das Programm "Bildwerk MOSS-Image · Bild erzeugen"; nach dem ersten
-Bild stehen dort und unter Modelle seine Grenzen (Modell, Kanten, Schritte, Bilder je Anfrage, Lizenz), und im Verlauf
-"Steckbrief von Bildwerk MOSS-Image gelesen".
+Probe: unter Dienste steht bei "Dienste auf <Mac>" das Programm "MOSS-Image · Bilderzeugung" (Modellname vorn, die
+Aufgabe klein dahinter); nach dem ersten Bild stehen dort und unter Modelle seine Grenzen (Modell, Kanten, Schritte,
+Bilder je Anfrage, Lizenz), und im Verlauf "Steckbrief von MOSS-Image gelesen".
 
 ## Sicherung und Rückspielen
 

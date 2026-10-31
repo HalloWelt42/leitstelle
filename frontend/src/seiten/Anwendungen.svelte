@@ -1,7 +1,7 @@
 <script lang="ts">
   import { api } from '../lib/api';
   import { arbeit } from '../lib/arbeit.svelte';
-  import { uhrzeit } from '../lib/format';
+  import { modellText, uhrzeit } from '../lib/format';
   import { meldungen, tun } from '../lib/meldung.svelte';
   import type { AnwendungDaten, AnwendungSicht, Faehigkeit as F, Lagebild, Prioritaet, Zone } from '../lib/typen.gen';
   import { weg } from '../lib/weg.svelte';
@@ -47,7 +47,9 @@
   });
 
   const modelleFuer = (f: F) => [...new Map(bild.modelle.filter((m) => m.faehigkeiten.includes(f)).map((m) => [m.familie, m])).values()];
-  const modellName = (familie: string) => bild.modelle.find((m) => m.familie === familie)?.name ?? familie;
+  const modellName = (familie: string) => { const m = bild.modelle.find((x) => x.familie === familie); return m ? modellText(m) : familie; };
+  // Im Maschinenraum gesperrt (alle Instanzen): steht in der Auswahl, ist aber nicht wählbar
+  const gesperrt = (familie: string) => { const alle = bild.modelle.filter((m) => m.familie === familie); return alle.length > 0 && alle.every((m) => m.sperre); };
   // Externe Modelle (beim Anbieter): in der Kette nur beim Ausweichen und mit Erlaubnis der App; ihre Art im Vergleich
   const extern = (familie: string) => bild.modelle.some((m) => m.familie === familie && bild.dienste.find((d) => d.kennung === m.dienst)?.extern);
   const wahlName = (familie: string) => {
@@ -210,7 +212,7 @@
                 <select class="eingabe" style="height: 34px; max-width: 260px" bind:value={kettenWahl[f]}
                         onchange={() => { if (kettenWahl[f]) { kettenSetzen(f, [...kette(f), kettenWahl[f]]); kettenWahl[f] = ''; } }} title="Modell ans Ende der Kette setzen">
                   <option value="">Modell anfügen</option>
-                  {#each modelleFuer(f).filter((m) => !kette(f).includes(m.familie)) as m (m.familie)}<option value={m.familie}>{wahlName(m.familie)}</option>{/each}
+                  {#each modelleFuer(f).filter((m) => !kette(f).includes(m.familie)) as m (m.familie)}<option value={m.familie} disabled={gesperrt(m.familie)}>{wahlName(m.familie)}{gesperrt(m.familie) ? ' (gesperrt)' : ''}</option>{/each}
                 </select>
               </div>
             </div>

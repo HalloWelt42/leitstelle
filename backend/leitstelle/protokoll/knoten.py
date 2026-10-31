@@ -61,7 +61,8 @@ class ProzessBericht(BaseModel):
     """Ein Dienst, den der Agent verwaltet (eine Datei in seinem Ordner `dienste/`)."""
 
     kennung: str
-    name: str
+    name: str                           # Modellname (Whisper Large V3); ohne Modell die Aufgabe (Tonbearbeitung)
+    aufgabe: str = ""                   # wofür er da ist, aus den Fähigkeiten (Spracherkennung); leer, wenn der Name es sagt
     faehigkeiten: set[Faehigkeit]
     port: int | None = None
     zustand: Prozesszustand

@@ -845,6 +845,7 @@ class Betrieb:
         else:
             m.name, m.faehigkeiten, m.gb = mb.name, faehigkeiten, mb.gb
             m.parameter_mrd, m.geschuetzt_fest = mb.parameter_mrd or 0.0, mb.einbettung or unbekannte_groesse
+        m.aufgabe = mb.aufgabe
         m.schutz_vorgabe, m.gb_jetzt, m.plaetze = mb.schutz, mb.gb_jetzt, mb.plaetze
         if mb.sperre != m.sperre:
             self.melden(f"{m.name} {'gesperrt: ' + mb.sperre if mb.sperre else 'wieder freigegeben (Sperre von Hand aufgehoben)'}")
@@ -1155,6 +1156,8 @@ class Betrieb:
         """Laden oder Entladen auf Wunsch des Menschen; der Speicherplan der Vorschau wurde vorher gezeigt."""
         m = self.verbund.modelle[modell]
         if laden:
+            if m.sperre:
+                raise Ablehnung("dienst_gesperrt", f"{m.name} ist im Maschinenraum gesperrt ({m.sperre}); er startet erst, wenn die Sperre dort aufgehoben ist.")
             self._zeit_setzen()
             self.modell_laden(modell)
         else:
@@ -1214,7 +1217,7 @@ class Betrieb:
         stufe = next(n for n in range(2, 1000) if modell_kennung(dienst, f"{familie}.{n}") not in self.verbund.modelle)
         schluessel = f"{familie}.{stufe}"
         kennung = modell_kennung(dienst, schluessel)
-        self.verbund.modelle[kennung] = Modell(kennung=kennung, name=f"{v.name} ({stufe})", dienst=dienst, familie=familie, faehigkeiten=set(v.faehigkeiten),
+        self.verbund.modelle[kennung] = Modell(kennung=kennung, name=f"{v.name} ({stufe})", aufgabe=v.aufgabe, dienst=dienst, familie=familie, faehigkeiten=set(v.faehigkeiten),
                                                gb=v.gb, parameter_mrd=v.parameter_mrd, geschuetzt_fest=False, schutz_vorgabe=v.schutz_vorgabe,
                                                instanzen_hoechstens=v.instanzen_hoechstens, zusatz=True, plaetze=v.plaetze)
         self.orte[kennung] = ModellOrt(schluessel=schluessel, weitere=(self.ort(vorbild).schluessel, stufe))

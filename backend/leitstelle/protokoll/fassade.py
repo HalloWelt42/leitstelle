@@ -97,7 +97,8 @@ class DienstSicht(BaseModel):
     """Ein Eintrag von `GET /v1/dienste`: ein Dienst im Maschinenraum, gleich auf wie vielen Rechnern er läuft."""
 
     kennung: str                      # für `/v1/dienste/<kennung>/...` und als `model`
-    name: str
+    name: str                         # der echte Modellname (Whisper Large V3); ohne Modell die Aufgabe
+    aufgabe: str = ""                 # wofür er da ist (Spracherkennung), klein hinter dem Namen; leer, wenn der Name es sagt
     zweck: str                        # ein Satz aus dem Steckbrief: wofür er gemacht ist ("" ohne Angabe)
     faehigkeiten: list[Faehigkeit]
     zustand: Bereitschaft

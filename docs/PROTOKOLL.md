@@ -302,7 +302,7 @@ Für Anwendungen ohne Umbau. Basisadresse mit oder ohne `/v1` wird angenommen.
 
 | Endpunkt | Wird zu | Besonderheiten |
 |---|---|---|
-| `GET /v1/models` | `frage.modelle` | listet Namen und Aliasse, die die Anwendung nutzen darf; Zustand im Feld `x-leitstelle` (geladen, Knoten, Zone) und dort der Steckbrief (4.8) |
+| `GET /v1/models` | `frage.modelle` | listet Namen und Aliasse, die die Anwendung nutzen darf (gesperrte nicht); Zustand im Feld `x-leitstelle` (Name, Aufgabe bei Diensten des Maschinenraums, geladen, Knoten, Zone) und dort der Steckbrief (4.8) |
 | `GET /v1/steckbriefe` | Selbstauskunft (4.8) | Steckbriefe der Modelle, die die Anwendung nutzen darf; Filter `faehigkeit`, `eignung`, `sprache` |
 | `POST /v1/chat/completions` | `auftrag.anlegen` (text) | Streaming als SSE im OpenAI-Format; `usage` am Ende; `model` darf Alias oder Kettenname sein; fehlt `model`, gilt die Kette der Anwendung |
 | `POST /v1/embeddings` | `auftrag.anlegen` (einbettung) | Modellname muss zur Kette passen (Einbettungen sind modellgebunden) |
@@ -394,11 +394,16 @@ Fassade nicht an; ob ein Modell es kann, sagt `kann_bearbeiten` im Steckbrief.
 
 `GET /v1/dienste` mit dem Schlüssel einer Anwendung: die Dienste im Maschinenraum (Sprache, Bild, Musik, ...), die
 sie nutzen darf (Fähigkeit und Zone). Je Dienst ein Eintrag, gleich wie viele Instanzen auf wie vielen Rechnern laufen;
-`faehigkeiten` nennt nur, was die Anwendung davon nutzen darf, `zweck` den Satz aus dem Steckbrief (die Dienstdatei),
-`bild` bei Bilddiensten den Bild-Steckbrief (4.8; null, bis der Dienst einmal lief). Ohne Schlüssel aus dem Heimnetz: alle.
+`name` ist der echte Modellname (ohne Modell die Aufgabe), `aufgabe` wofür der Dienst da ist (Spracherkennung,
+Sprachausgabe, Tonbearbeitung, Bilderzeugung ...; leer, wenn der Name es schon sagt), wie der Maschinenraum es aus den
+Fähigkeiten ableitet; Apps zeigen sie klein hinter dem Namen ("Whisper Large V3 · Spracherkennung") und wählen über
+die `kennung`, die bleibt. `faehigkeiten` nennt nur, was die Anwendung davon nutzen darf, `zweck` den Satz aus dem
+Steckbrief (die Dienstdatei), `bild` bei Bilddiensten den Bild-Steckbrief (4.8; null, bis der Dienst einmal lief).
+Gesperrte Dienste (im Maschinenraum nach einem Speicherabbruch oder von Hand) fehlen hier wie in `/v1/models` und
+`/v1/steckbriefe`, bis die Sperre aufgehoben ist. Ohne Schlüssel aus dem Heimnetz: alle.
 
 ```json
-{"object": "list", "data": [{"kennung": "bildwerk-moss-image", "name": "Bildwerk MOSS-Image",
+{"object": "list", "data": [{"kennung": "bildwerk-moss-image", "name": "MOSS-Image", "aufgabe": "Bilderzeugung",
                              "zweck": "Bilder aus Text mit MOSS-Image (SFT): lange Beschreibungen, Schrift im Bild, Anordnung per JSON; kein Bearbeiten",
                              "faehigkeiten": ["bild_erzeugen"], "zustand": "aus", "rechner": ["MacBook M4 Max 128 GB"],
                              "bild": {"modell": "moss-image", "name": "MOSS-Image-SFT", "aliase": ["OpenMOSS-Team/MOSS-Image-SFT"],

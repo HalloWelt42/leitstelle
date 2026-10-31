@@ -438,7 +438,10 @@ async def test_a13_speicherabbruch_bricht_den_auftrag_ab_und_nichts_startet_neu(
                 return await _modell(c, "probe") is not None
             await _warte_bis(da)
             kopf = {"Authorization": f"Bearer {app_schluessel}"}
+            assert (await _modell(c, "probe"))["aufgabe"] == "Spracherkennung"
             async with httpx.AsyncClient(base_url=url, timeout=60) as anw:
+                angebot = next(x for x in (await anw.get("/v1/models", headers=kopf)).json()["data"] if x["id"] == "probe")
+                assert (angebot["x-leitstelle"]["name"], angebot["x-leitstelle"]["aufgabe"]) == ("Hörprobe", "Spracherkennung")
                 r = await anw.post("/v1/dienste/probe/arbeit", headers=kopf, content=b"{}")
                 assert r.status_code == 507, r.text
                 assert r.json()["error"]["code"] == "speicher" and "abgebrochen: Speicher" in r.json()["error"]["message"]
@@ -452,6 +455,13 @@ async def test_a13_speicherabbruch_bricht_den_auftrag_ab_und_nichts_startet_neu(
                 r = await anw.post("/v1/dienste/probe/arbeit", headers=kopf, content=b"{}")     # die Geduld der App versucht es wieder
                 assert r.status_code == 423 and r.json()["error"]["code"] == "dienst_gesperrt", r.text
                 assert "gesperrt" in r.json()["error"]["message"]
+                # HELF-84 (Befund HELF-87): gesperrt heißt auch nicht mehr angeboten, weder den Apps noch von Hand
+                for weg in ("/v1/models", "/v1/dienste", "/v1/steckbriefe"):
+                    liste = (await anw.get(weg, headers=kopf)).json()["data"]
+                    assert all(x.get("id", x.get("kennung")) != "probe" for x in liste), (weg, liste)
+                m = await _modell(c, "probe")
+                r = await c.post(f"/api/modelle/{m['kennung']}/laden")
+                assert r.status_code == 423 and "dienst_gesperrt" in r.text, r.text
                 await asyncio.sleep(1.0)
                 assert not _offen(port), "nichts hat den Dienst wieder gestartet"
 

@@ -18,7 +18,8 @@ from ...protokoll.knoten import Selbstauskunft
 
 class ModellBericht(BaseModel):
     schluessel: str                     # Kennung beim Dienst (zum Laden und für Anfragen)
-    name: str                           # Anzeigename beim Dienst
+    name: str                           # Anzeigename beim Dienst (bei Maschinenraum-Diensten der Modellname)
+    aufgabe: str = ""                   # wofür er da ist, wie der Dienst es nennt (Spracherkennung); leer: sagt nichts
     faehigkeiten: set[Faehigkeit]
     gb: float                           # Größe der Gewichte; 0 heißt unbekannt
     parameter_mrd: float | None = None  # None heißt unbekannt; die Leitstelle schützt solche Modelle

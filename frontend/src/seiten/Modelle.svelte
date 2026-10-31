@@ -8,6 +8,7 @@
   import { EIGNUNG, FAEHIGKEIT, QUELLE, bildregeln, parameterText } from '../lib/wort';
   import { weg } from '../lib/weg.svelte';
   import Faehigkeit from '../teile/Faehigkeit.svelte';
+  import Modellname from '../teile/Modellname.svelte';
   import Speicherbalken from '../teile/Speicherbalken.svelte';
   import Zustand from '../teile/Zustand.svelte';
 
@@ -155,7 +156,7 @@
             {#each sichtbar as m (m.kennung)}
               {@const warten = wartenAuf(m)}
               <tr>
-                <td><div class="n"><span title={gemessen(m)}>{m.name}</span>{#if m.geschuetzt}<i class="fa-solid fa-shield-halved schutz" title="Geschützt: unter der Schutzgrenze, Einbettung oder ohne bekannte Größe; die Leitstelle entlädt es nie von selbst. Von Hand geht es."></i>{/if}
+                <td><div class="n"><span title={gemessen(m)}><Modellname name={m.name} aufgabe={m.aufgabe} /></span>{#if m.geschuetzt}<i class="fa-solid fa-shield-halved schutz" title="Geschützt: unter der Schutzgrenze, Einbettung oder ohne bekannte Größe; die Leitstelle entlädt es nie von selbst. Von Hand geht es."></i>{/if}
                   <button class="knopf ohne symbol stift" onclick={() => steckbriefBeginnen(m)} title="Steckbrief ergänzen: wofür das Modell gemacht ist (geht der Auskunft des Dienstes vor)"><i class="fa-solid fa-pen"></i></button></div>
                   <div class="zweit">{#if m.zusatz}<span title="Von der Leitstelle bei Andrang gestartet; weicht bei Speichermangel vor allen anderen">weitere Instanz, weicht zuerst</span>{:else if worte(m) === WORTE.prozess}Programm im Maschinenraum des Rechners{#if m.instanzen_hoechstens > 1}<span title="Bei Andrang startet die Leitstelle weitere Instanzen, wenn Speicher frei ist (Dienstdatei: instanzen)">, bis zu <span class="zahl">{m.instanzen_hoechstens}</span> Instanzen</span>{/if}{:else}<span class="zahl">{parameterText(m.steckbrief)}</span> · zuletzt {vor(m.letzte_nutzung_s, jetzt)}{#if m.instanzen_hoechstens > 1}<span title="Bei Andrang lädt die Leitstelle weitere Instanzen, bis zur Speichergrenze mit Spielraum (Eintrag des Dienstes); bei Ruhe baut sie zurück">, bis zu <span class="zahl">{m.instanzen_hoechstens}</span> Instanzen</span>{/if}{/if}</div>
                   {#if m.steckbrief.zweck || m.steckbrief.eignung?.length || m.steckbrief.sprachen?.length}<div class="steckbrief" title={herkunft(m)}>
@@ -185,6 +186,7 @@
                   {#if extern(m)}<span class="zweit" title="Der Anbieter lädt seine Modelle selbst; nichts zu laden oder zu entladen">beim Anbieter</span>
                   {:else if !steuerbar(m)}<span class="zweit" title="Dieser Dienst lädt selbst; die Leitstelle steuert seinen Speicher nicht">lädt selbst</span>
                   {:else if worte(m) === WORTE.prozess && m.geschuetzt && m.zustand !== 'frei'}<span class="zweit" title="Laut Dienstdatei darf die Leitstelle ihn nicht anhalten; das geht nur im Maschinenraum des Rechners">nur im Maschinenraum</span>
+                  {:else if m.sperre && m.zustand === 'frei'}<button class="knopf klein" disabled title="Im Maschinenraum gesperrt: startet erst, wenn die Sperre dort aufgehoben ist">{worte(m).laden}</button>
                   {:else if m.zustand === 'rechnet' || m.zustand === 'laedt'}<button class="knopf klein" disabled title="Rechnet oder startet gerade; erst danach möglich">{worte(m).entladen}</button>
                   {:else if m.zustand === 'geladen'}<button class="knopf klein" onclick={() => (frage = { modell: m, laden: false })} title="{worte(m).entladen}: gibt {gb(m.gb)} frei">{worte(m).entladen}</button>
                   {:else}<button class="knopf klein" onclick={() => (frage = { modell: m, laden: true })} title="{worte(m).laden}: belegt {gb(m.gb)} auf {knotenName(m.knoten)}">{worte(m).laden}</button>{/if}

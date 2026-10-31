@@ -227,6 +227,7 @@ class DienstSicht(BaseModel):
 class ModellSicht(BaseModel):
     kennung: str
     name: str
+    aufgabe: str                       # klein hinter dem Namen; leer bei Modellen ohne Angabe des Dienstes
     familie: str
     dienst: str
     knoten: str | None
@@ -346,7 +347,7 @@ def lagebild(b: Betrieb) -> Lagebild:
                                   fremde=fremde_sicht(av.fremde if av else Fremdzugriffe(beobachtet=False), b.laeufer_direkt(k.kennung)),
                                   last=last_sicht(v, k)))
     dienste = [dienst_sicht(b, d) for d in b.dienste.values()]
-    modelle = [ModellSicht(kennung=m.kennung, name=m.name, familie=m.familie, dienst=m.dienst, knoten=v.dienste[m.dienst].knoten if m.dienst in v.dienste else None,
+    modelle = [ModellSicht(kennung=m.kennung, name=m.name, aufgabe=m.aufgabe, familie=m.familie, dienst=m.dienst, knoten=v.dienste[m.dienst].knoten if m.dienst in v.dienste else None,
                            faehigkeiten=sorted(m.faehigkeiten, key=lambda f: f.value), gb=m.gb, gb_jetzt=m.gb_jetzt, parameter_mrd=m.parameter_mrd, zustand=m.zustand,
                            geschuetzt=m.geschuetzt(r.schutzgrenze_mrd), geladen_seit_s=m.geladen_seit_s, letzte_nutzung_s=m.letzte_nutzung_s,
                            auftraege_aktiv=m.auftraege_aktiv, belegt=len(v.belegung(m.kennung)), plaetze=v.plaetze(m), nutzung=v.nutzung(m.dienst, m.familie),

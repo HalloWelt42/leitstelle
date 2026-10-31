@@ -98,7 +98,7 @@ async def test_b03_fehler_je_antwortcode():
         assert f.grund == grund and "Satz des Dienstes" in f.meldung and f"({status})" in f.meldung
     f = fehler_aus(422, {"detail": [{"loc": ["body", "n"], "msg": "Input should be less than or equal to 4"}]})
     assert f.grund == "eingabe" and "body.n: Input should be less than or equal to 4" in f.meldung
-    f = fehler_aus(409, {"grund": "dienst_aus", "meldung": "Bildwerk MOSS-Image läuft nicht (aus)."})
+    f = fehler_aus(409, {"grund": "dienst_aus", "meldung": "MOSS-Image läuft nicht (aus)."})
     assert (f.grund, f.wiederholbar) == ("dienst_nicht_erreichbar", True) and "läuft nicht" in f.meldung
     async with bilddienst(startzeit_s=60) as (_lage, senden):
         with pytest.raises(DienstFehler) as e:
@@ -174,14 +174,14 @@ def test_b07_bilddienst_weicht_bei_bedarf_anderer_nie_beim_rechnen():
     v.knoten["mac-128"].speicher_gb = 130.0                          # Budget 98: 80B (84,7) und Bilddienst (24) passen nicht zusammen
     v.modelle["qwen80@128"].zustand, v.modelle["qwen80@128"].geladen_seit_s = Modellzustand.FREI, None
     v.dienste["mr-128"] = Dienst(kennung="mr-128", name="Dienste auf Mac Studio", knoten="mac-128", art="agent", faehigkeiten={F.BILD_ERZEUGEN})
-    v.modelle["moss@128"] = Modell(kennung="moss@128", name="Bildwerk MOSS-Image", dienst="mr-128", familie="bildwerk-moss-image",
+    v.modelle["moss@128"] = Modell(kennung="moss@128", name="MOSS-Image", dienst="mr-128", familie="bildwerk-moss-image",
                                    faehigkeiten={F.BILD_ERZEUGEN}, gb=24.0, parameter_mrd=0.0, schutz_vorgabe=False)
     w.wahrheit.ladezeit["bildwerk-moss-image@mac-128"] = 120.0
     v.anwendungen["kiste"].faehigkeiten.add(F.BILD_ERZEUGEN)
     v.anwendungen["kiste"].ketten[F.BILD_ERZEUGEN] = ["bildwerk-moss-image"]
     bild = w.auftrag("kiste", F.BILD_ERZEUGEN, laufzeit_s=200)
     w.laufen(5)
-    assert v.auftraege[bild.kennung].begruendung.startswith("Bildwerk MOSS-Image wird auf Dienste auf Mac Studio gestartet")
+    assert v.auftraege[bild.kennung].begruendung.startswith("MOSS-Image wird auf Dienste auf Mac Studio gestartet")
     w.laufen(150)                                                     # gestartet (120 s), rechnet
     assert v.modelle["moss@128"].zustand == Modellzustand.RECHNET
     text = w.auftrag("zusage", F.TEXT, laufzeit_s=5)
@@ -191,7 +191,7 @@ def test_b07_bilddienst_weicht_bei_bedarf_anderer_nie_beim_rechnen():
     w.laufen_bis_fertig(1200)
     assert v.auftraege[bild.kennung].zustand == Z.FERTIG and v.auftraege[text.kennung].zustand == Z.FERTIG
     geraeumt = ausgefuehrt(w, A.LEERLAUF_RAEUMEN)
-    assert geraeumt and v.modelle["moss@128"].zustand == Modellzustand.FREI and "Bildwerk MOSS-Image" in geraeumt[0].grund
+    assert geraeumt and v.modelle["moss@128"].zustand == Modellzustand.FREI and "MOSS-Image" in geraeumt[0].grund
 
 
 def test_b10_die_wahl_bleibt_bei_der_anwendung():
@@ -258,7 +258,7 @@ def _ordner(tmp: Path, url: str, schluessel: str, port: int, rechenzeit_s: float
                                           f'[beobachtung]\naktiv = false\n[nachbar]\nmodell_laeufer = ""\nstellwerk = ""\n')
     (o / "schluessel").write_text(schluessel)
     (o / "dienste" / "bildwerk-moss-image.toml").write_text(
-        f'name = "Bildwerk MOSS-Image"\nbeschreibung = "Bilder aus Text mit MOSS-Image: lange Beschreibungen, Schrift im Bild"\n'
+        f'name = "MOSS-Image"\nbeschreibung = "Bilder aus Text mit MOSS-Image: lange Beschreibungen, Schrift im Bild"\n'
         f'ordner = "{tmp}"\nbefehl = ["{sys.executable}", "{SCHEIN}", "{port}", "{rechenzeit_s}", "{startzeit_s}"]\n'
         f'port = {port}\npruefadresse = "http://127.0.0.1:{port}/gesundheit"\nfaehigkeiten = ["bild_erzeugen"]\neignung = ["gruendlich"]\n'
         f'sprachen = ["en", "zh"]\nspeicher_gb = 24\nstartzeit_s = 60\nanhaltezeit_s = 5\n')
@@ -298,7 +298,9 @@ async def test_b08_moss_image_ueber_die_fassade(tmp_path):
         m = next(x for x in (await anw.get("/v1/models", headers=kopf)).json()["data"] if x["id"] == "bildwerk-moss-image")
         assert m["x-leitstelle"]["steckbrief"]["bild"] is None and m["x-leitstelle"]["geladen"] is False
         d = (await anw.get("/v1/dienste", headers=kopf)).json()["data"]
-        assert d == [{"kennung": "bildwerk-moss-image", "name": "Bildwerk MOSS-Image", "faehigkeiten": ["bild_erzeugen"], "zustand": "aus",
+        # HELF-84: der echte Modellname, die Aufgabe kommt vom Maschinenraum aus der Fähigkeit; die Kennung bleibt
+        assert m["x-leitstelle"]["name"] == "MOSS-Image" and m["x-leitstelle"]["aufgabe"] == "Bilderzeugung"
+        assert d == [{"kennung": "bildwerk-moss-image", "name": "MOSS-Image", "aufgabe": "Bilderzeugung", "faehigkeiten": ["bild_erzeugen"], "zustand": "aus",
                       "zweck": "Bilder aus Text mit MOSS-Image: lange Beschreibungen, Schrift im Bild", "rechner": ["Mac Studio"], "bild": None}]
 
         # vor dem ersten Start: die Vorgabegrenzen der Fassade, kein Start für eine Größe, die keiner annimmt
@@ -310,7 +312,7 @@ async def test_b08_moss_image_ueber_die_fassade(tmp_path):
         anfrage = {"prompt": "Ein Leuchtturm im Nebel", "model": "bildwerk-moss-image", "size": "1344x768", "n": 2, "seed": 42, "steps": 8}
         r = await anw.post("/v1/images/generations", headers=kopf, json=anfrage | {"stream": True})
         hinweise, daten = _sse(r.text)
-        assert any(h.startswith(": wartet, Bildwerk MOSS-Image startet auf Mac Studio seit ") and "Startdauer noch nicht gemessen" in h
+        assert any(h.startswith(": wartet, MOSS-Image startet auf Mac Studio seit ") and "Startdauer noch nicht gemessen" in h
                    for h in hinweise), hinweise
         strom = json.loads(daten[0])
         assert daten[-1] == "[DONE]" and len(strom["data"]) == 2 and base64.b64decode(strom["data"][0]["b64_json"]).startswith(b"\x89PNG")
@@ -330,7 +332,7 @@ async def test_b08_moss_image_ueber_die_fassade(tmp_path):
         assert (await anw.get("/v1/dienste", headers=kopf)).json()["data"][0]["bild"]["name"] == "MOSS-Image-SFT"
         liste = (await anw.get("/v1/steckbriefe", params={"faehigkeit": "bild_erzeugen"}, headers=kopf)).json()["data"]
         assert [x["id"] for x in liste] == ["bildwerk-moss-image"] and liste[0]["steckbrief"]["bild"]["anzahl_max"] == 4
-        assert any(z["text"].startswith("Steckbrief von Bildwerk MOSS-Image gelesen: MOSS-Image-SFT; Kanten 256 bis 2048 Pixel")
+        assert any(z["text"].startswith("Steckbrief von MOSS-Image gelesen: MOSS-Image-SFT; Kanten 256 bis 2048 Pixel")
                    for z in (await c.get("/api/lage")).json()["meldungen"])
 
         # gleicher Startwert, gleiche Bilder; das Modell auch mit seinem eigenen Namen; ohne Größe und Schritte die Vorgaben

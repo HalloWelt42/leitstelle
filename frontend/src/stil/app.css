@@ -10,6 +10,9 @@
 .marke-zweck { font-weight: 500; font-size: var(--gross); letter-spacing: 0; color: var(--text-2); white-space: nowrap; }
 @media (max-width: 1240px) { .marke .marke-zweck { display: none; } }
 
+/* Aufgabe klein hinter dem Modellnamen (Teil Modellname, Text über modellText) */
+.aufgabe { font-size: var(--klein); font-weight: 400; color: var(--text-2); }
+
 /* Blöcke zur Last eines Rechners (Läufer und Last, Apps des Rechners, Docker-Rechner): Etikett, Kennzahlenzeile, Tabelle */
 .lastblock { display: flex; flex-direction: column; gap: var(--a2); min-width: 0; }
 .lastblock .umbruch { overflow-wrap: anywhere; }

@@ -498,6 +498,7 @@ export interface Nutzung {
 export interface ModellSicht {
   kennung: string;
   name: string;
+  aufgabe: string;
   familie: string;
   dienst: string;
   knoten: string | null;
@@ -755,6 +756,7 @@ export interface Erkennung {
 export interface ModellBericht {
   schluessel: string;
   name: string;
+  aufgabe: string;
   faehigkeiten: Faehigkeit[];
   gb: number;
   parameter_mrd: number | null;
