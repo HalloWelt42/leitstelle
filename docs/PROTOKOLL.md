@@ -454,7 +454,13 @@ Gründe sind Wörter aus Listen, die Oberfläche übersetzt sie:
 `modell_passt_nicht`, `dienst_nicht_erreichbar`, `rechner_schlaeft`, `dienst_fehler`, `instanz_weg`, `stillstand`,
 `nicht_anhaltbar`, `nutzer`, `regel_hintergrund`, `lage`, `dringend_vor`, `wartung`, dazu für Bilddienste (6.1)
 `eingabe` (400), `modell_fehlt` (400), `anderes_modell` (409), `nicht_unterstuetzt` (501), `dienst_nicht_bereit` (503) und
-`abgebrochen` (409).
+`abgebrochen` (409), dazu für Dienste eines Maschinenraums `speicher` (507) und `dienst_gesperrt` (423).
+
+`speicher`: der Maschinenraum hat den Dienst mitten im Auftrag beendet, weil er über seiner harten Grenze lag oder der
+Rechner knapp wurde (Speicherwache). Der Auftrag endet als Abbruch mit dem Grund, nie als Wiederholung. Der Dienst ist
+danach gesperrt (`ProzessBericht.sperre` mit dem Grund, `grenze_gb` die Grenze): er ist kein Kandidat mehr, neue Aufträge
+enden sofort mit `dienst_gesperrt` (423), bis ein Mensch die Sperre im Maschinenraum aufhebt. Beides ist endgültig und
+nicht zum geduldigen Wiederholen gedacht.
 
 Jede Fehler- oder Ablehnungsnachricht trägt zusätzlich `begruendung` in einem Satz und, wenn
 vorhanden, die Originalmeldung des Dienstes in `meldung`.

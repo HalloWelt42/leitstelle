@@ -396,3 +396,67 @@ async def test_a11_schlaf_ende_zu_ende_mit_dem_echten_maschinenraum(tmp_path):
             r = await anw.get("/v1/dienste/probe/hallo.txt", headers=kopf)
             assert r.status_code == 200 and r.content.decode() == "Grüße aus dem Dienst", r.text
 
+
+
+WACHSENDER_DIENST = '''
+import sys, time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+gehalten = []
+class A(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200); self.send_header("Content-Length", "2"); self.end_headers(); self.wfile.write(b"ok")
+    def do_POST(self):
+        self.rfile.read(int(self.headers.get("Content-Length") or 0))
+        for _ in range(12):                                   # 100 MB je Schritt, höchstens 1,2 GB, dann erst die Antwort
+            b = bytearray(100 * 1024 * 1024); b[::4096] = b"\\x01" * len(range(0, len(b), 4096)); gehalten.append(b)
+            time.sleep(0.15)
+        self.send_response(200); self.send_header("Content-Length", "2"); self.end_headers(); self.wfile.write(b"ok")
+    def log_message(self, *a): pass
+ThreadingHTTPServer(("127.0.0.1", int(sys.argv[1])), A).serve_forever()
+'''
+
+
+async def test_a13_speicherabbruch_bricht_den_auftrag_ab_und_nichts_startet_neu(tmp_path):
+    """HELF-85: ein Dienst, angemeldet mit 0,1 GB, wächst während des Auftrags (absichtlich, höchstens 1,2 GB). Die
+    Speicherwache des Maschinenraums beendet ihn über der Grenze (0,35 GB) und sperrt ihn; die App bekommt 507 `speicher`,
+    der Auftrag endet als Abbruch mit dem Grund, und ein neuer Aufruf (etwa die Geduld der App) wird mit `dienst_gesperrt`
+    abgelehnt, ohne dass der Dienst wieder startet. Die Lage zeigt die Sperre am Modell."""
+    port = _freier_port()
+    (tmp_path / "dienst.py").write_text(WACHSENDER_DIENST)
+    async with aufbau(tmp_path) as (c, url, knoten, schluessel):
+        r = await c.post("/api/anwendungen", json={"name": "Hören", "faehigkeiten": ["hoeren"]})
+        app_schluessel = r.json()["schluessel"]
+        o = _agentenordner(tmp_path, url, schluessel, port)
+        (o.dienste_ordner / "probe.toml").write_text(
+            f'name = "Hörprobe"\nordner = "{tmp_path}"\nbefehl = ["{sys.executable}", "dienst.py", "{port}"]\nport = {port}\n'
+            'faehigkeiten = ["hoeren"]\nspeicher_gb = 0.1\nstartzeit_s = 15\nanhaltezeit_s = 5\n')
+        with open(o.einstellungsdatei, "a") as f:
+            f.write("[speicherschutz]\ntakt_s = 0.2\nfaktor = 1.5\nzuschlag_gb = 0.2\nfrei_mindestens_prozent = 0\nswap_hoechstens_gb = 0\n"
+                    "swap_zuwachs_gb_je_min = 0\nswap_geduldet_gb = 4096\n")
+        async with agent_laeuft(o):
+            async def da():
+                return await _modell(c, "probe") is not None
+            await _warte_bis(da)
+            kopf = {"Authorization": f"Bearer {app_schluessel}"}
+            async with httpx.AsyncClient(base_url=url, timeout=60) as anw:
+                r = await anw.post("/v1/dienste/probe/arbeit", headers=kopf, content=b"{}")
+                assert r.status_code == 507, r.text
+                assert r.json()["error"]["code"] == "speicher" and "abgebrochen: Speicher" in r.json()["error"]["message"]
+                auftrag = r.headers["x-leitstelle-auftrag"]
+
+                async def gesperrt():
+                    m = await _modell(c, "probe")
+                    return m is not None and m["sperre"] is not None
+                await _warte_bis(gesperrt)
+                assert not _offen(port)
+                r = await anw.post("/v1/dienste/probe/arbeit", headers=kopf, content=b"{}")     # die Geduld der App versucht es wieder
+                assert r.status_code == 423 and r.json()["error"]["code"] == "dienst_gesperrt", r.text
+                assert "gesperrt" in r.json()["error"]["message"]
+                await asyncio.sleep(1.0)
+                assert not _offen(port), "nichts hat den Dienst wieder gestartet"
+
+            async def abgeschlossen():
+                return (await c.get(f"/api/auftraege/{auftrag}")).json().get("zustand") == "abgebrochen"
+            await _warte_bis(abgeschlossen)
+            e = (await c.get(f"/api/auftraege/{auftrag}")).json()
+            assert e["grund"] == "speicher" and "Abgebrochen: Speicher" in e["begruendung"], e

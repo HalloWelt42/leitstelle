@@ -495,6 +495,7 @@ export interface ModellSicht {
   zusatz: boolean;
   ladesperre_bis_s: number | null;
   ladesperre_grund: string;
+  sperre: string | null;
 }
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
@@ -744,6 +745,7 @@ export interface ModellBericht {
   selbstauskunft: Selbstauskunft;
   familie: string | null;
   instanzen_hoechstens: number;
+  sperre: string | null;
 }
 /**
  * Was ein Dienst über sich oder sein Modell sagt (PROTOKOLL 4.8): wofür er gemacht ist. Leer heißt: sagt nichts.

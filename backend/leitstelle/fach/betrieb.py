@@ -671,6 +671,12 @@ class Betrieb:
         self.dienst_gestoert(dienst, meldung)
         return True
 
+    def speicherabbruch(self, modell: str | None) -> str | None:
+        """Hat der Maschinenraum das Modell (seinen Dienst) wegen Speicher beendet und gesperrt? Dann der Grund. Er meldet die
+        Sperre, bevor er beendet; reißt danach eine Verbindung ab, ist das kein Ausfall zum Wiederholen, sondern ein Abbruch."""
+        m = self.verbund.modelle.get(modell or "")
+        return m.sperre if m is not None else None
+
     def verbindung_gesund(self, dienst: str) -> None:
         """Der Dienst hat geantwortet: die Reihe der Abrisse ist unterbrochen."""
         self.abrisse.pop(dienst, None)
@@ -840,6 +846,9 @@ class Betrieb:
             m.name, m.faehigkeiten, m.gb = mb.name, faehigkeiten, mb.gb
             m.parameter_mrd, m.geschuetzt_fest = mb.parameter_mrd or 0.0, mb.einbettung or unbekannte_groesse
         m.schutz_vorgabe, m.gb_jetzt, m.plaetze = mb.schutz, mb.gb_jetzt, mb.plaetze
+        if mb.sperre != m.sperre:
+            self.melden(f"{m.name} {'gesperrt: ' + mb.sperre if mb.sperre else 'wieder freigegeben (Sperre von Hand aufgehoben)'}")
+            m.sperre = mb.sperre
         # Einbettungsmodelle eines steuerbaren Läufers: Höchstzahl der Instanzen aus dem Eintrag des Dienstes (ZUSAMMENSPIEL Z5)
         eigene = d.einbettung_instanzen if mb.einbettung and steuerbar and not d.extern else 1
         m.instanzen_hoechstens, m.zusatz = max(mb.instanzen_hoechstens, eigene), mb.familie is not None

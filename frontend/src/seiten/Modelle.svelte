@@ -174,6 +174,7 @@
                     <span class="zustand umbruch {bis ? 'wartet' : m.zustand === 'rechnet' ? 'laeuft' : 'fertig'}" title="Der Anbieter lädt seine Modelle selbst; nach Überlast (429 oder 5xx) wartet die Leitstelle bis zum Ende der Sperre">
                       <i class="fa-solid {bis ? 'fa-hand' : 'fa-cloud'}"></i>{bis ? `Gesperrt bis ${uhrzeit(bis, true)}` : m.zustand === 'rechnet' ? 'Rechnet beim Anbieter' : 'Beim Anbieter bereit'}</span>
                   {:else}<Zustand art="modell" wert={m.zustand} dreht />{/if}
+                  {#if m.sperre}<div class="gesperrt" title="Der Maschinenraum hat den Dienst wegen Speicher beendet und gesperrt. Er startet erst wieder, wenn die Sperre dort von Hand aufgehoben ist; Aufträge enden bis dahin mit dienst_gesperrt"><i class="fa-solid fa-ban"></i> gesperrt: {m.sperre}</div>{/if}
                   <div class="zweit">{#if m.ladesperre_bis_s && m.ladesperre_bis_s > jetzt}<span class="akzent" title="Der Dienst hat das Laden abgelehnt; bis zum Ende der Pause plant die Leitstelle keinen neuen Versuch">abgelehnt: {m.ladesperre_grund}</span>
                     {:else if m.auftraege_aktiv}<span class="zahl">{m.auftraege_aktiv}</span> {m.auftraege_aktiv === 1 ? 'Auftrag läuft' : 'Aufträge laufen'}{#if m.plaetze > 1}<span title="So viele Aufträge rechnet der Dienst nebeneinander (Dienstdatei des Maschinenraums oder Eintrag des Dienstes)">, <span class="zahl">{m.plaetze}</span> Plätze</span>{/if}
                     {:else if warten}<span class="akzent"><span class="zahl">{warten}</span> {warten === 1 ? 'Auftrag wartet' : 'Aufträge warten'} darauf</span>
@@ -261,4 +262,5 @@
 <style>
   /* beim Anbieter: der Zustand ist ein Satz und darf in schmalen Karten umbrechen */
   :global(.seite-modelle .modelltabelle .zustand.umbruch) { white-space: normal; }
+  .gesperrt { color: var(--ls-gefahr); font-size: var(--ls-gr-klein); white-space: normal; overflow-wrap: anywhere; margin-top: 4px; }
 </style>

@@ -99,7 +99,7 @@ def kandidaten(verbund: Verbund, auftrag: Auftrag, familie: str, mit_extern: boo
         if auftrag.feste_instanz and m.kennung != auftrag.feste_instanz:
             continue                          # Folgeaufruf: nur die Instanz, die das Ergebnis hat
         d = verbund.dienste[m.dienst]
-        if auftrag.faehigkeit not in d.faehigkeiten or not d.nutzbar:
+        if auftrag.faehigkeit not in d.faehigkeiten or not d.nutzbar or m.sperre:
             continue
         if d.extern and not mit_extern and not verbund.verlangt(auftrag, familie):
             continue
@@ -140,6 +140,10 @@ def ablehnungsgrund(verbund: Verbund, auftrag: Auftrag, kette: list[str]) -> War
         return absage("zone_nicht_erlaubt", "das Modell liegt nur in Zonen, die die Anwendung nicht nutzen darf")
     if schlafend := schlafende_fuer(verbund, in_zone):
         return absage("rechner_schlaeft", schlaf_satz([verbund.knoten[k].name for k in schlafend]), schlafend)
+    if all(m.sperre for m in in_zone):
+        m = in_zone[0]
+        return absage("dienst_gesperrt", f"{m.name} ist gesperrt ({m.sperre}); er läuft erst wieder, wenn die Sperre im Maschinenraum "
+                                         "von Hand aufgehoben ist")
     return absage("dienst_nicht_erreichbar", "der Dienst mit diesem Modell ist gerade nicht erreichbar")
 
 

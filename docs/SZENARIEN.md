@@ -263,6 +263,7 @@ Prozessdienst.
 | A09 | Agent oder Rechner startet neu | Sollzustand bleibt; eigene Gruppen werden innerhalb derselben Systemlaufzeit wiedererkannt, nach Rechnerneustart wird gestartet, was laufen soll |
 | A10 | Dienst wird in der Startzeit nicht erreichbar | Versuch wird beendet, Meldung mit der letzten Protokollzeile |
 | A11 | Der echte Kanal des Maschinenraums schläft ein und wacht auf | Leitstelle vermerkt sofort (unter 2 s), Dienstfassade 503 `rechner_schlaeft` mit Rechner; die Verbindung ruht; nach dem Aufwachen Anmeldung, Rechner erreichbar, Durchleitung wieder 200 |
+| A13 | Ein Dienst wächst im Auftrag über seine Grenze (HELF-85) | Der Maschinenraum meldet die Sperre, beendet ihn sofort; die App bekommt 507 `speicher`, der Auftrag endet als Abbruch mit dem Grund; ein neuer Aufruf 423 `dienst_gesperrt`, der Dienst startet nicht wieder; die Modellansicht zeigt die Sperre |
 
 Die Beobachtung am Leitstand vorbei ist in diesen Tests aus: sie liest Prozesse und Verbindungen des Rechners, auf dem
 der Test läuft (je Takt Sekunden), und hielte damit die Dienstmeldungen auf.

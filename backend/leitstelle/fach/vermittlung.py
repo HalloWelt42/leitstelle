@@ -194,6 +194,9 @@ class Vermittlung:
             yield self._abbruch_ende(v, strom)
             return
         except DienstFehler as f:
+            if (grund := self._speicherabbruch(v, f)) is not None:
+                yield self._fehler(strom, "speicher", grund)
+                return
             # Ein einzelner Abriss heißt nicht, dass der Dienst weg ist (der Läufer schließt gelegentlich Verbindungen,
             # gemessen 24.10.2026): derselbe Auftrag noch einmal; gestört erst nach wiederholtem Abriss in Folge
             gestoert = f.grund == "dienst_nicht_erreichbar" and b.verbindung_abgerissen(a.dienst or "", f.meldung)
@@ -213,6 +216,9 @@ class Vermittlung:
                 raise _Neuversuch()
             if antwort.status >= 400:
                 text = (await antwort.lesen()).decode("utf-8", "replace")
+                if (grund := self._speicherabbruch(v, antwort)) is not None:
+                    yield self._fehler(strom, "speicher", grund)
+                    return
                 if self._nicht_geladen(text) and v.neuversuche < NEUVERSUCHE_NICHT_GELADEN:
                     self._neu_einreihen(v)
                     raise _Neuversuch()
@@ -237,6 +243,9 @@ class Vermittlung:
                     yield zeile + b"\n"
             except DienstFehler as f:
                 if not v.lauf.ende.is_set():
+                    if (grund := self._speicherabbruch(v, f)) is not None:
+                        yield self._fehler(strom, "speicher", grund)
+                        return
                     self._abschliessen(v, Auftragszustand.FEHLGESCHLAGEN, f.grund, f.meldung)
                     yield self._fehler(strom, f.grund, f.meldung)
                     return
@@ -250,6 +259,20 @@ class Vermittlung:
             yield self._abbruch_ende(v, strom)
         finally:
             await antwort.schliessen()
+
+    def _speicherabbruch(self, v: Vorgang, ursache: DienstFehler | Strom) -> str | None:
+        """Hat der Maschinenraum den Dienst mitten im Auftrag wegen Speicher beendet (Antwort 507 `speicher` seiner
+        Durchleitung, oder die Verbindung riss ab und der Dienst ist gesperrt)? Dann wird der Auftrag als Abbruch mit dem
+        Grund abgeschlossen, nie wiederholt (derselbe Auftrag ließe ihn wieder wachsen); liefert den Grund."""
+        grund = self.betrieb.speicherabbruch(v.auftrag.modell)
+        if isinstance(ursache, DienstFehler):
+            if grund is None:
+                return None
+        elif grund is None and (ursache.status != 507 or ursache.kopf.get("x-maschinenraum-grund") != "speicher"):
+            return None
+        satz = f"Abgebrochen: Speicher. {grund or 'Der Maschinenraum hat den Dienst wegen Speicher beendet.'}"
+        self._abschliessen(v, Auftragszustand.ABGEBROCHEN, "speicher", satz[:500])
+        return satz
 
     @staticmethod
     def _verbrauch_uebernehmen(v: Vorgang, antwort: Strom) -> None:
@@ -349,13 +372,16 @@ class Vermittlung:
         v.messung = Messung()
         v.start_s = b.uhr.jetzt()
         try:
-            return await self._bis_ende(b.adapter[a.dienst or ""].durchleiten(b.ort(a.modell or "").schluessel, d), v.lauf)
+            antwort = await self._bis_ende(b.adapter[a.dienst or ""].durchleiten(b.ort(a.modell or "").schluessel, d), v.lauf)
         except _Abbruch:
             self._abschliessen(v, Auftragszustand.ABGEBROCHEN, v.lauf.grund or "nutzer", v.lauf.begruendung)
             raise Ablehnung(v.lauf.grund or "nutzer", v.lauf.begruendung, v.lauf.zusatz) from None
         except DienstFehler as f:
+            if (grund := self._speicherabbruch(v, f)) is not None:
+                raise Ablehnung("speicher", grund) from None
             self._abschliessen(v, Auftragszustand.FEHLGESCHLAGEN, f.grund, f.meldung)
             raise Ablehnung(f.grund, f.meldung) from None
+        return antwort
 
     async def roh_strom(self, v: Vorgang, antwort: Strom) -> AsyncIterator[bytes]:
         """Die Antwort des Dienstes, wie sie kommt; am Ende wird der Auftrag mit dem Ergebnis abgeschlossen."""
@@ -368,12 +394,15 @@ class Vermittlung:
                 yield stueck
             if v.lauf.ende.is_set():
                 self._abschliessen(v, Auftragszustand.ABGEBROCHEN, v.lauf.grund or "nutzer", v.lauf.begruendung)
+            elif antwort.status >= 400 and self._speicherabbruch(v, antwort) is not None:
+                pass                                          # abgeschlossen als Abbruch: Speicher
             elif antwort.status >= 400:
                 self._abschliessen(v, Auftragszustand.FEHLGESCHLAGEN, "dienst_fehler", f"Der Dienst antwortet mit {antwort.status}.")
             else:
                 self._abschliessen(v, Auftragszustand.FERTIG)
         except DienstFehler as f:
-            self._abschliessen(v, Auftragszustand.FEHLGESCHLAGEN, f.grund, f.meldung)
+            if self._speicherabbruch(v, f) is None:
+                self._abschliessen(v, Auftragszustand.FEHLGESCHLAGEN, f.grund, f.meldung)
         finally:
             # erst abschließen, dann schließen: reißt die Anwendung ab, wird dieser Rest abgebrochen, und jedes weitere
             # `await` kann selbst abgebrochen werden; der Auftrag braucht seinen Endzustand trotzdem
@@ -481,6 +510,8 @@ class Vermittlung:
             self._abschliessen(v, Auftragszustand.ABGEBROCHEN, v.lauf.grund or "nutzer", v.lauf.begruendung)
             raise Ablehnung(v.lauf.grund or "nutzer", v.lauf.begruendung, v.lauf.zusatz) from None
         except DienstFehler as f:
+            if (grund := self._speicherabbruch(v, f)) is not None:
+                raise Ablehnung("speicher", grund) from None
             if f.grund == "dienst_nicht_erreichbar":
                 b.verbindung_abgerissen(a.dienst or "", f.meldung)
             zustand = Auftragszustand.ABGEBROCHEN if f.grund == "abgebrochen" else Auftragszustand.FEHLGESCHLAGEN

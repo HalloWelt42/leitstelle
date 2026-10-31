@@ -202,6 +202,9 @@ class Modell(BaseModel):
     # Hat der Dienst das Laden abgelehnt (zu wenig Speicher, Fehler), wird bis dahin kein neuer Versuch geplant
     ladesperre_bis_s: float | None = None
     ladesperre_grund: str = ""
+    # Vom Dienst gesperrt (der Maschinenraum hat ihn wegen Speicher beendet): kein Kandidat, Aufträge enden mit
+    # `dienst_gesperrt`, bis ein Mensch die Sperre dort aufhebt
+    sperre: str | None = None
 
     def geschuetzt(self, schutzgrenze_mrd: float) -> bool:
         if self.schutz_vorgabe is not None:
