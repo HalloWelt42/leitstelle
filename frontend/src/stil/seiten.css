@@ -651,13 +651,19 @@
   .seite-mobil .telefone { display: flex; gap: var(--a6); flex-wrap: wrap; justify-content: center; }
   .telefon { width: 390px; height: 844px; border-radius: 44px; background: var(--hg); border: 10px solid #0b0f15; box-shadow: var(--schatten-schwebend); /* Ausnahme: Rahmen des Telefons in der Vorschau, Farbe des Geräts */
              display: flex; flex-direction: column; overflow: hidden; position: relative; }
+  /* Vorschau: Rahmen des Appkerns nachgestellt (sicherer Rand oben 47 px, Kopf 48 px, Fußleiste 56 px ohne Abstand) */
+  .seite-mobil .telefon .m-kopf { flex: none; height: 95px; padding-top: 47px; }
+  .seite-mobil .telefon .m-inhalt { flex: 1; min-height: 0; }
+  .seite-mobil .telefon .m-fuss { flex: none; height: 56px; }
   .seite-mobil .telefon .aussparung { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: 120px; height: 30px; border-radius: 16px; background: #0b0f15; } /* Ausnahme: Kamera-Aussparung des Geräts in der Vorschau */
-  .seite-mobil .m-kopf { display: flex; align-items: center; gap: 10px; padding-inline: var(--rahmen-rand); }
+  /* Höhe, sicherer Rand, Kopf- und Fußleiste kommen in der App aus dem Rahmen des Appkerns (stil/rahmen.css, data-rahmen);
+     hier nur die Gestaltung; die Vorschau (.telefon) stellt den Rahmen mit dem sicheren Rand eines iPhones nach */
+  .seite-mobil .m-kopf { display: flex; align-items: center; gap: 10px; padding-inline: var(--rahmen-rand, 12px); }
   .seite-mobil .m-kopf img { width: 30px; height: 30px; }
   .seite-mobil .m-kopf b { font-size: calc(var(--gross) + 2px); }
   .seite-mobil .m-kopf .m-zweck { color: var(--text-2); font-size: var(--klein); white-space: nowrap; }
   .seite-mobil .m-kopf .lage { margin-left: auto; margin-right: 0; height: 36px; font-size: calc(var(--klein) - 1px); }
-  .seite-mobil .m-inhalt { overflow-y: auto; padding: 0 var(--rahmen-rand) var(--rahmen-rand); display: flex; flex-direction: column; gap: 14px; }
+  .seite-mobil .m-inhalt { overflow-y: auto; padding: 0 var(--rahmen-rand, 12px) var(--rahmen-rand, 12px); display: flex; flex-direction: column; gap: 14px; }
   .seite-mobil .m-fuss { display: flex; justify-content: space-around; align-items: center; background: var(--leiste); border-top: 1px solid var(--rand); }
   .seite-mobil .m-fuss a { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 64px; min-height: 44px; justify-content: center; color: var(--text-3); font-size: calc(var(--klein) - 3px); font-weight: 700; }
   .seite-mobil .m-fuss a i { font-size: 20px; }
@@ -665,7 +671,7 @@
   .seite-mobil .m-fuss a .pille { position: absolute; margin-left: 34px; margin-top: -30px; }
   .seite-mobil .m-fuss a { position: relative; }
   .seite-mobil .m-titel { font-size: calc(var(--titel) + 2px); font-weight: 700; margin: 4px 0 0; }
-  .seite-mobil .m-karte { background: var(--karte); border-radius: var(--r2); padding: 14px var(--rahmen-rand); }
+  .seite-mobil .m-karte { background: var(--karte); border-radius: var(--r2); padding: 14px var(--rahmen-rand, 12px); }
   .seite-mobil .m-karte h3 { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: calc(var(--gross) - 1px); }
   .seite-mobil .m-karte h3 i { color: var(--akzent); }
   .seite-mobil .m-karte h3 .rechts { margin-left: auto; font-weight: 500; color: var(--text-3); font-size: calc(var(--klein) - 1px); }
