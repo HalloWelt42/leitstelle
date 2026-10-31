@@ -21,6 +21,7 @@
   .m-kopf { flex: none; display: flex; align-items: center; gap: 10px; padding: 54px 18px 12px; }
   .m-kopf img { width: 30px; height: 30px; }
   .m-kopf b { font-size: calc(var(--ls-gr-text) + 2px); }
+  .m-kopf .m-zweck { color: var(--ls-text-2); font-size: var(--ls-gr-klein); white-space: nowrap; }
   .m-kopf .lage { margin-left: auto; margin-right: 0; height: 36px; font-size: calc(var(--ls-gr-klein) - 1px); }
   .m-inhalt { flex: 1; min-height: 0; overflow-y: auto; padding: 0 16px 16px; display: flex; flex-direction: column; gap: 14px; }
   .m-fuss { flex: none; display: flex; justify-content: space-around; align-items: center; height: 76px; padding-bottom: 14px; background: var(--ls-leiste); border-top: 1px solid var(--ls-rand); }
@@ -81,6 +82,7 @@
   .m-knoten .w { font-size: calc(var(--ls-gr-klein) - 1px); color: var(--ls-text-2); margin-top: 2px; }
   .m-knoten .speicher { margin-top: 8px; height: 10px; }
   .m-meldung { display: grid; grid-template-columns: 54px 22px minmax(0, 1fr); gap: 8px; padding: 8px 0; border-top: 1px solid var(--ls-rand); font-size: calc(var(--ls-gr-klein) - 1px); align-items: baseline; }
+  .m-meldung > span:last-child { min-width: 0; overflow-wrap: anywhere; }   /* lange Pfade brechen um (HELF-66) */
   .m-meldung:first-of-type { border-top: 0; }
   .m-meldung .zeit { color: var(--ls-text-3); min-width: 0; }
   .m-meldung i { color: var(--ls-text-3); text-align: center; }

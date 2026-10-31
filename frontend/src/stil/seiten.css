@@ -47,6 +47,8 @@
   .seite-uebersicht .wartet-k .eintrag .v i { color: var(--akzent); margin-top: 4px; }
   .seite-uebersicht .wartet-k .eintrag .tun { display: flex; gap: var(--a2); margin-top: var(--a2); flex-wrap: wrap; }
   .seite-uebersicht .meldungen .m { display: grid; grid-template-columns: 62px 24px minmax(0, 1fr); gap: var(--a2); align-items: baseline; padding: 6px 0; border-top: 1px solid var(--rand); font-size: var(--klein); }
+  /* lange Pfade und Prozessnamen brechen um, statt über den Kasten hinauszuragen (HELF-66) */
+  .seite-uebersicht .meldungen .m > span:last-child { min-width: 0; overflow-wrap: anywhere; }
   .seite-uebersicht .meldungen .m:first-of-type { border-top: 0; }
   .seite-uebersicht .meldungen .m .zeit { color: var(--text-3); min-width: 0; }
   .seite-uebersicht .meldungen .m i { text-align: center; color: var(--text-3); }
@@ -586,6 +588,8 @@
   .seite-protokoll .speicherkarte .w.warn { color: var(--warn); font-weight: 600; }
   .seite-protokoll .speicherkarte .speicher { margin-top: 6px; }
   .seite-protokoll .meldungen .m { display: grid; grid-template-columns: 62px 24px minmax(0, 1fr); gap: var(--a2); align-items: baseline; padding: 6px 0; border-top: 1px solid var(--rand); font-size: var(--klein); }
+  /* lange Pfade und Prozessnamen brechen um, statt über den Kasten hinauszuragen (HELF-66) */
+  .seite-protokoll .meldungen .m > span:last-child { min-width: 0; overflow-wrap: anywhere; }
   .seite-protokoll .meldungen .m:first-of-type { border-top: 0; }
   .seite-protokoll .meldungen .m .zeit { color: var(--text-3); min-width: 0; }
   .seite-protokoll .meldungen .m i { text-align: center; color: var(--text-3); }
@@ -712,6 +716,7 @@
   .seite-mobil .m-knoten .w { font-size: calc(var(--klein) - 1px); color: var(--text-2); margin-top: 2px; }
   .seite-mobil .m-knoten .speicher { margin-top: 8px; height: 10px; }
   .seite-mobil .m-meldung { display: grid; grid-template-columns: 54px 22px minmax(0, 1fr); gap: 8px; padding: 8px 0; border-top: 1px solid var(--rand); font-size: calc(var(--klein) - 1px); align-items: baseline; }
+  .seite-mobil .m-meldung > span:last-child { min-width: 0; overflow-wrap: anywhere; }   /* lange Pfade brechen um (HELF-66) */
   .seite-mobil .m-meldung:first-of-type { border-top: 0; }
   .seite-mobil .m-meldung .zeit { color: var(--text-3); min-width: 0; }
   .seite-mobil .m-meldung i { color: var(--text-3); text-align: center; }

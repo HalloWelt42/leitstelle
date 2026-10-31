@@ -49,6 +49,8 @@
   .wartet-k .eintrag .v i { color: var(--ls-akzent-schrift); margin-top: 4px; }
   .wartet-k .eintrag .tun { display: flex; gap: var(--ls-a2); margin-top: var(--ls-a2); flex-wrap: wrap; }
   .meldungen .m { display: grid; grid-template-columns: 62px 24px minmax(0, 1fr); gap: var(--ls-a2); align-items: baseline; padding: 6px 0; border-top: 1px solid var(--ls-rand); font-size: var(--ls-gr-klein); }
+  /* lange Pfade und Prozessnamen brechen um, statt über den Kasten hinauszuragen (HELF-66) */
+  .meldungen .m > span:last-child { min-width: 0; overflow-wrap: anywhere; }
   .meldungen .m:first-of-type { border-top: 0; }
   .meldungen .m .zeit { color: var(--ls-text-3); min-width: 0; }
   .meldungen .m i { text-align: center; color: var(--ls-text-3); }

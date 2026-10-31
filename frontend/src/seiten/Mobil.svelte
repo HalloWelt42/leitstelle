@@ -138,6 +138,7 @@
   .telefonansicht { background: var(--hg); }
   .m-schalter { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; font-weight: 600; min-height: 44px; }
   .m-meldung { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 8px; padding: 8px 0; border-top: 1px solid var(--rand); font-size: var(--klein); }
+  .m-meldung > span:last-child { min-width: 0; overflow-wrap: anywhere; }   /* lange Pfade brechen um (HELF-66) */
   .m-meldung:first-child { border-top: 0; }
   .m-meldung .zahl { color: var(--text-3); }
   .m-arbeiter { display: flex; flex-wrap: wrap; gap: 4px var(--a3); margin-top: 6px; padding: 6px 8px; border-radius: var(--r2); background: var(--karte); font-size: var(--klein); }
