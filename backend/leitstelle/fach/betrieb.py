@@ -23,6 +23,7 @@ from pydantic import BaseModel
 from ..kern.fenster import Bedarf, Frei
 from ..kern.leitstelle import Leitstelle
 from ..kern.messungen import Messwerk
+from ..kern.zuteiler import platz
 from ..kern.modelle import (Anwendung, Appslast, Appteillast, Auftrag, Containerlast, Dienst, Dockerlast, Knoten, Massnahme, Modell, Prozesslast,
                             Verbund)
 from ..kern.rechnerlast import arbeitet_ohne_auftrag, befund, datei, laeuferarbeit, last_uebernehmen, ohne_auftrag
@@ -819,12 +820,15 @@ class Betrieb:
         return s
 
     def wartehinweis(self, a: Auftrag) -> tuple[str, float | None]:
-        """Was ein wartender Aufruf als Hinweis bekommt: der Grund des Zuteilers; startet sein Dienst oder lädt sein Modell
-        gerade, seit wann und wie lange das nach der Messung noch dauert (ein Bilddienst braucht bis zu Minuten)."""
+        """Was ein wartender Aufruf als Hinweis bekommt: der Grund des Zuteilers und, solange er in der Reihe steht, sein
+        Platz darin (HELF-130); startet sein Dienst oder lädt sein Modell gerade, seit wann und wie lange das nach der
+        Messung noch dauert (ein Bilddienst braucht bis zu Minuten)."""
         m = self.verbund.modelle.get(a.modell or "")
         d = self.verbund.dienste.get(a.dienst or "")
         if a.zustand != Auftragszustand.ZUGETEILT or m is None or d is None or m.zustand != Modellzustand.LAEDT or m.geladen_seit_s is None:
-            return a.begruendung, a.voraussichtlich_s
+            p = platz(self.verbund, a)
+            reihe = f"Platz {p[0]} von {p[1]} in der Reihe" if p else ""
+            return "; ".join(t for t in (a.begruendung, reihe) if t), a.voraussichtlich_s
         seit = max(0.0, self.uhr.jetzt() - m.geladen_seit_s)
         ort = self.verbund.knoten[d.knoten].name if d.knoten in self.verbund.knoten else d.name
         dauer = self.messwerk.ladezeit(m.familie, d.knoten or "", m.gb)

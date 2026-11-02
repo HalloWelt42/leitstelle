@@ -3,7 +3,7 @@ Szenarien S01 bis S08 und S28 aus docs/SZENARIEN.md."""
 
 from leitstelle.kern.werte import Auftragszustand as Z, Betriebsmodus, Faehigkeit as F, Prioritaet as P, Zone
 
-from leitstelle.kern.zuteiler import reihenfolge, zuteilen
+from leitstelle.kern.zuteiler import platz, reihenfolge, zuteilen
 from leitstelle.kern.messungen import Messwerk
 
 from conftest import entlade, lade, welt_mit
@@ -29,6 +29,18 @@ def test_s02_platz_belegt_zweiter_wartet_und_folgt(welt):
     welt.laufen_bis_fertig(200)
     assert v.auftraege[a2.kennung].zustand == Z.FERTIG
     assert v.auftraege[a2.kennung].start_s >= v.auftraege[a1.kennung].ende_s
+
+
+def test_platz_in_der_reihe_je_faehigkeit(welt):
+    """HELF-130: Ein wartender Auftrag kennt seinen Platz unter den wartenden seiner Fähigkeit (auch anderer Apps), in der
+    Reihenfolge des Zuteilers; ein laufender hat keinen."""
+    a1 = welt.auftrag("zusage", F.TEXT, laufzeit_s=30)
+    a2 = welt.auftrag("zusage", F.TEXT, laufzeit_s=10)
+    a3 = welt.auftrag("zusage", F.TEXT, laufzeit_s=10)
+    welt.laufen(10)
+    v = welt.verbund
+    assert v.auftraege[a1.kennung].zustand == Z.LAEUFT and platz(v, v.auftraege[a1.kennung]) is None
+    assert platz(v, v.auftraege[a2.kennung]) == (1, 2) and platz(v, v.auftraege[a3.kennung]) == (2, 2)
 
 
 def test_s03_prioritaet_hoch_vor_hintergrund(welt):

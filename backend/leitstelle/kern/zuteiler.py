@@ -168,6 +168,13 @@ def reihenfolge(verbund: Verbund) -> list[Auftrag]:
                   key=lambda a: (verbund.nur_bei_ruhe(a), a.faehigkeit != Faehigkeit.EINBETTUNG, -wirksame_prioritaet(verbund, a), a.eingang_s))
 
 
+def platz(verbund: Verbund, a: Auftrag) -> tuple[int, int] | None:
+    """Platz eines wartenden Auftrags unter den wartenden seiner Fähigkeit, in der Reihenfolge des Zuteilers, und wie
+    viele es sind; Aufträge anderer Apps zählen mit (HELF-130: "Platz 2" beim Bilddienst). None, wenn er nicht wartet."""
+    gleiche = [x.kennung for x in reihenfolge(verbund) if x.faehigkeit == a.faehigkeit]
+    return (gleiche.index(a.kennung) + 1, len(gleiche)) if a.kennung in gleiche else None
+
+
 def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> Zuteilergebnis:
     """Teilt alle wartenden Aufträge zu, soweit möglich. Verändert den Verbund nicht."""
     ergebnis = Zuteilergebnis()
