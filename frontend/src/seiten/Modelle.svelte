@@ -47,6 +47,14 @@
     return 'Gemessen ' + teile.filter(Boolean).join(', ');
   }
 
+  // Sprachen eines Modells kurz (HELF-150): wenige ausgeschrieben, viele als Zahl mit Deutsch und Englisch vorn; die ganze
+  // Liste steht beim Überfahren. Sonst sprengen Modelle wie Whisper mit rund 100 Kürzeln die Tabelle.
+  function sprachenKurz(liste: string[]): string {
+    if (liste.length <= 6) return liste.join(', ');
+    const vorn = ['de', 'en'].filter((k) => liste.includes(k));
+    return `${liste.length} Sprachen${vorn.length ? `, darunter ${vorn.join(', ')}` : ''}`;
+  }
+
   function herkunft(m: ModellSicht): string {
     const FELD: Record<string, string> = { parameter_mrd: 'Parameter', parameter_aktiv_mrd: 'Aktive Parameter', geprueft: 'Fähigkeitsprobe' };
     return Object.entries(m.steckbrief.herkunft ?? {}).map(([feld, q]) => `${FELD[feld] ?? feld[0].toUpperCase() + feld.slice(1)}: ${QUELLE[q]}`).join(' · ');
@@ -162,7 +170,7 @@
                   {#if m.steckbrief.zweck || m.steckbrief.eignung?.length || m.steckbrief.sprachen?.length}<div class="steckbrief" title={herkunft(m)}>
                     {#if m.steckbrief.zweck}<span class="zweck">{m.steckbrief.zweck}</span>{/if}
                     {#each m.steckbrief.eignung ?? [] as e (e)}<span class="eignung">{EIGNUNG[e]}</span>{/each}
-                    {#if m.steckbrief.sprachen?.length}<span class="eignung sprache">{m.steckbrief.sprachen.join(', ')}</span>{/if}</div>{/if}
+                    {#if m.steckbrief.sprachen?.length}<span class="eignung sprache" title={`Sprachen: ${m.steckbrief.sprachen.join(', ')}`}>{sprachenKurz(m.steckbrief.sprachen)}</span>{/if}</div>{/if}
                   {#if m.steckbrief.bild}<div class="steckbrief" title="Was das Bildmodell annimmt, wie sein Dienst es sagt (gelesen {uhrzeit(m.steckbrief.bild.abgerufen_s)}); die Leitstelle prüft jede Anfrage damit, bevor sie den Dienst erreicht">
                     {#each bildregeln(m.steckbrief.bild) as t (t.text)}<span class="eignung" title={t.titel}>{t.text}</span>{/each}</div>{/if}
                   {#each m.steckbrief.geprueft ?? [] as p (p.faehigkeit)}<div class="zweit" title={p.meldung}><i class="fa-solid fa-flask"></i> {FAEHIGKEIT[p.faehigkeit].wort} {p.belegt ? 'belegt' : 'nicht belegt'}, geprüft {uhrzeit(p.zeit_s)}</div>{/each}</td>
@@ -263,6 +271,6 @@
 
 <style>
   /* beim Anbieter: der Zustand ist ein Satz und darf in schmalen Karten umbrechen */
-  :global(.seite-modelle .modelltabelle .zustand.umbruch) { white-space: normal; }
+  :global(.seite-modelle .modelltabelle .zustand.umbruch) { white-space: normal; height: auto; min-height: 26px; padding-block: 4px; line-height: 1.25; }
   .gesperrt { color: var(--ls-gefahr); font-size: var(--ls-gr-klein); white-space: normal; overflow-wrap: anywhere; margin-top: 4px; }
 </style>
