@@ -390,7 +390,7 @@ Fehler im Format der Fassade (7): 400 `eingabe` (Feld falsch oder von keinem der
 (Modell lädt oder ist gestört, mit `Retry-After`), 409 `abgebrochen` (der Dienst hat die Rechnung abgebrochen, seine 499),
 502 `dienst_fehler` (alles andere), 503 `dienst_nicht_erreichbar` (die Durchleitung sagt ab, etwa weil der Dienst gerade
 nicht läuft), dazu alle Gründe der Warteschlange (`rechner_schlaeft`, `halt`, ...). Bilder nach Vorlagen gehen über
-`images` derselben Anfrage; ob ein Modell es kann und wie viele, sagen `kann_bearbeiten` und `vorlagen_max` im Steckbrief,
+`images` derselben Anfrage; ob ein Modell es kann und wie viele, sagen `kann_bearbeiten`, `vorlagen_max` und `vorlagen_min` (über 0: das Modell rechnet nur mit Vorlage) im Steckbrief,
 was die Lizenz für die Bilder heißt `lizenz_hinweis`.
 
 ### 6.2 Liste der Dienste

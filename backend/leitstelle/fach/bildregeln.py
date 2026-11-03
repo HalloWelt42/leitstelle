@@ -19,6 +19,8 @@ def regeln_pruefen(s: Bildsteckbrief | None, groesse: str | None, anzahl: int, s
     """Der Grund in einem Satz, wenn das Modell die Anfrage so nicht annimmt; sonst None. Vorlagen nimmt nur ein Modell,
     dessen Steckbrief Bearbeiten nennt. `vorab` (vor dem Einreihen): ist der Steckbrief noch unbekannt, weil der Dienst nie
     lief, gehen Vorlagen durch; nach dem Start entscheidet sein frisch gelesener Steckbrief."""
+    if s and vorlagen < s.vorlagen_min:
+        return f"{s.name} rechnet nur mit Bildvorlage, mindestens {s.vorlagen_min}."
     if vorlagen and not (vorab and s is None):
         if not (s and s.kann_bearbeiten):
             return f"{s.name if s else 'Dieses Bildmodell'} nimmt keine Bildvorlage an."

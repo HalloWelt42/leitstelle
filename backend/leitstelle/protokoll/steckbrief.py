@@ -94,6 +94,7 @@ class Bildsteckbrief(BaseModel):
     aliase: list[str] = Field(default_factory=list)          # weitere Namen, die als `model` dasselbe meinen
     kann_bearbeiten: bool = False                            # nimmt Bildvorlagen an (`/v1/images/edits`)
     vorlagen_max: int | None = Field(default=None, ge=0)     # Bildvorlagen je Anfrage, wenn es bearbeiten kann
+    vorlagen_min: int = Field(default=0, ge=0)               # Bildvorlagen, die es mindestens braucht; über 0: rechnet nur mit Vorlage
     groessen: Groessenregel | None = None                    # None: es gelten die Vorgabegrenzen der Fassade
     schritte: Schrittregel | None = None                     # None: der Dienst nennt keine; Schritte gehen ungeprüft an ihn
     anzahl_max: int | None = Field(default=None, gt=0)       # Bilder je Anfrage
@@ -121,6 +122,8 @@ class Bildsteckbrief(BaseModel):
             teile.append(f"bis {self.anzahl_max} Bilder je Anfrage")
         if self.kann_bearbeiten:
             teile.append(f"bis {self.vorlagen_max or ANZAHL_MAX} Bildvorlagen")
+        if self.vorlagen_min:
+            teile.append(f"nur mit mindestens {self.vorlagen_min} Bildvorlage")
         return "; ".join(teile)
 
 

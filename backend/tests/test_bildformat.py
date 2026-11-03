@@ -524,6 +524,14 @@ async def test_b15_bildvorlagen_nur_fuer_modelle_die_bearbeiten():
     assert regeln_pruefen(None, None, 1, None, 1, vorab=True) is None
     assert regeln_pruefen(None, None, 1, None, 1) == "Dieses Bildmodell nimmt keine Bildvorlage an."
     assert "bis 2 Bildvorlagen" in klein.kurz() and klein.lizenz_hinweis
+    # ein reines Bearbeitungsmodell (vorlagen_min) nimmt keine Anfrage ohne Vorlage an, auch nicht in der Vorprüfung
+    edit = Bildsteckbrief.model_validate({**STECKBRIEF, "modell": "qwen-image-edit", "name": "Qwen-Image-Edit-2511", "kann_bearbeiten": True,
+                                          "vorlagen_max": 3, "vorlagen_min": 1, "lizenz_hinweis": "Apache-2.0, frei nutzbar."})
+    assert regeln_pruefen(edit, None, 1, None, 0) == "Qwen-Image-Edit-2511 rechnet nur mit Bildvorlage, mindestens 1."
+    assert regeln_pruefen(edit, None, 1, None, 0, vorab=True) == "Qwen-Image-Edit-2511 rechnet nur mit Bildvorlage, mindestens 1."
+    assert regeln_pruefen(edit, None, 1, None, 1) is None
+    assert regeln_pruefen(edit, None, 1, None, 4) == "Höchstens 3 Bildvorlagen je Anfrage, nicht 4."
+    assert "nur mit mindestens 1 Bildvorlage" in edit.kurz()
     vorlage = base64.b64encode(b"\x89PNGvorlage").decode()
     a = bildauftrag(BildAnfrage(prompt="Katze im Stil", images=[vorlage]), 5, klein)
     assert a.vorlagen == [b"\x89PNGvorlage"]

@@ -572,6 +572,7 @@ export interface Bildsteckbrief {
   aliase?: string[];
   kann_bearbeiten?: boolean;
   vorlagen_max?: number | null;
+  vorlagen_min?: number;
   groessen?: Groessenregel | null;
   schritte?: Schrittregel | null;
   anzahl_max?: number | null;
