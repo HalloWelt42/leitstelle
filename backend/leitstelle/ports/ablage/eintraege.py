@@ -103,7 +103,7 @@ class FaehigkeitsprobeEintrag(BaseModel):
 class BildablageEintrag(BaseModel):
     """Ein erzeugtes Bild, das auf die Abholung durch ein Bildarchiv wartet (PROTOKOLL 6.3)."""
     kennung: str
-    anwendung: str                    # die Anwendung, die das Bild erzeugt hat
+    anwendung: str                    # Name der Anwendung, die das Bild erzeugt hat
     auftrag: str
     familie: str                      # das Bildmodell (Kennung des Dienstes)
     beschreibung: str                 # der Prompt, wie die Anwendung ihn geschickt hat

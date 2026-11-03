@@ -49,7 +49,7 @@ class Bildablage:
                 zwischen.write_bytes(daten)
                 zwischen.replace(ziel)
                 await self.ablage.speichern(BildablageEintrag(
-                    kennung=kennung, anwendung=erzeuger.kennung, auftrag=auftrag, familie=familie, beschreibung=bild.beschreibung,
+                    kennung=kennung, anwendung=erzeuger.name, auftrag=auftrag, familie=familie, beschreibung=bild.beschreibung,
                     seed=ergebnis.seed, breite=bild.breite, hoehe=bild.hoehe, schritte=ergebnis.schritte, nummer=nummer,
                     bytes=len(daten), erzeugt_s=jetzt_s))
                 abgelegt += 1

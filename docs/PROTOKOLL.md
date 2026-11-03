@@ -463,7 +463,7 @@ erzeugende Anwendung ändert sich dadurch nicht; ein Fehler beim Ablegen steht n
 | `GET /v1/bildablage/<kennung>` | das Bild als PNG |
 | `DELETE /v1/bildablage/<kennung>` | abgeholt: Bild und Angaben fallen weg (204; unbekannt: 404) |
 
-Angaben je Bild: `kennung`, `anwendung` (die erzeugende), `auftrag`, `familie` (das Bildmodell), `beschreibung` (der
+Angaben je Bild: `kennung`, `anwendung` (Name der erzeugenden), `auftrag`, `familie` (das Bildmodell), `beschreibung` (der
 Prompt), `seed`, `breite`, `hoehe`, `schritte`, `nummer` (Stelle im Ergebnis bei mehreren Bildern), `bytes`,
 `erzeugt_s` (Unix-Zeit). Anderen Anwendungen antwortet die Bildablage mit `faehigkeit_nicht_erlaubt` (403).
 
