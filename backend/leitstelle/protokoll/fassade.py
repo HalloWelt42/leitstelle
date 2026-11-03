@@ -5,6 +5,8 @@ die Form."""
 
 from __future__ import annotations
 
+import base64
+import binascii
 import re
 from enum import Enum
 
@@ -15,6 +17,7 @@ from ..ports.dienste.bilder import SEED_GRENZE
 from .steckbrief import ANZAHL_MAX, Bildsteckbrief
 
 GROESSE = re.compile(r"(\d{1,5})x(\d{1,5})")
+VORLAGE_BYTES_MAX = 20 * 1024 * 1024          # je Bildvorlage
 
 
 def groesse_lesen(groesse: str) -> tuple[int, int]:
@@ -35,6 +38,7 @@ class BildAnfrage(BaseModel):
     steps: int | None = Field(default=None, ge=1)  # None: die Vorgabe des Modells; Grenzen im Steckbrief (die Bildschmiede rechnet mit ihren)
     model: str | None = None                     # das Bildmodell, die Wahl der Anwendung (Kennung des Dienstes oder Name seines Modells)
     alternativen: list[str] = Field(default_factory=list, max_length=8)   # weitere Bildmodelle der Anwendung, in ihrer Reihenfolge
+    images: list[str] = Field(default_factory=list, max_length=ANZAHL_MAX)  # Bildvorlagen als Base64 (Stil, Bezug); nur Modelle, die bearbeiten
     response_format: str = "b64_json"
     stream: bool = False
 
@@ -60,6 +64,22 @@ class BildAnfrage(BaseModel):
         if wert != "b64_json":
             raise ValueError("Die Leitstelle liefert Bilder nur als b64_json.")
         return wert
+
+    @field_validator("images")
+    @classmethod
+    def _vorlagen(cls, werte: list[str]) -> list[str]:
+        for i, wert in enumerate(werte, start=1):
+            try:
+                roh = base64.b64decode(wert, validate=True)
+            except (binascii.Error, ValueError):
+                raise ValueError(f"Vorlage {i} ist kein Base64.") from None
+            if len(roh) > VORLAGE_BYTES_MAX:
+                raise ValueError(f"Vorlage {i} ist größer als {VORLAGE_BYTES_MAX // (1024 * 1024)} MB.")
+        return werte
+
+    def vorlagen(self) -> list[bytes]:
+        """Die Bildvorlagen als Dateiinhalt (die Form ist schon geprüft)."""
+        return [base64.b64decode(w) for w in self.images]
 
 
 class BildDaten(BaseModel):

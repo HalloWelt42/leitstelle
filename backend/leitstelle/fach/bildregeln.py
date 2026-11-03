@@ -14,8 +14,16 @@ from ..protokoll.steckbrief import ANZAHL_MAX, GROESSEN_VORGABE, Bildsteckbrief
 from .fehler import Ablehnung
 
 
-def regeln_pruefen(s: Bildsteckbrief | None, groesse: str | None, anzahl: int, schritte: int | None) -> str | None:
-    """Der Grund in einem Satz, wenn das Modell die Anfrage so nicht annimmt; sonst None."""
+def regeln_pruefen(s: Bildsteckbrief | None, groesse: str | None, anzahl: int, schritte: int | None, vorlagen: int = 0,
+                   vorab: bool = False) -> str | None:
+    """Der Grund in einem Satz, wenn das Modell die Anfrage so nicht annimmt; sonst None. Vorlagen nimmt nur ein Modell,
+    dessen Steckbrief Bearbeiten nennt. `vorab` (vor dem Einreihen): ist der Steckbrief noch unbekannt, weil der Dienst nie
+    lief, gehen Vorlagen durch; nach dem Start entscheidet sein frisch gelesener Steckbrief."""
+    if vorlagen and not (vorab and s is None):
+        if not (s and s.kann_bearbeiten):
+            return f"{s.name if s else 'Dieses Bildmodell'} nimmt keine Bildvorlage an."
+        if vorlagen > (hoechstens := s.vorlagen_max or ANZAHL_MAX):
+            return f"Höchstens {hoechstens} Bildvorlagen je Anfrage, nicht {vorlagen}."
     if groesse is not None:
         regel = s.groessen if s and s.groessen else GROESSEN_VORGABE
         if grund := regel.pruefen(*groesse_lesen(groesse)):
@@ -31,8 +39,9 @@ def regeln_pruefen(s: Bildsteckbrief | None, groesse: str | None, anzahl: int, s
 def bildauftrag(anfrage: BildAnfrage, seed: int, s: Bildsteckbrief | None) -> Bildauftrag:
     """Der Auftrag für den Bilddienst, der rechnet: ohne Größe die Vorgabe seines Modells, ohne Schritte die seines Modells
     (unbekannt: der Dienst entscheidet). Passt die Anfrage nicht, `Ablehnung` mit dem Grund `eingabe`."""
-    if grund := regeln_pruefen(s, anfrage.size, anfrage.n, anfrage.steps):
+    if grund := regeln_pruefen(s, anfrage.size, anfrage.n, anfrage.steps, len(anfrage.images)):
         raise Ablehnung("eingabe", grund)
     breite, hoehe = groesse_lesen(anfrage.size or (s.groessen.vorgabe if s and s.groessen else GROESSEN_VORGABE.vorgabe))
     schritte = anfrage.steps if anfrage.steps is not None else (s.schritte.vorgabe if s and s.schritte else None)
-    return Bildauftrag(beschreibung=anfrage.prompt, breite=breite, hoehe=hoehe, anzahl=anfrage.n, seed=seed, schritte=schritte)
+    return Bildauftrag(beschreibung=anfrage.prompt, breite=breite, hoehe=hoehe, anzahl=anfrage.n, seed=seed, schritte=schritte,
+                       vorlagen=anfrage.vorlagen())

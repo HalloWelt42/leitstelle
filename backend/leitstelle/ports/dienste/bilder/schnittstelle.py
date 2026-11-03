@@ -32,6 +32,7 @@ class Bildauftrag(BaseModel):
     anzahl: int = Field(ge=1, le=4)
     seed: int = Field(ge=0, lt=SEED_GRENZE)
     schritte: int | None = Field(default=None, ge=1)    # None: wie der Ablauf oder der Dienst es vorgibt
+    vorlagen: list[bytes] = Field(default_factory=list)  # Bildvorlagen (Stil, Bezug); nur für Dienste, die bearbeiten
 
 
 class Bildergebnis(BaseModel):

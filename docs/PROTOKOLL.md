@@ -330,7 +330,7 @@ Dienst rechnet, weiß nur sein Bildablauf in der Leitstelle:
 
 | Art | für | was die Leitstelle tut |
 |---|---|---|
-| `bildformat` | jeden Bilddienst ohne eigenen Eintrag (Vorgabe `LEITSTELLE_BILDABLAUF_VORGABE`), etwa die Dienste des Bildwerks wie `bildwerk-moss-image` | über die Durchleitung `POST v1/images/generations` mit `prompt`, `size`, `n`, `seed`, `steps` und `response_format` `b64_json` (ohne `model`: der Dienst hält genau ein Modell); die Bilder aus `data[].b64_json`; den Steckbrief aus `GET v1/models` |
+| `bildformat` | jeden Bilddienst ohne eigenen Eintrag (Vorgabe `LEITSTELLE_BILDABLAUF_VORGABE`), etwa die Dienste des Bildwerks wie `bildwerk-moss-image` | über die Durchleitung `POST v1/images/generations` mit `prompt`, `size`, `n`, `seed`, `steps` und `response_format` `b64_json` (ohne `model`: der Dienst hält genau ein Modell), mit Bildvorlagen dieselben Felder und `images` (Base64) an `POST v1/images/edits`; die Bilder aus `data[].b64_json`; den Steckbrief aus `GET v1/models` |
 | `comfyui` | Dienste mit eigenem Eintrag in `LEITSTELLE_BILDABLAEUFE`; Vorgabe: `bildschmiede` mit FLUX.1 schnell, 4 Schritte, cfg 1.0, euler/simple | Arbeitsgraph einreihen, Verlauf abfragen, Bilder holen |
 
 Ein neuer Bilddienst im üblichen Bildformat braucht in der Leitstelle keinen Eintrag; nur eine andere Art braucht einen.
@@ -346,6 +346,7 @@ erreichbar.
 | `steps` | nein | Schritte; Grenzen und Vorgabe aus dem Steckbrief (MOSS-Image 1 bis 218, Vorgabe 50). Die Bildschmiede rechnet mit den Schritten ihres Ablaufs |
 | `model` | nein | Kennung des Bilddienstes (`GET /v1/dienste`, `GET /v1/models`, etwa `bildwerk-moss-image`) oder, sobald sein Steckbrief bekannt ist, der Name seines Modells (`moss-image`, `MOSS-Image-SFT`, Aliase); fehlt es, gilt die in der Leitstelle hinterlegte Kette der Anwendung, sonst 400 `modell_fehlt` |
 | `alternativen` | nein | weitere Bildmodelle der Anwendung (höchstens 8, Namen wie bei `model`), in ihrer Reihenfolge; nur zusammen mit `model`; ein unbekannter Name gibt 404 `kein_modell` |
+| `images` | nein | Bildvorlagen (Stil, Bezug), 1 bis 4 Bilder als Base64 (PNG, JPEG oder WebP, je höchstens 20 MB), in der Reihenfolge ihres Gewichts; nur für Modelle, deren Steckbrief `kann_bearbeiten` nennt, höchstens `vorlagen_max` |
 | `response_format` | nein | nur `b64_json` |
 | `stream` | nein | `true`: Server-Sent Events wie beim Chat |
 
@@ -370,12 +371,13 @@ Mit `"stream": true` (`text/event-stream`): solange der Auftrag wartet alle 15 s
 gemessen"; während der Dienst rechnet `: rechnet seit <n> s`; dann genau eine Zeile `data: <Antwort wie oben>` und
 `data: [DONE]`. Ein Fehler kommt als `data: {"error": {...}}` und `data: [DONE]`.
 
-Prüfen vor dem Dienst: Größe, Anzahl und Schritte prüft die Leitstelle mit dem Steckbrief des Modells, bevor sie
+Prüfen vor dem Dienst: Größe, Anzahl, Schritte und Bildvorlagen prüft die Leitstelle mit dem Steckbrief des Modells, bevor sie
 einreiht: gegen das verlangte Modell und die Alternativen (ein Modell, das die Anfrage nicht annimmt, geht für sie nicht,
 es gilt das nächste der Anwendung) oder, ohne `model`, gegen ihre Kette; nimmt keines sie an, 400 `eingabe` mit dem
 Grund des ersten. So startet kein Dienst für eine Anfrage, die er ablehnen würde. Nach der Zuteilung prüft
 sie noch einmal gegen den einen Dienst, der rechnet, mit seinem frisch gelesenen Steckbrief. Bis die Leitstelle den
-Steckbrief eines Dienstes kennt (nach seinem ersten Start), gelten die Vorgabegrenzen.
+Steckbrief eines Dienstes kennt (nach seinem ersten Start), gelten die Vorgabegrenzen; Bildvorlagen gehen dann in der
+Vorprüfung durch, und nach dem Start entscheidet sein Steckbrief (ohne `kann_bearbeiten`: 400 `eingabe`).
 
 Abbruch: trennt die Anwendung die Verbindung oder stoppt ein Mensch den Auftrag, endet der Auftrag; beim Bildformat
 schließt die Leitstelle ihre Verbindung zum Dienst (die Bildschmiede nimmt den Auftrag aus ihrer Warteschlange).
@@ -387,8 +389,9 @@ Fehler im Format der Fassade (7): 400 `eingabe` (Feld falsch oder von keinem der
 (Größe, Schritte; 422 des Dienstes ebenso), 409 `anderes_modell`, 501 `nicht_unterstuetzt`, 503 `dienst_nicht_bereit`
 (Modell lädt oder ist gestört, mit `Retry-After`), 409 `abgebrochen` (der Dienst hat die Rechnung abgebrochen, seine 499),
 502 `dienst_fehler` (alles andere), 503 `dienst_nicht_erreichbar` (die Durchleitung sagt ab, etwa weil der Dienst gerade
-nicht läuft), dazu alle Gründe der Warteschlange (`rechner_schlaeft`, `halt`, ...). Bilder bearbeiten bietet die
-Fassade nicht an; ob ein Modell es kann, sagt `kann_bearbeiten` im Steckbrief.
+nicht läuft), dazu alle Gründe der Warteschlange (`rechner_schlaeft`, `halt`, ...). Bilder nach Vorlagen gehen über
+`images` derselben Anfrage; ob ein Modell es kann und wie viele, sagen `kann_bearbeiten` und `vorlagen_max` im Steckbrief,
+was die Lizenz für die Bilder heißt `lizenz_hinweis`.
 
 ### 6.2 Liste der Dienste
 

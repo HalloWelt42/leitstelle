@@ -92,13 +92,15 @@ class Bildsteckbrief(BaseModel):
     modell: str                                              # Kennung des Modells beim Dienst (als `model` gleichwertig zur Kennung des Dienstes)
     name: str                                                # Anzeigename des Modells
     aliase: list[str] = Field(default_factory=list)          # weitere Namen, die als `model` dasselbe meinen
-    kann_bearbeiten: bool = False                            # nimmt eine Bildvorlage an (`/v1/images/edits`)
+    kann_bearbeiten: bool = False                            # nimmt Bildvorlagen an (`/v1/images/edits`)
+    vorlagen_max: int | None = Field(default=None, ge=0)     # Bildvorlagen je Anfrage, wenn es bearbeiten kann
     groessen: Groessenregel | None = None                    # None: es gelten die Vorgabegrenzen der Fassade
     schritte: Schrittregel | None = None                     # None: der Dienst nennt keine; Schritte gehen ungeprüft an ihn
     anzahl_max: int | None = Field(default=None, gt=0)       # Bilder je Anfrage
     beschreibung_max_token: int | None = None                # längste Beschreibung, die das Modell liest
     textkodierer: str | None = None
     lizenz: str | None = None
+    lizenz_hinweis: str | None = None                        # was die Lizenz für die Nutzung der Bilder heißt, in einem Satz
     parameter_mrd: float | None = None                       # Parameter des Bildteils
     quantisierung: str | None = None
     abgerufen_s: float = 0.0                                 # wann die Leitstelle ihn zuletzt beim Dienst gelesen hat
@@ -117,6 +119,8 @@ class Bildsteckbrief(BaseModel):
             teile.append(f"Schritte {s.kleinste} bis {s.groesste}, Vorgabe {s.vorgabe}")
         if self.anzahl_max:
             teile.append(f"bis {self.anzahl_max} Bilder je Anfrage")
+        if self.kann_bearbeiten:
+            teile.append(f"bis {self.vorlagen_max or ANZAHL_MAX} Bildvorlagen")
         return "; ".join(teile)
 
 

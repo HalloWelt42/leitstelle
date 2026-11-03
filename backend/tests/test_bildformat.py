@@ -507,3 +507,43 @@ async def test_b14_bildarchiv_holt_ueber_die_fassade_ab(tmp_path):
         daten = {k: a[k] for k in ("name", "prioritaet", "zonen", "extern_erlaubt", "gleichzeitig", "ketten", "docker_projekte", "faehigkeiten")}
         assert (await c.put(f"/api/anwendungen/{a['kennung']}", json=daten | {"gleichzeitig": 2})).status_code == 200
         assert next(x for x in (await c.get("/api/lage")).json()["anwendungen"] if x["name"] == "Bildarchiv")["bildarchiv"] is True
+
+
+
+async def test_b15_bildvorlagen_nur_fuer_modelle_die_bearbeiten():
+    """B15: Bildvorlagen (`images`) nimmt nur ein Modell, dessen Steckbrief Bearbeiten nennt, höchstens `vorlagen_max`; vor
+    dem ersten Start (Steckbrief unbekannt) gehen sie in der Vorprüfung durch, nach dem Start entscheidet der Steckbrief.
+    Der Ablauf schickt sie als Base64 an `v1/images/edits`, sonst dieselben Felder wie beim Erzeugen."""
+    from schein.bilddienst import STECKBRIEF
+    moss = _steckbrief()
+    klein = Bildsteckbrief.model_validate({**STECKBRIEF, "modell": "flux2-klein", "name": "FLUX.2 klein 9B", "kann_bearbeiten": True,
+                                           "vorlagen_max": 2, "lizenz_hinweis": "Nur nicht-kommerzielle Nutzung der Bilder."})
+    assert regeln_pruefen(moss, None, 1, None, 1) == "MOSS-Image-SFT nimmt keine Bildvorlage an."
+    assert regeln_pruefen(klein, None, 1, None, 2) is None
+    assert regeln_pruefen(klein, None, 1, None, 3) == "Höchstens 2 Bildvorlagen je Anfrage, nicht 3."
+    assert regeln_pruefen(None, None, 1, None, 1, vorab=True) is None
+    assert regeln_pruefen(None, None, 1, None, 1) == "Dieses Bildmodell nimmt keine Bildvorlage an."
+    assert "bis 2 Bildvorlagen" in klein.kurz() and klein.lizenz_hinweis
+    vorlage = base64.b64encode(b"\x89PNGvorlage").decode()
+    a = bildauftrag(BildAnfrage(prompt="Katze im Stil", images=[vorlage]), 5, klein)
+    assert a.vorlagen == [b"\x89PNGvorlage"]
+    with pytest.raises(Ablehnung) as e:
+        bildauftrag(BildAnfrage(prompt="Katze im Stil", images=[vorlage]), 5, moss)
+    assert e.value.grund == "eingabe"
+    for falsch in (["kein base64!"], [vorlage] * 5):
+        with pytest.raises(ValueError):
+            BildAnfrage(prompt="Katze", images=falsch)
+    app = schein_bilddienst(0.01, bearbeiten=True)
+    async with laufend(app) as adresse:
+        weg = OpenAIKompatibel(adresse)
+        try:
+            senden = lambda d: weg.durchleiten("", d)          # noqa: E731
+            s = await ABLAUF.steckbrief(senden)
+            assert s.kann_bearbeiten and s.vorlagen_max == 4 and s.lizenz_hinweis == "Nur nicht-kommerzielle Nutzung der Bilder."
+            mit = await ABLAUF.erzeugen(senden, auftrag(vorlagen=[b"eins", b"zwei"], anzahl=1))
+            ohne = await ABLAUF.erzeugen(senden, auftrag(anzahl=1))
+        finally:
+            await weg.schliessen()
+    erste, zweite = app.state.lage.anfragen
+    assert erste["pfad"] == "edits" and erste["vorlagen"] == [b"eins", b"zwei"] and erste["size"] == "1344x768"
+    assert "pfad" not in zweite and len(mit.bilder) == len(ohne.bilder) == 1

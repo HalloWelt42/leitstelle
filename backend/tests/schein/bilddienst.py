@@ -6,7 +6,8 @@ sonst 409; Größe und Schritte nach dem Steckbrief, sonst 400; Form 422; vor de
 "Fehler beim Rechnen" endet mit 500) und "rechnet"
 `rechenzeit_s`, während er auf das Schließen der Verbindung achtet: geht der Aufrufer, endet die Rechnung (vermerkt in
 `lage.abgebrochen`, Antwort 499). Die Bilder sind echte PNG mit einem Bildpunkt, dessen Farbe nur aus Beschreibung,
-Startwert, Größe und Schritten folgt; Bild i rechnet mit seed + i. `POST /v1/images/edits` antwortet 501, `GET /v1/models`
+Startwert, Größe und Schritten folgt; Bild i rechnet mit seed + i. `POST /v1/images/edits` antwortet 501, mit
+`bearbeiten=True` (Modell wie FLUX.2 klein) rechnet es wie die Erzeugung und vermerkt die Zahl der Vorlagen; `GET /v1/models`
 liefert den Steckbrief, `GET /gesundheit` 200 bei bereit, sonst 503, `GET /lage` was er gesehen hat (für Tests).
 
 Läuft auch als eigener Prozess (für den Maschinenraum): `python bilddienst.py <port> [rechenzeit_s] [startzeit_s]`.
@@ -63,6 +64,7 @@ class Anfrage(BaseModel):
     steps: int | None = None
     model: str | None = None
     response_format: str = "b64_json"
+    images: list[str] = Field(default_factory=list)
 
 
 @dataclass
@@ -76,8 +78,10 @@ class Lage:
     fertig: int = 0
 
 
-def schein_bilddienst(rechenzeit_s: float = 0.05, startzeit_s: float = 0.0) -> FastAPI:
+def schein_bilddienst(rechenzeit_s: float = 0.05, startzeit_s: float = 0.0, bearbeiten: bool = False) -> FastAPI:
     app = FastAPI()
+    steckbrief = STECKBRIEF | ({"kann_bearbeiten": True, "vorlagen_max": 4, "lizenz_hinweis": "Nur nicht-kommerzielle Nutzung der Bilder."}
+                               if bearbeiten else {})
     lage = Lage(rechenzeit_s=rechenzeit_s, bereit_ab_s=time.monotonic() + startzeit_s)
     app.state.lage = lage
     sperre = asyncio.Lock()                       # wie der echte Dienst: eine Rechnung zugleich
@@ -99,15 +103,20 @@ def schein_bilddienst(rechenzeit_s: float = 0.05, startzeit_s: float = 0.0) -> F
     async def modelle():
         lage.modelle_gelesen += 1
         return {"object": "list", "data": [{"id": KENNUNG, "object": "model", "created": 1792108800, "owned_by": "bildwerk",
-                                            "steckbrief": {**STECKBRIEF, "zustand": "bereit" if bereit() else "laedt"}}]}
+                                            "steckbrief": {**steckbrief, "zustand": "bereit" if bereit() else "laedt"}}]}
 
     @app.post("/v1/images/edits")
-    async def bearbeiten():
-        raise HTTPException(501, f"{NAME} kann keine Bilder bearbeiten: kein Bearbeiten im Schein")
+    async def bearbeiten_(anfrage: Anfrage, request: Request):
+        if not bearbeiten:
+            raise HTTPException(501, f"{NAME} kann keine Bilder bearbeiten: kein Bearbeiten im Schein")
+        if not anfrage.images:
+            raise HTTPException(422, "images fehlt")
+        return await erzeugen(anfrage, request, pfad="edits")
 
     @app.post("/v1/images/generations")
-    async def erzeugen(anfrage: Anfrage, request: Request):
-        lage.anfragen.append(anfrage.model_dump())
+    async def erzeugen(anfrage: Anfrage, request: Request, pfad: str = "generations"):
+        lage.anfragen.append(anfrage.model_dump(exclude={"images"}) | ({"pfad": pfad, "vorlagen": [base64.b64decode(b) for b in anfrage.images]}
+                                                                    if pfad == "edits" else {}))
         if anfrage.model and anfrage.model not in (KENNUNG, NAME, *ALIASE, DIENST):
             raise HTTPException(409, f"Dieser Dienst hält {KENNUNG}; für {anfrage.model} den Dienst dieses Modells nehmen.")
         breite, hoehe = (int(k) for k in (anfrage.size or "1024x1024").split("x"))

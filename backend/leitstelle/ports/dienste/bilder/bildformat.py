@@ -33,6 +33,7 @@ from .schnittstelle import Bildauftrag, Bildergebnis, Senden
 log = logging.getLogger("leitstelle.bilder")
 
 PFAD_ERZEUGEN = "v1/images/generations"
+PFAD_BEARBEITEN = "v1/images/edits"
 PFAD_MODELLE = "v1/models"
 
 # Grundwort je Antwortcode des Dienstes (PROTOKOLL 7); was hier fehlt, ist ein Fehler des Dienstes
@@ -113,7 +114,11 @@ class Bildformat:
                                    "seed": auftrag.seed, "response_format": "b64_json"}
         if auftrag.schritte is not None:
             koerper["steps"] = auftrag.schritte
-        status, daten = await self._anfrage(senden, "POST", PFAD_ERZEUGEN, koerper)
+        pfad = PFAD_ERZEUGEN
+        if auftrag.vorlagen:                    # mit Vorlagen: dieselben Felder, dazu die Bilder (Bildwerk, `images` als Base64)
+            koerper["images"] = [base64.b64encode(v).decode("ascii") for v in auftrag.vorlagen]
+            pfad = PFAD_BEARBEITEN
+        status, daten = await self._anfrage(senden, "POST", pfad, koerper)
         if status >= 400:
             raise fehler_aus(status, daten)
         try:

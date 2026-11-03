@@ -571,12 +571,14 @@ export interface Bildsteckbrief {
   name: string;
   aliase?: string[];
   kann_bearbeiten?: boolean;
+  vorlagen_max?: number | null;
   groessen?: Groessenregel | null;
   schritte?: Schrittregel | null;
   anzahl_max?: number | null;
   beschreibung_max_token?: number | null;
   textkodierer?: string | null;
   lizenz?: string | null;
+  lizenz_hinweis?: string | null;
   parameter_mrd?: number | null;
   quantisierung?: string | null;
   abgerufen_s?: number;
@@ -1009,9 +1011,9 @@ export interface AnwendungDaten {
     [k: string]: string[];
   };
   /**
-   * ein Bildarchiv: holt erzeugte Bilder anderer Anwendungen ab (Bildablage, PROTOKOLL 6.3)
+   * ein Bildarchiv: holt erzeugte Bilder anderer Anwendungen ab (Bildablage, PROTOKOLL 6.3); fehlt die Angabe, bleibt es beim Ändern, wie es war
    */
-  bildarchiv?: boolean;
+  bildarchiv?: boolean | null;
   /**
    * ihre Container im Docker-Rechner eines Rechners: Compose-Projekte oder Containernamen; deren Last zählt nicht, solange sie Hintergrundarbeit hat
    *

@@ -454,11 +454,11 @@ class Vermittlung:
                                 + (f" ({', '.join(modelle)})" if modelle else " (die Anwendung darf zurzeit keines nutzen)")
                                 + "; oder in der Leitstelle für die Anwendung eine Kette für Bilder hinterlegen.", Zusatz(modelle=modelle))
             familien = [f for name in kette if (f := b.familie_fuer(name))]
-            gruende = [regeln_pruefen(b.bildsteckbriefe.get(f), anfrage.size, anfrage.n, anfrage.steps) for f in familien]
+            gruende = [regeln_pruefen(b.bildsteckbriefe.get(f), anfrage.size, anfrage.n, anfrage.steps, len(anfrage.images), vorab=True) for f in familien]
             if gruende and all(gruende):
                 raise Ablehnung("eingabe", gruende[0] or "")
             return None, []
-        gruende = {f: regeln_pruefen(b.bildsteckbriefe.get(f), anfrage.size, anfrage.n, anfrage.steps) for f in familien}
+        gruende = {f: regeln_pruefen(b.bildsteckbriefe.get(f), anfrage.size, anfrage.n, anfrage.steps, len(anfrage.images), vorab=True) for f in familien}
         passende = [f for f in familien if gruende[f] is None]
         if not passende:
             raise Ablehnung("eingabe", gruende[familien[0]] or "")
