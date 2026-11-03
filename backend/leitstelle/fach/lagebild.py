@@ -283,6 +283,7 @@ class AnwendungSicht(BaseModel):
     gleichzeitig: int
     ketten: dict[str, list[str]]
     docker_projekte: list[str]         # ihre Container im Docker-Rechner: Compose-Projekte oder Containernamen
+    bildarchiv: bool                   # holt erzeugte Bilder anderer Anwendungen ab (Bildablage)
     gesperrt: bool
     sperrgrund: str
     angelegt_s: float
@@ -365,7 +366,7 @@ def lagebild(b: Betrieb) -> Lagebild:
                                       auslaufend=bool(lauf and lauf.danach_sperren), schritte=list(lauf.schritte) if lauf else []))
     anwendungen = [AnwendungSicht(kennung=x.kennung, name=x.name, prioritaet=int(x.prioritaet), faehigkeiten=sorted(x.faehigkeiten, key=lambda f: f.value),
                                   zonen=sorted(x.zonen, key=lambda z: z.value), extern_erlaubt=x.extern_erlaubt, gleichzeitig=x.gleichzeitig,
-                                  ketten={f.value: k for f, k in x.ketten.items()}, docker_projekte=list(x.docker_projekte), gesperrt=x.gesperrt, sperrgrund=x.sperrgrund, angelegt_s=x.angelegt_s)
+                                  ketten={f.value: k for f, k in x.ketten.items()}, docker_projekte=list(x.docker_projekte), bildarchiv=x.bildarchiv, gesperrt=x.gesperrt, sperrgrund=x.sperrgrund, angelegt_s=x.angelegt_s)
                    for x in b.anwendungen.values()]
     return Lagebild(version=version(), zeit_s=b.uhr.jetzt(), modus=v.betriebsmodus, hintergrund_erlaubt=v.hintergrund_erlaubt,
                     hintergrund_an=v.hintergrund_an, lage=b.kern.lage, lage_grund=b.kern.lage_grund, automatik=r.automatik, regelwerk=r,

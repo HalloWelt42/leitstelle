@@ -44,6 +44,8 @@ class Konfig(BaseSettings):
                                                                   "(von Hand am Dienst ausgelöst); danach ist das Ergebnis unklar und das bisherige bleibt")
     laeufer_befehl_s: float = Field(default=60.0, description="so lange wartet die Leitstelle auf die Antwort des Maschinenraums, wenn er einen "
                                                                "Arbeiter des Läufers beenden soll (er selbst wartet bis zu seiner Anhaltezeit)")
+    bildablage_mb: int = Field(default=2048, ge=0, description="so viel Platz bekommen erzeugte Bilder, die auf die Abholung durch ein Bildarchiv "
+                                                                 "warten (Anwendung mit dem Recht bildarchiv); darüber fallen die ältesten weg")
     bildablaeufe: dict[str, BildablaufEinstellung] = Field(
         default_factory=lambda: {"bildschmiede": ComfyAblauf()},
         description="je Bilddienst (Kennung im Maschinenraum) der Ablauf, mit dem `/v1/images/generations` dort Bilder erzeugt, wenn "

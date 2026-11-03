@@ -13,12 +13,13 @@ from ...kern.werte import Auftragszustand, Faehigkeit, Massnahmenart, Massnahmen
 from ...protokoll.steckbrief import Bildsteckbrief
 from .datenbank import Datenbank
 from .eintraege import (AliasEintrag, AnwendungEintrag, AuftragEintrag, BetriebEinstellung, Bewegung, DienstEintrag, FaehigkeitsprobeEintrag, Kennzahlen,
-                        KnotenEintrag, PruefEintrag, Schlafstand, SteckbriefEintrag)
+                        KnotenEintrag, PruefEintrag, Schlafstand, SteckbriefEintrag, BildablageEintrag)
 from .tabellen import (
     AliasTabelle,
     AnwendungTabelle,
     AuftragTabelle,
     BewegungTabelle,
+    BildablageTabelle,
     BildsteckbriefTabelle,
     FaehigkeitsprobeTabelle,
     SteckbriefTabelle,
@@ -86,7 +87,7 @@ class AnwendungAblage:
             kennung=z.kennung, name=z.name, schluessel_fingerabdruck=z.schluessel_fingerabdruck, schluessel_geheim=z.schluessel_geheim,
             prioritaet=Prioritaet(z.prioritaet), faehigkeiten={Faehigkeit(f) for f in z.faehigkeiten}, zonen={Zone(x) for x in z.zonen},
             extern_erlaubt=z.extern_erlaubt, gleichzeitig=z.gleichzeitig, ketten={Faehigkeit(f): list(k) for f, k in z.ketten.items()},
-            docker_projekte=list(z.docker_projekte or []), gesperrt=z.gesperrt, sperrgrund=z.sperrgrund, angelegt_s=z.angelegt_s)
+            docker_projekte=list(z.docker_projekte or []), bildarchiv=bool(z.bildarchiv), gesperrt=z.gesperrt, sperrgrund=z.sperrgrund, angelegt_s=z.angelegt_s)
 
     async def alle(self) -> list[AnwendungEintrag]:
         async with self.db.sitzung() as s:
@@ -171,6 +172,39 @@ class BildsteckbriefAblage:
     async def speichern(self, familie: str, steckbrief: Bildsteckbrief) -> None:
         async with self.db.sitzung() as s, s.begin():
             await s.merge(BildsteckbriefTabelle(familie=familie, steckbrief=steckbrief.model_dump(mode="json")))
+
+
+class BildablageAblage:
+    """Erzeugte Bilder, die auf die Abholung warten; nur die Angaben, die Dateien liegen im Datenordner."""
+
+    FELDER = ("kennung", "anwendung", "auftrag", "familie", "beschreibung", "seed", "breite", "hoehe", "schritte", "nummer", "bytes", "erzeugt_s")
+
+    def __init__(self, db: Datenbank) -> None:
+        self.db = db
+
+    async def speichern(self, e: BildablageEintrag) -> None:
+        async with self.db.sitzung() as s, s.begin():
+            s.add(BildablageTabelle(**e.model_dump()))
+
+    async def aelteste(self, anzahl: int) -> list[BildablageEintrag]:
+        async with self.db.sitzung() as s:
+            zeilen = (await s.scalars(select(BildablageTabelle).order_by(BildablageTabelle.erzeugt_s).limit(anzahl))).all()
+            return [BildablageEintrag(**_felder(z, *self.FELDER)) for z in zeilen]
+
+    async def holen(self, kennung: str) -> BildablageEintrag | None:
+        async with self.db.sitzung() as s:
+            z = await s.get(BildablageTabelle, kennung)
+            return BildablageEintrag(**_felder(z, *self.FELDER)) if z else None
+
+    async def summe(self) -> tuple[int, int]:
+        """(Anzahl, Bytes) aller wartenden Bilder."""
+        async with self.db.sitzung() as s:
+            anzahl, bytes_ = (await s.execute(select(func.count(), func.coalesce(func.sum(BildablageTabelle.bytes), 0)))).one()
+            return int(anzahl), int(bytes_)
+
+    async def loeschen(self, kennung: str) -> None:
+        async with self.db.sitzung() as s, s.begin():
+            await s.execute(delete(BildablageTabelle).where(BildablageTabelle.kennung == kennung))
 
 
 class AuftragAblage:
@@ -370,3 +404,4 @@ class Ablage:
         self.steckbriefe = SteckbriefAblage(db)
         self.proben = ProbenAblage(db)
         self.bildsteckbriefe = BildsteckbriefAblage(db)
+        self.bildablage = BildablageAblage(db)

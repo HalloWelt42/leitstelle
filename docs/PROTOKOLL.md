@@ -450,6 +450,27 @@ erlaubt und die Anwendung das Modell selbst will, also ausdrücklich als `model`
 diese Anfrage nie nach extern aus. Die Liste führt die Anwendung in ihren eigenen Einstellungen; sie entscheidet, wo
 die Qualität reicht.
 
+### 6.3 Bildablage für ein Bildarchiv
+
+Eine Anwendung mit dem Recht `bildarchiv` (Verwaltung, Anwendungen) ist ein Bildarchiv. Gibt es eines, legt die Leitstelle jedes Bild, das
+eine andere Anwendung über `/v1/images/generations` erzeugt (mit oder ohne Strom), mit seinen Angaben ab, bis das Archiv
+es abholt. Bilder, die das Archiv selbst erzeugt, legt sie nicht ab. Ohne Archiv legt sie nichts ab. Die Antwort an die
+erzeugende Anwendung ändert sich dadurch nicht; ein Fehler beim Ablegen steht nur im Protokoll der Leitstelle.
+
+| Weg | Inhalt |
+|---|---|
+| `GET /v1/bildablage?anzahl=20` | die ältesten wartenden Bilder (höchstens 200): `{"bilder": [...], "wartend": n, "bytes": b}` |
+| `GET /v1/bildablage/<kennung>` | das Bild als PNG |
+| `DELETE /v1/bildablage/<kennung>` | abgeholt: Bild und Angaben fallen weg (204; unbekannt: 404) |
+
+Angaben je Bild: `kennung`, `anwendung` (die erzeugende), `auftrag`, `familie` (das Bildmodell), `beschreibung` (der
+Prompt), `seed`, `breite`, `hoehe`, `schritte`, `nummer` (Stelle im Ergebnis bei mehreren Bildern), `bytes`,
+`erzeugt_s` (Unix-Zeit). Anderen Anwendungen antwortet die Bildablage mit `faehigkeit_nicht_erlaubt` (403).
+
+Der Platz ist begrenzt (Einstellung `LEITSTELLE_BILDABLAGE_MB`, Vorgabe 2048); darüber fallen die ältesten wartenden
+Bilder weg, mit einer Warnung im Protokoll. Ein Archiv holt deshalb regelmäßig ab und quittiert jedes Bild erst, wenn
+es sicher bei ihm liegt.
+
 ## 7. Fehler und Gründe
 
 Gründe sind Wörter aus Listen, die Oberfläche übersetzt sie:

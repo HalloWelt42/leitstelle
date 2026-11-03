@@ -4,6 +4,7 @@ geraet: [pi]
 abhaengigkeiten: []
 daten:
   - "Pi: Datenordner der Leitstelle {{umgebung:LEITSTELLE_DATENORDNER}} mit `leitstelle.sqlite` (Rechner, Dienste, Modelle, Anwendungen, Regeln, Prüfprotokoll) und `tresor.schluessel`"
+  - "Pi: `bildablage/` im Datenordner: erzeugte Bilder, die auf die Abholung durch ein Bildarchiv warten (Anwendung mit dem Recht bildarchiv, etwa ImageVault); nach der Abholung weg, höchstens `LEITSTELLE_BILDABLAGE_MB` (Vorgabe 2048 MB)"
 sicherung:
   - "keine (Stand 24.10.2026): das Werkzeug Sicherungen führt die Leitstelle als Lücke; Sicherung von Hand wie im Abschnitt Sicherung"
 schluessel_orte:

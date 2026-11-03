@@ -58,6 +58,7 @@ class AnwendungTabelle(Basis):
     gleichzeitig: Mapped[int] = mapped_column(Integer, default=4)
     ketten: Mapped[dict[str, Any]] = mapped_column(JSON)
     docker_projekte: Mapped[list[str]] = mapped_column(JSON, default=list)
+    bildarchiv: Mapped[bool] = mapped_column(Boolean, default=False)
     gesperrt: Mapped[bool] = mapped_column(Boolean, default=False)
     sperrgrund: Mapped[str] = mapped_column(Text, default="")
     angelegt_s: Mapped[float] = mapped_column(Float)
@@ -89,6 +90,23 @@ class BildsteckbriefTabelle(Basis):
     __tablename__ = "bildsteckbriefe"
     familie: Mapped[str] = mapped_column(String(255), primary_key=True)
     steckbrief: Mapped[dict[str, Any]] = mapped_column(JSON)
+
+
+class BildablageTabelle(Basis):
+    """Erzeugte Bilder, die auf die Abholung durch ein Bildarchiv warten; die Datei liegt im Datenordner."""
+    __tablename__ = "bildablage"
+    kennung: Mapped[str] = mapped_column(String(64), primary_key=True)
+    anwendung: Mapped[str] = mapped_column(String(64))
+    auftrag: Mapped[str] = mapped_column(String(64))
+    familie: Mapped[str] = mapped_column(String(255))
+    beschreibung: Mapped[str] = mapped_column(Text)
+    seed: Mapped[int] = mapped_column(Integer)
+    breite: Mapped[int] = mapped_column(Integer)
+    hoehe: Mapped[int] = mapped_column(Integer)
+    schritte: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    nummer: Mapped[int] = mapped_column(Integer)
+    bytes: Mapped[int] = mapped_column(Integer)
+    erzeugt_s: Mapped[float] = mapped_column(Float, index=True)
 
 
 class AliasTabelle(Basis):

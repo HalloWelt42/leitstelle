@@ -13,7 +13,7 @@
 
   const ALLE = Object.keys(FAEHIGKEIT) as F[];
   const KETTEN: F[] = ['text', 'einbettung', 'bild_beschreiben', 'bild_erzeugen'];
-  const leer = (): AnwendungDaten => ({ name: '', prioritaet: 1, faehigkeiten: ['text', 'einbettung', 'uebersetzen', 'bild_beschreiben', 'werkzeug'], zonen: ['heim'], extern_erlaubt: false, gleichzeitig: 4, ketten: {}, docker_projekte: [] });
+  const leer = (): AnwendungDaten => ({ name: '', prioritaet: 1, faehigkeiten: ['text', 'einbettung', 'uebersetzen', 'bild_beschreiben', 'werkzeug'], zonen: ['heim'], extern_erlaubt: false, gleichzeitig: 4, ketten: {}, docker_projekte: [], bildarchiv: false });
 
   let entwurf = $state<AnwendungDaten>(leer());
   let neuerSchluessel = $state<{ name: string; schluessel: string } | null>(null);
@@ -41,7 +41,7 @@
     frage = null;
     const fuellung = g ? { name: g.name, prioritaet: g.prioritaet as Prioritaet, faehigkeiten: [...g.faehigkeiten], zonen: g.zonen.filter((z) => z !== 'extern'),
                            extern_erlaubt: g.extern_erlaubt, gleichzeitig: g.gleichzeitig, ketten: structuredClone($state.snapshot(g.ketten)),
-                           docker_projekte: [...g.docker_projekte] } : leer();
+                           docker_projekte: [...g.docker_projekte], bildarchiv: g.bildarchiv } : leer();
     entwurf = fuellung;
     ausgang = JSON.stringify(fuellung);
   });
@@ -187,6 +187,12 @@
                     title="Rechner über VPN dürfen rechnen"><i class="fa-solid fa-shield-halved"></i> Über VPN</button>
             <button class="chip" class:aktiv={entwurf.extern_erlaubt} onclick={() => (entwurf.extern_erlaubt = !entwurf.extern_erlaubt)}
                     title="Externe Anbieter dürfen rechnen; Daten verlassen dann das Heimnetz"><i class="fa-solid fa-cloud"></i> Extern</button>
+          </div>
+
+          <div class="etikett" style="margin-top: var(--a4)">Rechte</div>
+          <div class="filter" style="margin: 6px 0 0">
+            <button class="chip" class:aktiv={entwurf.bildarchiv} onclick={() => (entwurf.bildarchiv = !entwurf.bildarchiv)}
+                    title="Ein Bildarchiv: holt jedes Bild ab, das eine andere Anwendung erzeugt (Bildablage, PROTOKOLL 6.3)"><i class="fa-solid fa-box-archive"></i> Bildarchiv</button>
           </div>
 
           <label class="feld-l" style="margin-top: var(--a4)"><span>Docker-Projekte <small>ihre Container im Docker-Rechner eines Rechners:

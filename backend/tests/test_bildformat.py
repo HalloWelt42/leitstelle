@@ -451,3 +451,59 @@ async def _laeuft(dienst: httpx.AsyncClient) -> bool:
         return (await dienst.get("/gesundheit")).status_code == 200
     except httpx.HTTPError:
         return False
+
+
+async def test_b13_bildablage_begrenzt_und_quittiert(tmp_path):
+    """B13: die Bildablage (PROTOKOLL 6.3, Migration 0013) legt nur ab, wenn es ein Archiv gibt und der Erzeuger keines
+    ist; über der Grenze fallen die ältesten weg; Quittieren nimmt Datei und Eintrag."""
+    from leitstelle.fach.bildablage import Bildablage
+    from leitstelle.ports.ablage.eintraege import AnwendungEintrag
+    from leitstelle.ports.dienste.bilder.schnittstelle import Bildergebnis
+    db = Datenbank(tmp_path / "leitstelle.sqlite")
+    await db.oeffnen()
+    try:
+        ablage = Bildablage(Ablage(db).bildablage, tmp_path / "bildablage", grenze_mb=1)
+        app = lambda k, archiv=False: AnwendungEintrag(kennung=k, name=k, schluessel_fingerabdruck=k, schluessel_geheim="",  # noqa: E731
+                                                       faehigkeiten={F.BILD_ERZEUGEN}, bildarchiv=archiv)
+        maler, archiv = app("maler"), app("archiv", True)
+        auftrag = Bildauftrag(beschreibung="Ein Leuchtturm", breite=64, hoehe=64, anzahl=2, seed=7)
+        ergebnis = Bildergebnis(bilder=[b"\x89PNG" + b"a" * 600_000, b"\x89PNG" + b"b" * 600_000], seed=7, schritte=4)
+        assert await ablage.ablegen(maler, [maler], "a1", auftrag, ergebnis, "moss", 1.0) == 0        # ohne Archiv nichts
+        assert await ablage.ablegen(archiv, [maler, archiv], "a2", auftrag, ergebnis, "moss", 2.0) == 0   # das Archiv hat seine schon
+        assert await ablage.ablegen(maler, [maler, archiv], "a3", auftrag, ergebnis, "moss", 3.0) == 2
+        bilder, wartend, belegt = await ablage.wartend(10)
+        assert wartend == 1 and belegt < 1024 * 1024        # zwei Bilder zu 600 kB passen nicht in 1 MB: das ältere ist weg
+        e = bilder[0]
+        assert (e.anwendung, e.auftrag, e.beschreibung, e.seed, e.nummer, e.familie, e.schritte) == ("maler", "a3", "Ein Leuchtturm", 7, 1, "moss", 4)
+        assert (await ablage.datei(e.kennung))[1].startswith(b"\x89PNGb")
+        assert await ablage.quittieren(e.kennung) and await ablage.datei(e.kennung) is None
+        assert not (tmp_path / "bildablage" / f"{e.kennung}.png").exists() and not await ablage.quittieren(e.kennung)
+    finally:
+        await db.schliessen()
+
+
+async def test_b14_bildarchiv_holt_ueber_die_fassade_ab(tmp_path):
+    """B14: ein Bild, das eine Anwendung erzeugt, wartet auf das Archiv; nur das Archiv sieht, holt und quittiert es."""
+    async with aufbau(tmp_path) as (c, anw, kopf, dienst):
+        r = await c.post("/api/anwendungen", json={"name": "Bildarchiv", "faehigkeiten": ["bild_erzeugen"], "bildarchiv": True})
+        archiv = {"Authorization": f"Bearer {r.json()['schluessel']}"}
+        assert (await anw.get("/v1/bildablage", headers=kopf)).status_code == 403          # nur ein Bildarchiv
+        anfrage = {"prompt": "Ein Leuchtturm im Nebel", "model": "bildwerk-moss-image", "size": "512x512", "n": 1, "seed": 5}
+        r = await anw.post("/v1/images/generations", headers=kopf, json=anfrage)
+        assert r.status_code == 200
+        r = await anw.post("/v1/images/generations", headers=archiv, json=anfrage | {"seed": 6})    # eigene Bilder des Archivs nicht
+        assert r.status_code == 200
+        liste = (await anw.get("/v1/bildablage", headers=archiv)).json()
+        assert liste["wartend"] == 1 and liste["bilder"][0]["beschreibung"] == "Ein Leuchtturm im Nebel"
+        e = liste["bilder"][0]
+        assert (e["seed"], e["breite"], e["hoehe"], e["familie"]) == (5, 512, 512, "bildwerk-moss-image")
+        bild = await anw.get(f"/v1/bildablage/{e['kennung']}", headers=archiv)
+        assert bild.status_code == 200 and bild.content.startswith(b"\x89PNG") and bild.headers["content-type"] == "image/png"
+        assert (await anw.delete(f"/v1/bildablage/{e['kennung']}", headers=archiv)).status_code == 204
+        assert (await anw.get("/v1/bildablage", headers=archiv)).json()["wartend"] == 0
+        assert (await anw.delete(f"/v1/bildablage/{e['kennung']}", headers=archiv)).status_code == 404
+        # ältere Werkzeuge ändern ohne die Angabe: das Recht bleibt
+        a = next(x for x in (await c.get("/api/lage")).json()["anwendungen"] if x["name"] == "Bildarchiv")
+        daten = {k: a[k] for k in ("name", "prioritaet", "zonen", "extern_erlaubt", "gleichzeitig", "ketten", "docker_projekte", "faehigkeiten")}
+        assert (await c.put(f"/api/anwendungen/{a['kennung']}", json=daten | {"gleichzeitig": 2})).status_code == 200
+        assert next(x for x in (await c.get("/api/lage")).json()["anwendungen"] if x["name"] == "Bildarchiv")["bildarchiv"] is True

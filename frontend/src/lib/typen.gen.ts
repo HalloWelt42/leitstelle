@@ -671,6 +671,7 @@ export interface AnwendungSicht {
     [k: string]: string[];
   };
   docker_projekte: string[];
+  bildarchiv: boolean;
   gesperrt: boolean;
   sperrgrund: string;
   angelegt_s: number;
@@ -1007,6 +1008,10 @@ export interface AnwendungDaten {
   ketten?: {
     [k: string]: string[];
   };
+  /**
+   * ein Bildarchiv: holt erzeugte Bilder anderer Anwendungen ab (Bildablage, PROTOKOLL 6.3)
+   */
+  bildarchiv?: boolean;
   /**
    * ihre Container im Docker-Rechner eines Rechners: Compose-Projekte oder Containernamen; deren Last zählt nicht, solange sie Hintergrundarbeit hat
    *

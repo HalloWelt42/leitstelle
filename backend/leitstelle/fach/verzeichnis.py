@@ -113,6 +113,8 @@ class AnwendungDaten(BaseModel):
     extern_erlaubt: bool = False
     gleichzeitig: int = Field(default=4, ge=1, le=64)
     ketten: dict[Faehigkeit, list[str]] = Field(default_factory=dict)
+    bildarchiv: bool | None = Field(default=None, description="ein Bildarchiv: holt erzeugte Bilder anderer Anwendungen ab (Bildablage, "
+                                                              "PROTOKOLL 6.3); fehlt die Angabe, bleibt es beim Ändern, wie es war")
     docker_projekte: list[str] = Field(default_factory=list, max_length=32, description="ihre Container im Docker-Rechner eines Rechners: "
                                        "Compose-Projekte oder Containernamen; deren Last zählt nicht, solange sie Hintergrundarbeit hat")
 
@@ -333,7 +335,7 @@ class Verzeichnis:
                              schluessel_geheim=self.b.tresor.verschluesseln(schluessel), prioritaet=d.prioritaet, faehigkeiten=d.faehigkeiten,
                              zonen=d.zonen | {Zone.EXTERN} if d.extern_erlaubt else d.zonen - {Zone.EXTERN}, extern_erlaubt=d.extern_erlaubt,
                              gleichzeitig=d.gleichzeitig, ketten=self._ketten_pruefen(d.ketten), docker_projekte=d.docker_projekte,
-                             angelegt_s=self.b.uhr.jetzt())
+                             bildarchiv=bool(d.bildarchiv), angelegt_s=self.b.uhr.jetzt())
         await self.b.ablage.anwendungen.speichern(a)
         self.b.anwendung_setzen(a)
         await self._pruefen(wer, "Anwendung angelegt, Schlüssel erzeugt", a.name)
@@ -346,7 +348,8 @@ class Verzeichnis:
         zonen = d.zonen | {Zone.EXTERN} if d.extern_erlaubt else d.zonen - {Zone.EXTERN}
         a = alt.model_copy(update={"name": d.name.strip(), "prioritaet": d.prioritaet, "faehigkeiten": d.faehigkeiten, "zonen": zonen,
                                    "extern_erlaubt": d.extern_erlaubt, "gleichzeitig": d.gleichzeitig, "ketten": self._ketten_pruefen(d.ketten),
-                                   "docker_projekte": d.docker_projekte})
+                                   "docker_projekte": d.docker_projekte,
+                                   "bildarchiv": alt.bildarchiv if d.bildarchiv is None else d.bildarchiv})
         await self.b.ablage.anwendungen.speichern(a)
         self.b.anwendung_setzen(a)
         await self._pruefen(wer, "Anwendung geändert", a.name)

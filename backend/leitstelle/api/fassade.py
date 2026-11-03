@@ -21,6 +21,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import ValidationError
 
+from ..fach.bildablage import ist_archiv
 from ..fach.fehler import Ablehnung, fehler_inhalt
 from ..fach.vermittlung import Bilderzeugung, Vorgang, Wartet
 from ..kern.modelle import Modell
@@ -248,6 +249,7 @@ async def bilder(request: Request) -> Response:
             async for _ in verm.warten(v):
                 pass
             erzeugung = await verm.bilder_erzeugen(v, anfrage, seed)
+        await _ablegen(request, v, erzeugung)
     except Ablehnung as a:
         antwort = ablehnung_antwort(request, a)
         antwort.headers.update(_kopf(request, v))
@@ -256,6 +258,48 @@ async def bilder(request: Request) -> Response:
         verm.aufraeumen(v)
     kopf = _kopf(request, v) | {"X-Leitstelle-Modell": v.modellname} | ({"X-Leitstelle-Knoten": v.knoten} if v.knoten else {})
     return Response(_bildantwort(request, erzeugung), media_type="application/json", headers=kopf)
+
+
+async def _ablegen(request: Request, v: Vorgang, e: Bilderzeugung) -> None:
+    """Für ein Bildarchiv ablegen (PROTOKOLL 6.3); die Bildablage entscheidet, ob es eines gibt."""
+    b = betrieb(request)
+    if (app := b.anwendungen.get(v.auftrag.anwendung)) is not None:
+        await b.bildablage.ablegen(app, b.anwendungen.values(), v.auftrag.kennung, e.auftrag, e.ergebnis, e.familie, b.uhr.jetzt())
+
+
+def _archiv(request: Request) -> AnwendungEintrag | JSONResponse:
+    app = _anwendung(request)
+    if app is None:
+        return fehler_antwort(request, "unbekannter_schluessel", "Schlüssel fehlt oder ist unbekannt (Kopf Authorization: Bearer ...).")
+    if not ist_archiv(app):
+        return fehler_antwort(request, "faehigkeit_nicht_erlaubt", "Bilder abholen darf nur ein Bildarchiv (Recht bildarchiv der Anwendung).")
+    return app
+
+
+async def bildablage_liste(request: Request, anzahl: int = 20) -> Response:
+    """Die ältesten wartenden Bilder mit ihren Angaben, dazu wie viele insgesamt warten (PROTOKOLL 6.3)."""
+    if isinstance(app := _archiv(request), JSONResponse):
+        return app
+    bilder, wartend, belegt = await betrieb(request).bildablage.wartend(max(1, min(anzahl, 200)))
+    return JSONResponse({"bilder": [e.model_dump(mode="json") for e in bilder], "wartend": wartend, "bytes": belegt})
+
+
+async def bildablage_bild(request: Request, kennung: str) -> Response:
+    if isinstance(app := _archiv(request), JSONResponse):
+        return app
+    gefunden = await betrieb(request).bildablage.datei(kennung)
+    if gefunden is None:
+        return fehler_antwort(request, "unbekannt", f"Kein wartendes Bild {kennung}.")
+    return Response(gefunden[1], media_type="image/png")
+
+
+async def bildablage_quittieren(request: Request, kennung: str) -> Response:
+    """Abgeholt: das Bild fällt aus der Ablage."""
+    if isinstance(app := _archiv(request), JSONResponse):
+        return app
+    if not await betrieb(request).bildablage.quittieren(kennung):
+        return fehler_antwort(request, "unbekannt", f"Kein wartendes Bild {kennung}.")
+    return Response(status_code=204)
 
 
 async def _bilder_strom(request: Request, v: Vorgang, anfrage: BildAnfrage, seed: int):
@@ -272,6 +316,7 @@ async def _bilder_strom(request: Request, v: Vorgang, anfrage: BildAnfrage, seed
         while not (await asyncio.wait({arbeit}, timeout=konfig(request).hinweis_s))[0]:
             seit += konfig(request).hinweis_s
             yield f": rechnet seit {seit:.0f} s\n\n".encode()
+        await _ablegen(request, v, arbeit.result())
         yield b"data: " + _bildantwort(request, arbeit.result()) + b"\n\ndata: [DONE]\n\n"
     except Ablehnung as a:
         daten = json.dumps({"error": fehler_inhalt(a.grund, a.begruendung, a.zusatz)}, ensure_ascii=False)
@@ -325,6 +370,9 @@ async def dienst(request: Request, name: str, pfad: str) -> Response:
     return StreamingResponse(verm.roh_strom(v, antwort), status_code=antwort.status, headers=kopf)
 
 
+router.add_api_route("/v1/bildablage", bildablage_liste, methods=["GET"], name="bildablage_liste")
+router.add_api_route("/v1/bildablage/{kennung}", bildablage_bild, methods=["GET"], name="bildablage_bild")
+router.add_api_route("/v1/bildablage/{kennung}", bildablage_quittieren, methods=["DELETE"], name="bildablage_quittieren")
 router.add_api_route("/v1/dienste/{name}/{pfad:path}", dienst, methods=["GET", "POST", "PUT", "PATCH", "DELETE"], name="dienst")
 
 for basis in ("/v1", ""):     # Basisadresse mit oder ohne /v1

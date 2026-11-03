@@ -43,6 +43,7 @@ from ..protokoll.steckbrief import Bildsteckbrief, Messwerte, Steckbrief
 from ..protokoll.umschlag import umschlag
 from .ereignisse import Ereignisbus
 from .fehler import Ablehnung, Zusatz
+from .bildablage import Bildablage
 from .schreibfolge import Schreibfolge
 from .steckbrief import Grenzen, aktive_parameter, messwerte_aus, rollen, zusammensetzen
 from .umgehungen import Umgehungsbuch, beschreibung, deuten, kurz, umgehungen
@@ -143,6 +144,7 @@ class Betrieb:
                  agenten: Agentenvermittlung | None = None) -> None:
         self.ablage, self.tresor, self.uhr, self.fabrik, self.bus, self.konfig = ablage, tresor, uhr, fabrik, bus, konfig
         self.agenten = agenten or Agentenvermittlung()   # dieselbe Vermittlung wie in der Adapter-Fabrik
+        self.bildablage = Bildablage(ablage.bildablage, konfig.daten / "bildablage", konfig.bildablage_mb)
         self.verbund = Verbund()
         self.messwerk = Messwerk()
         self.kern = Leitstelle()

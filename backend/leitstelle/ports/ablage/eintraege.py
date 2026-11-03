@@ -65,6 +65,7 @@ class AnwendungEintrag(BaseModel):
     gleichzeitig: int = 4
     ketten: dict[Faehigkeit, list[str]] = Field(default_factory=dict)
     docker_projekte: list[str] = Field(default_factory=list)   # ihre Container im Docker-Rechner: Compose-Projekte oder Containernamen
+    bildarchiv: bool = False          # ein Bildarchiv: holt erzeugte Bilder anderer Anwendungen ab (Bildablage, PROTOKOLL 6.3)
     gesperrt: bool = False
     sperrgrund: str = ""
     angelegt_s: float = 0.0
@@ -97,6 +98,22 @@ class FaehigkeitsprobeEintrag(BaseModel):
     belegt: bool                       # die Probe hat die Fähigkeit gezeigt; falsch: abgelehnt oder falsch beantwortet
     zeit_s: float
     meldung: str = ""
+
+
+class BildablageEintrag(BaseModel):
+    """Ein erzeugtes Bild, das auf die Abholung durch ein Bildarchiv wartet (PROTOKOLL 6.3)."""
+    kennung: str
+    anwendung: str                    # die Anwendung, die das Bild erzeugt hat
+    auftrag: str
+    familie: str                      # das Bildmodell (Kennung des Dienstes)
+    beschreibung: str                 # der Prompt, wie die Anwendung ihn geschickt hat
+    seed: int
+    breite: int
+    hoehe: int
+    schritte: int | None = None
+    nummer: int = 0                   # Stelle im Ergebnis, wenn ein Auftrag mehrere Bilder erzeugt hat
+    bytes: int
+    erzeugt_s: float
 
 
 class AliasEintrag(BaseModel):

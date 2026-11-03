@@ -30,20 +30,22 @@ def main() -> int:
     teiler.add_argument("--name", required=True)
     teiler.add_argument("--faehigkeiten", required=True, help="durch Komma getrennt, etwa musik oder text,einbettung")
     teiler.add_argument("--datei", required=True, type=Path)
+    teiler.add_argument("--bildarchiv", action="store_true", help="die Anwendung ist ein Bildarchiv (holt erzeugte Bilder ab, PROTOKOLL 6.3)")
     teiler.add_argument("--adresse", default=os.environ.get("LEITSTELLE_ADRESSE", VORGABE_ADRESSE))
     a = teiler.parse_args()
     erklaert = sorted({f.strip() for f in a.faehigkeiten.split(",") if f.strip()})
     anwendungen = anfrage(a.adresse, "GET", "/api/lage").get("anwendungen", [])
     vorhanden = next((x for x in anwendungen if x["name"].lower() == a.name.lower()), None)
     if vorhanden is None:
-        schluessel = anfrage(a.adresse, "POST", "/api/anwendungen", {"name": a.name, "faehigkeiten": erklaert})["schluessel"]
+        schluessel = anfrage(a.adresse, "POST", "/api/anwendungen", {"name": a.name, "faehigkeiten": erklaert, "bildarchiv": a.bildarchiv})["schluessel"]
         was = f"angelegt ({', '.join(erklaert)})"
     else:
         fehlen = set(erklaert) - set(vorhanden["faehigkeiten"])
-        if fehlen:
+        archiv_neu = a.bildarchiv and not vorhanden.get("bildarchiv")
+        if fehlen or archiv_neu:
             daten = {k: vorhanden[k] for k in ("name", "prioritaet", "zonen", "extern_erlaubt", "gleichzeitig", "ketten", "docker_projekte")}
             anfrage(a.adresse, "PUT", f"/api/anwendungen/{vorhanden['kennung']}",
-                    {**daten, "faehigkeiten": sorted(set(vorhanden["faehigkeiten"]) | fehlen)})
+                    {**daten, "faehigkeiten": sorted(set(vorhanden["faehigkeiten"]) | fehlen), **({"bildarchiv": True} if archiv_neu else {})})
         schluessel = anfrage(a.adresse, "POST", f"/api/anwendungen/{vorhanden['kennung']}/schluessel")["schluessel"]
         was = "vorhanden, Schlüssel übernommen" + (f", Fähigkeiten dazu: {', '.join(sorted(fehlen))}" if fehlen else "")
     datei = a.datei.expanduser()
