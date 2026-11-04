@@ -1,6 +1,16 @@
 {
   "anmeldung": false,
   "seiten": [
+    { "name": "uebersicht", "pfad": "/" },
+    { "name": "auftraege", "pfad": "/auftraege" },
+    { "name": "modelle", "pfad": "/modelle" },
+    { "name": "knoten", "pfad": "/knoten" },
+    { "name": "dienste", "pfad": "/dienste" },
+    { "name": "anschluss", "pfad": "/anschluss" },
+    { "name": "anwendungen", "pfad": "/anwendungen" },
+    { "name": "regeln", "pfad": "/regeln" },
+    { "name": "protokoll", "pfad": "/protokoll" },
+    { "name": "gestaltung", "pfad": "/gestaltung" },
     { "name": "mobil", "pfad": "/mobil", "nur": [375, 390, 430] }
   ]
 }
