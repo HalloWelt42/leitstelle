@@ -740,9 +740,28 @@ class Betrieb:
 
     def mit_proben(self, familie: str, faehigkeiten: set[Faehigkeit]) -> set[Faehigkeit]:
         """Fähigkeiten eines Modells nach seinen Proben: belegte kommen dazu, widerlegte fallen weg (Bild beschreiben bei
-        externen Anbietern nur, wenn belegt)."""
+        externen Anbietern nur, wenn belegt). Bild bearbeiten hat ein Bildmodell, dessen Steckbrief es nennt
+        (`kann_bearbeiten`): das sagt der Dienst selbst, die Dienstdatei muss es nicht wiederholen. Bis der Steckbrief nach
+        dem ersten Start bekannt ist, gilt es als möglich (wie Bildvorlagen in der Vorprüfung); dann entscheidet er."""
         proben = self.proben.get(familie, {})
-        return (faehigkeiten | {f for f, p in proben.items() if p.belegt}) - {f for f, p in proben.items() if not p.belegt}
+        aus = (faehigkeiten | {f for f, p in proben.items() if p.belegt}) - {f for f, p in proben.items() if not p.belegt}
+        s = self.bildsteckbriefe.get(familie)
+        if Faehigkeit.BILD_ERZEUGEN in aus and (s is None or s.kann_bearbeiten):
+            aus.add(Faehigkeit.BILD_BEARBEITEN)
+        return aus
+
+    def _bildfaehigkeit_abgleichen(self, familie: str) -> None:
+        """Nach einem neuen Steckbrief: Bild bearbeiten in die Modelle der Familie und die Fähigkeiten ihrer Dienste."""
+        s = self.bildsteckbriefe.get(familie)
+        for m in self.verbund.modelle.values():
+            if m.familie != familie:
+                continue
+            if Faehigkeit.BILD_ERZEUGEN in m.faehigkeiten and (s is None or s.kann_bearbeiten):
+                m.faehigkeiten.add(Faehigkeit.BILD_BEARBEITEN)
+            else:
+                m.faehigkeiten.discard(Faehigkeit.BILD_BEARBEITEN)
+            d = self.verbund.dienste[m.dienst]
+            d.faehigkeiten = set().union(*(x.faehigkeiten for x in self.verbund.modelle_von(d.kennung)))
 
     def probe_uebernehmen(self, p: FaehigkeitsprobeEintrag) -> None:
         """Ergebnis einer Fähigkeitsprobe: sofort in die Modelle der Familie und die Fähigkeiten ihrer Dienste (nicht erst
@@ -815,6 +834,7 @@ class Betrieb:
             return bisher
         s = s.model_copy(update={"abgerufen_s": self.uhr.jetzt()})
         self.bildsteckbriefe[m.familie] = s
+        self._bildfaehigkeit_abgleichen(m.familie)
         self.schreibfolge.einreihen(self.ablage.bildsteckbriefe.speichern(m.familie, s))
         if bisher is None or bisher.model_copy(update={"abgerufen_s": 0.0}) != s.model_copy(update={"abgerufen_s": 0.0}):
             self.melden(f"Steckbrief von {m.name} gelesen: {s.kurz()}")

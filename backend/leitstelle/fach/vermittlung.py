@@ -424,16 +424,17 @@ class Vermittlung:
         """Ohne Startwert zieht die Leitstelle einen; er steht in der Antwort, damit dasselbe Bild wieder entstehen kann."""
         return seed if seed is not None else secrets.randbelow(SEED_GRENZE)
 
-    def bildwahl(self, anwendung: str, anfrage: BildAnfrage) -> tuple[str | None, list[str]]:
+    def bildwahl(self, anwendung: str, anfrage: BildAnfrage, faehigkeit: Faehigkeit = Faehigkeit.BILD_ERZEUGEN) -> tuple[str | None, list[str]]:
         """Welches Bildmodell rechnen darf, bestimmt die Anwendung, nie die Leitstelle: `model` mit ihren `alternativen` (in
         ihrer Reihenfolge), sonst ihre in der Leitstelle hinterlegte Kette für Bilder; ohne beides `modell_fehlt` mit der
         Liste der Bildmodelle, die sie nutzen darf. Vor dem Einreihen prüft die Leitstelle die Anfrage mit den Steckbriefen:
         ein genanntes Modell, das sie so nicht annimmt, geht für diese Anfrage nicht, es gilt das nächste der Anwendung;
         nimmt keines sie an, `eingabe` mit dem Grund, bevor ein Dienst dafür startet. Liefert verlangtes Modell und
-        Alternativen (Familien) oder (None, []) für die Kette."""
+        Alternativen (Familien) oder (None, []) für die Kette. `faehigkeit`: Bild erzeugen oder Bild bearbeiten (Recht,
+        Kette und Modelle dieser Fähigkeit)."""
         b = self.betrieb
         app = b.verbund.anwendungen.get(anwendung)
-        if app is None or Faehigkeit.BILD_ERZEUGEN not in app.faehigkeiten:
+        if app is None or faehigkeit not in app.faehigkeiten:
             return None, []                               # keine Bilder erlaubt: das sagt die Annahme mit ihrem Grund
         if anfrage.model and anfrage.model not in ("auto", "leitstelle"):
             familien = []
@@ -447,9 +448,9 @@ class Vermittlung:
         elif anfrage.alternativen:
             raise Ablehnung("eingabe", "Alternativen gelten nur zu einem Modell: `model` angeben.")
         else:
-            kette = app.ketten.get(Faehigkeit.BILD_ERZEUGEN, [])
+            kette = app.ketten.get(faehigkeit, [])
             if not kette:
-                modelle = self.bildmodelle(anwendung)
+                modelle = self.bildmodelle(anwendung, faehigkeit)
                 raise Ablehnung("modell_fehlt", "Bildmodell angeben: `model` mit der Kennung eines Bildmodells"
                                 + (f" ({', '.join(modelle)})" if modelle else " (die Anwendung darf zurzeit keines nutzen)")
                                 + "; oder in der Leitstelle für die Anwendung eine Kette für Bilder hinterlegen.", Zusatz(modelle=modelle))
@@ -464,16 +465,16 @@ class Vermittlung:
             raise Ablehnung("eingabe", gruende[familien[0]] or "")
         return passende[0], passende[1:]
 
-    def bildmodelle(self, anwendung: str) -> list[str]:
-        """Die Kennungen der Bildmodelle, die die Anwendung nutzen darf (Fähigkeit und Zone), zur Auswahl."""
+    def bildmodelle(self, anwendung: str, faehigkeit: Faehigkeit = Faehigkeit.BILD_ERZEUGEN) -> list[str]:
+        """Die Kennungen der Bildmodelle, die die Anwendung für die Fähigkeit nutzen darf (Recht und Zone), zur Auswahl."""
         b = self.betrieb
         app = b.verbund.anwendungen.get(anwendung)
-        if app is None or Faehigkeit.BILD_ERZEUGEN not in app.faehigkeiten:
+        if app is None or faehigkeit not in app.faehigkeiten:
             return []
         aus = set()
         for m in b.verbund.modelle.values():
             d = b.verbund.dienste.get(m.dienst)
-            if d is None or m.zusatz or Faehigkeit.BILD_ERZEUGEN not in m.faehigkeiten:
+            if d is None or m.zusatz or faehigkeit not in m.faehigkeiten:
                 continue
             zone = Zone.EXTERN if d.extern else (b.verbund.knoten[d.knoten].zone if d.knoten in b.verbund.knoten else None)
             if zone in app.zonen:

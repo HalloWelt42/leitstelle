@@ -19,7 +19,7 @@ verbindlich, was noch nicht läuft, ist so gekennzeichnet.
 | Anwendung | ein Programm, das Aufträge abgibt (Zusage, Fundus, TubeVault, Codehilfe) |
 | Dienst | ein Programm, das rechnet (Modell-Läufer, Sprachdienst, Hörer, Bild-Werkbank, externer Anbieter) |
 | Knoten | ein Rechner mit Agent (MacBook, Pi, Server) |
-| Fähigkeit | was ein Auftrag braucht: text, einbettung, uebersetzen, hoeren, bild_beschreiben, bild_erzeugen, stimme, musik, werkzeug |
+| Fähigkeit | was ein Auftrag braucht: text, einbettung, uebersetzen, hoeren, bild_beschreiben, bild_erzeugen, bild_bearbeiten, stimme, musik, werkzeug |
 | Kette | geordnete Liste von Modellfamilien je Fähigkeit und Anwendung; die Leitstelle nimmt das erste, das passt |
 | Zone | heim, vpn, extern; die Anwendung bestimmt, wo ihre Daten rechnen dürfen |
 | Priorität | hintergrund, normal, hoch, dringend; hoch und dringend nehmen den Direktweg |
@@ -95,6 +95,9 @@ Die Anwendung ändert nur die Adresse ihres Modell-Läufers und bekommt einen Sc
   prüft die Leitstelle vorher; passt es nicht, kommt 400 `eingabe` mit dem Satz, ohne dass ein Dienst startet. Ein
   Bilddienst startet beim ersten Auftrag (MOSS-Image bis 300 s): Lese-Zeitgrenze weglassen oder mit `"stream": true`
   die Wartehinweise lesen.
+- Ein Bild nach Anweisung ändern: `POST /v1/images/edits`, als Formular mit der Vorlage im Feld `image` (wie im
+  OpenAI-Format) oder als JSON mit `images`; sonst dieselben Felder. Die Anwendung braucht das Recht `bild_bearbeiten`
+  (eigene Kette); die Ergebnisse gehen nicht in die Bildablage (PROTOKOLL 6.4).
 - Modell zur Auswahl anbieten (etwa im Assistenten "Bild erzeugen mit"): `GET /v1/steckbriefe?faehigkeit=bild_erzeugen`
   oder `GET /v1/models` (Feld `x-leitstelle.steckbrief`) liefert je Bildmodell `id` (als `model` schicken), Name,
   Zweck, Eignung, Sprachen der Beschreibung und unter `bild` die Grenzen: Größen (Raster, Kanten, Fläche, Vorgabe,

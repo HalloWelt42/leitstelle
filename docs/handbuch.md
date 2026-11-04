@@ -114,7 +114,9 @@ Oberfläche der Leitstelle.
 Nichts einzurichten: die Leitstelle sieht die Bilddienste, sobald der Maschinenraum sie meldet. Darf eine App Bilder
 erzeugen, braucht sie die Fähigkeit "Bild erzeugen". Das Bildmodell wählt die App selbst (`model`, etwa
 `bildwerk-moss-image`, dazu wahlweise Alternativen in ihrer Reihenfolge); soll sie ohne Angabe ein festes Bildmodell
-nutzen, steht das als ihre Wahl in ihrer Kette für Bilder. Die Leitstelle sucht nie selbst ein Modell aus. Der erste Auftrag startet den Dienst (MOSS-Image bis 5 Minuten); danach liest die
+nutzen, steht das als ihre Wahl in ihrer Kette für Bilder. Die Leitstelle sucht nie selbst ein Modell aus. Soll eine
+App Bilder nach Anweisung ändern (das Atelier), braucht sie zusätzlich "Bild bearbeiten"; das können die Bildmodelle,
+die Vorlagen annehmen (etwa Qwen-Image-Edit), mit eigener Kette. Bearbeitete Bilder gehen nicht ins Bildarchiv. Der erste Auftrag startet den Dienst (MOSS-Image bis 5 Minuten); danach liest die
 Leitstelle seinen Steckbrief und behält ihn.
 
 Probe: unter Dienste steht bei "Dienste auf <Mac>" das Programm "MOSS-Image · Bilderzeugung" (Modellname vorn, die

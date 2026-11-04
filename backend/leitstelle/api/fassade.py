@@ -232,24 +232,74 @@ async def bilder(request: Request) -> Response:
         anfrage = BildAnfrage.model_validate(await request.json())
     except ValueError as fehler:
         return _eingabefehler(_eingabe_text(fehler) if isinstance(fehler, ValidationError) else "Der Körper ist kein JSON.")
+    return await _bildauftrag(request, app, anfrage, Faehigkeit.BILD_ERZEUGEN)
+
+
+async def bearbeiten(request: Request) -> Response:
+    """Bilder bearbeiten (PROTOKOLL 6.4): ein Auftrag mit der Fähigkeit bild_bearbeiten, mindestens eine Bildvorlage. Als
+    Formular wie im OpenAI-Format (Datei im Feld `image`, auch mehrfach oder als `image[]`, die übrigen Felder wie beim
+    Erzeugen) oder als JSON mit `images` in Base64. Gerechnet wird wie beim Erzeugen mit Vorlagen; die Bilder gehen nicht
+    in die Bildablage, denn es sind Zwischenstände der Anwendung, die das fertige Bild selbst weitergibt."""
+    app = _anwendung(request)
+    if app is None:
+        return fehler_antwort(request, "unbekannter_schluessel", "Schlüssel fehlt oder ist unbekannt (Kopf Authorization: Bearer ...).")
+    try:
+        anfrage = BildAnfrage.model_validate(await _bearbeitung_lesen(request))
+    except ValueError as fehler:
+        return _eingabefehler(_eingabe_text(fehler) if isinstance(fehler, ValidationError) else str(fehler))
+    if not anfrage.images:
+        return _eingabefehler("Bild bearbeiten braucht mindestens eine Bildvorlage (Feld image).")
+    return await _bildauftrag(request, app, anfrage, Faehigkeit.BILD_BEARBEITEN)
+
+
+FORMULAR_LISTEN = {"alternativen"}                     # Formularfelder, die mehrfach vorkommen dürfen
+
+
+async def _bearbeitung_lesen(request: Request) -> dict[str, Any]:
+    """Der Körper einer Bearbeitung als Felder der Bildanfrage: JSON unverändert, ein Formular mit den Dateien als Base64."""
+    if not request.headers.get("content-type", "").startswith(("multipart/form-data", "application/x-www-form-urlencoded")):
+        try:
+            return await request.json()
+        except ValueError:
+            raise ValueError("Der Körper ist weder JSON noch ein Formular.") from None
+    formular = await request.form()
+    felder: dict[str, Any] = {}
+    for name in formular.keys():
+        if name in ("image", "image[]"):
+            continue
+        werte = [w for w in formular.getlist(name) if isinstance(w, str)]
+        if werte:
+            felder[name] = werte if name in FORMULAR_LISTEN else werte[0]
+    if "stream" in felder:
+        felder["stream"] = felder["stream"].strip().lower() in ("true", "1", "ja")
+    dateien = [d for name in ("image", "image[]") for d in formular.getlist(name) if not isinstance(d, str)]
+    felder["images"] = [base64.b64encode(await d.read()).decode("ascii") for d in dateien]
+    return felder
+
+
+async def _bildauftrag(request: Request, app: AnwendungEintrag, anfrage: BildAnfrage, faehigkeit: Faehigkeit) -> Response:
+    """Ein Bildauftrag nach Fähigkeit (erzeugen oder bearbeiten): Wahl der Anwendung vorab prüfen, einreihen, warten,
+    rechnen; mit oder ohne Strom. In die Bildablage gehen nur erzeugte Bilder."""
     verm = vermittlung(request)
+    ablegen = faehigkeit == Faehigkeit.BILD_ERZEUGEN
     try:
         # die Wahl der Anwendung, vorab geprüft: kein Dienst startet für eine Anfrage, die keines ihrer Modelle annimmt
-        familie, alternativen = verm.bildwahl(app.kennung, anfrage)
-        v = verm.annehmen(app.kennung, Faehigkeit.BILD_ERZEUGEN, familie, _prioritaet(request, app), _titel(request, Faehigkeit.BILD_ERZEUGEN),
+        familie, alternativen = verm.bildwahl(app.kennung, anfrage, faehigkeit)
+        v = verm.annehmen(app.kennung, faehigkeit, familie, _prioritaet(request, app), _titel(request, faehigkeit),
                           _arbeit(request), _extern(request), alternativen=alternativen)
     except Ablehnung as a:
         return ablehnung_antwort(request, a)
     seed = verm.startwert(anfrage.seed)
     if anfrage.stream:
-        return StreamingResponse(_bilder_strom(request, v, anfrage, seed), media_type="text/event-stream",
+        return StreamingResponse(_bilder_strom(request, v, anfrage, seed, ablegen), media_type="text/event-stream",
                                  headers={**_kopf(request, v), "Cache-Control": "no-cache"})
     try:
         async with _solange_die_anwendung_wartet(request, v):
             async for _ in verm.warten(v):
                 pass
             erzeugung = await verm.bilder_erzeugen(v, anfrage, seed)
-        await _ablegen(request, v, erzeugung)
+        if ablegen:
+            await _ablegen(request, v, erzeugung)
     except Ablehnung as a:
         antwort = ablehnung_antwort(request, a)
         antwort.headers.update(_kopf(request, v))
@@ -302,7 +352,7 @@ async def bildablage_quittieren(request: Request, kennung: str) -> Response:
     return Response(status_code=204)
 
 
-async def _bilder_strom(request: Request, v: Vorgang, anfrage: BildAnfrage, seed: int):
+async def _bilder_strom(request: Request, v: Vorgang, anfrage: BildAnfrage, seed: int, ablegen: bool):
     """Wie der Chat: Kommentare, solange der Auftrag wartet, und während der Dienst rechnet, damit die Verbindung offen
     bleibt; dann genau ein `data:` mit der Antwort (oder dem Fehler) und `data: [DONE]`. Geht die Anwendung, endet der
     Auftrag, und der Bilddienst nimmt ihn aus seiner Warteschlange."""
@@ -316,7 +366,8 @@ async def _bilder_strom(request: Request, v: Vorgang, anfrage: BildAnfrage, seed
         while not (await asyncio.wait({arbeit}, timeout=konfig(request).hinweis_s))[0]:
             seit += konfig(request).hinweis_s
             yield f": rechnet seit {seit:.0f} s\n\n".encode()
-        await _ablegen(request, v, arbeit.result())
+        if ablegen:
+            await _ablegen(request, v, arbeit.result())
         yield b"data: " + _bildantwort(request, arbeit.result()) + b"\n\ndata: [DONE]\n\n"
     except Ablehnung as a:
         daten = json.dumps({"error": fehler_inhalt(a.grund, a.begruendung, a.zusatz)}, ensure_ascii=False)
@@ -379,6 +430,7 @@ for basis in ("/v1", ""):     # Basisadresse mit oder ohne /v1
     router.add_api_route(f"{basis}/chat/completions", chat, methods=["POST"], include_in_schema=basis == "/v1", name=f"chat{basis or '_ohne_v1'}")
     router.add_api_route(f"{basis}/embeddings", einbettung, methods=["POST"], include_in_schema=basis == "/v1", name=f"einbettung{basis or '_ohne_v1'}")
     router.add_api_route(f"{basis}/images/generations", bilder, methods=["POST"], include_in_schema=basis == "/v1", name=f"bilder{basis or '_ohne_v1'}")
+    router.add_api_route(f"{basis}/images/edits", bearbeiten, methods=["POST"], include_in_schema=basis == "/v1", name=f"bearbeiten{basis or '_ohne_v1'}")
 
 
 def _erlaubte_modelle(request: Request, app: AnwendungEintrag | None) -> list[Modell]:

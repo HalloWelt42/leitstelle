@@ -249,7 +249,7 @@ def test_b11_alternativen_nach_den_regeln_der_modelle():
 
 
 # ── Ende zu Ende mit dem Maschinenraum ──────────────────────────────────
-def _ordner(tmp: Path, url: str, schluessel: str, port: int, rechenzeit_s: float, startzeit_s: float):
+def _ordner(tmp: Path, url: str, schluessel: str, port: int, rechenzeit_s: float, startzeit_s: float, bearbeiten: bool = False):
     """Maschinenraum mit dem Schein-Bilddienst als `bildwerk-moss-image`; Beobachtung, Läufer und Stellwerk aus, damit der
     Test nichts vom Rechner liest, auf dem er läuft."""
     o = tmp / "maschinenraum"
@@ -257,9 +257,10 @@ def _ordner(tmp: Path, url: str, schluessel: str, port: int, rechenzeit_s: float
     (o / "einstellungen.toml").write_text(f'[leitstelle]\nadresse = "{url}"\nwiederverbindung_max_s = 1\n[messung]\ntakt_s = 1\nmacmon = false\n'
                                           f'[beobachtung]\naktiv = false\n[nachbar]\nmodell_laeufer = ""\nstellwerk = ""\n')
     (o / "schluessel").write_text(schluessel)
+    zusatz = ', "bearbeiten"' if bearbeiten else ""                # der Schein nimmt dann Bildvorlagen an
     (o / "dienste" / "bildwerk-moss-image.toml").write_text(
         f'name = "MOSS-Image"\nbeschreibung = "Bilder aus Text mit MOSS-Image: lange Beschreibungen, Schrift im Bild"\n'
-        f'ordner = "{tmp}"\nbefehl = ["{sys.executable}", "{SCHEIN}", "{port}", "{rechenzeit_s}", "{startzeit_s}"]\n'
+        f'ordner = "{tmp}"\nbefehl = ["{sys.executable}", "{SCHEIN}", "{port}", "{rechenzeit_s}", "{startzeit_s}"{zusatz}]\n'
         f'port = {port}\npruefadresse = "http://127.0.0.1:{port}/gesundheit"\nfaehigkeiten = ["bild_erzeugen"]\neignung = ["gruendlich"]\n'
         f'sprachen = ["en", "zh"]\nspeicher_gb = 24\nstartzeit_s = 60\nanhaltezeit_s = 5\n')
     from maschinenraum.konfig import Ordner
@@ -267,7 +268,8 @@ def _ordner(tmp: Path, url: str, schluessel: str, port: int, rechenzeit_s: float
 
 
 @asynccontextmanager
-async def aufbau(tmp_path: Path, rechenzeit_s: float = 0.2, startzeit_s: float = 2.5):
+async def aufbau(tmp_path: Path, rechenzeit_s: float = 0.2, startzeit_s: float = 2.5, bearbeiten: bool = False,
+                 faehigkeiten: tuple[str, ...] = ("text", "bild_erzeugen")):
     pytest.importorskip("maschinenraum")
     from test_knoten_agent import _freier_port, _modell, _warte_bis, agent_laeuft
     port = _freier_port()
@@ -275,9 +277,9 @@ async def aufbau(tmp_path: Path, rechenzeit_s: float = 0.2, startzeit_s: float =
     async with laufend(app) as url, httpx.AsyncClient(base_url=url, timeout=60) as c:
         knoten = (await c.post("/api/knoten", json={"name": "Mac Studio", "adresse": "127.0.0.1", "speicher_gb": 64, "system_gb": 6})).json()["kennung"]
         schluessel = (await c.post(f"/api/knoten/{knoten}/agent/schluessel/neu")).json()["schluessel"]
-        r = await c.post("/api/anwendungen", json={"name": "Assistent", "faehigkeiten": ["text", "bild_erzeugen"]})
+        r = await c.post("/api/anwendungen", json={"name": "Assistent", "faehigkeiten": list(faehigkeiten)})
         kopf = {"Authorization": f"Bearer {r.json()['schluessel']}"}
-        async with agent_laeuft(_ordner(tmp_path, url, schluessel, port, rechenzeit_s, startzeit_s)):
+        async with agent_laeuft(_ordner(tmp_path, url, schluessel, port, rechenzeit_s, startzeit_s, bearbeiten)):
             async def da():
                 return await _modell(c, "bildwerk-moss-image") is not None
             await _warte_bis(da)
@@ -555,3 +557,37 @@ async def test_b15_bildvorlagen_nur_fuer_modelle_die_bearbeiten():
     erste, zweite = app.state.lage.anfragen
     assert erste["pfad"] == "edits" and erste["vorlagen"] == [b"eins", b"zwei"] and erste["size"] == "1344x768"
     assert "pfad" not in zweite and len(mit.bilder) == len(ohne.bilder) == 1
+
+
+async def test_b16_bild_bearbeiten_eigene_faehigkeit_ohne_bildablage(tmp_path):
+    """B16 (ATL-6): `POST /v1/images/edits` ist die Fähigkeit bild_bearbeiten: Formular wie im OpenAI-Format (Datei im
+    Feld image) oder JSON mit `images`, mindestens eine Vorlage, eigenes Recht. Das Modell hat die Fähigkeit, solange
+    sein Steckbrief unbekannt ist oder Bearbeiten nennt. Die Ergebnisse gehen nicht in die Bildablage."""
+    vorlage = b"\x89PNGvorlage"
+    async with aufbau(tmp_path, startzeit_s=0.3, bearbeiten=True, faehigkeiten=("text", "bild_erzeugen", "bild_bearbeiten")) as (c, anw, kopf, dienst):
+        r = await c.post("/api/anwendungen", json={"name": "Bildarchiv", "faehigkeiten": ["bild_erzeugen"], "bildarchiv": True})
+        archiv = {"Authorization": f"Bearer {r.json()['schluessel']}"}
+        felder = {"prompt": "Mach den Himmel blau", "model": "bildwerk-moss-image", "size": "512x512", "seed": "7", "stream": "true"}
+        r = await anw.post("/v1/images/edits", headers=kopf, data=felder, files={"image": ("vorlage.png", vorlage, "image/png")})
+        assert r.status_code == 200, r.text
+        _, daten = _sse(r.text)
+        strom = json.loads(daten[0])
+        assert daten[-1] == "[DONE]" and base64.b64decode(strom["data"][0]["b64_json"]).startswith(b"\x89PNG")
+        assert strom["x-leitstelle"]["seed"] == 7 and strom["x-leitstelle"]["groesse"] == "512x512"
+        gesehen = (await dienst.get("/lage")).json()["anfragen"][-1]
+        assert gesehen["pfad"] == "edits" and gesehen["prompt"] == "Mach den Himmel blau" and gesehen["vorlagen"] == [base64.b64encode(vorlage).decode()]
+        # JSON mit images, ohne Strom; nach dem Start nennt der Steckbrief Bearbeiten, die Fähigkeit bleibt
+        r = await anw.post("/v1/images/edits", headers=kopf, json={"prompt": "x", "model": "moss-image", "size": "512x512",
+                                                                    "images": [base64.b64encode(vorlage).decode()]})
+        assert r.status_code == 200, r.text
+        liste = (await anw.get("/v1/steckbriefe", params={"faehigkeit": "bild_bearbeiten"}, headers=kopf)).json()["data"]
+        assert [x["id"] for x in liste] == ["bildwerk-moss-image"]
+        # ohne Vorlage, ohne Recht, ohne Modell
+        r = await anw.post("/v1/images/edits", headers=kopf, data={"prompt": "x", "model": "moss-image"})
+        assert r.status_code == 400 and "mindestens eine Bildvorlage" in r.json()["error"]["message"]
+        r = await anw.post("/v1/images/edits", headers=archiv, data={"prompt": "x", "model": "moss-image"}, files={"image": ("v.png", vorlage, "image/png")})
+        assert r.status_code == 403 and r.json()["error"]["code"] == "faehigkeit_nicht_erlaubt", r.text
+        r = await anw.post("/v1/images/edits", headers=kopf, data={"prompt": "x"}, files={"image": ("v.png", vorlage, "image/png")})
+        assert r.status_code == 400 and r.json()["error"]["code"] == "modell_fehlt" and r.json()["error"]["x-leitstelle"] == {"modelle": ["bildwerk-moss-image"]}
+        # Bearbeitungen sind Zwischenstände der Anwendung: nichts wartet auf das Archiv
+        assert (await anw.get("/v1/bildablage", headers=archiv)).json()["wartend"] == 0

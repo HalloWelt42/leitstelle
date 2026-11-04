@@ -12,6 +12,7 @@ export const FAEHIGKEIT: Record<Faehigkeit, { wort: string; symbol: string; farb
   hoeren: { wort: 'Hören', symbol: 'fa-ear-listen', farbe: 'var(--minze)', klasse: 'hoeren' },
   bild_beschreiben: { wort: 'Bild beschreiben', symbol: 'fa-image', farbe: 'var(--flieder)', klasse: 'bild' },
   bild_erzeugen: { wort: 'Bild erzeugen', symbol: 'fa-palette', farbe: 'var(--flieder)', klasse: 'bild' },
+  bild_bearbeiten: { wort: 'Bild bearbeiten', symbol: 'fa-wand-magic-sparkles', farbe: 'var(--flieder)', klasse: 'bild' },
   stimme: { wort: 'Stimme', symbol: 'fa-microphone-lines', farbe: 'var(--rose)', klasse: 'stimme' },
   stimme_klonen: { wort: 'Stimmklon', symbol: 'fa-clone', farbe: 'var(--rose)', klasse: 'stimme' },
   sprecher_erkennen: { wort: 'Sprecher erkennen', symbol: 'fa-fingerprint', farbe: 'var(--minze)', klasse: 'hoeren' },

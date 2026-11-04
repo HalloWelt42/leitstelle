@@ -12,7 +12,8 @@
   let { bild }: { bild: Lagebild } = $props();
 
   const ALLE = Object.keys(FAEHIGKEIT) as F[];
-  const KETTEN: F[] = ['text', 'einbettung', 'bild_beschreiben', 'bild_erzeugen'];
+  const KETTEN: F[] = ['text', 'einbettung', 'bild_beschreiben', 'bild_erzeugen', 'bild_bearbeiten'];
+  const BILDKETTEN: F[] = ['bild_erzeugen', 'bild_bearbeiten'];   // die Leitstelle sucht kein Bildmodell aus
   const leer = (): AnwendungDaten => ({ name: '', prioritaet: 1, faehigkeiten: ['text', 'einbettung', 'uebersetzen', 'bild_beschreiben', 'werkzeug'], zonen: ['heim'], extern_erlaubt: false, gleichzeitig: 4, ketten: {}, docker_projekte: [], bildarchiv: false });
 
   let entwurf = $state<AnwendungDaten>(leer());
@@ -207,7 +208,7 @@
             gründliche für lange Texte; die Wahl bleibt bei der Anwendung.</p>{/if}
           {#each KETTEN.filter((f) => entwurf.faehigkeiten?.includes(f)) as f (f)}
             <div class="modellkette">
-              <div title={f === 'bild_erzeugen' ? 'Bildmodell der Anwendung, wenn sie selbst keines nennt; ohne Kette und ohne Modell antwortet die Leitstelle mit der Liste der Bildmodelle, statt eines auszusuchen' : undefined}><Faehigkeit wert={f} /></div>
+              <div title={BILDKETTEN.includes(f) ? 'Bildmodell der Anwendung, wenn sie selbst keines nennt; ohne Kette und ohne Modell antwortet die Leitstelle mit der Liste der Bildmodelle, statt eines auszusuchen' : undefined}><Faehigkeit wert={f} /></div>
               <div class="kette">
                 {#each kette(f) as fam, i (fam)}
                   <span class="schritt" title={extern(fam) ? `${wahlName(fam)}: rechnet beim Anbieter, in der Kette nur beim Ausweichen und wenn die Anwendung es erlaubt` : fam}><i class="fa-solid {extern(fam) ? 'fa-cloud' : 'fa-brain'}"></i>{modellName(fam)}

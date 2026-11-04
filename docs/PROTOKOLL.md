@@ -309,6 +309,7 @@ Für Anwendungen ohne Umbau. Basisadresse mit oder ohne `/v1` wird angenommen.
 | `POST /v1/audio/transcriptions` | `auftrag.anlegen` (hoeren) | multipart; lange Dateien laufen als Hintergrund-Auftrag, Antwort erst am Ende |
 | `POST /v1/audio/speech` | `auftrag.anlegen` (stimme) | Audio-Stream |
 | `POST /v1/images/generations` | `auftrag.anlegen` (bild_erzeugen) | Bilder als `b64_json`, mit und ohne Strom; `model` wählt den Bilddienst (Kennung oder Name seines Modells); den Ablauf des Bilddienstes kennt die Leitstelle, die Grenzen seines Modells prüft sie vorher (6.1) |
+| `POST /v1/images/edits` | `auftrag.anlegen` (bild_bearbeiten) | ein Bild nach Anweisung ändern: Formular wie im OpenAI-Format (Datei im Feld `image`) oder JSON mit `images`; mindestens eine Vorlage; sonst wie das Erzeugen, ohne Bildablage (6.4) |
 | `GET /v1/dienste` | Liste der Dienste | die Dienste im Maschinenraum, die die Anwendung nutzen darf, mit Zweck, Zustand, Rechner und bei Bilddiensten dem Bild-Steckbrief (6.2) |
 | `GET, POST, PUT, PATCH, DELETE /v1/dienste/<name>/<pfad>` | `auftrag.anlegen` (Fähigkeit, die Dienst und Anwendung teilen) | jeder Dienst mit eigener Schnittstelle (Sprache, Bild, Musik): die Leitstelle startet ihn bei Bedarf über den Maschinenraum seines Rechners, plant seinen Bedarf ein und reicht Anfrage und Antwort unverändert durch (auch Binärdaten). `<name>` ist die Kennung des Dienstes im Maschinenraum (Dateiname der Dienstdatei) |
 | `GET /api/v0/models`, `GET /api/v1/models` | `frage.modelle` | nachgebildete Form des Modell-Läufers (Feld `state`, `loaded_instances`), weil mehrere Anwendungen genau diese Form lesen |
@@ -473,6 +474,24 @@ Prompt), `seed`, `breite`, `hoehe`, `schritte`, `nummer` (Stelle im Ergebnis bei
 Der Platz ist begrenzt (Einstellung `LEITSTELLE_BILDABLAGE_MB`, Vorgabe 2048); darüber fallen die ältesten wartenden
 Bilder weg, mit einer Warnung im Protokoll. Ein Archiv holt deshalb regelmäßig ab und quittiert jedes Bild erst, wenn
 es sicher bei ihm liegt.
+
+### 6.4 Bilder bearbeiten
+
+`POST /v1/images/edits` mit dem Schlüssel einer Anwendung, die `bild_bearbeiten` darf: ein Bild nach Anweisung ändern
+(Bildbearbeitung im Atelier, ATL-6). Es ist eine eigene Fähigkeit mit eigenem Recht und eigener Kette (Seite
+Anwendungen); gerechnet wird wie in 6.1 mit Bildvorlagen, mit denselben Feldern, Strömen, Köpfen und Fehlern.
+
+| Form | Felder |
+|---|---|
+| Formular (`multipart/form-data`, wie im OpenAI-Format) | die Vorlage als Datei im Feld `image` (mehrere: das Feld wiederholen oder `image[]`), dazu `prompt`, `size`, `n`, `seed`, `steps`, `model`, `alternativen` (wiederholt) und `stream` (`true`) als Textfelder |
+| JSON | wie in 6.1, die Vorlagen als `images` in Base64 |
+
+Unterschiede zum Erzeugen: mindestens eine Vorlage (ohne: 400 `eingabe`); `bild_bearbeiten` hat jedes Bildmodell,
+dessen Steckbrief `kann_bearbeiten` nennt, und bis zu seinem ersten Start (Steckbrief noch unbekannt) jedes Bildmodell;
+danach entscheidet sein Steckbrief (ohne Bearbeiten: 400 `eingabe`). Die Bilder gehen nicht in die Bildablage (6.3): Es
+sind Zwischenstände der Anwendung, die das fertige Bild selbst weitergibt. Eine Maske kennt die Schnittstelle nicht; wo
+nur ein Teil des Bildes geändert werden soll, schickt die Anwendung diesen Ausschnitt und setzt das Ergebnis selbst
+wieder ein.
 
 ## 7. Fehler und Gründe
 

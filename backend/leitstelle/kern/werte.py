@@ -16,6 +16,7 @@ class Faehigkeit(str, Enum):
     HOEREN = "hoeren"
     BILD_BESCHREIBEN = "bild_beschreiben"
     BILD_ERZEUGEN = "bild_erzeugen"
+    BILD_BEARBEITEN = "bild_bearbeiten"   # ein Bild nach Anweisung ändern; hat jedes Bildmodell, dessen Steckbrief kann_bearbeiten nennt
     STIMME = "stimme"
     STIMME_KLONEN = "stimme_klonen"
     SPRECHER_ERKENNEN = "sprecher_erkennen"
@@ -158,7 +159,7 @@ class Automatik(str, Enum):
 
 WORT: dict[str, str] = {
     "text": "Text", "einbettung": "Einbettung", "uebersetzen": "Übersetzen", "hoeren": "Hören",
-    "bild_beschreiben": "Bild beschreiben", "bild_erzeugen": "Bild erzeugen", "stimme": "Stimme", "stimme_klonen": "Stimmklon", "sprecher_erkennen": "Sprecher erkennen",
+    "bild_beschreiben": "Bild beschreiben", "bild_erzeugen": "Bild erzeugen", "bild_bearbeiten": "Bild bearbeiten", "stimme": "Stimme", "stimme_klonen": "Stimmklon", "sprecher_erkennen": "Sprecher erkennen",
     "sprecher_trennen": "Sprecher trennen", "musik": "Musik", "werkzeug": "Werkzeuge", "ton": "Ton bearbeiten",
     "eingereiht": "Eingereiht", "wartet_speicher": "Wartet auf Speicher", "wartet_ruhe": "Wartet auf Ruhe", "zugeteilt": "Zugeteilt", "laeuft": "Läuft", "pausiert": "Pausiert",
     "fertig": "Fertig", "abgebrochen": "Abgebrochen", "fehlgeschlagen": "Fehlgeschlagen", "abgelehnt": "Abgelehnt",

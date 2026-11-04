@@ -27,6 +27,7 @@ export type Faehigkeit =
   | 'hoeren'
   | 'bild_beschreiben'
   | 'bild_erzeugen'
+  | 'bild_bearbeiten'
   | 'stimme'
   | 'stimme_klonen'
   | 'sprecher_erkennen'

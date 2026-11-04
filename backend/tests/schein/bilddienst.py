@@ -96,7 +96,8 @@ def schein_bilddienst(rechenzeit_s: float = 0.05, startzeit_s: float = 0.0, bear
     @app.get("/lage")
     async def lage_lesen():
         """Für Tests, die den Dienst als eigenen Prozess starten: was er gesehen hat."""
-        return {"anfragen": lage.anfragen, "modelle_gelesen": lage.modelle_gelesen, "laufend": lage.laufend, "abgebrochen": lage.abgebrochen,
+        anfragen = [a | {"vorlagen": [base64.b64encode(v).decode() for v in a["vorlagen"]]} if "vorlagen" in a else a for a in lage.anfragen]
+        return {"anfragen": anfragen, "modelle_gelesen": lage.modelle_gelesen, "laufend": lage.laufend, "abgebrochen": lage.abgebrochen,
                 "fertig": lage.fertig}
 
     @app.get("/v1/models")
@@ -157,4 +158,5 @@ if __name__ == "__main__":
     port = int(sys.argv[1])
     rechenzeit = float(sys.argv[2]) if len(sys.argv) > 2 else 0.05
     startzeit = float(sys.argv[3]) if len(sys.argv) > 3 else 0.0
-    uvicorn.run(schein_bilddienst(rechenzeit, startzeit), host="127.0.0.1", port=port, log_level="warning")
+    bearbeiten = len(sys.argv) > 4 and sys.argv[4] == "bearbeiten"
+    uvicorn.run(schein_bilddienst(rechenzeit, startzeit, bearbeiten), host="127.0.0.1", port=port, log_level="warning")
