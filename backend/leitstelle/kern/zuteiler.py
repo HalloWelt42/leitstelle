@@ -266,7 +266,8 @@ def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> 
                     if not m.ladbar(verbund.zeit_s):
                         gesperrt.append(m)
                         continue
-                    plan = planen(verbund, d.knoten, m.gb + geplanter_speicher.get(d.knoten, 0.0), messwerk, familie=m.familie, fuer_arbeit=a.arbeit)
+                    plan = planen(verbund, d.knoten, m.gb + geplanter_speicher.get(d.knoten, 0.0), messwerk, familie=m.familie, fuer_arbeit=a.arbeit,
+                                  anforderung=True)
                     plaene.append((plan, m, d))
                 if gefunden:
                     break

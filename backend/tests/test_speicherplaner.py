@@ -42,6 +42,20 @@ def test_s14_mindestverweildauer_haelt(welt):
     assert "Mindestverweildauer" in plan.begruendung
 
 
+def test_anforderung_bedarfsfrist_statt_mindestverweildauer(welt):
+    """HELF-161: frisch geladen, aber ohne Auftrag seit der Bedarfsfrist: ein Auftrag, der jetzt rechnen will, bekommt
+    den Platz; ohne Anforderung (Automatik) hält die Mindestverweildauer weiter."""
+    m = welt.verbund.modelle["qwen80@128"]
+    m.geladen_seit_s = welt.verbund.zeit_s - 120
+    m.letzte_nutzung_s = welt.verbund.zeit_s - 90
+    assert not planen(welt.verbund, "mac-128", 11.8, Messwerk(), familie="glm-4.6v").passt
+    plan = planen(welt.verbund, "mac-128", 11.8, Messwerk(), familie="glm-4.6v", anforderung=True)
+    assert plan.passt and "qwen80@128" in plan.entladen
+    m.letzte_nutzung_s = welt.verbund.zeit_s - 10          # gerade gebraucht: auch bei Anforderung nicht
+    plan = planen(welt.verbund, "mac-128", 11.8, Messwerk(), familie="glm-4.6v", anforderung=True)
+    assert not plan.passt and "Bedarfsfrist" in plan.begruendung
+
+
 def test_s15_rechnendes_modell_mit_frei_nach(welt):
     welt.auftrag("zusage", F.TEXT, laufzeit_s=50)
     welt.laufen(6)
