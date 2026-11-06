@@ -27,6 +27,10 @@ class Konfig(BaseSettings):
     erlaubte_netze: list[str] = Field(
         default=["127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fd00::/8", "fe80::/10"],
         description="Netze, aus denen Oberfläche und Verwaltung erreichbar sind (Heimnetz und VPN)")
+    vorschaltung: list[str] = Field(
+        default=[],
+        description="Adressen oder Netze des Vorschaltdienstes (HTTPS davor): nur von dort gilt X-Forwarded-For als "
+                    "Herkunft, damit Netzprüfung und Prüfprotokoll den echten Aufrufer sehen. Leer: der Kopf zählt nie")
     dienst_takt_s: float = Field(default=5.0, description="Abstand der Zustandsabfrage je Dienst im eigenen Netz")
     extern_abgleich_s: float = Field(default=900.0, description="Abstand der Zustandsabfrage externer Anbieter, wenn sie gesund sind (jede Abfrage zählt für ihre Grenze)")
     pruefung_ab_s: float = Field(default=5.0, description="erster Abstand nach einem Fehlschlag; er verdoppelt sich mit jedem weiteren")

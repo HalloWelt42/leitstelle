@@ -28,7 +28,7 @@
 
   const gewaehlt = $derived(weg.teil && weg.teil !== 'neu' ? bild.anwendungen.find((a) => a.kennung === weg.teil) ?? null : null);
   const anlegen = $derived(weg.teil === 'neu');
-  const basis = `${location.protocol}//${location.hostname}:8530/v1`;
+  const basis = `${location.origin}/v1`;
 
   // Beim Wechsel der Auswahl den Entwurf aus der gewählten Anwendung füllen
   let fuerKennung = $state<string | null>(null);

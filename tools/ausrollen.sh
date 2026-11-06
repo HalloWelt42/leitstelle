@@ -7,6 +7,9 @@
 # dann läuft der alte Stand weiter. Gebaut wird, während der alte Stand weiterläuft; neu gestartet erst, wenn
 # kein Auftrag mehr über die Leitstelle läuft (Lagebild: laeuft oder zugeteilt), damit keine Anfrage einer App
 # mitten im Rechnen abreißt, höchstens WARTEN_S Sekunden (Vorgabe 600). SOFORT=1 tools/ausrollen.sh startet ohne zu warten.
+# Das Zertifikat der Hausstelle für HTTPS (Vorschaltdienst auf dem Port vorne) stellt es am Mac mit mkcert aus, wenn es
+# fehlt oder in weniger als 60 Tagen abläuft, mit den Namen aus dem Ziel und leitstelle.local; es liegt auf dem
+# Zielrechner in <Ordner>/zertifikate.
 # Nach einem gelungenen Ausrollen (neuer Stand läuft, Version antwortet) räumt es auf dem Zielrechner Docker auf:
 # verwaiste Abbilder ohne Namen und den Baucache bis auf BAUCACHE_GB (Vorgabe 20 GB). Bei einem Fehlschlag bleibt alles
 # stehen. Grund: Docker auf dem Pi lief mit 239 GB Baucache voll, weil kein Ausrollen je aufräumte (27.10.2026).
@@ -35,7 +38,11 @@ if [ -z "${ZIEL:-}" ]; then
   ZIEL="$(ziel_wert rechner)"
   ORDNER="${ORDNER:-$(ziel_wert wurzel)}"
   DATEN="${DATEN:-$(ziel_wert LEITSTELLE_DATENORDNER)}"
+  NAMEN="${NAMEN:-$(ziel_wert namen)}"
 fi
+KERN_PORT="$(ziel_wert port:kern)"
+VORNE_PORT="$(ziel_wert port:vorne)"
+ENTWUERFE_PORT="$(ziel_wert port:entwuerfe)"
 ORDNER="${ORDNER:-/home/${ZIEL%@*}/leitstelle}"
 DATEN="${DATEN:-$ORDNER/daten}"
 QUELLE="$(git -C "$HIER" remote get-url origin)"
@@ -54,8 +61,27 @@ ssh "$ZIEL" "set -e
   LEITSTELLE_DATENORDNER='$DATEN' docker compose build"
 
 PI_HOST="${ZIEL#*@}"
+NAMEN="${NAMEN:-$PI_HOST}"
+
+# Zertifikat der Hausstelle für den Vorschaltdienst, noch mindestens 60 Tage gültig, sonst neu ausgestellt
+HAUSSTELLE="$(mkcert -CAROOT)/rootCA.pem"
+[ -f "$HAUSSTELLE" ] || { echo "Abbruch: die Hausstelle fehlt ($HAUSSTELLE)" >&2; exit 1; }
+if ssh "$ZIEL" "openssl x509 -in '$ORDNER/zertifikate/leitstelle.pem' -noout -checkend 5184000" >/dev/null 2>&1; then
+  echo "Zertifikat: vorhanden, noch mindestens 60 Tage gültig"
+else
+  ARBEIT="$(mktemp -d)"
+  trap 'rm -rf "$ARBEIT"' EXIT
+  # shellcheck disable=SC2086  # NAMEN ist eine Liste
+  (cd "$ARBEIT" && mkcert -cert-file leitstelle.pem -key-file leitstelle-schluessel.pem $NAMEN leitstelle.local >/dev/null 2>&1)
+  cp "$HAUSSTELLE" "$ARBEIT/rootCA.pem"
+  ssh "$ZIEL" "mkdir -p '$ORDNER/zertifikate'"
+  scp -q "$ARBEIT/leitstelle.pem" "$ARBEIT/leitstelle-schluessel.pem" "$ARBEIT/rootCA.pem" "$ZIEL:$ORDNER/zertifikate/"
+  ssh "$ZIEL" "chmod 644 '$ORDNER/zertifikate/leitstelle.pem' '$ORDNER/zertifikate/rootCA.pem' && chmod 640 '$ORDNER/zertifikate/leitstelle-schluessel.pem'"
+  echo "Zertifikat: ausgestellt für $NAMEN leitstelle.local, gültig bis $(openssl x509 -in "$ARBEIT/leitstelle.pem" -noout -enddate | cut -d= -f2)"
+fi
+HTTPS="https://$PI_HOST:$VORNE_PORT"
 laufend() {
-  curl -fsS -m 10 "http://$PI_HOST:8530/api/lage" 2>/dev/null | python3 -c 'import sys, json
+  curl -fsS -m 10 --cacert "$HAUSSTELLE" "$HTTPS/api/lage" 2>/dev/null | python3 -c 'import sys, json
 try:
     print(sum(1 for a in json.load(sys.stdin).get("auftraege", []) if a.get("zustand") in ("laeuft", "zugeteilt")))
 except ValueError:
@@ -82,13 +108,20 @@ aufraeumen() {
     || echo "Aufräumen auf $PI_HOST gescheitert; das Ausrollen selbst ist gelungen" >&2
 }
 
+# Gesund heißt: Kern direkt (Übergang, solange Apps noch über http kommen), Kern über HTTPS mit Prüfung gegen die
+# Hausstelle und die Entwürfe antworten
+gesund() {
+  curl -fsS "http://$PI_HOST:$KERN_PORT/gesundheit" >/dev/null 2>&1 \
+    && curl -fsS --cacert "$HAUSSTELLE" "$HTTPS/gesundheit" >/dev/null 2>&1 \
+    && curl -fsS "http://$PI_HOST:$ENTWUERFE_PORT/gesundheit" >/dev/null 2>&1
+}
 for _ in $(seq 1 60); do
-  if curl -fsS "http://$PI_HOST:8530/gesundheit" >/dev/null 2>&1 && curl -fsS "http://$PI_HOST:8535/gesundheit" >/dev/null 2>&1; then
-    echo "Läuft: Leitstelle http://$PI_HOST:8530/  Entwürfe http://$PI_HOST:8535/  (Version $(curl -fsS "http://$PI_HOST:8530/gesundheit" | python3 -c 'import sys,json; print(json.load(sys.stdin)["version"])'))"
+  if gesund; then
+    echo "Läuft: Leitstelle $HTTPS/ (direkt http://$PI_HOST:$KERN_PORT/)  Entwürfe http://$PI_HOST:$ENTWUERFE_PORT/  (Version $(curl -fsS --cacert "$HAUSSTELLE" "$HTTPS/gesundheit" | python3 -c 'import sys,json; print(json.load(sys.stdin)["version"])'))"
     aufraeumen
     exit 0
   fi
   sleep 1
 done
-echo "Abbruch: Gesundheit auf $PI_HOST:8530 oder :8535 antwortet nicht" >&2
+echo "Abbruch: Gesundheit auf $PI_HOST antwortet nicht (Kern :$KERN_PORT, HTTPS :$VORNE_PORT oder Entwürfe :$ENTWUERFE_PORT)" >&2
 exit 1

@@ -1,5 +1,7 @@
-# Betrieb auf dem Pi: Kern auf 8530 (Fassade /v1, Verwaltung /api, Oberfläche), Entwürfe auf 8535.
+# Betrieb auf dem Pi: Kern auf 8530 (Fassade /v1, Verwaltung /api, Oberfläche), davor HTTPS auf 8531 (Vorschaltdienst
+# mit dem Zertifikat der Hausstelle im Ordner zertifikate/, tools/ausrollen.sh stellt es aus), Entwürfe auf 8535.
 # Daten (SQLite, Tresorschlüssel) im Ordner LEITSTELLE_DATENORDNER (Vorgabe ./daten); er gehört dem Benutzer 1000.
+# Übergang: 8530 bleibt veröffentlicht, bis alle Apps über HTTPS kommen; danach nur noch über den Vorschaltdienst.
 services:
   leitstelle:
     build: { context: ., target: leitstelle }
@@ -8,12 +10,31 @@ services:
     user: "1000:1000"
     ports:
       - "8530:8530"
+    environment:
+      # nur vom Vorschaltdienst gilt X-Forwarded-For als Herkunft (Netzprüfung, Prüfprotokoll)
+      LEITSTELLE_VORSCHALTUNG: '["${LEITSTELLE_VORNE_IP:-10.201.53.2}"]'
+    networks: [innen]
     volumes:
       - ${LEITSTELLE_DATENORDNER:-./daten}:/daten
       # Ortszeit des Pi: Zeitfenster für Hintergrundarbeit und "heute" in den Kennzahlen hängen davon ab
       - /etc/localtime:/etc/localtime:ro
     restart: unless-stopped
     stop_grace_period: 30s
+
+  vorne:
+    image: caddy:2.11.7-alpine
+    container_name: leitstelle-vorne
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    depends_on: [leitstelle]
+    ports:
+      - "8531:8531"
+    networks:
+      innen:
+        ipv4_address: ${LEITSTELLE_VORNE_IP:-10.201.53.2}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${LEITSTELLE_ZERTIFIKATE:-./zertifikate}:/zertifikate:ro
 
   entwuerfe:
     build: { context: ., target: entwuerfe }
@@ -27,3 +48,11 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
+
+# Netz zwischen Vorschaltdienst und Kern mit fester Adresse des Vorschaltdienstes (sonst wüsste der Kern nicht, wem er
+# X-Forwarded-For glauben darf); Netz und Adresse nur ändern, wenn das Netz auf dem Rechner schon vergeben ist
+networks:
+  innen:
+    ipam:
+      config:
+        - subnet: ${LEITSTELLE_INNENNETZ:-10.201.53.0/29}

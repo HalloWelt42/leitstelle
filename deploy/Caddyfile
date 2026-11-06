@@ -1,0 +1,28 @@
+# Vorschaltdienst: HTTPS mit dem Blattzertifikat der Hausstelle (tools/ausrollen.sh stellt es aus) auf 8531, der Kern
+# dahinter ohne TLS. Caddy setzt X-Forwarded-For selbst auf den echten Aufrufer (ein mitgeschickter Kopf zählt nicht);
+# der Kern glaubt ihn nur von der festen Adresse dieses Dienstes (LEITSTELLE_VORSCHALTUNG in docker-compose.yml).
+# Beim Zugriff per IP steht kein Servername im Handschlag, darum default_sni: leitstelle.local steht in jedem
+# Zertifikat der Leitstelle. Kein HSTS: unter einem Rechnernamen würde es alle Ports des Rechners auf HTTPS zwingen.
+# Jeder Zugriff als JSON im Protokoll (docker logs leitstelle-vorne).
+{
+	admin off
+	auto_https off
+	default_sni leitstelle.local
+}
+
+:8531 {
+	tls /zertifikate/leitstelle.pem /zertifikate/leitstelle-schluessel.pem
+	log {
+		output stdout
+		format json
+	}
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy same-origin
+		-Server
+	}
+	# Ereignisströme, Antworten im Strom, Ton und Hochladen gehen ungepuffert durch; Kanal und Agent als WebSocket
+	reverse_proxy leitstelle:8530 {
+		flush_interval -1
+	}
+}

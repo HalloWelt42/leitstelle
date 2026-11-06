@@ -6,7 +6,8 @@ vollständig: wer sie befolgt, braucht keine weitere Absprache. Der Leitfaden de
 an ihre Teilnehmer in [ARCHITEKTUR.md](ARCHITEKTUR.md) Abschnitt 5 und unten in Abschnitt 8.
 
 Stand 16.10.2026, Fassung 0.4: Die Leitstelle läuft im Betrieb (Beispieladresse in diesem Text:
-`http://leitstelle:8530`). Fassade
+`http://leitstelle:8530`; im Betrieb mit `docker-compose.yml` gilt HTTPS über den Vorschaltdienst auf Port 8531, mit
+dem Zertifikat einer eigenen Zertifikatsstelle, der das Programm vertrauen muss, und `wss://` statt `ws://`). Fassade
 (Stufe 1), Verwaltung, Oberfläche und Live-Kanal der Oberfläche sind in Betrieb und geprüft (siehe
 [SZENARIEN.md](SZENARIEN.md), Messungen in [MESSUNGEN.md](MESSUNGEN.md)). Anmeldung und Signale über den Kanal
 (Stufe 2 und 3) und die Bibliothek kommen mit Staffel 3 des [Plans](PLAN.md); die Schnittstellen hier sind

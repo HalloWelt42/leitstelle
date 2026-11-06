@@ -11,7 +11,7 @@ schluessel_orte:
   - "Pi: `tresor.schluessel` im Datenordner; ohne ihn sind die im Tresor gespeicherten Schlüssel und Zugänge nicht lesbar"
   - "Datenbank (verschlüsselt mit dem Tresor): Schlüssel der Anwendungen, der Knoten (Maschinenraum) und externer Anbieter"
 einrichten: einrichten.sh
-stand: 45b824d
+stand: 017d0ef
 ---
 
 # Leitstelle
@@ -30,9 +30,12 @@ keine Antworten, keine Einbettung, keine Stimme, kein Hören, keine Bilder. Die 
 Bildmodell ein Programm im Maschinenraum) startet sie, wenn eine App ein Bild verlangt, und prüft jede Anfrage vorher
 mit dem Steckbrief des Modells (Größen, Schritte, Anzahl).
 
-Auf dem Pi laufen zwei Container aus `docker-compose.yml`: der Kern mit Fassade und Oberfläche auf Port
-{{port:docker-compose.yml/leitstelle}} und die Entwürfe auf Port {{port:docker-compose.yml/entwuerfe}}. Beide sind nur
-aus privaten Netzen erreichbar.
+Auf dem Pi laufen drei Container aus `docker-compose.yml`: der Kern mit Fassade und Oberfläche, davor der
+Vorschaltdienst mit HTTPS auf Port {{port:docker-compose.yml/vorne}} (Zertifikat der Hausstelle, Adresse für Apps und
+Browser) und die Entwürfe auf Port {{port:docker-compose.yml/entwuerfe}}. Im Übergang ist der Kern zusätzlich direkt
+über http auf Port {{port:docker-compose.yml/leitstelle}} erreichbar, bis alle Apps über HTTPS kommen. Alles ist nur
+aus privaten Netzen erreichbar; hinter dem Vorschaltdienst sieht der Kern den echten Aufrufer (X-Forwarded-For gilt
+nur von der festen Adresse des Vorschaltdienstes, `LEITSTELLE_VORSCHALTUNG`).
 
 ## Was sie braucht
 
@@ -77,13 +80,16 @@ Probe: auf dem Zielrechner zeigt `ls {{umgebung:LEITSTELLE_DATENORDNER}}` nach d
 
 Am Mac `tools/ausrollen.sh`: lädt den eingecheckten Stand hoch, klont oder holt ihn auf dem Zielrechner nach `{{wurzel}}`,
 baut dort mit Docker (alle Kern-Tests und die Typprüfung der Oberfläche; rot bricht ab und der alte Stand läuft
-weiter), wartet auf einen ruhigen Moment ohne laufenden Auftrag und startet beide Dienste. Läuft der neue Stand und
+weiter), stellt am Mac mit mkcert das Zertifikat der Hausstelle aus, wenn es fehlt oder in weniger als 60 Tagen
+abläuft (Namen aus dem Ziel und `leitstelle.local`, auf dem Zielrechner in `{{wurzel}}/zertifikate`), wartet auf einen
+ruhigen Moment ohne laufenden Auftrag und startet die Dienste. Läuft der neue Stand und
 antwortet die Version, räumt es dort Docker auf: verwaiste Abbilder ohne Namen und den Baucache bis auf `BAUCACHE_GB`
 (Vorgabe 20 GB; etwa `BAUCACHE_GB=40 tools/ausrollen.sh`), mit dem freigegebenen Platz in der Ausgabe. Scheitert das
 Ausrollen, bleibt alles stehen. Auf dem Zielrechner selbst geht dasselbe mit
 `LEITSTELLE_DATENORDNER={{umgebung:LEITSTELLE_DATENORDNER}} ./einrichten.sh` im Klon (ohne Aufräumen).
 
-Probe: `curl -s http://<zielrechner>:{{port:docker-compose.yml/leitstelle}}/gesundheit` meldet `"version": "{{fassung}}"`,
+Probe: `curl -s --cacert "$(mkcert -CAROOT)/rootCA.pem" https://<zielrechner>:{{port:docker-compose.yml/vorne}}/gesundheit`
+meldet `"version": "{{fassung}}"`, ebenso im Übergang `http://<zielrechner>:{{port:docker-compose.yml/leitstelle}}/gesundheit`,
 und `http://<zielrechner>:{{port:docker-compose.yml/entwuerfe}}/gesundheit` antwortet.
 
 ### 4. Läufer und Knoten
@@ -139,6 +145,10 @@ Dienst anhalten, Archiv in den Datenordner entpacken, starten; Probe wie in Schr
   Die Ausgabe des Baus nennt den Test.
 - Das Ausrollen wartet: es lässt laufende Aufträge auslaufen, höchstens `WARTEN_S` Sekunden (Vorgabe 600);
   `SOFORT=1 tools/ausrollen.sh` startet ohne zu warten.
+- Eine App meldet über HTTPS einen Zertifikatsfehler: sie vertraut der Hausstelle nicht. Appkern-Apps brauchen die
+  `rootCA.pem` im Container (Einstellung Zertifikatsstelle); andere Programme müssen sie selbst laden. Im Browser
+  muss die Hausstelle im System stehen. Das Zertifikat selbst prüfen:
+  `openssl s_client -connect <zielrechner>:{{port:docker-compose.yml/vorne}} </dev/null | openssl x509 -noout -subject -enddate`.
 - Apps melden "Leitstelle nicht erreichbar": Container prüfen (`docker compose ps`, `docker logs -f leitstelle`); der
   Appkern der Apps wartet eine Weile und versucht es erneut.
 - Modelle laden nicht: der Läufer am Mac schläft oder lauscht nur lokal (Netzwerk des Läufers, siehe
