@@ -80,8 +80,11 @@ else
   echo "Zertifikat: ausgestellt für $NAMEN leitstelle.local, gültig bis $(openssl x509 -in "$ARBEIT/leitstelle.pem" -noout -enddate | cut -d= -f2)"
 fi
 HTTPS="https://$PI_HOST:$VORNE_PORT"
+# Laufende Aufträge über HTTPS, im Übergang (und beim ersten Ausrollen mit Vorschaltdienst) über den Kern direkt; eine
+# Zahl, auch wenn keiner antwortet (sonst meldete pipefail zwei Zeilen und das Warten liefe bis zur Grenze)
 laufend() {
-  curl -fsS -m 10 --cacert "$HAUSSTELLE" "$HTTPS/api/lage" 2>/dev/null | python3 -c 'import sys, json
+  { curl -fsS -m 10 --cacert "$HAUSSTELLE" "$HTTPS/api/lage" 2>/dev/null \
+      || curl -fsS -m 10 "http://$PI_HOST:$KERN_PORT/api/lage" 2>/dev/null || true; } | python3 -c 'import sys, json
 try:
     print(sum(1 for a in json.load(sys.stdin).get("auftraege", []) if a.get("zustand") in ("laeuft", "zugeteilt")))
 except ValueError:
