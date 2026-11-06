@@ -50,9 +50,12 @@ services:
       retries: 3
 
 # Netz zwischen Vorschaltdienst und Kern mit fester Adresse des Vorschaltdienstes (sonst wüsste der Kern nicht, wem er
-# X-Forwarded-For glauben darf); Netz und Adresse nur ändern, wenn das Netz auf dem Rechner schon vergeben ist
+# X-Forwarded-For glauben darf). Docker vergibt Adressen nur aus ip_range, die feste Adresse liegt außerhalb davon; sonst
+# kann der Kern sie beim Start schon belegt haben. Netz, Bereich und Adresse nur ändern, wenn das Netz auf dem Rechner
+# schon vergeben ist.
 networks:
   innen:
     ipam:
       config:
-        - subnet: ${LEITSTELLE_INNENNETZ:-10.201.53.0/29}
+        - subnet: ${LEITSTELLE_INNENNETZ:-10.201.53.0/28}
+          ip_range: ${LEITSTELLE_INNENNETZ_FREI:-10.201.53.8/29}
