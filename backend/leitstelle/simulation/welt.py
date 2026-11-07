@@ -26,6 +26,10 @@ class Wahrheit:
         return self.startzeit.get(dienst, vorgabe)
 
 
+#: Die Modellwahl einer simulierten Anwendung: je Fähigkeit ihr Modell, dann ihre Ausweichliste (Familien, ihre Reihenfolge)
+Modellwahl = dict[Faehigkeit, list[str]]
+
+
 @dataclass
 class Welt:
     verbund: Verbund
@@ -39,20 +43,25 @@ class Welt:
     meldungen: list[tuple[float, str]] = field(default_factory=list)
     beendet: list[tuple[float, str, int]] = field(default_factory=list)   # (Zeit, Knoten, pid): Arbeiter des Läufers beenden lassen
     laufnummer: int = 0
+    modellwahl: dict[str, Modellwahl] = field(default_factory=dict)   # Anwendung -> ihre Wahl; die Leitstelle sieht sie nur im Auftrag
 
     @classmethod
-    def mit(cls, verbund: Verbund, graphen: list[Regelgraph] | None = None) -> "Welt":
-        return cls(verbund=verbund, leitstelle=Leitstelle(graphen))
+    def mit(cls, verbund: Verbund, graphen: list[Regelgraph] | None = None, modellwahl: dict[str, Modellwahl] | None = None) -> "Welt":
+        return cls(verbund=verbund, leitstelle=Leitstelle(graphen), modellwahl=modellwahl or {})
 
     # ── Aufträge anlegen ─────────────────────────────────────────────────
     def auftrag(self, anwendung: str, faehigkeit: Faehigkeit, laufzeit_s: float = 20.0, zeit_s: float | None = None,
                 prioritaet: Prioritaet | None = None, festes_modell: str | None = None, kennung: str | None = None,
-                extern: list[str] | None = None) -> Auftrag:
+                extern: list[str] | None = None, alternativen: list[str] | None = None) -> Auftrag:
+        """Ein Auftrag einer simulierten Anwendung. Wie eine echte nennt sie immer selbst ihr Modell: ohne `festes_modell`
+        das erste ihrer Modellwahl für die Fähigkeit, die übrigen als Ausweichliste; hat sie keine, schickt sie keins."""
         self.laufnummer += 1
         app = self.verbund.anwendungen[anwendung]
+        if festes_modell is None and (wahl := self.modellwahl.get(anwendung, {}).get(faehigkeit)):
+            festes_modell, alternativen = wahl[0], wahl[1:] if alternativen is None else alternativen
         a = Auftrag(kennung=kennung or f"a-{self.laufnummer:04d}", anwendung=anwendung, faehigkeit=faehigkeit,
                     prioritaet=app.prioritaet if prioritaet is None else prioritaet, eingang_s=self.verbund.zeit_s if zeit_s is None else zeit_s,
-                    laufzeit_s=laufzeit_s, festes_modell=festes_modell, extern_familien=list(extern or []))
+                    laufzeit_s=laufzeit_s, festes_modell=festes_modell, alternativen=list(alternativen or []), extern_familien=list(extern or []))
         if zeit_s is None or zeit_s <= self.verbund.zeit_s:
             self.verbund.auftraege[a.kennung] = a
         else:
@@ -173,7 +182,17 @@ class Welt:
         else:
             for a in self.verbund.auftraege.values():
                 if a.zustand == Auftragszustand.PAUSIERT:
-                    a.zustand = Auftragszustand.ZUGETEILT
+                    self._fortsetzen(a)
+
+    def _fortsetzen(self, a: Auftrag) -> None:
+        """Ein angehaltener Hintergrundauftrag geht weiter (angehalten wird nur zwischen Abschnitten): auf seinem Modell, wenn
+        es noch im Speicher ist; ist es inzwischen gewichen, reiht er sich neu ein und der Zuteiler sucht ihm einen Ort."""
+        m = self.verbund.modelle.get(a.modell or "")
+        if m is not None and m.im_speicher:
+            a.zustand = Auftragszustand.ZUGETEILT
+            return
+        a.zustand = Auftragszustand.EINGEREIHT
+        a.modell = a.dienst = a.knoten = None
 
     # ── Zeit ─────────────────────────────────────────────────────────────
     def schritt(self, dt: float = 1.0) -> None:
@@ -206,7 +225,7 @@ class Welt:
         # Pausierter Hintergrund: nach der Fairness-Frist wieder zuteilen
         for a in v.auftraege.values():
             if a.zustand == Auftragszustand.PAUSIERT and v.zeit_s - a.eingang_s >= v.regelwerk.hintergrund_spaetestens_s:
-                a.zustand = Auftragszustand.ZUGETEILT
+                self._fortsetzen(a)
         # Zugeteilte starten, wenn Modell bereit und Platz frei
         for a in sorted((x for x in v.auftraege.values() if x.zustand == Auftragszustand.ZUGETEILT), key=lambda x: (-int(x.prioritaet), x.eingang_s)):
             m = v.modelle[a.modell] if a.modell else None

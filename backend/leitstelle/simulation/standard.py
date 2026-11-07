@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from ..kern.modelle import Anwendung, Dienst, Knoten, Modell, Regelwerk, Verbund
 from ..kern.werte import Dienstzustand, Faehigkeit as F, Modellzustand, Prioritaet as P, Zone
-from .welt import Welt
+from .welt import Modellwahl, Welt
 
 
 def standard_verbund(regelwerk: Regelwerk | None = None) -> Verbund:
@@ -57,25 +57,32 @@ def standard_verbund(regelwerk: Regelwerk | None = None) -> Verbund:
     heim_fern = {Zone.HEIM, Zone.FERN}
     alle = {Zone.HEIM, Zone.FERN, Zone.EXTERN}
     v.anwendungen = {a.kennung: a for a in [
-        Anwendung(kennung="zusage", name="Zusage", prioritaet=P.HOCH, faehigkeiten={F.TEXT, F.BILD_BESCHREIBEN}, zonen=heim_fern,
-                  ketten={F.TEXT: ["qwen-next-80b", "qwen-4b"], F.BILD_BESCHREIBEN: ["glm-4.6v", "gemma-4-26b"]}),
-        Anwendung(kennung="tubevault", name="TubeVault", prioritaet=P.HINTERGRUND, faehigkeiten={F.HOEREN, F.STIMME, F.TEXT}, zonen=heim,
-                  ketten={F.HOEREN: ["whisper-gross", "whisper-mittel"], F.STIMME: ["xtts"], F.TEXT: ["qwen-next-80b"]}),
-        Anwendung(kennung="fundus", name="Fundus", prioritaet=P.NORMAL, faehigkeiten={F.TEXT, F.EINBETTUNG}, zonen=alle, extern_erlaubt=True,
-                  ketten={F.TEXT: ["qwen-next-80b", "qwen-35b-extern"], F.EINBETTUNG: ["bge-m3"]}),
-        Anwendung(kennung="medienpool", name="Medienpool", prioritaet=P.NORMAL, faehigkeiten={F.UEBERSETZEN}, zonen=heim,
-                  ketten={F.UEBERSETZEN: ["qwen-next-80b", "qwen-4b"]}),
-        Anwendung(kennung="kiste", name="Kiste", prioritaet=P.NORMAL, faehigkeiten={F.BILD_BESCHREIBEN, F.TEXT}, zonen=heim,
-                  ketten={F.BILD_BESCHREIBEN: ["glm-4.6v", "gemma-4-26b"], F.TEXT: ["qwen-next-80b"]}),
-        Anwendung(kennung="codehilfe", name="Codehilfe", prioritaet=P.HOCH, faehigkeiten={F.TEXT}, zonen=alle, extern_erlaubt=True,
-                  ketten={F.TEXT: ["qwen-coder-next", "qwen-next-80b", "qwen-35b-extern"]}),
-        Anwendung(kennung="rufzeichen", name="Rufzeichen", prioritaet=P.DRINGEND, faehigkeiten={F.TEXT, F.HOEREN, F.STIMME}, zonen=heim,
-                  ketten={F.TEXT: ["qwen-next-80b", "qwen-4b"], F.HOEREN: ["whisper-mittel", "whisper-gross"], F.STIMME: ["xtts"]}),
-        Anwendung(kennung="bildschmiede", name="Bildschmiede", prioritaet=P.HINTERGRUND, faehigkeiten={F.BILD_BESCHREIBEN, F.UEBERSETZEN}, zonen=heim,
-                  ketten={F.BILD_BESCHREIBEN: ["gemma-4-26b", "glm-4.6v"], F.UEBERSETZEN: ["qwen-4b", "qwen-next-80b"]}),
+        Anwendung(kennung="zusage", name="Zusage", prioritaet=P.HOCH, faehigkeiten={F.TEXT, F.BILD_BESCHREIBEN}, zonen=heim_fern),
+        Anwendung(kennung="tubevault", name="TubeVault", prioritaet=P.HINTERGRUND, faehigkeiten={F.HOEREN, F.STIMME, F.TEXT}, zonen=heim),
+        Anwendung(kennung="fundus", name="Fundus", prioritaet=P.NORMAL, faehigkeiten={F.TEXT, F.EINBETTUNG}, zonen=alle, extern_erlaubt=True),
+        Anwendung(kennung="medienpool", name="Medienpool", prioritaet=P.NORMAL, faehigkeiten={F.UEBERSETZEN}, zonen=heim),
+        Anwendung(kennung="kiste", name="Kiste", prioritaet=P.NORMAL, faehigkeiten={F.BILD_BESCHREIBEN, F.TEXT}, zonen=heim),
+        Anwendung(kennung="codehilfe", name="Codehilfe", prioritaet=P.HOCH, faehigkeiten={F.TEXT}, zonen=alle, extern_erlaubt=True),
+        Anwendung(kennung="rufzeichen", name="Rufzeichen", prioritaet=P.DRINGEND, faehigkeiten={F.TEXT, F.HOEREN, F.STIMME}, zonen=heim),
+        Anwendung(kennung="bildschmiede", name="Bildschmiede", prioritaet=P.HINTERGRUND, faehigkeiten={F.BILD_BESCHREIBEN, F.UEBERSETZEN}, zonen=heim),
     ]}
     return v
 
 
+#: Die Modellwahl der Anwendungen: je Fähigkeit ihr Modell, dann ihre Ausweichliste, in ihrer Reihenfolge. Sie gehört
+#: den Anwendungen (Nutzer 07.11.2026: nur die Apps entscheiden, welches Modell); die Leitstelle kennt sie nur aus den
+#: Aufträgen (`model` und `alternativen`).
+STANDARD_MODELLWAHL: dict[str, Modellwahl] = {
+    "zusage": {F.TEXT: ["qwen-next-80b", "qwen-4b"], F.BILD_BESCHREIBEN: ["glm-4.6v", "gemma-4-26b"]},
+    "tubevault": {F.HOEREN: ["whisper-gross", "whisper-mittel"], F.STIMME: ["xtts"], F.TEXT: ["qwen-next-80b"]},
+    "fundus": {F.TEXT: ["qwen-next-80b", "qwen-35b-extern"], F.EINBETTUNG: ["bge-m3"]},
+    "medienpool": {F.UEBERSETZEN: ["qwen-next-80b", "qwen-4b"]},
+    "kiste": {F.BILD_BESCHREIBEN: ["glm-4.6v", "gemma-4-26b"], F.TEXT: ["qwen-next-80b"]},
+    "codehilfe": {F.TEXT: ["qwen-coder-next", "qwen-next-80b", "qwen-35b-extern"]},
+    "rufzeichen": {F.TEXT: ["qwen-next-80b", "qwen-4b"], F.HOEREN: ["whisper-mittel", "whisper-gross"], F.STIMME: ["xtts"]},
+    "bildschmiede": {F.BILD_BESCHREIBEN: ["gemma-4-26b", "glm-4.6v"], F.UEBERSETZEN: ["qwen-4b", "qwen-next-80b"]},
+}
+
+
 def standard_welt(regelwerk: Regelwerk | None = None, graphen=None) -> Welt:
-    return Welt.mit(standard_verbund(regelwerk), graphen)
+    return Welt.mit(standard_verbund(regelwerk), graphen, {app: {f: list(liste) for f, liste in wahl.items()} for app, wahl in STANDARD_MODELLWAHL.items()})

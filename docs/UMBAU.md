@@ -9,7 +9,7 @@ ein Gewinn. Die Anweisung Schritt für Schritt mit Abnahme steht in [ANBINDUNG.m
 | Stufe | Name | Was die Anwendung tut | Was sie gewinnt | Aufwand |
 |---|---|---|---|---|
 | 1 | Fassade | Adresse des Modell-Läufers auf die Leitstelle umstellen (zum Beispiel `http://leitstelle:8530/v1`), Schlüssel als Bearer | zentrale Warteschlange, Speicherverwaltung, Aliasse, Verlauf, Kosten; keine Codeänderung | Minuten |
-| 2 | Anmeldung | `anwendung.anmelden` mit Name, Fähigkeiten, gewünschter Priorität; Herzschlag | eigene Rechte, Kette, Kontingent, sichtbar als Anwendung | eine Stunde mit der Bibliothek |
+| 2 | Anmeldung | `anwendung.anmelden` mit Name, Fähigkeiten, gewünschter Priorität; Herzschlag | eigene Rechte, Kontingent, sichtbar als Anwendung | eine Stunde mit der Bibliothek |
 | 3 | Signalkanal | WebSocket offen halten, auf `signal.*` reagieren: bei Speicher knapp Stapelarbeit zurückhalten, bei pausiert warten, bei gesperrt sauber melden, bei Modell bereit weitermachen | Anwendung verhält sich kooperativ statt blind in Fehler zu laufen | ein Tag |
 | 4 | Eigene Aufträge | Aufträge über das Protokoll statt über die Fassade: Fortschritt, Anhalten, Fortsetzen, Reservierung für Stapel, Teilergebnis bei Abbruch | lange Arbeiten werden steuerbar; die Leitstelle kann sie anhalten statt nur abbrechen | ein bis drei Tage je nach Umfang |
 
@@ -52,7 +52,7 @@ in der Anwendung.
 | Modellnamen in Läufer-Schreibweise fest im Code (`text-embedding-bge-m3`, `qwen/qwen3-next-80b`, `qwen3-next-80b-a3b-instruct-mlx`) | Aliasse je Modell; jede Schreibweise löst auf dasselbe Modell |
 | Basisadresse mit oder ohne `/v1` | beide werden angenommen |
 | `GET /api/v0/models` mit `state` wird von manchen Anwendungen gelesen | nachgebildet, mit echtem Ladezustand aus dem Verbund |
-| Fehlendes `model` ergibt 400 beim Läufer | die Leitstelle setzt das Modell aus der Kette ein |
+| Fehlendes `model` ergibt 400 beim Läufer | bleibt so: auch die Leitstelle antwortet 400 `modell_fehlt` und nennt die Modelle zur Wahl; die Anwendung stellt ihr Modell selbst ein |
 | Gesundheitsprüfung lädt Modell | Gesundheit fragt nur den Zustand, nie eine Vervollständigung |
 | Reasoning-Modelle liefern leeren Inhalt bei kleinem Token-Budget | Wiederholung mit größerem Budget und Entfernen der Denkblöcke zentral |
 | Enge Zeitgrenzen in Anwendungen (30 s, 60 s, 120 s, 180 s) | Anwendungen übernehmen die Zeitgrenzen der Leitstelle; Arbeit ohne Lese-Grenze |

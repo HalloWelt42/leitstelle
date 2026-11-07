@@ -1,4 +1,4 @@
-"""Jeder Zweig jeder Vorlage: Umleiten, Leerlauf räumen, Vorwärmen, Kette, Extern, Umverteilen,
+"""Jeder Zweig jeder Vorlage: Umleiten, Leerlauf räumen, Vorwärmen, Auf Alternative ausweichen, Extern, Umverteilen,
 Verlagern, Doppel, Hintergrund bei Lage. Szenarien S07, S09 bis S27 aus docs/SZENARIEN.md."""
 
 import pytest
@@ -188,37 +188,34 @@ def test_s21_vorwaermen_ohne_platz():
     assert "kein Platz ohne Entladen" in abschluesse(w, "vorwaermen")
 
 
-# ── Kette ausweichen ─────────────────────────────────────────────────────
+# ── Auf Alternative ausweichen ───────────────────────────────────────────
 
-def test_s22_kette_ausweichen_auf_geladene_alternative():
+def test_s22_ausweichen_auf_geladene_alternative_der_app():
+    """Zusage nennt das 80B, dahinter das kleine Modell. Der Zuteiler hält ihre Reihenfolge streng (das kleine ist
+    geladen, wird aber nicht genommen, solange das 80B geht); wartet der Auftrag, weicht die Regel auf das kleine aus."""
     w = welt_mit()
     lade(w, "klein@128")
     w.auftrag("zusage", F.TEXT, laufzeit_s=90)
     w.laufen(6)
     z = w.auftrag("zusage", F.TEXT, laufzeit_s=5)
-    w.laufen(20)
+    assert (z.festes_modell, z.alternativen) == ("qwen-next-80b", ["qwen-4b"])
+    w.laufen(4)                                                 # nächster Takt, noch keine 5 s gewartet
     v = w.verbund
-    # "Geladene zuerst" gilt schon im Zuteiler: der zweite Auftrag nimmt das kleine Modell sofort
+    assert v.auftraege[z.kennung].zustand == Z.EINGEREIHT and v.auftraege[z.kennung].wartet_auf_familie == "qwen-next-80b"
+    w.laufen(20)
+    assert ausgefuehrt(w, A.ALTERNATIVE_AUSWEICHEN)
     assert v.auftraege[z.kennung].modell == "klein@128"
-    # Mit ausgeschalteter Vorliebe für Geladenes greift die Regel Kette ausweichen
-    w2 = welt_mit(geladene_zuerst=False)
-    lade(w2, "klein@128")
-    w2.auftrag("zusage", F.TEXT, laufzeit_s=90)
-    w2.laufen(6)
-    z2 = w2.auftrag("zusage", F.TEXT, laufzeit_s=5)
-    w2.laufen(20)
-    assert ausgefuehrt(w2, A.KETTE_AUSWEICHEN)
-    assert w2.verbund.auftraege[z2.kennung].modell == "klein@128"
 
 
-def test_s23_kette_nicht_bei_festem_modell():
+def test_s23_kein_ausweichen_ohne_alternative_der_app():
     w = welt_mit()
     lade(w, "klein@128")
     w.auftrag("zusage", F.TEXT, laufzeit_s=90)
     w.laufen(6)
     z = w.auftrag("zusage", F.TEXT, laufzeit_s=5, festes_modell="qwen-next-80b")
     w.laufen(20)
-    assert not ausgefuehrt(w, A.KETTE_AUSWEICHEN)
+    assert not ausgefuehrt(w, A.ALTERNATIVE_AUSWEICHEN)
+    assert "keine geladene Alternative" in abschluesse(w, "kette_ausweichen")
     assert w.verbund.auftraege[z.kennung].zustand == Z.EINGEREIHT
 
 

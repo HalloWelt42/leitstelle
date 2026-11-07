@@ -143,7 +143,7 @@ def auftrag_eingereiht_ohne_modell(k: Kontext) -> list[Kontext]:
     for a in k.verbund.wartende_auftraege():
         if a.zustand != Auftragszustand.EINGEREIHT or a.wartet_auf_familie:
             continue
-        fam = k.verbund.erste_familie(a)
+        fam = a.festes_modell
         if not fam:
             continue
         if any(m.familie == fam and m.im_speicher for m in k.verbund.modelle.values()):
@@ -332,7 +332,7 @@ def lage_wechsel(k: Kontext) -> list[Kontext]:
 def anderer_knoten_mit_platz(k: Kontext, reserve_gb: float = 2.0) -> bool:
     a = k.auftrag
     assert a is not None
-    fam = a.wartet_auf_familie or k.verbund.erste_familie(a)
+    fam = a.wartet_auf_familie or a.festes_modell
     if not fam:
         return False
     beste: tuple[float, Modell, str] | None = None
@@ -393,7 +393,7 @@ def gewinn_gegen_aufwand(k: Kontext, faktor: float | None = None) -> bool:
 def leerlaufmodell_vorhanden(k: Kontext) -> bool:
     a = k.auftrag
     assert a is not None and k.knoten_quelle
-    fam = a.wartet_auf_familie or k.verbund.erste_familie(a)
+    fam = a.wartet_auf_familie or a.festes_modell
     m = instanz_der_familie(k.verbund, fam, a.faehigkeit, k.knoten_quelle) if fam else None
     if m is None or m.im_speicher:
         return False
@@ -422,7 +422,7 @@ def leerlaufmodell_vorhanden(k: Kontext) -> bool:
 def platz_ohne_entladen(k: Kontext, reserve_anteil: float = 0.05) -> bool:
     a = k.auftrag
     assert a is not None
-    fam = k.verbund.erste_familie(a)
+    fam = a.festes_modell
     if not fam:
         return False
     for m in k.verbund.modelle.values():
@@ -478,9 +478,9 @@ def weitere_instanz_moeglich(k: Kontext, reserve_gb: float = 1.0) -> bool:
 
 
 def gespraechsmodelle(verbund: Verbund) -> frozenset[str]:
-    """Familien, die eine Anwendung für Text in ihrer Kette hat: sie weichen nie für weitere Einbettungsinstanzen (ein
-    Gespräch soll nicht auf das Neuladen warten, weil die Einbettung schneller sein wollte)."""
-    return frozenset(fam for app in verbund.anwendungen.values() for fam in app.ketten.get(Faehigkeit.TEXT, []))
+    """Familien der Modelle, die Text können: sie weichen nie für weitere Einbettungsinstanzen (ein Gespräch soll nicht
+    auf das Neuladen warten, weil die Einbettung schneller sein wollte)."""
+    return frozenset(m.familie for m in verbund.modelle.values() if Faehigkeit.TEXT in m.faehigkeiten)
 
 
 @baustein("einbettungsinstanzen_moeglich", "pruefung", "Weitere Einbettungsinstanzen möglich?",
@@ -535,15 +535,14 @@ def muss_entladen(k: Kontext) -> bool:
     return bool(k.modelle_entladen)
 
 
-@baustein("kette_hat_alternative", "pruefung", "Kette hat geladene Alternative?", "Ist ein anderes Modell der Kette des Auftrags auf einem erlaubten Knoten geladen und frei?")
-def kette_hat_alternative(k: Kontext) -> bool:
+@baustein("alternative_geladen", "pruefung", "Alternative der Anwendung geladen?",
+          "Ist ein anderes Modell aus der Ausweichliste der Anwendung (in ihrer Reihenfolge) auf einem erlaubten Knoten geladen und frei? "
+          "Andere Modelle kommen nie in Frage: das Modell wählt die Anwendung.")
+def alternative_geladen(k: Kontext) -> bool:
     a = k.auftrag
     assert a is not None
-    if a.festes_modell:
-        return False
-    kette = k.verbund.kette(a)
-    for fam in kette:
-        if fam == a.wartet_auf_familie:
+    for fam in k.verbund.modellwahl(a):
+        if fam == (a.wartet_auf_familie or a.festes_modell):
             continue
         for m in k.verbund.modelle.values():
             if m.familie != fam or a.faehigkeit not in m.faehigkeiten or m.zustand not in (Modellzustand.GELADEN, Modellzustand.RECHNET):
@@ -579,17 +578,17 @@ def wartezeit_ueber_schwelle(k: Kontext, schwelle_s: float | None = None) -> boo
     return k.gewinn_s >= s
 
 
-@baustein("extern_dienst_vorhanden", "pruefung", "Externer Dienst mit dieser Fähigkeit?", "Gibt es einen externen Anbieter, der die Fähigkeit und möglichst die Kette bedient?")
+@baustein("extern_dienst_vorhanden", "pruefung", "Externer Dienst mit dieser Fähigkeit?", "Gibt es einen externen Anbieter, der die Fähigkeit und möglichst ein Modell aus der Wahl der Anwendung bedient?")
 def extern_dienst_vorhanden(k: Kontext) -> bool:
     a = k.auftrag
     assert a is not None
-    kette = k.verbund.kette(a)
+    wahl = k.verbund.modellwahl(a)
     treffer = []
     for m in k.verbund.modelle.values():
         d = k.verbund.dienste[m.dienst]
         if (d.extern and d.nutzbar and a.faehigkeit in m.faehigkeiten and a.faehigkeit in d.faehigkeiten and k.verbund.extern_erlaubt(a, m)
                 and k.verbund.anfrage_frei_in_s(d.kennung, a.bedarf) == 0):
-            rang = kette.index(m.familie) if m.familie in kette else len(kette)
+            rang = wahl.index(m.familie) if m.familie in wahl else len(wahl)
             treffer.append((rang, m, d))
     if not treffer:
         return False

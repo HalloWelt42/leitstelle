@@ -239,7 +239,6 @@ class Anwendung(BaseModel):
     faehigkeiten: set[Faehigkeit]
     zonen: set[Zone] = Field(default_factory=lambda: {Zone.HEIM})
     extern_erlaubt: bool = False
-    ketten: dict[Faehigkeit, list[str]] = Field(default_factory=dict)   # Modellfamilien in Reihenfolge
     gleichzeitig: int = 4
     docker_projekte: list[str] = Field(default_factory=list)   # ihre Container im Docker-Rechner: Compose-Projekte oder Containernamen
 
@@ -251,8 +250,8 @@ class Auftrag(BaseModel):
     prioritaet: Prioritaet
     eingang_s: float
     zustand: Auftragszustand = Auftragszustand.EINGEREIHT
-    festes_modell: str | None = None  # Familie, wenn die Anwendung ein Modell verlangt
-    alternativen: list[str] = Field(default_factory=list)   # Familien, die die Anwendung dazu nennt, in ihrer Reihenfolge: nur, wenn das verlangte nicht geht
+    festes_modell: str | None = None  # Familie, die die Anwendung verlangt; ohne sie lehnt der Zuteiler ab (modell_fehlt)
+    alternativen: list[str] = Field(default_factory=list)   # Familien, die die Anwendung dazu nennt, in ihrer Reihenfolge: ihre Ausweichliste
     modell: str | None = None
     dienst: str | None = None
     knoten: str | None = None
@@ -520,7 +519,7 @@ class Verbund(BaseModel):
         """Wartende Aufträge, die diese Familie brauchen und deshalb ihre Modelle halten; wer auf Ruhe wartet, hält nichts
         (sonst blieben Modelle und weitere Instanzen für Arbeit geladen, die gerade gar nicht rechnen darf)."""
         return [a for a in self.wartende_auftraege()
-                if a.zustand != Auftragszustand.WARTET_RUHE and (a.festes_modell == familie or self.erste_familie(a) == familie)]
+                if a.zustand != Auftragszustand.WARTET_RUHE and a.festes_modell == familie]
 
     # ── Arbeit nur bei Ruhe (Regelwerk, Gruppe "Nur bei Ruhe") ───────────
     def nur_bei_ruhe(self, a: Auftrag) -> bool:
@@ -614,17 +613,12 @@ class Verbund(BaseModel):
             return "Nachlauf nach " + ", ".join(WORT[f.value] for f in r.vorrang_faehigkeiten)
         return None
 
-    def erste_familie(self, auftrag: Auftrag) -> str | None:
-        kette = self.kette(auftrag)
-        return kette[0] if kette else None
-
-    def kette(self, auftrag: Auftrag) -> list[str]:
-        """Welche Modelle in Frage kommen, immer die Wahl der Anwendung: das verlangte Modell mit den Alternativen, die sie
-        dazu nennt, sonst ihre Kette in der Leitstelle. Die Leitstelle wählt daraus nur Quelle (Rechner, Instanz) und
-        Zeitpunkt, nie ein Modell, das die Anwendung nicht genannt hat."""
-        if auftrag.festes_modell:
-            return [auftrag.festes_modell, *auftrag.alternativen]
-        return list(self.anwendungen[auftrag.anwendung].ketten.get(auftrag.faehigkeit, []))
+    @staticmethod
+    def modellwahl(auftrag: Auftrag) -> list[str]:
+        """Welche Modelle in Frage kommen, immer und nur die Wahl der Anwendung: das verlangte Modell, dann ihre
+        Ausweichliste in ihrer Reihenfolge. Die Leitstelle wählt daraus nur den Ort (Rechner, Instanz, Anbieter) und den
+        Zeitpunkt, nie ein Modell; nennt die Anwendung keins, ist die Wahl leer (der Zuteiler lehnt mit `modell_fehlt` ab)."""
+        return [auftrag.festes_modell, *auftrag.alternativen] if auftrag.festes_modell else []
 
     @staticmethod
     def verlangt(auftrag: Auftrag, familie: str) -> bool:

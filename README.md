@@ -54,7 +54,7 @@ KI-Dienste, Stellwerk · App-Steuerung. Bei der Leitstelle stehen Name und Kurzz
   Steckbrief (Größen, Schritte, Anzahl) und prüft jede Anfrage damit, bevor sie den Dienst erreicht; Apps wählen das
   Bildmodell mit `model` (PROTOKOLL 6.1).
 - **Speicherplanung und Selbststeuerung:** lädt nur, was passt, entlädt nur bei Bedarf und nie, was rechnet;
-  leitet um, räumt Leerlauf, weicht in der Kette aus, mit Begründung, Gewinnschwelle und Schutz vor Hin und Her.
+  leitet um, räumt Leerlauf, weicht auf Alternativen der Anwendung aus, mit Begründung, Gewinnschwelle und Schutz vor Hin und Her.
   Regeln sind Graphen aus Bausteinen.
 - **Hauptregler** für den ganzen Verbund: Normal, Auslaufen, Halt, Hintergrund anhalten.
 - **Knoten-Agenten** je Rechner: der [Maschinenraum](https://github.com/HalloWelt42/maschinenraum) (eigenes

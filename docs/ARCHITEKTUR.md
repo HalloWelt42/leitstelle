@@ -118,8 +118,8 @@ Schlüssel sind UUIDs; nach außen zeigen wir Wörter, nie Schlüssel.
 | Dienst | ein Anbieter von Fähigkeiten auf einem Knoten oder extern | Kennung, Art (Adapter), Adresse, Fähigkeiten, Modelle, Zustand (bereit, aus, startet, pausiert, nicht erreichbar, Ausfall), Grenzen je Minute (Anfragen, Token hinein und heraus), Besonderheiten, Kosten |
 | Modell | ein ladbares Modell eines Dienstes | Kennung, Name, Aliasse (Namen beim Anbieter: Schlüssel und Instanz-Kennung), Fähigkeit, Größe, Kontext, Parameterzahl, Zustand (frei, lädt, geladen, rechnet, extern), geschützt |
 | Fähigkeit | was ein Auftrag braucht | Werteliste: text, einbettung, uebersetzen, hoeren, bild_beschreiben, bild_erzeugen, bild_bearbeiten, bild_freistellen, musik, stimme, stimme_klonen, werkzeug; erweiterbar über die Registry |
-| Anwendung | ein angemeldeter Verbraucher | Kennung, Name, Schlüssel (verschlüsselt), erlaubte Fähigkeiten, Zonen, Kostengrenze, Vorgabe-Priorität, Kette je Fähigkeit, Herkunft (Adressen), Umbau-Stufe, Signalkanal ja/nein |
-| Auftrag | eine Arbeit einer Anwendung | Kennung, Anwendung, Fähigkeit, Eingabe, Modellwunsch oder Kette, Priorität, Zustand, Zuteilung (Dienst, Modell, Knoten), Fortschritt, Schritte, Begründung, Messwerte (Dauer, erstes Stück, Token), Kosten |
+| Anwendung | ein angemeldeter Verbraucher | Kennung, Name, Schlüssel (verschlüsselt), erlaubte Fähigkeiten, Zonen, Kostengrenze, Vorgabe-Priorität, Herkunft (Adressen), Umbau-Stufe, Signalkanal ja/nein |
+| Auftrag | eine Arbeit einer Anwendung | Kennung, Anwendung, Fähigkeit, Eingabe, Modellwahl der Anwendung (Modell und Ausweichliste, ihre Reihenfolge), Priorität, Zustand, Zuteilung (Dienst, Modell, Knoten), Fortschritt, Schritte, Begründung, Messwerte (Dauer, erstes Stück, Token), Kosten |
 | Regelwerk | alles Einstellbare an einem Ort | Prioritäten, Speicher je Knoten, Schutzgrenze, Leerlauf, Zeitgrenzen, Zeitfenster, Extern |
 | Lage | Gesamtzustand des Verbunds | ruhig, angespannt, engpass; mit Begründung |
 | Nachricht | Umschlag des Protokolls | siehe PROTOKOLL.md |
@@ -153,8 +153,11 @@ Reihenfolge der Prüfung:
 
 1. Darf die Anwendung diese Fähigkeit und diese Zone? Sonst ablehnen (Server erzwingt, was die
    Oberfläche versteckt).
-2. Kette der Anwendung für die Fähigkeit, sonst Kette der Leitstelle. Innerhalb der Kette gilt:
-   ein schon geladenes Modell geht vor einem nicht geladenen; ein freies vor einem rechnenden.
+2. Modellwahl der Anwendung: das Modell, das sie nennt, dann ihre Ausweichliste in ihrer Reihenfolge (Arbeitslogik
+   07.11.2026: nur die Apps entscheiden, welches Modell). Nennt sie keins, ablehnen mit `modell_fehlt`; die Leitstelle
+   wählt nie ein Modell. Es gilt das erste Modell der Liste, das irgendwo geht; die Leitstelle wählt dafür nur den Ort
+   (Rechner, Instanz, Anbieter), ein geladenes und freies vor einem anderen. Eine Alternative nie, weil sie schon
+   geladen ist; das Ausweichen eines wartenden Auftrags ist die Regel "Auf Alternative ausweichen" (5.3).
 3. Passt das Modell in den Speicher des Knotens (Speicherplaner)? Wenn nein: `wartet_speicher`
    mit Vorhersage, wann es passt (Rest des blockierenden Auftrags).
 4. Plätze: je Modell höchstens die eingestellte Zahl gleichzeitiger Aufträge (Vorgabe 1 für große
@@ -229,7 +232,7 @@ Protokoll und lässt sich rückgängig machen oder als Regel abschalten ("so nic
 | Ein Auftrag wartet auf Speicher am großen Rechner, ein anderer Rechner hat Platz | **Umleiten**: Modell dort laden, Auftrag dorthin zuteilen; fehlt der Dienst, startet ihn der Agent (installiert, aber nicht laufend) | Anwendung darf den Knoten (Zone), Modell passt, Gewinnschwelle erfüllt |
 | Ein Modell belegt Speicher ohne Auftrag, ein wartender Auftrag braucht den Platz | **Leerlauf räumen**: entladen, dann laden | nur bei Bedarf, nie geschützte oder rechnende Modelle, Bedarfsfrist (Vorgabe 60 s ohne Auftrag) erreicht, Mindestverweildauer vorbei; Gewinn ist die Wartezeit, die der Auftrag sonst hätte (bis ein rechnendes Modell fertig wäre, sonst unbestimmt lange) |
 | In der Warteschlange steht ein Auftrag für ein nicht geladenes Modell, irgendwo ist Platz | **Vorwärmen**: Modell laden, bevor der Auftrag an der Reihe ist | Platz ohne Entladen, oder Platz nach einem absehbaren Ende (Rest eines laufenden Auftrags) |
-| Der große Rechner ist ausgelastet, der kleine hat ein kleineres Modell derselben Kette frei | **Ausweichen in der Kette**: nächstes passendes Modell der Kette auf dem freien Rechner | Kette erlaubt es, Anwendung hat kein festes Modell verlangt |
+| Ein Auftrag wartet, ein anderes Modell aus der Ausweichliste seiner Anwendung ist geladen und frei | **Auf Alternative ausweichen**: der Auftrag rechnet mit dieser Alternative, in der Reihenfolge der Anwendung | nur Modelle, die die Anwendung genannt hat; Gewinn (die Wartezeit) über dem Aufwand |
 | Erwartete Wartezeit über der Schwelle, Anwendung darf extern | **Extern ausweichen** | Tagesgrenze, Zone extern erlaubt, Schwelle (Vorgabe 2 min) |
 | Dienst oder Knoten fällt aus | **Umverteilen**: laufende Aufträge der Anwendung mit Teilergebnis melden, wartende auf andere Knoten | Fähigkeit anderswo vorhanden |
 | Zeitfenster beginnt (Nacht) | **Verlagern** von Hintergrundarbeit auf den dafür freigegebenen Rechner | Regel Zeitfenster |
@@ -248,7 +251,7 @@ Schleifenschutz (alles im Kern geprüft, siehe [SZENARIEN.md](SZENARIEN.md)):
 
 1. **Hauptregler vor Regelwerk**: bei Auslaufen und Halt wird nichts umgeschichtet.
 2. **Gewinnschwelle**: Maßnahme nur, wenn der geschätzte Gewinn den gemessenen Aufwand um den Faktor
-   (Vorgabe 2) übersteigt; in der Kette (Aufwand null) Faktor 1.
+   (Vorgabe 2) übersteigt; beim Ausweichen auf eine Alternative (Aufwand null) Faktor 1.
 3. **Mindestverweildauer** je Modell (Vorgabe 10 min): frisch Geladenes weicht nicht.
 4. **Bedarfsfrist** (Vorgabe 60 s): ein Modell weicht einem wartenden Auftrag erst, wenn es so lange
    keinen Auftrag hatte. Ohne Bedarf wird nie entladen; die Leerlaufgrenze (Vorgabe 30 min) sagt nur, ab
@@ -279,7 +282,7 @@ und ein Abschluss. Die Leitstelle liefert die Szenarien aus 5.6 als Vorlagen mit
 - **Bausteine** mit festen Ein- und Ausgängen: Auslöser (Auftrag wartet auf Speicher, Modell im Leerlauf,
   Lage wechselt, Zeitfenster beginnt, Knoten fällt aus, Warteschlange enthält, Wartezeit überschreitet),
   Prüfungen (anderer Knoten mit Platz, Anwendung darf Zone, Gewinn gegen Kosten, Modell geschützt,
-  Mindestverweildauer vorbei, Dienst installiert, Tagesgrenze reicht, Kette hat Ausweich), Aktionen (Dienst
+  Mindestverweildauer vorbei, Dienst installiert, Tagesgrenze reicht, Alternative der Anwendung geladen), Aktionen (Dienst
   starten, Modell laden, Modell entladen, Auftrag umleiten, Priorität ändern, Signal senden, Melden, Extern
   rechnen, Aufträge anhalten), Fluss (Ja oder Nein, Alle erfüllt, Eine erfüllt, Warten bis, Ende).
   Neue Bausteine kommen über eine Registry (Python-Klasse mit Parametern, Ein- und Ausgängen, Erklärung,

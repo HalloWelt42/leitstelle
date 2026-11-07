@@ -152,7 +152,9 @@ async def test_e04_ablehnungen_mit_status_und_grund(tmp_path):
         r = await anw.post("/chat/completions", json={"model": "gibt-es-nicht", "messages": []})
         assert r.status_code == 404 and r.json()["error"]["code"] == "kein_modell"
         r = await anw.post("/chat/completions", json={"messages": []})
-        assert r.status_code == 404 and "keine Kette" in r.json()["error"]["message"]
+        fehler = r.json()["error"]
+        assert r.status_code == 400 and fehler["code"] == "modell_fehlt"                # S81
+
         ohne = httpx.AsyncClient(base_url=str(anw.base_url))
         r = await ohne.post("/chat/completions", json={"model": "qwen/qwen3-next-80b", "messages": []})
         assert r.status_code == 401 and r.json()["error"]["code"] == "unbekannter_schluessel"
@@ -233,7 +235,7 @@ async def test_e08_speichermangel_beim_laufer_wird_mit_pausen_wiederholt_dann_ab
 
 
 async def test_e09_selbststeuerung_raeumt_leerlauf_fuer_wartenden_auftrag(tmp_path):
-    """Echte Kette: Budget des Rechners reicht nicht für Bildmodell neben dem 80B, das 80B ist ungenutzt.
+    """Echter Ablauf: Budget des Rechners reicht nicht für Bildmodell neben dem 80B, das 80B ist ungenutzt.
     Die Regel Leerlauf räumen entlädt es über den Läufer, lädt GLM, der Auftrag läuft."""
     r = Regelwerk(bedarfsfrist_s=0, umschichter_takt_s=0.5)
     async with aufbau(tmp_path, speicher_gb=64.0, regelwerk=r) as (c, anw, lage, _):
@@ -356,7 +358,7 @@ async def test_e15_kurze_auftraege_stehen_mit_endzustand_im_verlauf(tmp_path, ca
         kurz = await asyncio.gather(*(anw.get("/dienste/qwen3-next-80b/v1/models") for _ in range(60)))
         assert all(r.status_code == 200 for r in kurz)
         abgelehnt = await asyncio.gather(*(anw.post("/chat/completions", json={"messages": []}) for _ in range(20)))
-        assert all(r.status_code == 404 for r in abgelehnt)
+        assert all(r.status_code == 400 and r.json()["error"]["code"] == "modell_fehlt" for r in abgelehnt)
         await _warte_bis(lambda: _wahr(not app.state.betrieb.verbund.auftraege))
         await app.state.betrieb.schreibfolge.leeren()
         eintraege = (await c.get("/api/auftraege", params={"anzahl": 200})).json()["eintraege"]

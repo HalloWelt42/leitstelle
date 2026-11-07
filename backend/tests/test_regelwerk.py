@@ -90,7 +90,6 @@ async def test_v06_grenzen_und_unbekanntes(tmp_path):
         for werte, grund, satz in [({"laeufer_frist_s": 5}, "eingabe", "Frist geht von 30 s bis 24 h, nicht 5 s."),
                                    ({"gibt_es_nicht": 1}, "unbekannt", "gibt_es_nicht"),
                                    ({"max_massnahmen_je_fenster": 2.5}, "eingabe", "ganze Zahl"),
-                                   ({"geladene_zuerst": 1}, "eingabe", "an oder aus"),
                                    ({"automatik": "immer"}, "eingabe", "Selbst handeln"),
                                    ({"last_anhalten_ab_prozent": 40}, "eingabe", "liegt unter Fremdlast drosseln ab"),
                                    ({"docker_anhalten_ab_prozent": 60}, "eingabe", "liegt unter Docker-Last drosseln ab")]:

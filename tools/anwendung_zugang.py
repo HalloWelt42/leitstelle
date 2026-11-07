@@ -43,7 +43,7 @@ def main() -> int:
         fehlen = set(erklaert) - set(vorhanden["faehigkeiten"])
         archiv_neu = a.bildarchiv and not vorhanden.get("bildarchiv")
         if fehlen or archiv_neu:
-            daten = {k: vorhanden[k] for k in ("name", "prioritaet", "zonen", "extern_erlaubt", "gleichzeitig", "ketten", "docker_projekte")}
+            daten = {k: vorhanden[k] for k in ("name", "prioritaet", "zonen", "extern_erlaubt", "gleichzeitig", "docker_projekte")}
             anfrage(a.adresse, "PUT", f"/api/anwendungen/{vorhanden['kennung']}",
                     {**daten, "faehigkeiten": sorted(set(vorhanden["faehigkeiten"]) | fehlen), **({"bildarchiv": True} if archiv_neu else {})})
         schluessel = anfrage(a.adresse, "POST", f"/api/anwendungen/{vorhanden['kennung']}/schluessel")["schluessel"]

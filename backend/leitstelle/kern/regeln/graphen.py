@@ -69,12 +69,13 @@ VORWAERMEN = _graph("vorwaermen", "Vorwärmen nach Warteschlange", Massnahmenart
     E(von="k1", nach="k2"), E(von="k2", nach="e_ok"),
 ])
 
-KETTE = _graph("kette_ausweichen", "Kette ausweichen", Massnahmenart.KETTE_AUSWEICHEN, [
+# Kennung bleibt "kette_ausweichen": sie steht in gespeicherten Maßnahmen
+ALTERNATIVE = _graph("kette_ausweichen", "Auf Alternative ausweichen", Massnahmenart.ALTERNATIVE_AUSWEICHEN, [
     K(id="a", art="ausloeser", baustein="auftrag_wartet", parameter={"mindestens_s": 5.0}),
-    K(id="p1", art="pruefung", baustein="kette_hat_alternative"),
+    K(id="p1", art="pruefung", baustein="alternative_geladen"),
     K(id="p2", art="pruefung", baustein="gewinn_gegen_aufwand", parameter={"faktor": 1.0}),
     K(id="k1", art="aktion", baustein="auftrag_umleiten"),
-    K(id="k2", art="aktion", baustein="melden", parameter={"text": "In der Kette ausgewichen auf {alternative}: gespart etwa {gewinn}"}),
+    K(id="k2", art="aktion", baustein="melden", parameter={"text": "Auf die Alternative der Anwendung ausgewichen, {alternative}: gespart etwa {gewinn}"}),
     K(id="e_ok", art="ende", titel="ausgewichen"),
     K(id="e_nein", art="ende", titel="keine geladene Alternative"),
     K(id="e_lohnt", art="ende", titel="warten lohnt mehr"),
@@ -248,7 +249,7 @@ LEERLAUF_ENTLADEN = _graph("leerlauf_entladen", "Entladen nach Leerlauf", Massna
     E(von="a", nach="k1"), E(von="k1", nach="k2"), E(von="k2", nach="e_ok"),
 ])
 
-VORLAGEN: list[Regelgraph] = [UMLEITEN, LEERLAUF, VORWAERMEN, KETTE, EXTERN, UMVERTEILEN, VERLAGERN, DOPPEL, HINTERGRUND, HINTERGRUND_RECHNERLAST,
+VORLAGEN: list[Regelgraph] = [UMLEITEN, LEERLAUF, VORWAERMEN, ALTERNATIVE, EXTERN, UMVERTEILEN, VERLAGERN, DOPPEL, HINTERGRUND, HINTERGRUND_RECHNERLAST,
                               LAEUFER_OHNE_AUFTRAG, INSTANZ, EINBETTUNG_VERSTAERKEN, EINBETTUNG_ZURUECKBAUEN, LEERLAUF_ENTLADEN]
 
 

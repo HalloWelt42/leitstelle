@@ -143,7 +143,7 @@ async def test_bilder_und_dienste_ueber_die_fassade(tmp_path):
     from test_knoten_agent import _freier_port, _modell, _warte_bis, agent_laeuft
     port = _freier_port()
     async with aufbau(tmp_path) as (c, url, schluessel):
-        bild = {"Authorization": f"Bearer {(await c.post('/api/anwendungen', json={'name': 'Bilder', 'faehigkeiten': ['bild_erzeugen'], 'ketten': {'bild_erzeugen': ['bildschmiede']}})).json()['schluessel']}"}
+        bild = {"Authorization": f"Bearer {(await c.post('/api/anwendungen', json={'name': 'Bilder', 'faehigkeiten': ['bild_erzeugen']})).json()['schluessel']}"}
         text = {"Authorization": f"Bearer {(await c.post('/api/anwendungen', json={'name': 'Nur Text', 'faehigkeiten': ['text']})).json()['schluessel']}"}
         async with agent_laeuft(_ordner(tmp_path, url, schluessel, port)):
             async def da():
@@ -158,7 +158,7 @@ async def test_bilder_und_dienste_ueber_die_fassade(tmp_path):
                 assert (await anw.get("/v1/dienste", headers={"Authorization": "Bearer falsch"})).status_code == 401
 
                 # Strom: Hinweise, solange die Bildschmiede startet, dann genau eine Antwort und [DONE]
-                anfrage = {"prompt": "Ein Leuchtturm im Nebel", "size": "1344x768", "n": 2, "seed": 42}
+                anfrage = {"prompt": "Ein Leuchtturm im Nebel", "size": "1344x768", "n": 2, "seed": 42, "model": "bildschmiede"}
                 r = await anw.post("/v1/images/generations", headers=bild, json=anfrage | {"stream": True})
                 assert r.status_code == 200 and r.headers["content-type"].startswith("text/event-stream")
                 hinweise, daten = _sse(r.text)
@@ -185,7 +185,7 @@ async def test_bilder_und_dienste_ueber_die_fassade(tmp_path):
                 r = await anw.post("/v1/images/generations", headers=text, json=anfrage)
                 assert r.status_code == 403 and r.json()["error"]["code"] == "faehigkeit_nicht_erlaubt"
                 for falsch in ({"prompt": "x", "size": "1000x1000"}, {"prompt": "x", "response_format": "url"}, {"prompt": "x", "n": 9}):
-                    r = await anw.post("/v1/images/generations", headers=bild, json=falsch)
+                    r = await anw.post("/v1/images/generations", headers=bild, json=falsch | {"model": "bildschmiede"})
                     assert r.status_code == 400 and r.json()["error"]["code"] == "eingabe", r.text
                 r = await anw.post("/v1/images/generations", headers=bild, json={"prompt": "x", "model": "gibtsnicht"})
                 assert r.json()["error"]["code"] == "kein_modell"

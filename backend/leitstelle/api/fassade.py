@@ -30,7 +30,7 @@ from ..kern.werte import GIB, WORT, Auftragszustand, Dienstzustand, Eignung, Fae
 from ..ports.ablage.eintraege import Adapterart
 from ..ports.ablage.eintraege import AnwendungEintrag
 from ..ports.dienste import Durchleitung
-from ..protokoll.fassade import Bereitschaft, BildAnfrage, BildAntwort, BildDaten, BildZusatz, DienstListe, DienstSicht
+from ..protokoll.fassade import Bereitschaft, BildAnfrage, BildAntwort, BildDaten, BildZusatz, DienstListe, DienstSicht, Modellwahl
 from .gemeinsam import ablehnung_antwort, betrieb, fehler_antwort, konfig, vermittlung
 
 router = APIRouter()
@@ -142,13 +142,19 @@ async def _vermitteln(request: Request, pfad: str, faehigkeit: Faehigkeit) -> Re
         koerper = await request.json()
     except ValueError:
         return JSONResponse({"error": {"message": "Der Körper ist kein JSON.", "type": "leitstelle", "code": "eingabe"}}, status_code=400)
+    try:
+        wahl = Modellwahl.model_validate(koerper)
+    except ValidationError as fehler:
+        return _eingabefehler(_eingabe_text(fehler))
+    koerper.pop("alternativen", None)              # gehört der Leitstelle, nicht dem Dienst
     if faehigkeit == Faehigkeit.TEXT and _bild_im_chat(koerper):
         faehigkeit = Faehigkeit.BILD_BESCHREIBEN
     strom = bool(koerper.get("stream")) and faehigkeit != Faehigkeit.EINBETTUNG
     titel = _titel(request, faehigkeit)
     verm = vermittlung(request)
     try:
-        v = verm.annehmen(app.kennung, faehigkeit, koerper.get("model"), _prioritaet(request, app), titel, _arbeit(request), _extern(request), koerper=koerper)
+        v = verm.annehmen(app.kennung, faehigkeit, wahl.model, _prioritaet(request, app), titel, _arbeit(request), _extern(request), koerper=koerper,
+                          alternativen=wahl.alternativen)
     except Ablehnung as a:
         return ablehnung_antwort(request, a)
 

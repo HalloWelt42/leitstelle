@@ -75,8 +75,8 @@ curl -sN http://leitstelle:8530/v1/images/generations -H "Authorization: Bearer 
 
 1. **Anschluss hinzufügen** (Dienste): Adresse des Modell-Läufers, zum Beispiel `192.168.1.20:1234`, Erkennen.
    Bei neuem Rechner Name und Speicher in GB angeben. Die Leitstelle liest Modelle, Größen und Ladezustand selbst.
-2. **Anwendung anlegen** (Anwendungen): Name, Priorität, Fähigkeiten, Zonen, Ketten. Der Schlüssel erscheint
-   einmal; später unter dem Auge (steht im Prüfprotokoll).
+2. **Anwendung anlegen** (Anwendungen): Name, Priorität, Fähigkeiten, Zonen. Der Schlüssel erscheint
+   einmal; später unter dem Auge (steht im Prüfprotokoll). Das Modell nennt die App in jeder Anfrage selbst.
 3. In der Anwendung Basisadresse und Schlüssel eintragen (siehe [ANBINDUNG.md](ANBINDUNG.md) Abschnitt 2).
 4. Hauptregler oben: Normal, Auslaufen, Halt, Hintergrund.
 5. **Externer Anbieter** (Dienste): Grenzen je Minute (Anfragen, Token hinein und heraus) beim Anschließen oder

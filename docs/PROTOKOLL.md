@@ -82,7 +82,7 @@ gilt dann nicht als ausgefallen, sondern als schlafend, bis sich sein Agent wied
 | Art | Richtung | Nutzlast |
 |---|---|---|
 | `anwendung.anmelden` | Anwendung an Leitstelle | `name`, `version`, `bibliothek` (Name und Fassung), `faehigkeiten` (gewünscht), `signale` (true, wenn die Anwendung Signale verarbeitet), `herkunft` (Adresse), optional `x-*` |
-| `anwendung.angemeldet` | Leitstelle an Anwendung | `kennung`, `rechte` (erlaubte Fähigkeiten, Zonen, Priorität, Kostengrenze), `ketten` je Fähigkeit, `auftraege` (Stand aller offenen Aufträge dieser Anwendung), `lage`, `herzschlag_s` |
+| `anwendung.angemeldet` | Leitstelle an Anwendung | `kennung`, `rechte` (erlaubte Fähigkeiten, Zonen, Priorität, Kostengrenze), `auftraege` (Stand aller offenen Aufträge dieser Anwendung), `lage`, `herzschlag_s` |
 | `anwendung.abgelehnt` | Leitstelle an Anwendung | `grund` (unbekannter_schluessel, gesperrt, herkunft_nicht_erlaubt) |
 | `anwendung.abmelden` | Anwendung an Leitstelle | leer; laufende Aufträge laufen weiter |
 | `herzschlag` | beide | optional `last` (frei formulierbar, zum Beispiel offene Aufträge) |
@@ -151,9 +151,9 @@ führt einen Spiegel, den ein Test deckungsgleich hält.
 
 | Art | Richtung | Nutzlast |
 |---|---|---|
-| `auftrag.anlegen` | Anwendung an Leitstelle | `faehigkeit`, `titel` (für Menschen), `eingabe` (je Fähigkeit, siehe 5), `modell` oder `kette` (optional, sonst Kette der Anwendung), `prioritaet` (optional), `streaming` (true/false), `anhaltbar` (true, wenn die Anwendung mit Pausen leben kann), `frist` (optional, bis wann sinnvoll), `x-*` |
+| `auftrag.anlegen` | Anwendung an Leitstelle | `faehigkeit`, `titel` (für Menschen), `eingabe` (je Fähigkeit, siehe 5), `modell` (Pflicht, die Wahl der Anwendung), `alternativen` (optional, ihre Ausweichliste in ihrer Reihenfolge), `prioritaet` (optional), `streaming` (true/false), `anhaltbar` (true, wenn die Anwendung mit Pausen leben kann), `frist` (optional, bis wann sinnvoll), `x-*` |
 | `auftrag.angenommen` | Leitstelle an Anwendung | `auftrag` (Kennung), `platz` in der Warteschlange, `zustand` (eingereiht, zugeteilt, wartet_speicher, wartet_ruhe), `voraussichtlich_start_s`, `zuteilung` (Dienst, Modell, Knoten, Zone) wenn bekannt, `begruendung` |
-| `auftrag.abgelehnt` | Leitstelle an Anwendung | `grund` (faehigkeit_nicht_erlaubt, zone_nicht_erlaubt, kostengrenze, kontingent, gesperrt, kein_dienst), `begruendung` |
+| `auftrag.abgelehnt` | Leitstelle an Anwendung | `grund` (faehigkeit_nicht_erlaubt, modell_fehlt, zone_nicht_erlaubt, kostengrenze, kontingent, gesperrt, kein_dienst), `begruendung` |
 | `auftrag.laeuft` | Leitstelle an Anwendung | `auftrag`, `zuteilung`, `gestartet` |
 | `auftrag.fortschritt` | Leitstelle an Anwendung | `auftrag`, `prozent` (0 bis 100 oder null), `schritt` (Wort), `abschnitt`, `abschnitte`, `rest_s` (Schätzung), `token`, `token_s` |
 | `auftrag.stueck` | Leitstelle an Anwendung | `auftrag`, `folge` (laufende Nummer), `inhalt` (Textstück oder Verweis auf Datenblock), `rolle` (text, denken, werkzeugaufruf) |
@@ -173,7 +173,7 @@ führt einen Spiegel, den ein Test deckungsgleich hält.
 | `anwendung.pausieren`, `anwendung.fortsetzen`, `anwendung.sperren`, `anwendung.freigeben` | Oberfläche an Leitstelle | `anwendung`, `grund` |
 | `knoten.wartung`, `knoten.wartung_ende` | Oberfläche an Leitstelle | `knoten`; Wartung heißt: laufende Aufträge laufen aus, nichts Neues |
 | `leitstelle.modus` | Oberfläche an Leitstelle | `modus` (normal, auslaufen, halt), `hintergrund` (true/false), `grund`; Hauptregler, wirkt sofort auf den Verbund; Antwort `leitstelle.modus_gesetzt` mit `betroffene_auftraege` |
-| `leitstelle.massnahme` | Leitstelle an Oberfläche und Protokoll | `massnahme` (Kennung), `art` (umleiten, leerlauf_raeumen, vorwaermen, kette_ausweichen, extern_ausweichen, umverteilen, verlagern, doppel_aufloesen), `zustand` (geplant, ausgefuehrt, geprueft_ohne_aktion, nicht_ausgeloest, rueckgaengig), `grund`, `gewinn_s`, `kosten_s`, `schritte`, `betroffene_auftraege`, `knoten` |
+| `leitstelle.massnahme` | Leitstelle an Oberfläche und Protokoll | `massnahme` (Kennung), `art` (umleiten, leerlauf_raeumen, vorwaermen, kette_ausweichen (Auf Alternative ausweichen), extern_ausweichen, umverteilen, verlagern, doppel_aufloesen), `zustand` (geplant, ausgefuehrt, geprueft_ohne_aktion, nicht_ausgeloest, rueckgaengig), `grund`, `gewinn_s`, `kosten_s`, `schritte`, `betroffene_auftraege`, `knoten` |
 | `leitstelle.massnahme_rueckgaengig`, `leitstelle.massnahme_ausfuehren` | Oberfläche an Leitstelle | `massnahme`; ausführen gilt für die Stufe Vorschlagen |
 | `regel.speichern`, `regel.schalten`, `regel.trockenlauf` | Oberfläche an Leitstelle | `regel` (Kennung), `graph` (Regelgraph als Daten), `aktiv`; Antwort `regel.gespeichert` mit Fassung oder `regel.fehler` (Zyklus, offener Ausgang, Typ), `regel.trockenlauf_ergebnis` mit genommenem Weg und Zwischenwerten |
 | `speicher.freigeben` | Oberfläche an Leitstelle | `knoten`, `vorschau` (true liefert nur den Plan), `nach_auftrag` (optional: erst wenn dieser Auftrag fertig ist) |
@@ -304,8 +304,8 @@ Für Anwendungen ohne Umbau. Basisadresse mit oder ohne `/v1` wird angenommen.
 |---|---|---|
 | `GET /v1/models` | `frage.modelle` | listet Namen und Aliasse, die die Anwendung nutzen darf (gesperrte nicht); Zustand im Feld `x-leitstelle` (Name, Aufgabe bei Diensten des Maschinenraums, geladen, Knoten, Zone) und dort der Steckbrief (4.8) |
 | `GET /v1/steckbriefe` | Selbstauskunft (4.8) | Steckbriefe der Modelle, die die Anwendung nutzen darf; Filter `faehigkeit`, `eignung`, `sprache` |
-| `POST /v1/chat/completions` | `auftrag.anlegen` (text) | Streaming als SSE im OpenAI-Format; `usage` am Ende; `model` darf Alias oder Kettenname sein; fehlt `model`, gilt die Kette der Anwendung |
-| `POST /v1/embeddings` | `auftrag.anlegen` (einbettung) | Modellname muss zur Kette passen (Einbettungen sind modellgebunden) |
+| `POST /v1/chat/completions` | `auftrag.anlegen` (text) | Streaming als SSE im OpenAI-Format; `usage` am Ende; `model` ist Pflicht (Name, Alias oder Instanz), `alternativen` (höchstens 8) die Ausweichliste der Anwendung, geht nicht an den Dienst; fehlt `model`, 400 `modell_fehlt` mit `error.x-leitstelle.modelle` |
+| `POST /v1/embeddings` | `auftrag.anlegen` (einbettung) | `model` ist Pflicht wie beim Chat; Alternativen nur mit gleichem Vektorraum nennen (Einbettungen sind modellgebunden) |
 | `POST /v1/audio/transcriptions` | `auftrag.anlegen` (hoeren) | multipart; lange Dateien laufen als Hintergrund-Auftrag, Antwort erst am Ende |
 | `POST /v1/audio/speech` | `auftrag.anlegen` (stimme) | Audio-Stream |
 | `POST /v1/images/generations` | `auftrag.anlegen` (bild_erzeugen) | Bilder als `b64_json`, mit und ohne Strom; `model` wählt den Bilddienst (Kennung oder Name seines Modells); den Ablauf des Bilddienstes kennt die Leitstelle, die Grenzen seines Modells prüft sie vorher (6.1) |
@@ -324,9 +324,9 @@ und wann (Laden, Warten, Vorrang, Speicher, Entladen) und woher (Rechner, Instan
 `model` und darf `alternativen` mitgeben, in ihrer Reihenfolge; die Leitstelle nimmt eine Alternative nur, wenn das
 verlangte Modell nicht geht (sein Dienst ist nicht erreichbar oder sein Modell nimmt die Anfrage nach seinem Steckbrief
 nicht an), nie, weil eine Alternative schon geladen ist; wartet das verlangte Modell auf Speicher oder einen Platz,
-wartet der Auftrag. Ohne `model` gilt nur eine Wahl, die die Anwendung in der Leitstelle hinterlegt hat (ihre Kette für
-`bild_erzeugen`, Seite Anwendungen); ohne beides antwortet die Leitstelle mit 400 `modell_fehlt` und der Liste der
-Bildmodelle, die die Anwendung nutzen darf (`error.x-leitstelle.modelle`), statt selbst eines auszusuchen. Wie ein
+wartet der Auftrag, bis die Regel "Auf Alternative ausweichen" (Regelwerk, abschaltbar) ihn auf eine geladene und freie
+Alternative legt, weil das mehr spart als kostet. Ohne `model` antwortet die Leitstelle mit 400 `modell_fehlt` und der
+Liste der Bildmodelle, die die Anwendung nutzen darf (`error.x-leitstelle.modelle`), statt selbst eines auszusuchen. Wie ein
 Dienst rechnet, weiß nur sein Bildablauf in der Leitstelle:
 
 | Art | für | was die Leitstelle tut |
@@ -345,7 +345,7 @@ erreichbar.
 | `n` | nein | Anzahl 1 bis 4 (oder bis `anzahl_max` des Modells), Vorgabe 1 |
 | `seed` | nein | Startwert 0 bis 2^53 - 1; fehlt er, zieht die Leitstelle einen und nennt ihn in der Antwort |
 | `steps` | nein | Schritte; Grenzen und Vorgabe aus dem Steckbrief (MOSS-Image 1 bis 218, Vorgabe 50). Die Bildschmiede rechnet mit den Schritten ihres Ablaufs |
-| `model` | nein | Kennung des Bilddienstes (`GET /v1/dienste`, `GET /v1/models`, etwa `bildwerk-moss-image`) oder, sobald sein Steckbrief bekannt ist, der Name seines Modells (`moss-image`, `MOSS-Image-SFT`, Aliase); fehlt es, gilt die in der Leitstelle hinterlegte Kette der Anwendung, sonst 400 `modell_fehlt` |
+| `model` | ja | Kennung des Bilddienstes (`GET /v1/dienste`, `GET /v1/models`, etwa `bildwerk-moss-image`) oder, sobald sein Steckbrief bekannt ist, der Name seines Modells (`moss-image`, `MOSS-Image-SFT`, Aliase); fehlt es, 400 `modell_fehlt` |
 | `alternativen` | nein | weitere Bildmodelle der Anwendung (höchstens 8, Namen wie bei `model`), in ihrer Reihenfolge; nur zusammen mit `model`; ein unbekannter Name gibt 404 `kein_modell` |
 | `images` | nein | Bildvorlagen (Stil, Bezug), 1 bis 4 Bilder als Base64 (PNG, JPEG oder WebP, je höchstens 20 MB), in der Reihenfolge ihres Gewichts; nur für Modelle, deren Steckbrief `kann_bearbeiten` nennt, höchstens `vorlagen_max` |
 | `response_format` | nein | nur `b64_json` |
@@ -374,7 +374,7 @@ gemessen"; während der Dienst rechnet `: rechnet seit <n> s`; dann genau eine Z
 
 Prüfen vor dem Dienst: Größe, Anzahl, Schritte und Bildvorlagen prüft die Leitstelle mit dem Steckbrief des Modells, bevor sie
 einreiht: gegen das verlangte Modell und die Alternativen (ein Modell, das die Anfrage nicht annimmt, geht für sie nicht,
-es gilt das nächste der Anwendung) oder, ohne `model`, gegen ihre Kette; nimmt keines sie an, 400 `eingabe` mit dem
+es gilt das nächste der Anwendung); nimmt keines sie an, 400 `eingabe` mit dem
 Grund des ersten. So startet kein Dienst für eine Anfrage, die er ablehnen würde. Nach der Zuteilung prüft
 sie noch einmal gegen den einen Dienst, der rechnet, mit seinem frisch gelesenen Steckbrief. Bis die Leitstelle den
 Steckbrief eines Dienstes kennt (nach seinem ersten Start), gelten die Vorgabegrenzen; Bildvorlagen gehen dann in der
@@ -384,7 +384,7 @@ Abbruch: trennt die Anwendung die Verbindung oder stoppt ein Mensch den Auftrag,
 schließt die Leitstelle ihre Verbindung zum Dienst (die Bildschmiede nimmt den Auftrag aus ihrer Warteschlange).
 
 Fehler im Format der Fassade (7): 400 `eingabe` (Feld falsch oder von keinem der genannten Modelle angenommen, Satz in
-`error.message`), 400 `modell_fehlt` (weder `model` noch hinterlegte Kette; die Modelle zur Wahl in
+`error.message`), 400 `modell_fehlt` (kein `model`; die Modelle zur Wahl in
 `error.x-leitstelle.modelle`), 401, 403 `faehigkeit_nicht_erlaubt`, 404 `kein_modell` (Name unbekannt), 503 `kein_dienst`
 (für diesen Dienst ist kein Bildablauf eingerichtet), dazu die Absagen des Dienstes mit seinem Satz: 400 `eingabe`
 (Größe, Schritte; 422 des Dienstes ebenso), 409 `anderes_modell`, 501 `nicht_unterstuetzt`, 503 `dienst_nicht_bereit`
@@ -478,8 +478,8 @@ es sicher bei ihm liegt.
 ### 6.4 Bilder bearbeiten
 
 `POST /v1/images/edits` mit dem Schlüssel einer Anwendung, die `bild_bearbeiten` darf: ein Bild nach Anweisung ändern
-(Bildbearbeitung im Atelier, ATL-6). Es ist eine eigene Fähigkeit mit eigenem Recht und eigener Kette (Seite
-Anwendungen); gerechnet wird wie in 6.1 mit Bildvorlagen, mit denselben Feldern, Strömen, Köpfen und Fehlern.
+(Bildbearbeitung im Atelier, ATL-6). Es ist eine eigene Fähigkeit mit eigenem Recht (Seite
+Anwendungen); die Anwendung nennt ein Modell, das Vorlagen annimmt; gerechnet wird wie in 6.1 mit Bildvorlagen, mit denselben Feldern, Strömen, Köpfen und Fehlern.
 
 | Form | Felder |
 |---|---|
@@ -517,10 +517,11 @@ will (etwa um Masseneinbettung zu drosseln, solange Sprachausgabe läuft), hält
 Gründe sind Wörter aus Listen, die Oberfläche übersetzt sie:
 
 `unbekannter_schluessel`, `gesperrt`, `herkunft_nicht_erlaubt`, `faehigkeit_nicht_erlaubt`,
-`zone_nicht_erlaubt`, `kostengrenze`, `kontingent`, `kein_dienst`, `kein_modell`,
+`zone_nicht_erlaubt`, `kostengrenze`, `kontingent`, `kein_dienst`, `kein_modell`, `modell_fehlt` (400: die Anfrage nennt
+kein Modell; die Leitstelle wählt keins, `error.x-leitstelle.modelle` nennt die Modelle zur Wahl),
 `modell_passt_nicht`, `dienst_nicht_erreichbar`, `rechner_schlaeft`, `dienst_fehler`, `instanz_weg`, `stillstand`,
 `nicht_anhaltbar`, `nutzer`, `regel_hintergrund`, `lage`, `dringend_vor`, `wartung`, dazu für Bilddienste (6.1)
-`eingabe` (400), `modell_fehlt` (400), `anderes_modell` (409), `nicht_unterstuetzt` (501), `dienst_nicht_bereit` (503) und
+`eingabe` (400), `anderes_modell` (409), `nicht_unterstuetzt` (501), `dienst_nicht_bereit` (503) und
 `abgebrochen` (409), dazu für Dienste eines Maschinenraums `speicher` (507) und `dienst_gesperrt` (423).
 
 `speicher`: der Maschinenraum hat den Dienst mitten im Auftrag beendet, weil er über seiner harten Grenze lag oder der

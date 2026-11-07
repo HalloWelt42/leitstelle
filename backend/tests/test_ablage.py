@@ -33,7 +33,7 @@ async def test_tresor_und_anwendung_ueberdauern_neustart(tmp_path):
     ablage = await _ablage(tmp_path)
     a = AnwendungEintrag(kennung="a" * 32, name="Codehilfe", schluessel_fingerabdruck=fingerabdruck(schluessel),
                          schluessel_geheim=tresor.verschluesseln(schluessel), prioritaet=P.HOCH, zonen={Zone.HEIM, Zone.EXTERN},
-                         ketten={F.TEXT: ["qwen/qwen3-coder-next", "qwen/qwen3-next-80b"]}, angelegt_s=1.0)
+                         faehigkeiten={F.TEXT, F.EINBETTUNG}, angelegt_s=1.0)
     await ablage.anwendungen.speichern(a)
     await ablage.db.schliessen()
     ablage2 = await _ablage(tmp_path)
@@ -119,3 +119,27 @@ async def test_x07_migration_0010_token_grenzen_und_proben(tmp_path):
     await ablage.proben.speichern(FaehigkeitsprobeEintrag(familie="Qwen/Qwen3.8-27B", faehigkeit=Faehigkeit.BILD_BESCHREIBEN, belegt=False, zeit_s=5.0))
     assert [(p.familie, p.belegt) for p in await ablage.proben.alle()] == [("Qwen/Qwen3.8-27B", False)]
     await db.schliessen()
+
+
+async def test_migration_0015_ohne_ketten(tmp_path):
+    """LS-19: eine Anwendung mit Ketten aus 0.36 bleibt mit allem anderen erhalten, die Spalte ist weg; rückwärts kommt sie
+    leer wieder."""
+    import sqlite3
+    from alembic import command
+    from leitstelle.ports.ablage.datenbank import alembic_konfig
+    pfad = tmp_path / "alt.sqlite"
+    command.upgrade(alembic_konfig(pfad), "0014")
+    with sqlite3.connect(pfad) as v:
+        v.execute("INSERT INTO anwendungen (kennung, name, schluessel_fingerabdruck, schluessel_geheim, prioritaet, faehigkeiten, zonen,"
+                  " extern_erlaubt, gleichzeitig, ketten, gesperrt, sperrgrund, angelegt_s, docker_projekte, bildarchiv)"
+                  " VALUES ('a', 'Fundus', 'f', 'g', 1, '[\"text\"]', '[\"heim\"]', 0, 4, '{\"text\": [\"qwen-next-80b\"]}', 0, '', 1.0, '[]', 0)")
+    db = Datenbank(pfad)
+    await db.oeffnen()
+    [a] = await Ablage(db).anwendungen.alle()
+    assert (a.name, a.faehigkeiten, a.gleichzeitig) == ("Fundus", {F.TEXT}, 4) and "ketten" not in a.model_dump()
+    await db.schliessen()
+    with sqlite3.connect(pfad) as v:
+        assert "ketten" not in [z[1] for z in v.execute("PRAGMA table_info(anwendungen)")]
+    command.downgrade(alembic_konfig(pfad), "0014")
+    with sqlite3.connect(pfad) as v:
+        assert v.execute("SELECT name, ketten FROM anwendungen").fetchall() == [("Fundus", "{}")]

@@ -26,18 +26,24 @@ def groesse_lesen(groesse: str) -> tuple[int, int]:
     return int(breite), int(hoehe)
 
 
-class BildAnfrage(BaseModel):
-    """`POST /v1/images/generations`: Beschreibung, Größe als "BxH", Anzahl, Startwert, Schritte; Antwort nur als b64_json."""
+class Modellwahl(BaseModel):
+    """Die Wahl der Anwendung in jeder Anfrage: ihr Modell und ihre Ausweichliste, in ihrer Reihenfolge. Die Leitstelle
+    wählt nie ein Modell; ohne `model` lehnt sie mit `modell_fehlt` ab, ausgewichen wird nur auf `alternativen`."""
 
     model_config = ConfigDict(extra="ignore")
+
+    model: str | None = None                     # Kennung des Modells oder Dienstes, ein Alias oder der Name des Modells
+    alternativen: list[str] = Field(default_factory=list, max_length=8)   # weitere Modelle der Anwendung, in ihrer Reihenfolge
+
+
+class BildAnfrage(Modellwahl):
+    """`POST /v1/images/generations`: Beschreibung, Größe als "BxH", Anzahl, Startwert, Schritte; Antwort nur als b64_json."""
 
     prompt: str = Field(min_length=1, max_length=20000)
     size: str | None = None                      # None: die Vorgabe des Modells (Steckbrief), sonst 1024x1024
     n: int = Field(default=1, ge=1, le=ANZAHL_MAX)
     seed: int | None = Field(default=None, ge=0, lt=SEED_GRENZE)
     steps: int | None = Field(default=None, ge=1)  # None: die Vorgabe des Modells; Grenzen im Steckbrief (die Bildschmiede rechnet mit ihren)
-    model: str | None = None                     # das Bildmodell, die Wahl der Anwendung (Kennung des Dienstes oder Name seines Modells)
-    alternativen: list[str] = Field(default_factory=list, max_length=8)   # weitere Bildmodelle der Anwendung, in ihrer Reihenfolge
     images: list[str] = Field(default_factory=list, max_length=ANZAHL_MAX)  # Bildvorlagen als Base64 (Stil, Bezug); nur Modelle, die bearbeiten
     response_format: str = "b64_json"
     stream: bool = False

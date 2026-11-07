@@ -175,9 +175,9 @@ den lokalen Modellen (Entscheidung 19.10.2026: dasselbe Modell ist lokal da), He
   `max_tokens`), nach der Antwort der echte Verbrauch aus `usage` (im Strom fordert der Adapter ihn an und gibt das Stück
   nur weiter, wenn die Anwendung es selbst wollte). Token hinein zählen ab dem Senden, heraus ab dem Ende; eine Anfrage
   mit Überlast verbraucht nichts. Je Modell stehen Anfragen, Token und belegte Plätze, darüber der gemeinsame Schlüssel.
-- **Gezielt wählbar**: beide Modelle stehen in `/v1/models` mit Steckbrief; in Anwendungen und Ketten als Wahl mit
-  "extern" und ihrer Art. In einer Kette rechnet ein externes Modell nur beim Ausweichen und mit Erlaubnis der App;
-  verlangt die App es als `model`, gilt es direkt. Die Wahl bleibt bei der App (ANBINDUNG 2.2).
+- **Gezielt wählbar**: beide Modelle stehen in `/v1/models` mit Steckbrief, mit "extern" und ihrer Art. Verlangt die
+  App eines als `model` oder nennt es in `alternativen`, gilt es in ihrer Reihenfolge; sonst rechnet es nur beim
+  Ausweichen und mit Erlaubnis der App. Die Wahl bleibt bei der App (ANBINDUNG 2.2).
 
 ### Stufe Z5: Einbettung verstärken (mehrere Instanzen im Modell-Läufer)
 
@@ -230,7 +230,7 @@ Maschinenraum danach dem System zu.
 - **Regel "Einbettung verstärken"**: warten Einbettungsaufträge länger als `einbettung_andrang_s` (10 s) auf eine
   Instanz, lädt die Leitstelle in einer Maßnahme so viele weitere, wie Aufträge warten (abzüglich ladender), bis zur
   Höchstzahl und nur so viele, wie mit dem Spielraum ins Budget passen. Fehlt Platz, weichen ungenutzte Modelle,
-  kleinste zuerst (nie ein Gesprächsmodell, das eine Anwendung für Text in ihrer Kette hat, nie ein Modell, das in der
+  kleinste zuerst (nie ein Gesprächsmodell, also eines, das Text kann, nie ein Modell, das in der
   Schonfrist `einbettung_schonfrist_s` von 30 Minuten genutzt wurde, nie ein rechnendes, geschütztes oder von einer
   begonnenen Arbeit gehaltenes). Kein Abwägen Gewinn gegen Aufwand: der Strom der Einbettung ist stetig.
 - **Regel "Einbettung zurückbauen"**: weitere Einbettungsinstanzen, die `einbettung_ruhe_s` (300 s) nichts zu tun
@@ -379,7 +379,7 @@ Neue Massnahmenart `HINTERGRUND_RECHNERLAST`, Vorgabe an. Stufe je Knoten `hinte
   sofortige Entladen weiterer Instanzen ohne Auftrag betrifft die Einbettungsinstanzen des Läufers (Regel "Einbettung
   zurückbauen" ohne Ruhezeit, wartender Hintergrund zählt nicht); für weitere Instanzen von Diensten des Maschinenraums
   gibt es keine Rückbau-Regel, sie bekommen gedrosselt nur keinen Hintergrund. Gesperrt für Hintergrund sind auch
-  Umleiten, Ausweichen in der Kette und Vorwärmen auf einen gebremsten Rechner.
+  Umleiten, Ausweichen auf eine Alternative und Vorwärmen auf einen gebremsten Rechner.
 - **Regelwerte** (Regelwerk, im Lagebild): `laeufer_schwelle_prozent`, `laeufer_frist_s`, `last_frist_s`,
   `last_drosseln_ab_prozent`, `last_anhalten_ab_prozent`, `last_abstand_prozent`; ein gespeichertes Regelwerk ohne die
   neuen Szenarien bekommt ihre Vorgaben ab Werk (keine Migration nötig). Unter Knoten bei "Läufer und Last" stehen die
@@ -458,7 +458,7 @@ steuert (Laden, Entladen, Vorrang); er startet nie von selbst.
 |---|---|
 | Woran erkennt die Leitstelle, wie sie einen Bilddienst anspricht? | Ohne Sonderfall je Dienst: jeder Bilddienst ohne eigenen Eintrag nutzt die Vorgabe (`LEITSTELLE_BILDABLAUF_VORGABE`, ab Werk das Bildformat); nur eine andere Art braucht einen Eintrag (`LEITSTELLE_BILDABLAEUFE`, ab Werk die Bildschmiede mit ComfyUI). Eine Angabe in der Dienstdatei schied aus: der Maschinenraum lässt dort nur seine eigenen Felder zu und meldet sie nicht; der Steckbrief allein auch, denn den sagt ein Dienst erst, wenn er läuft, die Wahl muss aber vor dem Start feststehen |
 | Wie kommt eine Anfrage zum Dienst? | über die Durchleitung des Maschinenraums an `v1/images/generations`, Bilder aus `data[].b64_json`; `model` geht nicht mit (der Dienst hält genau ein Modell) |
-| Wer wählt das Modell? | Die App, nie die Leitstelle (Nutzer: "Leitstelle darf nur festlegen ob und wann, nicht was"; "die Apps fragen an, machen Alternativen usw., aber Leitstelle kümmert sich um das Speichermanagement und Quellen"). `model` nennt die Kennung des Dienstes (`bildwerk-moss-image`) oder, sobald der Steckbrief bekannt ist, den Namen seines Modells (`moss-image`, `MOSS-Image-SFT`); `alternativen` nennt weitere in der Reihenfolge der App. Die Leitstelle nimmt eine Alternative nur, wenn das verlangte Modell nicht geht (Dienst nicht erreichbar, Anfrage passt nicht zu seinem Steckbrief), nie, weil sie schon geladen ist. Ohne `model` gilt nur die Kette, die die App in der Leitstelle hinterlegt hat (ihre Wahl); ohne beides 400 `modell_fehlt` mit der Liste der Bildmodelle. Die Leitstelle entscheidet Quelle (Rechner, Instanz), Laden, Entladen, Warten und Vorrang. `GET /v1/models`, `GET /v1/steckbriefe` und `GET /v1/dienste` nennen je Bildmodell den Bild-Steckbrief, damit die App wählen kann |
+| Wer wählt das Modell? | Die App, nie die Leitstelle (Nutzer: "Leitstelle darf nur festlegen ob und wann, nicht was"; "die Apps fragen an, machen Alternativen usw., aber Leitstelle kümmert sich um das Speichermanagement und Quellen"). `model` nennt die Kennung des Dienstes (`bildwerk-moss-image`) oder, sobald der Steckbrief bekannt ist, den Namen seines Modells (`moss-image`, `MOSS-Image-SFT`); `alternativen` nennt weitere in der Reihenfolge der App. Die Leitstelle nimmt eine Alternative nur, wenn das verlangte Modell nicht geht (Dienst nicht erreichbar, Anfrage passt nicht zu seinem Steckbrief), nie, weil sie schon geladen ist. Ohne `model` 400 `modell_fehlt` mit der Liste der Bildmodelle (bis LS-19 galt vorher noch eine in der Leitstelle hinterlegte Kette der App). Die Leitstelle entscheidet Quelle (Rechner, Instanz), Laden, Entladen, Warten und Vorrang. `GET /v1/models`, `GET /v1/steckbriefe` und `GET /v1/dienste` nennen je Bildmodell den Bild-Steckbrief, damit die App wählen kann |
 | Woher kennt die Leitstelle die Grenzen? | aus dem Steckbrief des Dienstes (`GET v1/models`, Feld `steckbrief`): gelesen gleich nach jedem Start, gehalten über Neustarts (Ablage `bildsteckbriefe`), Änderungen im Verlauf. Bis zum ersten Start gelten die Vorgabegrenzen der Fassade |
 | Wann prüft sie? | vor dem Einreihen gegen jeden Dienst, der die Anfrage rechnen könnte (kein Start für eine Anfrage, die keiner annimmt), und nach der Zuteilung gegen den einen mit seinem frischen Steckbrief; ohne Größe oder Schritte gelten die Vorgaben des Modells |
 | Laden und Entladen | wie bei jedem Dienst des Maschinenraums: Laden heißt Starten (der Maschinenraum antwortet, sobald `/gesundheit` 200 sagt, also das Modell geladen ist), Entladen heißt Anhalten; Bedarf aus der Dienstdatei, dann gemessen; weicht bei Bedarf anderer nach der Bedarfsfrist (Leerlauf räumen), nie während er rechnet |
@@ -571,3 +571,13 @@ Folgen, die beim Bau zu beachten sind:
 - Die Arbeit-Frist (300 s, begonnene Arbeit hält ihre Modelle gegen andere) hält kein Modell mehr über die 60 s hinaus.
 - Bis Schritt 6 senden einige Apps kein Modell; die Ketten bleiben bis dahin in Kraft und werden zuletzt entfernt.
 - Szenarien in SZENARIEN.md für jeden Punkt, Gegentests an der alten Fassung.
+
+**Umsetzung Schritt 6** (LS-19, Leitstelle 0.37.0): Ketten entfernt (Anwendung, Ablage mit Migration 0015, Lagebild,
+Seite Anwendungen). Die Wahl steht nur im Auftrag (`festes_modell` und `alternativen`, `Verbund.modellwahl`); ohne
+Modell lehnt der Zuteiler mit `modell_fehlt` ab ("Die Anwendung muss ihr Modell nennen; die Leitstelle wählt keins.",
+die Fassade nennt die Modelle zur Wahl). `alternativen` gilt in der Fassade für alle Anfragen, nicht nur für Bilder;
+Platzhalter wie `auto` sind unbekannte Modelle. Die Regel "Kette ausweichen" heißt "Auf Alternative ausweichen" und
+nimmt nur Alternativen der App (Kennung `kette_ausweichen` bleibt wegen gespeicherter Regelwerke und Maßnahmen); der
+Regelwert "Geladene zuerst" entfällt, die Reihenfolge der App gilt streng. Gesprächsmodelle, die nie für Einbettung
+weichen, sind jetzt alle Modelle, die Text können. Die Simulation hält die Wahl in den simulierten Apps. Prüfung: S80
+bis S83, S22, S23.

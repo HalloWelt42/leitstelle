@@ -248,7 +248,6 @@ export interface Regelwerk {
   arbeit_frist_s: number;
   arbeit_ab_anfragen: number;
   speicher_warnschwelle: number;
-  geladene_zuerst: boolean;
   extern_schwelle_s: number;
   hintergrund_spaetestens_s: number;
   rangfolge: {
@@ -714,9 +713,6 @@ export interface AnwendungSicht {
   zonen: Zone[];
   extern_erlaubt: boolean;
   gleichzeitig: number;
-  ketten: {
-    [k: string]: string[];
-  };
   docker_projekte: string[];
   bildarchiv: boolean;
   gesperrt: boolean;
@@ -1068,9 +1064,6 @@ export interface AnwendungDaten {
   zonen?: Zone[];
   extern_erlaubt?: boolean;
   gleichzeitig?: number;
-  ketten?: {
-    [k: string]: string[];
-  };
   /**
    * ein Bildarchiv: holt erzeugte Bilder anderer Anwendungen ab (Bildablage, PROTOKOLL 6.3); fehlt die Angabe, bleibt es beim Ändern, wie es war
    */

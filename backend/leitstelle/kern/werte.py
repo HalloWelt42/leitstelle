@@ -109,7 +109,7 @@ class Massnahmenart(str, Enum):
     UMLEITEN = "umleiten"
     LEERLAUF_RAEUMEN = "leerlauf_raeumen"
     VORWAERMEN = "vorwaermen"
-    KETTE_AUSWEICHEN = "kette_ausweichen"
+    ALTERNATIVE_AUSWEICHEN = "kette_ausweichen"   # Wert bleibt: er steht in gespeicherten Regelwerken (szenarien_an) und Maßnahmen
     EXTERN_AUSWEICHEN = "extern_ausweichen"
     UMVERTEILEN = "umverteilen"
     VERLAGERN = "verlagern"
@@ -164,7 +164,7 @@ WORT: dict[str, str] = {
     "sprecher_trennen": "Sprecher trennen", "musik": "Musik", "werkzeug": "Werkzeuge", "ton": "Ton bearbeiten",
     "eingereiht": "Eingereiht", "wartet_speicher": "Wartet auf Speicher", "wartet_ruhe": "Wartet auf Ruhe", "zugeteilt": "Zugeteilt", "laeuft": "Läuft", "pausiert": "Pausiert",
     "fertig": "Fertig", "abgebrochen": "Abgebrochen", "fehlgeschlagen": "Fehlgeschlagen", "abgelehnt": "Abgelehnt",
-    "umleiten": "Umleiten", "leerlauf_raeumen": "Leerlauf räumen", "vorwaermen": "Vorwärmen", "kette_ausweichen": "Kette ausweichen",
+    "umleiten": "Umleiten", "leerlauf_raeumen": "Leerlauf räumen", "vorwaermen": "Vorwärmen", "kette_ausweichen": "Auf Alternative ausweichen",
     "extern_ausweichen": "Extern ausweichen", "umverteilen": "Umverteilen", "verlagern": "Verlagern", "doppel_aufloesen": "Doppel auflösen",
     "hintergrund_lage": "Hintergrund bei Lage", "weitere_instanz": "Weitere Instanz",
     "einbettung_verstaerken": "Einbettung verstärken", "einbettung_zurueckbauen": "Einbettung zurückbauen",

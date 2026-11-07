@@ -54,7 +54,7 @@ Budget = Speicher minus dem Größeren aus Reserve (18 GB) und System, oder ein 
 
 ### Anwendungen
 
-| Kennung | Priorität | Fähigkeiten | Zonen | Ketten | Extern erlaubt |
+| Kennung | Priorität | Fähigkeiten | Zonen | Modellwahl der App (Modell, dann Ausweichliste) | Extern erlaubt |
 |---|---|---|---|---|---|
 | zusage | hoch | text, bild_beschreiben | heim, fern | text: qwen-next-80b, qwen-4b; bild: glm-4.6v, gemma-4-26b | nein |
 | tubevault | hintergrund | hoeren, stimme, text | heim | hoeren: whisper-gross, whisper-mittel; stimme: xtts; text: qwen-next-80b | nein |
@@ -65,6 +65,10 @@ Budget = Speicher minus dem Größeren aus Reserve (18 GB) und System, oder ein 
 | rufzeichen | dringend | text, hoeren, stimme | heim | text: qwen-next-80b, qwen-4b; hoeren: whisper-mittel, whisper-gross; stimme: xtts | nein |
 | bildschmiede | hintergrund | bild_beschreiben, uebersetzen | heim | bild: gemma-4-26b, glm-4.6v; uebersetzen: qwen-4b, qwen-next-80b | nein |
 
+Die Modellwahl gehört den simulierten Apps, nicht der Leitstelle (Arbeitslogik 07.11.2026, LS-19): `Welt.auftrag`
+schickt ohne ausdrückliches Modell das erste der Wahl als `festes_modell` und die übrigen als `alternativen`, wie eine
+echte App `model` und `alternativen` schickt. Eine App ohne Wahl für die Fähigkeit schickt kein Modell.
+
 ### Vorgaben des Regelwerks
 
 | Regel | Vorgabe | Bedeutung |
@@ -74,13 +78,12 @@ Budget = Speicher minus dem Größeren aus Reserve (18 GB) und System, oder ein 
 | Mindestverweildauer | 600 s | frisch Geladenes weicht nicht |
 | Bedarfsfrist | 60 s | so lange muss ein Modell ohne Auftrag sein, bevor es einem Wartenden weicht |
 | Leerlaufgrenze | 1800 s | ab wann ein Modell in den Listen als Leerlauf gilt |
-| Gewinnfaktor | 2 | Gewinn muss das Doppelte des Aufwands sein (Kette: 1) |
+| Gewinnfaktor | 2 | Gewinn muss das Doppelte des Aufwands sein (Auf Alternative ausweichen: 1) |
 | Extern-Schwelle | 120 s | ab dieser erwarteten Wartezeit darf extern ausgewichen werden |
 | Hintergrund spätestens | 900 s | danach rückt Hintergrund auf Normal |
 | Fenster, Höchstzahl, Ruhezeit | 600 s, 6, 1800 s | Flatterschutz und Deckel je Fenster |
 | Umleitungen je Auftrag | 1 | |
 | Takt des Umschichters | 5 s | |
-| Geladene zuerst | an | der Zuteiler nimmt ein geladenes Modell der Kette vor dem ersten der Kette |
 | Automatik | selbst | aus, vorschlagen, selbst |
 
 ### Was die Schein-Welt kann
@@ -151,12 +154,12 @@ Budget = Speicher minus dem Größeren aus Reserve (18 GB) und System, oder ein 
 | S20 | Hintergrund ist angehalten, TubeVault wartet eingereiht, das 80B-Modell ist nicht geladen, Platz ist da | Modell wird vorab geladen; wird der Hintergrund freigegeben, startet der Auftrag sofort |
 | S21 | Bildschmiede wartet, nirgends Platz ohne Entladen | "kein Platz ohne Entladen" |
 
-### Kette ausweichen
+### Auf Alternative ausweichen
 
 | Nr | Szenario | Erwartung |
 |---|---|---|
-| S22 | 80B belegt, das kleine Textmodell derselben Kette ist geladen und frei | mit "Geladene zuerst" nimmt schon der Zuteiler das kleine Modell; ohne diese Vorliebe greift die Regel und weicht aus |
-| S23 | Zusage verlangt das 80B-Modell fest | keine Ausweiche, Auftrag bleibt eingereiht |
+| S22 | 80B belegt, Zusage nennt dahinter das kleine Textmodell, das geladen und frei ist | der Zuteiler hält die Reihenfolge der App (wartet auf das 80B, nimmt das kleine nicht); nach 5 s Warten greift die Regel und weicht auf das kleine aus |
+| S23 | Zusage verlangt das 80B-Modell ohne Alternativen | keine Ausweiche ("keine geladene Alternative"), Auftrag bleibt eingereiht |
 
 ### Extern ausweichen
 
@@ -193,7 +196,7 @@ Budget = Speicher minus dem Größeren aus Reserve (18 GB) und System, oder ein 
 | S35 | Dieselbe Last mit Vorgaben (LS-14: ohne Mindestverweildauer) | jeder Auftrag wird fertig; nie mehr Wechsel als Aufträge |
 | S36 | Höchstzahl 2 je Fenster, sechs Fundus-Aufträge wollen extern | höchstens zwei Maßnahmen im Fenster, weitere gesperrt mit "Höchstzahl" |
 | S37 | Kiste umgeleitet, dann fällt das MacBook aus | Umverteilen reiht neu ein, der Auftrag wird nicht ein zweites Mal umgeleitet |
-| S38 | Drei Zufallsläufe (Saaten 1, 2, 3) über eine Stunde mit allen 8 Anwendungen und allen Fähigkeiten | je Schritt: Budget nie überschritten, Geschütztes nie entladen, Zone nie verletzt, extern nie ohne Erlaubnis; am Ende nichts verhungert, höchstens 8 Ladevorgänge je Familie und Knoten |
+| S38 | Drei Zufallsläufe (Saaten 1, 2, 3) über eine Stunde mit allen 8 Anwendungen und allen Fähigkeiten | je Schritt: Budget nie überschritten, Geschütztes nie entladen, Zone nie verletzt, extern nie ohne Erlaubnis und nur mit einem Modell, das die App nennt oder erlaubt; am Ende nichts verhungert (ein angehaltener Hintergrundauftrag, dessen Modell inzwischen gewichen ist, reiht sich beim Fortsetzen neu ein), höchstens 8 Ladevorgänge je Familie und Knoten |
 | S39 | Rechnende Modelle | der Speicherplaner schlägt sie nie vor; der Wächter der Welt wirft, falls es je geschähe |
 | S40 | Lage | ruhig ohne Wartende; angespannt bei einem Auftrag, der auf Speicher wartet; Engpass bei zweien |
 | S42 | Messungen fließen ein | wahre Ladezeit 40 s statt geschätzter 5 s wird gemessen; danach lohnt Umleiten bei kurzer Wartezeit nicht mehr |
@@ -268,6 +271,24 @@ nur am fehlenden Feld der Rolle.
 | S79 | Strom | `text/event-stream`, zuerst `event: lage` mit der Auskunft |
 
 Gegentest: an der Fassung 0.36.0 fehlen beide Wege (404).
+
+### Modellwahl nur durch die App (`test_modellwahl.py`, `test_regelzweige.py`, LS-19, Arbeitslogik 07.11.2026)
+
+Ketten der Leitstelle gibt es nicht mehr: jede Anfrage nennt ihr Modell (`model`) und wahlweise ihre Ausweichliste
+(`alternativen`, ihre Reihenfolge). Die Leitstelle wählt nur Ort und Zeitpunkt.
+
+| Nr | Szenario | Erwartung |
+|---|---|---|
+| S80 | Zuteiler: Zusage und TubeVault (Hintergrund am Hauptregler angehalten) schicken Text ohne Modell, das 80B ist geladen und frei; Medienpool ohne Recht auf Text | beide abgelehnt mit `modell_fehlt` und "Die Anwendung muss ihr Modell nennen; die Leitstelle wählt keins.", nichts geladen, keiner wartet; Medienpool `faehigkeit_nicht_erlaubt` (Rechte gehen vor) |
+| S81 | Fassade: Chat und Einbettung ohne `model`; `auto`, `leitstelle`, `gross`, `schnell` als Modell; Alternativen ohne Modell, unbekannt oder keine Liste; Chat mit `alternativen` | 400 `modell_fehlt` mit dem Satz und `x-leitstelle.modelle` (für Einbettung nur bge-m3); Platzhalter 404 `kein_modell` mit dem Namen; 400 `eingabe`, 404 `kein_modell`, 400 `eingabe`; der Auftrag nennt "Modell ... verlangt, sonst ...", `alternativen` erreicht den Dienst nie |
+| S82 | 80B belegt, das kleine Textmodell geladen und frei, die App nennt aber nur den Coder (nicht geladen) als Alternative | keine Ausweiche auf das kleine ("keine geladene Alternative"), der Auftrag wartet und rechnet danach mit dem 80B; das kleine rechnet nie |
+| S83 | 80B belegt, die App nennt Coder und das kleine, beide geladen und frei | die Regel weicht auf den Coder aus, die erste Alternative der App |
+
+Gegentest an der Fassung 0.36.1 (07.11.2026 geprüft, dieselben Szenarien in einer Form ohne die neuen Felder): S80
+scheitert (die Kette der Leitstelle teilt das 80B zu), S81 scheitert (404 `kein_modell` "keine Kette"), S83 scheitert
+(die Regel wich nie bei einem verlangten Modell aus), S22 scheitert (der Zuteiler nahm über "Geladene zuerst" sofort das
+kleine Modell). S82 hielt schon dort, weil die Regel verlangte Modelle gar nicht anfasste; es sichert, dass sie jetzt nur
+die Liste der App nimmt.
 | E21 | Echte Ports: Text strömt, Masseneinbettung per HTTP (Kopf hintergrund) | Zustand `wartet_ruhe`, Anfrage bleibt offen, Suche (normal) kommt sofort, Masse nach Text plus Ruhezeit mit Vektoren |
 | V08 | Regelwerk, Gruppe Nur bei Ruhe | drei Werte mit Möglichkeiten, Änderung im Prüfprotokoll mit Worten, falsche Werte abgelehnt, leere Liste schaltet ab |
 
@@ -292,7 +313,7 @@ OpenAI-Schnittstelle kennt. Rechner, Dienst und Anwendung werden über die Verwa
 | E01 | Strom an das geladene 80B-Modell | Antwort unverändert, Köpfe mit Auftrag und Lage, Verlauf mit Token, erstem Stück und Zeitleiste, Tageskennzahlen |
 | E02 | Bild an ein nicht geladenes Modell, Name ohne Anbieter | die Leitstelle lädt vorher über die native Schnittstelle, misst die Ladezeit, Fähigkeit Bild beschreiben erkannt |
 | E03 | Einbettung und Modelllisten | `/v1/embeddings`, `/v1/models` und die nachgebildete Läuferliste `/api/v0/models` mit Ladezustand |
-| E04 | Ablehnungen | 404 `kein_modell`, 401 `unbekannter_schluessel`, 503 `halt` mit `Retry-After`, 429 `gesperrt`, nach Freigabe wieder 200; Prüfprotokoll |
+| E04 | Ablehnungen | 404 `kein_modell`, ohne `model` 400 `modell_fehlt`, 401 `unbekannter_schluessel`, 503 `halt` mit `Retry-After`, 429 `gesperrt`, nach Freigabe wieder 200; Prüfprotokoll |
 | E05 | Sofort stoppen mitten im Strom | letztes Stück `leitstelle_abbruch` mit Teiltext-Länge, Auftrag abgebrochen mit Grund, der Läufer bricht ab |
 | E06 | Anwendung trennt während des Stroms | Auftrag abgebrochen mit Grund `anwendung`, das Modell ist wieder frei |
 | E07 | Drei Aufrufe bei einem Platz | der Läufer sieht nie mehr als einen gleichzeitig |
@@ -303,7 +324,7 @@ OpenAI-Schnittstelle kennt. Rechner, Dienst und Anwendung werden über die Verwa
 | E12 | Live-Kanal | der erste Umschlag ist das Lagebild, danach Ereignisse bis `auftrag.ergebnis` |
 | E13 | Titel mit Umlauten | prozentkodiert und als rohe UTF-8-Bytes richtig im Verlauf |
 | E14 | Nach einem Neustart schon geladene Modelle | ohne bekannten Ladezeitpunkt gilt keine Mindestverweildauer; das ungenutzte 80B weicht nach der Bedarfsfrist |
-| E15 | 60 Aufrufe von wenigen Millisekunden über die Dienstfassade und 20 sofortige Ablehnungen, alle gleichzeitig | jeder Auftrag steht mit seinem Endzustand im Verlauf (fertig oder abgelehnt), keine gescheiterte Schreibung; Speichern geht über die Schreibfolge |
+| E15 | 60 Aufrufe von wenigen Millisekunden über die Dienstfassade und 20 sofortige Ablehnungen (ohne Modell: 400 `modell_fehlt`), alle gleichzeitig | jeder Auftrag steht mit seinem Endzustand im Verlauf (fertig oder abgelehnt), keine gescheiterte Schreibung; Speichern geht über die Schreibfolge |
 | E16 | Anwendung trennt während der Durchleitung über die Dienstfassade, vor dem Antwortkopf und mitten in der Antwort, bei langsamem Schließen | abgebrochen mit Grund `anwendung` im Verlauf, Speicher leer, das Modell wieder frei, die Antwort des Dienstes geschlossen |
 | E21 | Ein Modell wird am Leitstand vorbei entladen, ein anderes am Leitstand vorbei geladen; danach lädt und entlädt die Leitstelle selbst | beide fremden Bewegungen stehen dauerhaft in `/api/bewegungen` mit Ausgang `von_aussen` und dem Abstand zum letzten Blick; beim Start und bei eigenen Bewegungen (auch eigenen weiteren Instanzen, E19) nie |
 
@@ -327,7 +348,7 @@ Prozessdienst.
 | A09 | Agent oder Rechner startet neu | Sollzustand bleibt; eigene Gruppen werden innerhalb derselben Systemlaufzeit wiedererkannt, nach Rechnerneustart wird gestartet, was laufen soll |
 | A10 | Dienst wird in der Startzeit nicht erreichbar | Versuch wird beendet, Meldung mit der letzten Protokollzeile |
 | A11 | Der echte Kanal des Maschinenraums schläft ein und wacht auf | Leitstelle vermerkt sofort (unter 2 s), Dienstfassade 503 `rechner_schlaeft` mit Rechner; die Verbindung ruht; nach dem Aufwachen Anmeldung, Rechner erreichbar, Durchleitung wieder 200 |
-| A13 | Ein Dienst wächst im Auftrag über seine Grenze (HELF-85) | Der Maschinenraum meldet die Sperre, beendet ihn sofort; die App bekommt 507 `speicher`, der Auftrag endet als Abbruch mit dem Grund; ein neuer Aufruf 423 `dienst_gesperrt`, der Dienst startet nicht wieder; die Modellansicht zeigt die Sperre. Gesperrt wird er nicht mehr angeboten (`/v1/models`, `/v1/dienste`, `/v1/steckbriefe` ohne ihn, HELF-84), Starten von Hand gibt 423 `dienst_gesperrt`, in der Auswahl der Modellketten steht er als gesperrt und ist nicht wählbar |
+| A13 | Ein Dienst wächst im Auftrag über seine Grenze (HELF-85) | Der Maschinenraum meldet die Sperre, beendet ihn sofort; die App bekommt 507 `speicher`, der Auftrag endet als Abbruch mit dem Grund; ein neuer Aufruf 423 `dienst_gesperrt`, der Dienst startet nicht wieder; die Modellansicht zeigt die Sperre. Gesperrt wird er nicht mehr angeboten (`/v1/models`, `/v1/dienste`, `/v1/steckbriefe` ohne ihn, HELF-84), Starten von Hand gibt 423 `dienst_gesperrt` |
 
 Die Beobachtung am Leitstand vorbei ist in diesen Tests aus: sie liest Prozesse und Verbindungen des Rechners, auf dem
 der Test läuft (je Takt Sekunden), und hielte damit die Dienstmeldungen auf.
@@ -420,8 +441,8 @@ Beenden mit nachgestellter Prozesstabelle, nachgestelltem lsof und nachgestellte
 
 ## 3g. Bilder erzeugen (`test_bilder.py`, `test_bildformat.py`)
 
-Das Bildmodell wählt immer die Anwendung (`model`, ihre `alternativen` in ihrer Reihenfolge, sonst ihre in der
-Leitstelle hinterlegte Kette); die Leitstelle entscheidet nur Quelle, Laden, Entladen, Warten und Vorrang (B08, B10, B11).
+Das Bildmodell wählt immer die Anwendung (`model`, ihre `alternativen` in ihrer Reihenfolge; ohne `model` 400
+`modell_fehlt`); die Leitstelle entscheidet nur Quelle, Laden, Entladen, Warten und Vorrang (B08, B10, B11).
 
 `test_bilder.py`: der Ablauf der Bildschmiede (ComfyUI) gegen die Schein-Bildschmiede und Ende zu Ende über die Fassade
 mit dem echten Maschinenraum. `test_bildformat.py`: der Bildablauf "bildformat" gegen den Schein-Bilddienst (wie ein
@@ -438,13 +459,13 @@ aus), und im Kern gegen die Schein-Welt.
 | B05 | Bildregeln mit und ohne Steckbrief | 256x256: "Die Fläche muss zwischen 262144 und 4194304 Pixeln liegen; 256x256 hat 65536. Vorgabe von MOSS-Image-SFT: 1024x1024."; nicht durch 16 teilbar, Kante über 2048, 300 Schritte, mehr Bilder als `anzahl_max` je mit Satz; ohne Größe und Schritte 1024x1024 und 50; ohne Steckbrief die Vorgabegrenzen, Schritte ungeprüft und ungesetzt |
 | B06 | Steckbrief speichern und wieder lesen | in der Ablage (Migration 0012), Überschreiben ersetzt |
 | B07 | Schein-Welt: Bilddienst des Maschinenraums (24 GB, Start 120 s) für einen Bildauftrag, dann ein Textauftrag, für den nicht beides passt | "MOSS-Image wird auf Dienste auf Mac Studio gestartet"; solange er rechnet, weicht er nicht und der Text wartet; danach Leerlauf räumen entlädt ihn, beide Aufträge fertig |
-| B08 | App verlangt `bildwerk-moss-image` (Maschinenraum startet den Schein-Bilddienst in 2,5 s) | vorher: `/v1/models` und `/v1/dienste` mit Zweck aus der Dienstdatei, `bild` null, aus; 4096x4096 gibt 400 `eingabe`, der Dienst bleibt aus. Strom: Hinweis "MOSS-Image startet auf Mac Studio seit ... (Startdauer noch nicht gemessen)", zwei PNG, `x-leitstelle` mit Startwert, Kennung, Größe, Schritten; der Dienst sah die Anfrage ohne `model`. Danach: Steckbrief in `/v1/models` (Herkunft dienst, Parameter 4,9, Quantisierung 8bit), `/v1/dienste`, `/v1/steckbriefe?faehigkeit=bild_erzeugen`, Verlauf "Steckbrief von MOSS-Image gelesen"; gleicher Startwert gleiche Bilder; `moss-image`, `MOSS-Image-SFT` und der Alias wählen denselben Dienst; ohne Größe und Schritte 1024x1024 und 50; 256x256, 300 Schritte, 1000x1000 geben 400 mit Satz, ohne dass der Dienst sie sieht; ohne `model` und Kette 400 `modell_fehlt` mit `x-leitstelle.modelle` (die Leitstelle sucht keines aus), Alternativen ohne `model` 400 `eingabe`, eine unbekannte Alternative 404 `kein_modell` |
+| B08 | App verlangt `bildwerk-moss-image` (Maschinenraum startet den Schein-Bilddienst in 2,5 s) | vorher: `/v1/models` und `/v1/dienste` mit Zweck aus der Dienstdatei, `bild` null, aus; 4096x4096 gibt 400 `eingabe`, der Dienst bleibt aus. Strom: Hinweis "MOSS-Image startet auf Mac Studio seit ... (Startdauer noch nicht gemessen)", zwei PNG, `x-leitstelle` mit Startwert, Kennung, Größe, Schritten; der Dienst sah die Anfrage ohne `model`. Danach: Steckbrief in `/v1/models` (Herkunft dienst, Parameter 4,9, Quantisierung 8bit), `/v1/dienste`, `/v1/steckbriefe?faehigkeit=bild_erzeugen`, Verlauf "Steckbrief von MOSS-Image gelesen"; gleicher Startwert gleiche Bilder; `moss-image`, `MOSS-Image-SFT` und der Alias wählen denselben Dienst; ohne Größe und Schritte 1024x1024 und 50; 256x256, 300 Schritte, 1000x1000 geben 400 mit Satz, ohne dass der Dienst sie sieht; ohne `model` 400 `modell_fehlt` mit `x-leitstelle.modelle` und dem Satz "Die Anwendung muss ihr Modell nennen; die Leitstelle wählt keins." (die Leitstelle sucht keines aus), Alternativen ohne `model` 400 `eingabe`, eine unbekannte Alternative 404 `kein_modell` |
 | B10 | Schein-Welt: die App verlangt MOSS-Image (nicht geladen) mit der Alternative FLUX (geladen und frei); ein drittes Bildmodell ist geladen | MOSS-Image wird gestartet, nicht die geladene Alternative; ist sein Dienst nicht erreichbar, rechnet die Alternative; das dritte, nicht genannte Modell nie |
 | B11 | Verlangtes Modell bis 1024 Pixel je Kante, Alternative bis 2048 | 2048x1024 geht an die Alternative (das verlangte nimmt sie nicht an), sonst bleibt das verlangte vorn; nimmt keines die Anfrage an, 400 `eingabe` mit dem Grund des verlangten |
 | B09 | Von Hand sofort gestoppt, während der Dienst rechnet; ein Fehler des Dienstes (500) | App 409 `nutzer`, Auftrag abgebrochen mit Grund, Modell wieder geladen ohne Auftrag; der Fehler kommt als 502 `dienst_fehler` mit dem Satz des Dienstes, Auftrag fehlgeschlagen; der Dienst hat die Rechnung abgebrochen (über den Maschinenraum erst ab 0.17.3, ZUSAMMENSPIEL, Bildweg) |
 | B12 | Die Anwendung geht (Verbindung zu), während der Dienst rechnet; mit Strom und ohne | Auftrag abgebrochen mit Grund `anwendung`, der Dienst bricht die Rechnung ab (über die Durchleitung des Maschinenraums), Modell wieder geladen ohne Auftrag |
 | B15 | Bildvorlagen (`images`) an ein Modell, das bearbeitet (Steckbrief `kann_bearbeiten`, `vorlagen_max` 2), und an eines, das es nicht kann | MOSS-Image: "MOSS-Image-SFT nimmt keine Bildvorlage an."; drei Vorlagen: "Höchstens 2 Bildvorlagen je Anfrage, nicht 3."; Steckbrief noch unbekannt: Vorprüfung lässt durch, danach ohne Steckbrief Absage; kein Base64 oder mehr als 4 Vorlagen: Form falsch; der Ablauf schickt die Vorlagen als Base64 an `v1/images/edits`, ohne Vorlagen an `v1/images/generations`; `lizenz_hinweis` im Steckbrief; ein reines Bearbeitungsmodell (`vorlagen_min` 1) lehnt eine Anfrage ohne Vorlage schon in der Vorprüfung ab: "Qwen-Image-Edit-2511 rechnet nur mit Bildvorlage, mindestens 1." |
-| B16 | Bild bearbeiten (ATL-6): `POST /v1/images/edits` als Formular mit Datei `image` und als JSON mit `images`, App mit Recht `bild_bearbeiten`, Schein-Bilddienst mit Bearbeiten | Strom mit einem PNG, Startwert und Größe wie verlangt; der Dienst sah `edits` mit der Vorlage; nach dem Start nennt `/v1/steckbriefe?faehigkeit=bild_bearbeiten` das Modell; ohne Vorlage 400 "mindestens eine Bildvorlage"; ein Archiv ohne das Recht 403 `faehigkeit_nicht_erlaubt`; ohne `model` und Kette 400 `modell_fehlt` mit den Bildmodellen; die Bildablage bleibt leer |
+| B16 | Bild bearbeiten (ATL-6): `POST /v1/images/edits` als Formular mit Datei `image` und als JSON mit `images`, App mit Recht `bild_bearbeiten`, Schein-Bilddienst mit Bearbeiten | Strom mit einem PNG, Startwert und Größe wie verlangt; der Dienst sah `edits` mit der Vorlage; nach dem Start nennt `/v1/steckbriefe?faehigkeit=bild_bearbeiten` das Modell; ohne Vorlage 400 "mindestens eine Bildvorlage"; ein Archiv ohne das Recht 403 `faehigkeit_nicht_erlaubt`; ohne `model` 400 `modell_fehlt` mit den Bildmodellen; die Bildablage bleibt leer |
 
 ## 4. Zweige je Vorlage
 
@@ -459,8 +480,8 @@ aus), und im Kern gegen die Schein-Welt.
 | | warten lohnt mehr | S16b |
 | Vorwärmen | vorgewärmt | S20 |
 | | kein Platz ohne Entladen | S21 |
-| Kette ausweichen | ausgewichen | S22 |
-| | keine geladene Alternative | S23 |
+| Auf Alternative ausweichen | ausgewichen | S22, S83 |
+| | keine geladene Alternative | S23, S82 |
 | | warten lohnt mehr | nur erreichbar, wenn die erwartete Wartezeit null ist; der Baustein ist in S43 geprüft |
 | Extern ausweichen | extern | S24 |
 | | Anwendung darf nicht extern | S25 |

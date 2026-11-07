@@ -64,7 +64,6 @@ class AnwendungEintrag(BaseModel):
     zonen: set[Zone] = Field(default_factory=lambda: {Zone.HEIM})
     extern_erlaubt: bool = False
     gleichzeitig: int = 4
-    ketten: dict[Faehigkeit, list[str]] = Field(default_factory=dict)
     docker_projekte: list[str] = Field(default_factory=list)   # ihre Container im Docker-Rechner: Compose-Projekte oder Containernamen
     bildarchiv: bool = False          # ein Bildarchiv: holt erzeugte Bilder anderer Anwendungen ab (Bildablage, PROTOKOLL 6.3)
     gesperrt: bool = False

@@ -159,7 +159,7 @@ export const MASSNAHME: Record<Massnahmenart, { wort: string; symbol: string }> 
   umleiten: { wort: 'Umgeleitet', symbol: 'fa-route' },
   leerlauf_raeumen: { wort: 'Leerlauf geräumt', symbol: 'fa-broom' },
   vorwaermen: { wort: 'Vorgewärmt', symbol: 'fa-fire' },
-  kette_ausweichen: { wort: 'In der Kette ausgewichen', symbol: 'fa-shuffle' },
+  kette_ausweichen: { wort: 'Auf Alternative ausgewichen', symbol: 'fa-shuffle' },
   extern_ausweichen: { wort: 'Extern ausgewichen', symbol: 'fa-cloud' },
   umverteilen: { wort: 'Umverteilt', symbol: 'fa-people-arrows' },
   verlagern: { wort: 'Verlagert', symbol: 'fa-moon' },

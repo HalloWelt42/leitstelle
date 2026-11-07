@@ -1,27 +1,24 @@
 <script lang="ts">
   import { api } from '../lib/api';
   import { arbeit } from '../lib/arbeit.svelte';
-  import { modellText, uhrzeit } from '../lib/format';
+  import { uhrzeit } from '../lib/format';
   import { meldungen, tun } from '../lib/meldung.svelte';
   import type { AnwendungDaten, AnwendungSicht, Faehigkeit as F, Lagebild, Prioritaet, Zone } from '../lib/typen.gen';
   import { weg } from '../lib/weg.svelte';
-  import { FAEHIGKEIT, PRIORITAET, art } from '../lib/wort';
+  import { FAEHIGKEIT, PRIORITAET } from '../lib/wort';
   import Faehigkeit from '../teile/Faehigkeit.svelte';
   import ZoneMarke from '../teile/ZoneMarke.svelte';
 
   let { bild }: { bild: Lagebild } = $props();
 
   const ALLE = Object.keys(FAEHIGKEIT) as F[];
-  const KETTEN: F[] = ['text', 'einbettung', 'bild_beschreiben', 'bild_erzeugen', 'bild_bearbeiten'];
-  const BILDKETTEN: F[] = ['bild_erzeugen', 'bild_bearbeiten'];   // die Leitstelle sucht kein Bildmodell aus
-  const leer = (): AnwendungDaten => ({ name: '', prioritaet: 1, faehigkeiten: ['text', 'einbettung', 'uebersetzen', 'bild_beschreiben', 'werkzeug'], zonen: ['heim'], extern_erlaubt: false, gleichzeitig: 4, ketten: {}, docker_projekte: [], bildarchiv: false });
+  const leer = (): AnwendungDaten => ({ name: '', prioritaet: 1, faehigkeiten: ['text', 'einbettung', 'uebersetzen', 'bild_beschreiben', 'werkzeug'], zonen: ['heim'], extern_erlaubt: false, gleichzeitig: 4, docker_projekte: [], bildarchiv: false });
 
   let entwurf = $state<AnwendungDaten>(leer());
   let neuerSchluessel = $state<{ name: string; schluessel: string } | null>(null);
   let schluessel = $state<string | null>(null);
   let frage = $state<'neu' | 'sperren' | 'loeschen' | null>(null);
   let sperrgrund = $state('');
-  let kettenWahl = $state<Record<string, string>>({});
   // Entwurf, wie er gefüllt oder zuletzt gespeichert wurde; weicht er ab, ist die Bearbeitung offen
   let ausgang = $state(JSON.stringify(leer()));
   arbeit.bearbeitung(() => neuerSchluessel !== null || JSON.stringify(entwurf) !== ausgang);
@@ -41,40 +38,15 @@
     schluessel = null;
     frage = null;
     const fuellung = g ? { name: g.name, prioritaet: g.prioritaet as Prioritaet, faehigkeiten: [...g.faehigkeiten], zonen: g.zonen.filter((z) => z !== 'extern'),
-                           extern_erlaubt: g.extern_erlaubt, gleichzeitig: g.gleichzeitig, ketten: structuredClone($state.snapshot(g.ketten)),
+                           extern_erlaubt: g.extern_erlaubt, gleichzeitig: g.gleichzeitig,
                            docker_projekte: [...g.docker_projekte], bildarchiv: g.bildarchiv } : leer();
     entwurf = fuellung;
     ausgang = JSON.stringify(fuellung);
   });
 
-  const modelleFuer = (f: F) => [...new Map(bild.modelle.filter((m) => m.faehigkeiten.includes(f)).map((m) => [m.familie, m])).values()];
-  const modellName = (familie: string) => { const m = bild.modelle.find((x) => x.familie === familie); return m ? modellText(m) : familie; };
-  // Im Maschinenraum gesperrt (alle Instanzen): steht in der Auswahl, ist aber nicht wählbar
-  const gesperrt = (familie: string) => { const alle = bild.modelle.filter((m) => m.familie === familie); return alle.length > 0 && alle.every((m) => m.sperre); };
-  // Externe Modelle (beim Anbieter): in der Kette nur beim Ausweichen und mit Erlaubnis der App; ihre Art im Vergleich
-  const extern = (familie: string) => bild.modelle.some((m) => m.familie === familie && bild.dienste.find((d) => d.kennung === m.dienst)?.extern);
-  const wahlName = (familie: string) => {
-    const m = bild.modelle.find((x) => x.familie === familie);
-    if (!m || !extern(familie)) return modellName(familie);
-    const a = art(m.steckbrief);
-    return `${m.name} (extern${a ? `, ${a.wort}` : ''})`;
-  };
-  const hatExtern = $derived(bild.modelle.some((m) => extern(m.familie)));
-  const kette = (f: F): string[] => (entwurf.ketten as Record<string, string[]>)[f] ?? [];
   // Docker-Projekte als Text mit Kommas; übernommen beim Verlassen des Felds (sonst verschluckte das Teilen das Komma beim Tippen)
   const teilen = (text: string) => [...new Set(text.split(',').map((t) => t.trim()).filter(Boolean))];
 
-  function kettenSetzen(f: F, neu: string[]) {
-    const k = { ...(entwurf.ketten as Record<string, string[]>) };
-    if (neu.length) k[f] = neu; else delete k[f];
-    entwurf.ketten = k;
-  }
-  function verschieben(f: F, i: number, um: number) {
-    const k = [...kette(f)];
-    const [x] = k.splice(i, 1);
-    k.splice(i + um, 0, x);
-    kettenSetzen(f, k);
-  }
   function umschalten<T>(liste: T[], wert: T): T[] {
     return liste.includes(wert) ? liste.filter((x) => x !== wert) : [...liste, wert];
   }
@@ -202,29 +174,6 @@
             <input class="eingabe" value={(entwurf.docker_projekte ?? []).join(', ')} placeholder="zum Beispiel fundus"
                    onchange={(e) => (entwurf.docker_projekte = teilen(e.currentTarget.value))} /></label>
 
-          <div class="etikett" style="margin-top: var(--a4)" title="Die Kette ist die Wahl der Anwendung: die Leitstelle nimmt nur Modelle daraus und entscheidet nur Rechner, Laden, Warten und Vorrang">Modellketten <span class="leise" style="text-transform:none; letter-spacing:0; font-weight:500">Wahl der Anwendung, wenn sie kein Modell nennt; erstes verfügbares gewinnt</span></div>
-          {#if hatExtern}<p class="leise klein kettenhinweis">Externe Modelle rechnen beim Anbieter: in der Kette nur, wenn lokal länger gewartet würde und die
-            Anwendung sie auf ihre Erlaubnisliste setzt; nennt sie eines als Modell, gilt es direkt. Das schnelle taugt für kurze Aufgaben, das
-            gründliche für lange Texte; die Wahl bleibt bei der Anwendung.</p>{/if}
-          {#each KETTEN.filter((f) => entwurf.faehigkeiten?.includes(f)) as f (f)}
-            <div class="modellkette">
-              <div title={BILDKETTEN.includes(f) ? 'Bildmodell der Anwendung, wenn sie selbst keines nennt; ohne Kette und ohne Modell antwortet die Leitstelle mit der Liste der Bildmodelle, statt eines auszusuchen' : undefined}><Faehigkeit wert={f} /></div>
-              <div class="kette">
-                {#each kette(f) as fam, i (fam)}
-                  <span class="schritt" title={extern(fam) ? `${wahlName(fam)}: rechnet beim Anbieter, in der Kette nur beim Ausweichen und wenn die Anwendung es erlaubt` : fam}><i class="fa-solid {extern(fam) ? 'fa-cloud' : 'fa-brain'}"></i>{modellName(fam)}
-                    {#if i > 0}<button class="knopf ohne symbol klein" onclick={() => verschieben(f, i, -1)} title="Nach vorn"><i class="fa-solid fa-arrow-left"></i></button>{/if}
-                    <button class="knopf ohne symbol klein" onclick={() => kettenSetzen(f, kette(f).filter((x) => x !== fam))} title="Aus der Kette nehmen"><i class="fa-solid fa-xmark"></i></button></span>
-                  {#if i < kette(f).length - 1}<span class="pfeil"></span>{/if}
-                {/each}
-                <select class="eingabe" style="height: 34px; max-width: 260px" bind:value={kettenWahl[f]}
-                        onchange={() => { if (kettenWahl[f]) { kettenSetzen(f, [...kette(f), kettenWahl[f]]); kettenWahl[f] = ''; } }} title="Modell ans Ende der Kette setzen">
-                  <option value="">Modell anfügen</option>
-                  {#each modelleFuer(f).filter((m) => !kette(f).includes(m.familie)) as m (m.familie)}<option value={m.familie} disabled={gesperrt(m.familie)}>{wahlName(m.familie)}{gesperrt(m.familie) ? ' (gesperrt)' : ''}</option>{/each}
-                </select>
-              </div>
-            </div>
-          {/each}
-
           <div class="tun" style="margin-top: var(--a4); display: flex; gap: var(--a2); flex-wrap: wrap">
             <button class="knopf haupt" onclick={speichern} disabled={!entwurf.name.trim()}><i class="fa-solid fa-floppy-disk"></i> {anlegen ? 'Anlegen und Schlüssel erzeugen' : 'Speichern'}</button>
             {#if gewaehlt}
@@ -267,7 +216,7 @@
             <div class="etikett" style="margin-top: var(--a4)">Einbau (Stufe 1, nur die gewöhnliche Schnittstelle)</div>
             <div class="einbau"><code>Basisadresse {basis}</code><button class="knopf ohne symbol klein" onclick={() => kopieren(basis)} title="Basisadresse kopieren"><i class="fa-solid fa-copy"></i></button></div>
             <div class="einbau"><code>Authorization: Bearer &lt;Schlüssel&gt;</code></div>
-            <p class="leise klein" style="margin-top: var(--a2)">Modellname darf bleiben, wie er ist; ohne Modell gilt die Kette. Lese-Zeitgrenzen in der Anwendung entfernen; während des Wartens kommen Kommentarzeilen.</p>
+            <p class="leise klein" style="margin-top: var(--a2)">Jede Anfrage nennt ihr Modell (Name darf bleiben, wie er ist); weitere in eigener Reihenfolge als <code>alternativen</code>. Ohne Modell lehnt die Leitstelle ab, sie wählt keins. Lese-Zeitgrenzen in der Anwendung entfernen; während des Wartens kommen Kommentarzeilen.</p>
           </div>
         {/if}
       {:else}
@@ -276,7 +225,3 @@
     </div>
   </div>
 </div>
-
-<style>
-  .kettenhinweis { margin: 4px 0 var(--a2); }
-</style>

@@ -297,7 +297,7 @@ class Betrieb:
     def anwendung_setzen(self, a: AnwendungEintrag) -> None:
         self.anwendungen[a.kennung] = a
         self.verbund.anwendungen[a.kennung] = Anwendung(kennung=a.kennung, name=a.name, prioritaet=a.prioritaet, faehigkeiten=set(a.faehigkeiten),
-                                                         zonen=set(a.zonen), extern_erlaubt=a.extern_erlaubt, ketten=dict(a.ketten), gleichzeitig=a.gleichzeitig,
+                                                         zonen=set(a.zonen), extern_erlaubt=a.extern_erlaubt, gleichzeitig=a.gleichzeitig,
                                                          docker_projekte=list(a.docker_projekte))
         self.geaendert()
 
@@ -972,7 +972,7 @@ class Betrieb:
         for a in list(self.verbund.auftraege.values()):
             lauf = self.laeufe.get(a.kennung)
             if a.zustand == Auftragszustand.ABGELEHNT and lauf:
-                lauf.beenden_mit(a.grund or "kein_dienst", a.begruendung, self._schlafzusatz(a.schlafende_knoten))
+                lauf.beenden_mit(a.grund or "kein_dienst", a.begruendung, self._ablehnungszusatz(a))
         self._massnahmen_uebernehmen()
         self.verbund.ereignisse.clear()
         self._starten_was_bereit()
@@ -982,9 +982,28 @@ class Betrieb:
                 lauf.notieren(self.verbund.zeit_s, a.zustand, self._schritttext(a))
         self.geaendert()
 
-    def _schlafzusatz(self, knoten: list[str]) -> Zusatz | None:
-        """Die Namen schlafender Rechner für die Anwendung (error.x-leitstelle.rechner)."""
+    def _ablehnungszusatz(self, a: Auftrag) -> Zusatz | None:
+        """Was die Anwendung zur Ablehnung erfährt: ohne Modell die Modelle, unter denen sie wählen kann
+        (error.x-leitstelle.modelle), sonst die Namen schlafender Rechner (error.x-leitstelle.rechner)."""
+        if a.grund == "modell_fehlt":
+            return Zusatz(modelle=self.modelle_zur_wahl(a.anwendung, a.faehigkeit))
+        knoten = a.schlafende_knoten
         return Zusatz(rechner=[self.verbund.knoten[k].name for k in knoten if k in self.verbund.knoten]) if knoten else None
+
+    def modelle_zur_wahl(self, anwendung: str, faehigkeit: Faehigkeit) -> list[str]:
+        """Die Modelle (Familien), die die Anwendung für die Fähigkeit nutzen darf (Recht und Zone), zur Wahl als `model`."""
+        app = self.verbund.anwendungen.get(anwendung)
+        if app is None or faehigkeit not in app.faehigkeiten:
+            return []
+        aus = set()
+        for m in self.verbund.modelle.values():
+            d = self.verbund.dienste.get(m.dienst)
+            if d is None or m.zusatz or faehigkeit not in m.faehigkeiten:
+                continue
+            zone = Zone.EXTERN if d.extern else (self.verbund.knoten[d.knoten].zone if d.knoten in self.verbund.knoten else None)
+            if zone in app.zonen:
+                aus.add(m.familie)
+        return sorted(aus)
 
     def _schritttext(self, a: Auftrag) -> str:
         if a.zustand == Auftragszustand.LAEUFT:
@@ -1035,8 +1054,8 @@ class Betrieb:
     def anlegen(self, anwendung: str, faehigkeit: Faehigkeit, festes_modell: str | None, prioritaet: Prioritaet | None, titel: str,
                 arbeit: str | None = None, extern: list[str] | None = None, instanz: str | None = None,
                 token: tuple[int, int] = (0, 0), alternativen: list[str] | None = None) -> tuple[Auftrag, Lauf]:
-        """`festes_modell` und `alternativen` sind die Wahl der Anwendung (Familien, in ihrer Reihenfolge); ohne sie gilt ihre
-        Kette in der Leitstelle."""
+        """`festes_modell` und `alternativen` sind die Wahl der Anwendung (Familien, in ihrer Reihenfolge); ohne Modell lehnt
+        der Zuteiler den Auftrag ab (`modell_fehlt`), die Leitstelle wählt keins."""
         app = self.anwendungen[anwendung]
         if self.verbund.betriebsmodus == Betriebsmodus.HALT:
             raise Ablehnung("halt", "Der Hauptregler steht auf Halt; es wird nichts gerechnet.")

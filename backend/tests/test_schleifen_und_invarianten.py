@@ -109,7 +109,8 @@ def _zufallslauf(saat: int, dauer_s: int = 3600):
                 assert v.knoten[a.knoten].zone in app.zonen, "Zone verletzt"
             if a.zustand == Z.LAEUFT and a.extern:
                 assert v.anwendungen[a.anwendung].extern_erlaubt, "extern ohne Erlaubnis"
-                assert a.festes_modell or v.modelle[a.modell].familie in a.extern_familien, "extern ohne Erlaubnisliste der App"
+                fam = v.modelle[a.modell].familie
+                assert v.verlangt(a, fam) or fam in a.extern_familien, "extern nur, was die App nennt oder erlaubt"
     return w
 
 

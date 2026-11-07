@@ -56,8 +56,9 @@ class Gruppe:
 GRUPPEN: dict[Regelgruppe, Gruppe] = {
     Regelgruppe.SELBSTSTEUERUNG: Gruppe("Selbststeuerung", "Wie weit die Leitstelle von selbst eingreift und wie sie sich vor Hin und Her schützt."),
     Regelgruppe.SPEICHER: Gruppe("Speicher und Laden", "Wann Modelle laden, weichen oder bleiben; begonnene Arbeit behält ihre Modelle."),
-    Regelgruppe.AUSWEICHEN: Gruppe("Kette und Ausweichen", "Wohin ein wartender Auftrag ausweicht: andere Modelle seiner Kette, andere "
-                                                           "Rechner oder ein externer Anbieter, den die Anwendung erlaubt."),
+    Regelgruppe.AUSWEICHEN: Gruppe("Ausweichen", "Wohin ein wartender Auftrag ausweicht: auf ein Modell aus der Ausweichliste seiner Anwendung, "
+                                                 "auf andere Rechner oder zu einem externen Anbieter, den die Anwendung erlaubt. Ein Modell, "
+                                                 "das die Anwendung nicht genannt hat, wählt die Leitstelle nie."),
     Regelgruppe.HINTERGRUND: Gruppe("Hintergrund", "Wann Hintergrundarbeit wartet und wohin sie bevorzugt geht."),
     Regelgruppe.RUHE: Gruppe("Nur bei Ruhe", "Arbeit der niedrigsten Stufe: sie bekommt nur ein Modell, wenn keine andere Arbeit läuft "
                                              "oder wartet, und gibt nach, sobald etwas anderes kommt; der laufende Auftrag rechnet zu Ende, "
@@ -113,8 +114,8 @@ SZENARIEN: dict[Massnahmenart, Szenario] = {
                                                                    "Bedarf, entlädt die Leitstelle die ungenutzte."),
     Massnahmenart.WEITERE_INSTANZ: Szenario(Regelgruppe.SPEICHER, "Wartet ein Auftrag auf einen Platz eines Dienstes im Maschinenraum, startet die "
                                                                   "Leitstelle eine weitere Instanz, wenn sie ohne Entladen passt und sich lohnt."),
-    Massnahmenart.KETTE_AUSWEICHEN: Szenario(Regelgruppe.AUSWEICHEN, "Wartet ein Auftrag und ist ein anderes Modell seiner Kette geladen und frei, "
-                                                                     "rechnet er dort."),
+    Massnahmenart.ALTERNATIVE_AUSWEICHEN: Szenario(Regelgruppe.AUSWEICHEN, "Wartet ein Auftrag und ist ein anderes Modell aus der Ausweichliste seiner "
+                                                                           "Anwendung geladen und frei, rechnet er dort, wenn das mehr spart als kostet."),
     Massnahmenart.EXTERN_AUSWEICHEN: Szenario(Regelgruppe.AUSWEICHEN, "Würde ein Auftrag länger als die Schwelle warten und erlaubt die Anwendung ein "
                                                                       "externes Modell (Zone extern und ihre Erlaubnisliste), rechnet er beim Anbieter."),
     Massnahmenart.UMVERTEILEN: Szenario(Regelgruppe.AUSWEICHEN, "Wird ein Rechner mit offenen Aufträgen unerreichbar, enden laufende mit "
@@ -196,9 +197,6 @@ class Regelwerk(BaseModel):
         "Speicher knapp ab", "Ab diesem Anteil belegt heißt die Lage eines Rechners mit wartendem Auftrag angespannt.",
         E.ANTEIL, R.SPEICHER, 0.5, 1, 0.01)] = 0.92
 
-    geladene_zuerst: Annotated[bool, Regelwert(
-        "Geladene zuerst", "An: über die ganze Kette zuerst ein geladenes Modell mit freiem Platz, bevor etwas geladen wird. Aus: nur das erste "
-        "Modell der Kette, sonst laden.", E.SCHALTER, R.AUSWEICHEN)] = True
     extern_schwelle_s: Annotated[float, Regelwert(
         "Extern ab Wartezeit", "Ab dieser erwarteten Wartezeit weicht ein Auftrag zu einem externen Modell aus, das seine Anwendung erlaubt.",
         E.SEKUNDEN, R.AUSWEICHEN, 0, 86400, 10, szenario=Massnahmenart.EXTERN_AUSWEICHEN)] = 120.0

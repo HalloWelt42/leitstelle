@@ -15,14 +15,14 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..kern.modelle import Auftrag
-from ..kern.werte import Auftragszustand, Faehigkeit, Modellzustand, Prioritaet, Zone
+from ..kern.werte import Auftragszustand, Faehigkeit, Modellzustand, Prioritaet
 from ..konfig import Konfig
 from ..ports.dienste import DienstFehler, Durchleitung, Strom
 from ..ports.dienste.bilder import SEED_GRENZE, Bildablauf, Bildauftrag, Bildergebnis, bildablauf_waehlen
 from ..protokoll.fassade import BildAnfrage
 from .betrieb import Betrieb, Lauf, Messung
 from .bildregeln import bildauftrag, regeln_pruefen
-from .fehler import Ablehnung, Zusatz, fehler_inhalt
+from .fehler import Ablehnung, fehler_inhalt
 
 NEUVERSUCHE_NICHT_GELADEN = 2       # Dienst hat das Modell zwischen Abgleich und Anfrage selbst entladen
 NEUVERSUCHE_UEBERLAST = 3           # Dienst meldete Überlast (429, extern auch 5xx): gesperrt, Auftrag wartet oder weicht aus
@@ -113,19 +113,33 @@ class Vermittlung:
                  arbeit: str | None = None, extern: list[str] | None = None, instanz: str | None = None, koerper: dict[str, Any] | None = None,
                  alternativen: list[str] | None = None) -> Vorgang:
         """Ein Aufruf wird ein Auftrag; aus dem Körper schätzt die Leitstelle seine Token für die Grenzen je Minute.
-        `alternativen`: Familien, die die Anwendung zu ihrem Modell nennt (ihre Reihenfolge)."""
-        familie = None
-        if modellwunsch and modellwunsch not in ("auto", "leitstelle"):
-            familie = self.betrieb.familie_fuer(modellwunsch)
-            if familie is None:
-                raise self.betrieb.unbekannt(modellwunsch)
+        `modellwunsch` und `alternativen` sind die Wahl der Anwendung (Namen, in ihrer Reihenfolge); ohne Modell lehnt der
+        Zuteiler mit `modell_fehlt` ab und nennt die Modelle zur Wahl."""
+        familie, ausweichliste = self.modellwahl(modellwunsch, alternativen or [])
         auftrag, lauf = self.betrieb.anlegen(anwendung, faehigkeit, familie, prioritaet, titel, arbeit, extern, instanz,
-                                             token=token_schaetzen(koerper) if koerper else (0, 0), alternativen=alternativen if familie else None)
+                                             token=token_schaetzen(koerper) if koerper else (0, 0), alternativen=ausweichliste)
         v = Vorgang(auftrag=auftrag, lauf=lauf)
         if lauf.ende.is_set():                         # sofort abgelehnt (Rechte, Zone, kein Modell)
             self._abschliessen(v, Auftragszustand.ABGELEHNT, lauf.grund, lauf.begruendung)
             raise Ablehnung(lauf.grund or "kein_dienst", lauf.begruendung, lauf.zusatz)
         return v
+
+    def modellwahl(self, modell: str | None, alternativen: list[str], was: str = "Modell") -> tuple[str | None, list[str]]:
+        """Löst die Wahl der Anwendung auf: ihr Modell und ihre Ausweichliste als Familien, in ihrer Reihenfolge, ohne
+        Doppelte. Ein unbekannter Name gibt `kein_modell` (auch Namen, die früher die Leitstelle wählen ließen, etwa
+        `auto`); Alternativen ohne Modell `eingabe`."""
+        if not modell:
+            if alternativen:
+                raise Ablehnung("eingabe", "Alternativen gelten nur zu einem Modell: `model` angeben.")
+            return None, []
+        familien: list[str] = []
+        for name in [modell, *alternativen]:
+            familie = self.betrieb.familie_fuer(name)
+            if familie is None:
+                raise self.betrieb.unbekannt(name, was)
+            if familie not in familien:
+                familien.append(familie)
+        return familien[0], familien[1:]
 
     def _abschliessen(self, v: Vorgang, zustand: Auftragszustand, grund: str | None = None, begruendung: str | None = None) -> None:
         if not v.abgeschlossen:
@@ -426,60 +440,26 @@ class Vermittlung:
 
     def bildwahl(self, anwendung: str, anfrage: BildAnfrage, faehigkeit: Faehigkeit = Faehigkeit.BILD_ERZEUGEN) -> tuple[str | None, list[str]]:
         """Welches Bildmodell rechnen darf, bestimmt die Anwendung, nie die Leitstelle: `model` mit ihren `alternativen` (in
-        ihrer Reihenfolge), sonst ihre in der Leitstelle hinterlegte Kette für Bilder; ohne beides `modell_fehlt` mit der
-        Liste der Bildmodelle, die sie nutzen darf. Vor dem Einreihen prüft die Leitstelle die Anfrage mit den Steckbriefen:
-        ein genanntes Modell, das sie so nicht annimmt, geht für diese Anfrage nicht, es gilt das nächste der Anwendung;
-        nimmt keines sie an, `eingabe` mit dem Grund, bevor ein Dienst dafür startet. Liefert verlangtes Modell und
-        Alternativen (Familien) oder (None, []) für die Kette. `faehigkeit`: Bild erzeugen oder Bild bearbeiten (Recht,
-        Kette und Modelle dieser Fähigkeit)."""
+        ihrer Reihenfolge); ohne Modell lehnt der Zuteiler mit `modell_fehlt` und der Liste der Bildmodelle ab. Vor dem
+        Einreihen prüft die Leitstelle die Anfrage mit den Steckbriefen: ein genanntes Modell, das sie so nicht annimmt,
+        geht für diese Anfrage nicht, es gilt das nächste der Anwendung; nimmt keines sie an, `eingabe` mit dem Grund,
+        bevor ein Dienst dafür startet. Liefert verlangtes Modell und Alternativen (Familien), ohne Modell (None, []).
+        `faehigkeit`: Bild erzeugen oder Bild bearbeiten (Recht und Modelle dieser Fähigkeit)."""
         b = self.betrieb
         app = b.verbund.anwendungen.get(anwendung)
         if app is None or faehigkeit not in app.faehigkeiten:
             return None, []                               # keine Bilder erlaubt: das sagt die Annahme mit ihrem Grund
-        if anfrage.model and anfrage.model not in ("auto", "leitstelle"):
-            familien = []
-            for name in [anfrage.model, *anfrage.alternativen]:
-                familie = b.familie_fuer(name)
-                if familie is None:
-                    raise b.unbekannt(name, "Bildmodell")
-                self.bildablauf_fuer(familie)
-                if familie not in familien:
-                    familien.append(familie)
-        elif anfrage.alternativen:
-            raise Ablehnung("eingabe", "Alternativen gelten nur zu einem Modell: `model` angeben.")
-        else:
-            kette = app.ketten.get(faehigkeit, [])
-            if not kette:
-                modelle = self.bildmodelle(anwendung, faehigkeit)
-                raise Ablehnung("modell_fehlt", "Bildmodell angeben: `model` mit der Kennung eines Bildmodells"
-                                + (f" ({', '.join(modelle)})" if modelle else " (die Anwendung darf zurzeit keines nutzen)")
-                                + "; oder in der Leitstelle für die Anwendung eine Kette für Bilder hinterlegen.", Zusatz(modelle=modelle))
-            familien = [f for name in kette if (f := b.familie_fuer(name))]
-            gruende = [regeln_pruefen(b.bildsteckbriefe.get(f), anfrage.size, anfrage.n, anfrage.steps, len(anfrage.images), vorab=True) for f in familien]
-            if gruende and all(gruende):
-                raise Ablehnung("eingabe", gruende[0] or "")
-            return None, []
+        verlangt, ausweichliste = self.modellwahl(anfrage.model, anfrage.alternativen, "Bildmodell")
+        if verlangt is None:
+            return None, []                               # kein Modell: das sagt die Annahme mit ihrem Grund
+        familien = [verlangt, *ausweichliste]
+        for familie in familien:
+            self.bildablauf_fuer(familie)
         gruende = {f: regeln_pruefen(b.bildsteckbriefe.get(f), anfrage.size, anfrage.n, anfrage.steps, len(anfrage.images), vorab=True) for f in familien}
         passende = [f for f in familien if gruende[f] is None]
         if not passende:
             raise Ablehnung("eingabe", gruende[familien[0]] or "")
         return passende[0], passende[1:]
-
-    def bildmodelle(self, anwendung: str, faehigkeit: Faehigkeit = Faehigkeit.BILD_ERZEUGEN) -> list[str]:
-        """Die Kennungen der Bildmodelle, die die Anwendung für die Fähigkeit nutzen darf (Recht und Zone), zur Auswahl."""
-        b = self.betrieb
-        app = b.verbund.anwendungen.get(anwendung)
-        if app is None or faehigkeit not in app.faehigkeiten:
-            return []
-        aus = set()
-        for m in b.verbund.modelle.values():
-            d = b.verbund.dienste.get(m.dienst)
-            if d is None or m.zusatz or faehigkeit not in m.faehigkeiten:
-                continue
-            zone = Zone.EXTERN if d.extern else (b.verbund.knoten[d.knoten].zone if d.knoten in b.verbund.knoten else None)
-            if zone in app.zonen:
-                aus.add(m.familie)
-        return sorted(aus)
 
     async def bilder_erzeugen(self, v: Vorgang, anfrage: BildAnfrage, seed: int) -> Bilderzeugung:
         """Nach der Freigabe: den Steckbrief des zugeteilten Bilddienstes lesen, wenn er noch nie gelesen wurde oder der Dienst

@@ -86,7 +86,7 @@ class AnwendungAblage:
         return AnwendungEintrag(
             kennung=z.kennung, name=z.name, schluessel_fingerabdruck=z.schluessel_fingerabdruck, schluessel_geheim=z.schluessel_geheim,
             prioritaet=Prioritaet(z.prioritaet), faehigkeiten={Faehigkeit(f) for f in z.faehigkeiten}, zonen={Zone(x) for x in z.zonen},
-            extern_erlaubt=z.extern_erlaubt, gleichzeitig=z.gleichzeitig, ketten={Faehigkeit(f): list(k) for f, k in z.ketten.items()},
+            extern_erlaubt=z.extern_erlaubt, gleichzeitig=z.gleichzeitig,
             docker_projekte=list(z.docker_projekte or []), bildarchiv=bool(z.bildarchiv), gesperrt=z.gesperrt, sperrgrund=z.sperrgrund, angelegt_s=z.angelegt_s)
 
     async def alle(self) -> list[AnwendungEintrag]:

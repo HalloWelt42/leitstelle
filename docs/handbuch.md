@@ -54,7 +54,7 @@ nur von der festen Adresse des Vorschaltdienstes, `LEITSTELLE_VORSCHALTUNG`).
 ## Neu einrichten
 
 Zwei Wege. Aus der Sicherung: den Datenordner mit `leitstelle.sqlite` und `tresor.schluessel` zurückspielen; dann
-sind Rechner, Dienste, Anwendungen mit ihren Schlüsseln, Regeln und Ketten wie vorher, und keine App muss neu
+sind Rechner, Dienste, Anwendungen mit ihren Schlüsseln und Regeln wie vorher, und keine App muss neu
 angebunden werden. Frisch: leerer Datenordner; dann Läufer, Knoten und jede Anwendung neu anlegen und jeder App ihren
 neuen Schlüssel geben.
 
@@ -112,8 +112,10 @@ Modell wählt immer die App; die Rolle entscheidet nur zwischen Rechnern mit dem
 
 ### 5. Anwendungen
 
-Aus der Sicherung stehen sie schon da. Frisch je App eine Anwendung anlegen (Name, Priorität, Fähigkeiten, Zonen,
-Ketten; die Seite jeder App nennt ihre); der Schlüssel erscheint einmal und geht in die Einstellungen der App. Hat
+Aus der Sicherung stehen sie schon da. Frisch je App eine Anwendung anlegen (Name, Priorität, Fähigkeiten, Zonen;
+die Seite jeder App nennt ihre); der Schlüssel erscheint einmal und geht in die Einstellungen der App. Welches Modell
+eine App nutzt, stellt sie selbst ein (Modell und Ausweichliste je Fähigkeit, in ihren Einstellungen); die Leitstelle
+wählt nie eines und lehnt Anfragen ohne Modell mit 400 `modell_fehlt` ab. Hat
 die App Container im Docker-Rechner eines Rechners, gehören ihre Compose-Projekte (etwa `fundus`) unter
 Docker-Projekte: solange sie Hintergrundarbeit hat, zählt deren Last nicht zur Docker-Last.
 
@@ -124,10 +126,10 @@ Oberfläche der Leitstelle.
 
 Nichts einzurichten: die Leitstelle sieht die Bilddienste, sobald der Maschinenraum sie meldet. Darf eine App Bilder
 erzeugen, braucht sie die Fähigkeit "Bild erzeugen". Das Bildmodell wählt die App selbst (`model`, etwa
-`bildwerk-moss-image`, dazu wahlweise Alternativen in ihrer Reihenfolge); soll sie ohne Angabe ein festes Bildmodell
-nutzen, steht das als ihre Wahl in ihrer Kette für Bilder. Die Leitstelle sucht nie selbst ein Modell aus. Soll eine
+`bildwerk-moss-image`, dazu wahlweise Alternativen in ihrer Reihenfolge). Die Leitstelle sucht nie selbst ein Modell
+aus. Soll eine
 App Bilder nach Anweisung ändern (das Atelier), braucht sie zusätzlich "Bild bearbeiten"; das können die Bildmodelle,
-die Vorlagen annehmen (etwa Qwen-Image-Edit), mit eigener Kette. Bearbeitete Bilder gehen nicht ins Bildarchiv. Der erste Auftrag startet den Dienst (MOSS-Image bis 5 Minuten); danach liest die
+die Vorlagen annehmen (etwa Qwen-Image-Edit); auch hier nennt die App das Modell. Bearbeitete Bilder gehen nicht ins Bildarchiv. Der erste Auftrag startet den Dienst (MOSS-Image bis 5 Minuten); danach liest die
 Leitstelle seinen Steckbrief und behält ihn.
 
 Probe: unter Dienste steht bei "Dienste auf <Mac>" das Programm "MOSS-Image · Bilderzeugung" (Modellname vorn, die
@@ -186,9 +188,9 @@ Dienst anhalten, Archiv in den Datenordner entpacken, starten; Probe wie in Schr
   stehen je Modell Anfragen und Token der letzten 60 Sekunden neben den Grenzen des Schlüssels; die Grenzen dort an die
   des Anbieters anpassen. Ob ein externes Modell Bilder versteht, belegt "Fähigkeiten prüfen" am Dienst (zählt gegen die
   Grenzen).
-- Eine App bekommt bei einem Bild 400 `modell_fehlt`: sie nennt kein Bildmodell und hat in der Leitstelle keine Kette
-  für Bilder; die Antwort nennt die Bildmodelle zur Wahl. In der App das Modell einstellen (oder bei der Anwendung eine
-  Kette für Bilder hinterlegen).
+- Eine App bekommt 400 `modell_fehlt` ("Die Anwendung muss ihr Modell nennen; die Leitstelle wählt keins."): ihre
+  Anfrage nennt kein Modell; die Antwort nennt die Modelle zur Wahl. In der App das Modell einstellen. Ein Name wie
+  `auto` gilt als unbekanntes Modell (404 `kein_modell`).
 - Eine App bekommt bei einem Bild 400 `eingabe`: Größe, Anzahl oder Schritte passen nicht zum Modell; der Satz nennt
   die Grenze (MOSS-Image: Kanten 256 bis 2048, durch 16 teilbar, Fläche mindestens 512x512, 1 bis 218 Schritte). Bis
   der Dienst einmal lief, prüft die Leitstelle mit den Vorgabegrenzen, danach mit seinem Steckbrief.

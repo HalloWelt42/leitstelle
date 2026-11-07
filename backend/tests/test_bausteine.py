@@ -13,7 +13,7 @@ def test_s43_gewinnschwelle_zweige():
     k = Kontext(verbund=v, messwerk=Messwerk(), gewinn_s=6.0, aufwand_s=3.0)
     assert gewinn_gegen_aufwand(k, 2.0) is True
     k = Kontext(verbund=v, messwerk=Messwerk(), gewinn_s=0.0, aufwand_s=0.0)
-    assert gewinn_gegen_aufwand(k, 1.0) is False, "ohne Gewinn nie (Kette: Aufwand null, Gewinn null)"
+    assert gewinn_gegen_aufwand(k, 1.0) is False, "ohne Gewinn nie (Ausweichen: Aufwand null, Gewinn null)"
     k = Kontext(verbund=v, messwerk=Messwerk(), gewinn_s=4.0, aufwand_s=3.0)
     assert gewinn_gegen_aufwand(k) is False, "ohne Parameter gilt der Faktor des Regelwerks (2)"
     v.regelwerk.gewinnfaktor = 1.0

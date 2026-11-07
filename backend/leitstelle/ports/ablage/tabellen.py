@@ -57,7 +57,6 @@ class AnwendungTabelle(Basis):
     zonen: Mapped[list[str]] = mapped_column(JSON)
     extern_erlaubt: Mapped[bool] = mapped_column(Boolean, default=False)
     gleichzeitig: Mapped[int] = mapped_column(Integer, default=4)
-    ketten: Mapped[dict[str, Any]] = mapped_column(JSON)
     docker_projekte: Mapped[list[str]] = mapped_column(JSON, default=list)
     bildarchiv: Mapped[bool] = mapped_column(Boolean, default=False)
     gesperrt: Mapped[bool] = mapped_column(Boolean, default=False)

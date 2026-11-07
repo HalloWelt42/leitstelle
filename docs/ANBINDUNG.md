@@ -21,7 +21,7 @@ verbindlich, was noch nicht läuft, ist so gekennzeichnet.
 | Dienst | ein Programm, das rechnet (Modell-Läufer, Sprachdienst, Hörer, Bild-Werkbank, externer Anbieter) |
 | Knoten | ein Rechner mit Agent (MacBook, Pi, Server) |
 | Fähigkeit | was ein Auftrag braucht: text, einbettung, uebersetzen, hoeren, bild_beschreiben, bild_erzeugen, bild_bearbeiten, stimme, musik, werkzeug |
-| Kette | geordnete Liste von Modellfamilien je Fähigkeit und Anwendung; die Leitstelle nimmt das erste, das passt |
+| Modellwahl | das Modell, das die Anwendung in jeder Anfrage nennt (`model`), und ihre Ausweichliste (`alternativen`) in ihrer Reihenfolge; die Leitstelle wählt nie ein Modell, nur Ort und Zeitpunkt |
 | Zone | heim, vpn, extern; die Anwendung bestimmt, wo ihre Daten rechnen dürfen |
 | Priorität | hintergrund, normal, hoch, dringend; hoch und dringend nehmen den Direktweg |
 | Signal | Nachricht der Leitstelle an eine Anwendung ohne Aufforderung: Speicher, Lage, pausiert, gesperrt, Modell |
@@ -50,7 +50,7 @@ Die Anwendung ändert nur die Adresse ihres Modell-Läufers und bekommt einen Sc
 |---|---|---|
 | Adresse | Basisadresse auf `http://leitstelle:8530/v1` (mit oder ohne `/v1`, beides geht) | `GET /v1/models` liefert die erlaubten Modelle |
 | Schlüssel | `Authorization: Bearer <schluessel>`; den Schlüssel erzeugt die Leitstelle unter Anwendungen, Anwendung anmelden | Antwort ohne 401 |
-| Modellname | darf bleiben wie er ist (jede Schreibweise des Läufers ist ein Alias), darf der Name einer Kette sein (`gross`, `schnell`, `bild`) oder fehlen (dann gilt die Kette der Anwendung) | `GET /v1/models` zeigt `x-leitstelle.geladen` |
+| Modellname | muss in jeder Anfrage stehen und darf bleiben wie er ist (jede Schreibweise des Läufers ist ein Alias); weitere Modelle als `alternativen` in eigener Reihenfolge. Fehlt er, kommt 400 `modell_fehlt` mit den Modellen zur Wahl; Platzhalter wie `auto` sind unbekannte Modelle (404 `kein_modell`) | `GET /v1/models` zeigt `x-leitstelle.geladen`; ohne `model` 400 `modell_fehlt` |
 | Zeitgrenzen | Lese-Zeitgrenze für laufende Arbeit entfernen; Verbindungsaufbau-Grenze bleibt (10 s). Die Leitstelle sendet alle 15 s einen SSE-Kommentar `: wartet, <grund>, etwa <n> s`, solange ein Auftrag wartet | eine Vervollständigung, die 3 Minuten wartet, bricht nicht ab |
 | Ausweichlisten | Komma-Listen mehrerer Läufer-Adressen entfernen; die Leitstelle kennt alle Läufer | nur eine Adresse in der Konfiguration |
 | Eigene Modellverwaltung | Laden, Entladen, Autowahl, Speicherprüfung in der Anwendung entfernen, nicht nur abschalten | kein Aufruf von `lms`, `/api/v0/models` zum Laden, `vm_stat` mehr |
@@ -88,17 +88,16 @@ Die Anwendung ändert nur die Adresse ihres Modell-Läufers und bekommt einen Sc
   oder der Name seines Modells wie `moss-image`) und darf `alternativen` mitgeben, in ihrer Reihenfolge, etwa
   `{"model": "bildwerk-moss-image", "alternativen": ["bildschmiede"], ...}`. Die Leitstelle nimmt eine Alternative nur,
   wenn das verlangte Modell nicht geht (sein Dienst ist nicht erreichbar oder die Anfrage passt nicht zu seinem
-  Steckbrief), nie, weil sie schon geladen ist; sie entscheidet nur Quelle (Rechner, Instanz), Laden, Entladen, Warten
-  und Vorrang. Ohne `model` gilt nur eine Wahl, die die Anwendung in der Leitstelle hinterlegt hat (Seite Anwendungen,
-  Kette für Bild erzeugen); ohne beides kommt 400 `modell_fehlt` mit den Bildmodellen zur Wahl in
-  `error.x-leitstelle.modelle`. Welches Modell gerechnet hat, steht in `x-leitstelle.modell`. Ohne `size` und `steps`
+  Steckbrief), nie, weil sie schon geladen ist; wartet der Auftrag, darf die Regel "Auf Alternative ausweichen" ihn
+  auf eine geladene und freie Alternative legen. Sie entscheidet nur Quelle (Rechner, Instanz), Laden, Entladen, Warten
+  und Vorrang. Ohne `model` kommt 400 `modell_fehlt` mit den Bildmodellen zur Wahl in `error.x-leitstelle.modelle`. Welches Modell gerechnet hat, steht in `x-leitstelle.modell`. Ohne `size` und `steps`
   gelten die Vorgaben des Modells. Was das Modell annimmt,
   prüft die Leitstelle vorher; passt es nicht, kommt 400 `eingabe` mit dem Satz, ohne dass ein Dienst startet. Ein
   Bilddienst startet beim ersten Auftrag (MOSS-Image bis 300 s): Lese-Zeitgrenze weglassen oder mit `"stream": true`
   die Wartehinweise lesen.
 - Ein Bild nach Anweisung ändern: `POST /v1/images/edits`, als Formular mit der Vorlage im Feld `image` (wie im
   OpenAI-Format) oder als JSON mit `images`; sonst dieselben Felder. Die Anwendung braucht das Recht `bild_bearbeiten`
-  (eigene Kette); die Ergebnisse gehen nicht in die Bildablage (PROTOKOLL 6.4).
+  und nennt ein Modell, das Vorlagen annimmt; die Ergebnisse gehen nicht in die Bildablage (PROTOKOLL 6.4).
 - Modell zur Auswahl anbieten (etwa im Assistenten "Bild erzeugen mit"): `GET /v1/steckbriefe?faehigkeit=bild_erzeugen`
   oder `GET /v1/models` (Feld `x-leitstelle.steckbrief`) liefert je Bildmodell `id` (als `model` schicken), Name,
   Zweck, Eignung, Sprachen der Beschreibung und unter `bild` die Grenzen: Größen (Raster, Kanten, Fläche, Vorgabe,
@@ -115,7 +114,14 @@ Die Anwendung ändert nur die Adresse ihres Modell-Läufers und bekommt einen Sc
   erlaubt haben) oder auf die Erlaubnisliste setzen; die Leitstelle wählt dann nur beim Ausweichen. Grenzen je Minute
   des Anbieters (Anfragen, Token hinein und heraus) hält die Leitstelle ein; wer darüber läge, wartet mit Hinweis.
 - Mehr gleichzeitige Aufträge als erlaubt warten in der Warteschlange statt abgelehnt zu werden.
-- Fehlt `model`, setzt die Leitstelle das erste passende Modell der Kette ein.
+- Das Modell wählt immer die Anwendung: `model` in jeder Anfrage, dazu wahlweise `alternativen` (höchstens 8 Namen, in
+  ihrer Reihenfolge), etwa `{"model": "qwen/qwen3-coder-next", "alternativen": ["qwen/qwen3-next-80b"], ...}`. Die
+  Leitstelle nimmt das erste Modell der Liste, das geht (es liegt irgendwo, wo die Anwendung rechnen darf), und wählt nur
+  Rechner, Instanz oder Anbieter dafür. Ausgewichen wird nur auf die genannten Alternativen: wenn das verlangte Modell
+  nicht geht, oder wenn ein Auftrag wartet und eine Alternative geladen und frei ist (Regel "Auf Alternative
+  ausweichen", abschaltbar). `alternativen` geht nie an den Dienst. Fehlt `model`, kommt 400 `modell_fehlt` mit dem
+  Satz "Die Anwendung muss ihr Modell nennen; die Leitstelle wählt keins." und den Modellen zur Wahl in
+  `error.x-leitstelle.modelle`.
 - Reasoning-Modelle mit leerem Inhalt: die Leitstelle wiederholt mit größerem Budget und entfernt die
   Denkblöcke, bevor die Antwort die Anwendung erreicht.
 - Fehler in der Form des Läufers, dazu ein Wort im Feld `error.code`:
@@ -124,7 +130,8 @@ Die Anwendung ändert nur die Adresse ihres Modell-Läufers und bekommt einen Sc
 |---|---|---|---|
 | 401 | `unbekannter_schluessel` | Schlüssel falsch oder widerrufen | Hinweis zeigen, nicht wiederholen |
 | 403 | `faehigkeit_nicht_erlaubt`, `zone_nicht_erlaubt` | Rechte der Anwendung | Hinweis zeigen |
-| 404 | `kein_modell` | Modellname unbekannt, oder kein Modell genannt und keine Kette eingerichtet | Namen prüfen oder in der Leitstelle einen Zweitnamen oder eine Kette eintragen |
+| 400 | `modell_fehlt` | kein `model` in der Anfrage | Modell in der Anwendung einstellen (Liste in `error.x-leitstelle.modelle`) |
+| 404 | `kein_modell` | Modellname oder eine Alternative unbekannt (auch Platzhalter wie `auto`) | Namen prüfen oder in der Leitstelle einen Zweitnamen eintragen |
 | 429 | `gesperrt` | Anwendung gesperrt (von Hand oder nach Auslaufen) | `Retry-After` beachten, Hinweis zeigen |
 | 503 | `halt` | Hauptregler steht auf Halt | Hinweis zeigen, nach `Retry-After` erneut |
 | 503 | `dienst_nicht_erreichbar`, `modell_passt_nicht` | Dienst weg, oder er hat das Laden dreimal abgelehnt | Hinweis zeigen, später erneut |
@@ -157,9 +164,9 @@ Nachrichten über den Kanal, wie unten gezeigt.
 
 ### 3.1 Einstellungen in der Anwendung
 
-Genau zwei Werte: `LEITSTELLE_ADRESSE` und `LEITSTELLE_SCHLUESSEL`. Alles andere (Ketten, Rechte,
-Priorität, Herzschlag-Takt, Zeitgrenzen) kommt mit `anwendung.angemeldet` von der Leitstelle. Keine Zahl
-dazu steht in der Anwendung.
+Zwei Werte für die Verbindung: `LEITSTELLE_ADRESSE` und `LEITSTELLE_SCHLUESSEL`. Dazu die eigene Modellwahl je
+Fähigkeit (Modell und Ausweichliste), die nur die Anwendung kennt. Alles andere (Rechte, Priorität, Herzschlag-Takt,
+Zeitgrenzen) kommt mit `anwendung.angemeldet` von der Leitstelle. Keine Zahl dazu steht in der Anwendung.
 
 ### 3.2 Ablauf
 
@@ -167,7 +174,7 @@ dazu steht in der Anwendung.
    (`wss://` außerhalb des Heimnetzes, Pflicht für Zone extern).
 2. `anwendung.anmelden` senden mit `name`, `version`, `bibliothek`, `faehigkeiten` (gewünscht),
    `signale: true`, wenn Stufe 3 umgesetzt ist, sonst `false`.
-3. `anwendung.angemeldet` lesen und merken: `kennung`, `rechte`, `ketten`, `herzschlag_s`, `lage`,
+3. `anwendung.angemeldet` lesen und merken: `kennung`, `rechte`, `herzschlag_s`, `lage`,
    `auftraege` (Stand aller offenen Aufträge, wichtig nach Wiederverbindung).
 4. Alle `herzschlag_s` einen `herzschlag` senden; die Leitstelle antwortet mit `herzschlag`. Bleibt die
    Antwort zweimal aus, gilt die Verbindung als weg: neu verbinden mit wachsender Pause (1, 2, 4, bis
@@ -201,7 +208,6 @@ class Leitstelle:
         self.adresse, self.schluessel, self.name, self.faehigkeiten = adresse, schluessel, name, faehigkeiten
         self.verbunden = False
         self.rechte: dict = {}
-        self.ketten: dict = {}
         self.handler: dict[str, list] = {}
 
     def umschlag(self, art: str, nutzlast: dict, bezug: str | None = None) -> str:
@@ -228,7 +234,7 @@ class Leitstelle:
                     async for roh in ws:
                         n = json.loads(roh)
                         if n["art"] == "anwendung.angemeldet":
-                            self.rechte, self.ketten = n["nutzlast"]["rechte"], n["nutzlast"]["ketten"]
+                            self.rechte = n["nutzlast"]["rechte"]
                             self.verbunden = True
                             herzschlag = asyncio.create_task(self._herzschlag(ws, n["nutzlast"]["herzschlag_s"]))
                         for f in self.handler.get(n["art"], []):
@@ -286,8 +292,8 @@ Abfrageparameter an. Das ist nur im Heimnetz und über `wss://` erlaubt.
 
 1. Die Anwendung erscheint unter Anwendungen als verbunden, mit Bibliothek und Fassung.
 2. Leitstelle neu starten: die Anwendung verbindet sich selbst neu, zeigt zwischendurch "ohne Leitstelle".
-3. Ketten und Rechte kommen aus der Leitstelle; ein Wechsel dort wirkt ohne Neustart der Anwendung
-   (nächste Anmeldung oder `signal.*`).
+3. Rechte kommen aus der Leitstelle; ein Wechsel dort wirkt ohne Neustart der Anwendung (nächste Anmeldung oder
+   `signal.*`). Die Modellwahl bleibt in der Anwendung.
 
 ## 4. Stufe 3: Signale verarbeiten
 
@@ -306,7 +312,7 @@ meldet die Anwendung in `anwendung.anmelden` nur dann `signale: true`, wenn alle
 | `signal.freigegeben` | | Sperre aufheben |
 | `signal.modell` mit `zustand: bereit` | `modell`, `knoten` | wartende Arbeit darf starten |
 | `signal.modell` mit `zustand: wird_geladen` | `dauer_s` | Fortschritt "Modell wird geladen, etwa n Sekunden" zeigen |
-| `signal.modell` mit `zustand: nicht_verfuegbar` | | andere Kette wählen oder Hinweis zeigen |
+| `signal.modell` mit `zustand: nicht_verfuegbar` | | ein anderes eigenes Modell wählen oder Hinweis zeigen |
 | `signal.dienst`, `signal.zone` | | Hinweis zeigen; bei Zonenwechsel auf extern nichts Vertrauliches mehr senden |
 | `signal.kosten` | `anteil_prozent` | Hinweis zeigen; die Leitstelle sperrt selbst bei 100 Prozent |
 

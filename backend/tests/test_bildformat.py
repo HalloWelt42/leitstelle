@@ -194,7 +194,7 @@ def test_b07_bilddienst_weicht_bei_bedarf_anderer_nie_beim_rechnen():
                                    faehigkeiten={F.BILD_ERZEUGEN}, gb=24.0, parameter_mrd=0.0, schutz_vorgabe=False)
     w.wahrheit.ladezeit["bildwerk-moss-image@mac-128"] = 120.0
     v.anwendungen["kiste"].faehigkeiten.add(F.BILD_ERZEUGEN)
-    v.anwendungen["kiste"].ketten[F.BILD_ERZEUGEN] = ["bildwerk-moss-image"]
+    w.modellwahl["kiste"][F.BILD_ERZEUGEN] = ["bildwerk-moss-image"]
     bild = w.auftrag("kiste", F.BILD_ERZEUGEN, laufzeit_s=200)
     w.laufen(5)
     assert v.auftraege[bild.kennung].begruendung.startswith("MOSS-Image wird auf Dienste auf Mac Studio gestartet")
@@ -372,10 +372,11 @@ async def test_b08_moss_image_ueber_die_fassade(tmp_path):
             assert r.status_code == 400 and r.json()["error"]["code"] == "eingabe" and satz in r.json()["error"]["message"], r.text
         assert len((await dienst.get("/lage")).json()["anfragen"]) == vorher
 
-        # Das Modell wählt die Anwendung: ohne model und ohne hinterlegte Kette sucht die Leitstelle keines aus
+        # Das Modell wählt die Anwendung: ohne model sucht die Leitstelle keines aus
         r = await anw.post("/v1/images/generations", headers=kopf, json={"prompt": "x"})
         assert r.status_code == 400 and r.json()["error"]["code"] == "modell_fehlt", r.text
-        assert r.json()["error"]["x-leitstelle"] == {"modelle": ["bildwerk-moss-image"]} and "Bildmodell angeben" in r.json()["error"]["message"]
+        assert r.json()["error"]["x-leitstelle"] == {"modelle": ["bildwerk-moss-image"]}
+        assert r.json()["error"]["message"] == "Die Anwendung muss ihr Modell nennen; die Leitstelle wählt keins."
         r = await anw.post("/v1/images/generations", headers=kopf, json={"prompt": "x", "alternativen": ["moss-image"]})
         assert r.status_code == 400 and r.json()["error"]["code"] == "eingabe"
         r = await anw.post("/v1/images/generations", headers=kopf, json={"prompt": "x", "model": "moss-image", "alternativen": ["gibtsnicht"]})
@@ -522,7 +523,7 @@ async def test_b14_bildarchiv_holt_ueber_die_fassade_ab(tmp_path):
         assert (await anw.delete(f"/v1/bildablage/{e['kennung']}", headers=archiv)).status_code == 404
         # ältere Werkzeuge ändern ohne die Angabe: das Recht bleibt
         a = next(x for x in (await c.get("/api/lage")).json()["anwendungen"] if x["name"] == "Bildarchiv")
-        daten = {k: a[k] for k in ("name", "prioritaet", "zonen", "extern_erlaubt", "gleichzeitig", "ketten", "docker_projekte", "faehigkeiten")}
+        daten = {k: a[k] for k in ("name", "prioritaet", "zonen", "extern_erlaubt", "gleichzeitig", "docker_projekte", "faehigkeiten")}
         assert (await c.put(f"/api/anwendungen/{a['kennung']}", json=daten | {"gleichzeitig": 2})).status_code == 200
         assert next(x for x in (await c.get("/api/lage")).json()["anwendungen"] if x["name"] == "Bildarchiv")["bildarchiv"] is True
 

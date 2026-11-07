@@ -1,6 +1,6 @@
 """Zuteiler: welcher Dienst, welches Modell, welcher Knoten für einen wartenden Auftrag.
 
-Reihenfolge der Prüfung (ARCHITEKTUR 5.1): Rechte der Anwendung, Kette, Speicher, Plätze,
+Reihenfolge der Prüfung (ARCHITEKTUR 5.1): Rechte der Anwendung, Modellwahl der Anwendung, Speicher, Plätze,
 Priorität mit Fairness, Direktweg. Jede Entscheidung trägt eine Begründung in Worten. Arbeit "nur bei Ruhe" (Regelwerk)
 kommt zuletzt und nur, wenn keine andere Arbeit offen ist und die Ruhezeit seit der letzten vorbei ist; sonst wartet sie
 im Zustand `wartet_ruhe`. Hintergrund folgt dazu der Stufe
@@ -19,6 +19,10 @@ from .modelle import Auftrag, Modell, Verbund
 from .speicherplaner import planen
 from .werte import Auftragszustand, Betriebsmodus, Hintergrundstufe, Modellzustand, Prioritaet, Zone
 from .text import komma, schlaf_satz
+
+
+#: Ablehnung eines Auftrags ohne Modell (Grund `modell_fehlt`): das Modell wählt immer die Anwendung (Nutzer 07.11.2026)
+MODELL_FEHLT = "Die Anwendung muss ihr Modell nennen; die Leitstelle wählt keins."
 
 
 class Zuteilung(BaseModel):
@@ -79,11 +83,11 @@ def rolle(verbund: Verbund, a: Auftrag, knoten: str | None) -> int:
     return 0 if k is not None and a.faehigkeit in k.bevorzugt_fuer else 1
 
 
-def rechner_der_kette(verbund: Verbund, a: Auftrag) -> set[str]:
-    """Die Rechner, auf denen ein Modell der Kette des Auftrags liegt (ohne externe Anbieter)."""
-    kette = set(verbund.kette(a))
+def rechner_der_wahl(verbund: Verbund, a: Auftrag) -> set[str]:
+    """Die Rechner, auf denen ein Modell aus der Wahl der Anwendung liegt (ohne externe Anbieter)."""
+    wahl = set(verbund.modellwahl(a))
     return {verbund.dienste[m.dienst].knoten for m in verbund.modelle.values()
-            if m.familie in kette and verbund.dienste[m.dienst].knoten is not None}
+            if m.familie in wahl and verbund.dienste[m.dienst].knoten is not None}
 
 
 def vorrang_gesperrt(verbund: Verbund, a: Auftrag, m: Modell) -> str | None:
@@ -159,7 +163,7 @@ def schlafende_fuer(verbund: Verbund, modelle: list[Modell]) -> list[str]:
     return sorted({k for k in vor_ort if k is not None})
 
 
-def ablehnungsgrund(verbund: Verbund, auftrag: Auftrag, kette: list[str]) -> Wartegrund:
+def ablehnungsgrund(verbund: Verbund, auftrag: Auftrag, wahl: list[str]) -> Wartegrund:
     """Warum es für den Auftrag keinen Kandidaten gibt, als Wort und Satz. Reihenfolge: die Zone passt wirklich nicht
     (endgültig), alle passenden Rechner schlafen (die App wartet, bis einer wach ist), sonst ist der Dienst gerade weg."""
     def absage(grund: str, satz: str, schlafend: list[str] | None = None) -> Wartegrund:
@@ -167,11 +171,11 @@ def ablehnungsgrund(verbund: Verbund, auftrag: Auftrag, kette: list[str]) -> War
                           schlafende_knoten=schlafend or [])
     if auftrag.feste_instanz and auftrag.feste_instanz not in verbund.modelle:
         return absage("instanz_weg", "die Instanz, die das Ergebnis hat, läuft nicht mehr; der Aufruf muss von vorn beginnen")
-    passende = [m for m in verbund.modelle.values() if m.familie in kette and auftrag.faehigkeit in m.faehigkeiten]
+    passende = [m for m in verbund.modelle.values() if m.familie in wahl and auftrag.faehigkeit in m.faehigkeiten]
     if not passende:
-        if auftrag.festes_modell:
-            return absage("kein_modell", f"Modell {auftrag.festes_modell} ist im Verbund nicht bekannt oder kann das nicht")
-        return absage("kein_modell", "kein Modell der Kette kann diese Fähigkeit")
+        if len(wahl) == 1:
+            return absage("kein_modell", f"Modell {wahl[0]} ist im Verbund nicht bekannt oder kann das nicht")
+        return absage("kein_modell", f"keines der Modelle {', '.join(wahl)} ist im Verbund bekannt oder kann das")
     in_zone = [m for m in passende if zone_passt(verbund, auftrag, m)]
     if not in_zone:
         return absage("zone_nicht_erlaubt", "das Modell liegt nur in Zonen, die die Anwendung nicht nutzen darf")
@@ -231,9 +235,13 @@ def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> 
         if a.faehigkeit not in app.faehigkeiten:
             ergebnis.abgelehnt.append(Wartegrund(auftrag=a.kennung, zustand=Auftragszustand.ABGELEHNT, grund="faehigkeit_nicht_erlaubt", begruendung="Fähigkeit für diese Anwendung nicht erlaubt"))
             continue
+        wahl = verbund.modellwahl(a)
+        if not wahl:
+            ergebnis.abgelehnt.append(Wartegrund(auftrag=a.kennung, zustand=Auftragszustand.ABGELEHNT, grund="modell_fehlt", begruendung=MODELL_FEHLT))
+            continue
         nur_knoten: set[str] | None = None
         if verbund.nur_bei_ruhe(a):
-            orte = rechner_der_kette(verbund, a)
+            orte = rechner_der_wahl(verbund, a)
             if orte and not orte & ruhige:
                 naechste = min((verbund.ruhe_auf(k) for k in orte), key=lambda r: r.in_s if r.in_s is not None else float("inf"))
                 ergebnis.wartend.append(Wartegrund(auftrag=a.kennung, zustand=Auftragszustand.WARTET_RUHE, begruendung=naechste.grund, voraussichtlich_s=naechste.in_s))
@@ -248,38 +256,30 @@ def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> 
         if je_anwendung.get(a.anwendung, 0) >= app.gleichzeitig:
             ergebnis.wartend.append(Wartegrund(auftrag=a.kennung, zustand=Auftragszustand.EINGEREIHT, begruendung=f"Kontingent erreicht: {app.gleichzeitig} gleichzeitig"))
             continue
-        kette = verbund.kette(a)
-        if not kette:
-            ergebnis.abgelehnt.append(Wartegrund(auftrag=a.kennung, zustand=Auftragszustand.ABGELEHNT, grund="kein_modell", begruendung="kein Modell angegeben und keine Kette für diese Fähigkeit eingerichtet"))
-            continue
 
         gefunden: Zuteilung | None = None
         warte: Wartegrund | None = None
         gebremst: list[str] = []
-        # 1. Geladene zuerst (über die ganze Kette), mit freiem Platz. Nennt die Anwendung ein Modell mit Alternativen, gilt
-        # ihre Reihenfolge streng: das erste ihrer Modelle, das geht (einen Kandidaten hat); eine Alternative nur, wenn das
-        # verlangte Modell nicht geht, nie, weil sie schon geladen ist
-        if a.festes_modell:
-            suche = next(([fam] for fam in kette if kandidaten(verbund, a, fam, mit_extern, nur_knoten=nur_knoten)), kette[:1])
-        else:
-            suche = kette if verbund.regelwerk.geladene_zuerst else kette[:1]
-        geladene: list[tuple[int, Modell]] = []
-        for i, fam in enumerate(suche):
-            for m in kandidaten(verbund, a, fam, mit_extern, gebremst, nur_knoten):
-                if (m.zustand in (Modellzustand.GELADEN, Modellzustand.RECHNET) and platz_frei(verbund, m, _mit_vergebenem(vergeben_bedarf, m.dienst, a))
-                        and vergeben_plaetze.get(m.kennung, 0) < verbund.plaetze(m) - len(verbund.belegung(m.kennung))):
-                    d = verbund.dienste[m.dienst]
-                    bevorzugt = 0 if (a.prioritaet == Prioritaet.HINTERGRUND and verbund.hintergrund_knoten_bevorzugt and d.knoten == verbund.hintergrund_knoten_bevorzugt) else 1
-                    belegt = (len(verbund.belegung(m.kennung)) + vergeben_plaetze.get(m.kennung, 0)) / max(1, verbund.plaetze(m))
-                    geladene.append(((bevorzugt, i, rolle(verbund, a, d.knoten), belegt), m))
+        # 1. Die Reihenfolge der Anwendung gilt streng: das erste ihrer Modelle, das geht (einen Kandidaten hat), dort geladen
+        # mit freiem Platz; eine Alternative nur, wenn das verlangte Modell nicht geht, nie, weil sie schon geladen ist (das
+        # Ausweichen eines wartenden Auftrags auf eine geladene Alternative ist die Regel "Ausweichen")
+        erstes = next((fam for fam in wahl if kandidaten(verbund, a, fam, mit_extern, nur_knoten=nur_knoten)), wahl[0])
+        geladene: list[tuple[tuple[int, int, float], Modell]] = []
+        for m in kandidaten(verbund, a, erstes, mit_extern, gebremst, nur_knoten):
+            if (m.zustand in (Modellzustand.GELADEN, Modellzustand.RECHNET) and platz_frei(verbund, m, _mit_vergebenem(vergeben_bedarf, m.dienst, a))
+                    and vergeben_plaetze.get(m.kennung, 0) < verbund.plaetze(m) - len(verbund.belegung(m.kennung))):
+                d = verbund.dienste[m.dienst]
+                bevorzugt = 0 if (a.prioritaet == Prioritaet.HINTERGRUND and verbund.hintergrund_knoten_bevorzugt and d.knoten == verbund.hintergrund_knoten_bevorzugt) else 1
+                belegt = (len(verbund.belegung(m.kennung)) + vergeben_plaetze.get(m.kennung, 0)) / max(1, verbund.plaetze(m))
+                geladene.append(((bevorzugt, rolle(verbund, a, d.knoten), belegt), m))
         if geladene:
-            i, m = sorted(geladene, key=lambda t: t[0])[0]
+            _, m = sorted(geladene, key=lambda t: t[0])[0]
             d = verbund.dienste[m.dienst]
             gefunden = Zuteilung(auftrag=a.kennung, dienst=d.kennung, knoten=d.knoten, modell=m.kennung, laden=False, direkt=a.prioritaet >= Prioritaet.HOCH,
                                  begruendung=f"{m.name} ist auf {d.name} geladen und frei" + (" (Direktweg)" if a.prioritaet >= Prioritaet.HOCH else ""))
         if gefunden is None:
-            # 2. Erste Familie der Kette: geladen, aber belegt -> warten auf Platz; sonst laden, wenn es passt
-            for fam in kette:
+            # 2. Das erste Modell der Wahl, das geht: geladen, aber belegt -> warten auf Platz; sonst laden, wenn es passt
+            for fam in wahl:
                 ks = kandidaten(verbund, a, fam, mit_extern, gebremst, nur_knoten)
                 if not ks:
                     continue
@@ -343,5 +343,5 @@ def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> 
         elif gebremst:
             ergebnis.wartend.append(Wartegrund(auftrag=a.kennung, zustand=Auftragszustand.EINGEREIHT, begruendung=gebremst[0]))
         else:
-            ergebnis.abgelehnt.append(ablehnungsgrund(verbund, a, kette))
+            ergebnis.abgelehnt.append(ablehnungsgrund(verbund, a, wahl))
     return ergebnis
