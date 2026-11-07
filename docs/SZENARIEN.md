@@ -257,10 +257,13 @@ Gegentest: an der Fassung davor (0.35.0) scheitern alle, die Regel fehlt dort.
 | S74 | Hören läuft auf dem Mac Studio, Masseneinbettung kommt | rechnet auf dem ruhigen MacBook statt auf Ruhe im ganzen Haus zu warten |
 | S75 | Akku 31, 29, 33, 35 % | gesperrt ab unter 30 %, bleibt bis 35 %, dann frei |
 | S76 | MacBook bevorzugt, aber Akku 20 % | Auftrag geht auf den Mac Studio; Sprachausgabe nur auf dem MacBook hat keinen Kandidaten, Grund nennt den Akku |
+| S84 | Wie S07 (Bild wartet am Mac Studio, MacBook hätte Platz), aber Akku des MacBooks 20 % | kein Umleiten, kein Dienststart, kein Modell geladen; ab 70 % wieder frei, der Auftrag wird fertig |
+| S85 | Einbettung wartet auf dem MacBook, Akku 10 % | keine weitere Instanz dort ("Akku gesperrt") |
 
 Gegentest an der Fassung 0.35.0 (07.11.2026 geprüft): S68 (Einbettung kam zuerst), S69 bis S71 und S74 scheitern, S75
 und S76 kennen den Akku nicht. S73 hielt schon dort (geladene Kopien mit freiem Platz wurden schon verteilt), S72 scheitert
-nur am fehlenden Feld der Rolle.
+nur am fehlenden Feld der Rolle. S84 und S85 scheitern an der Fassung 0.37.0 (Gegentest 07.11.2026): dort sperrte der
+Akku nur die Zuteilung, die Selbststeuerung leitete trotzdem auf den gesperrten Mac um und lud dort.
 
 ### Auskunft für Apps (`test_auskunft.py`, LS-18, PROTOKOLL 6.5)
 

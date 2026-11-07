@@ -340,7 +340,7 @@ def anderer_knoten_mit_platz(k: Kontext, reserve_gb: float = 2.0) -> bool:
         if m.familie != fam or a.faehigkeit not in m.faehigkeiten:
             continue
         d = k.verbund.dienste[m.dienst]
-        if d.extern or d.knoten is None or d.knoten == k.knoten_quelle:
+        if d.extern or d.knoten is None or d.knoten == k.knoten_quelle or not k.verbund.nimmt_arbeit(d.knoten):
             continue
         if d.zustand not in (Dienstzustand.BEREIT, Dienstzustand.AUS) or (d.zustand == Dienstzustand.AUS and not d.installiert):
             continue
@@ -395,7 +395,7 @@ def leerlaufmodell_vorhanden(k: Kontext) -> bool:
     assert a is not None and k.knoten_quelle
     fam = a.wartet_auf_familie or a.festes_modell
     m = instanz_der_familie(k.verbund, fam, a.faehigkeit, k.knoten_quelle) if fam else None
-    if m is None or m.im_speicher:
+    if m is None or m.im_speicher or not k.verbund.nimmt_arbeit(k.knoten_quelle):
         return False
     if not m.ladbar(k.verbund.zeit_s):
         k.werte["leerlauf"] = f"Laden von {m.name} ist gesperrt: {m.ladesperre_grund}"
@@ -430,7 +430,7 @@ def platz_ohne_entladen(k: Kontext, reserve_anteil: float = 0.05) -> bool:
             continue
         d = k.verbund.dienste[m.dienst]
         if (d.extern or d.knoten is None or not d.nutzbar or not erlaubte_zone(k.verbund, a, d.knoten) or not m.ladbar(k.verbund.zeit_s)
-                or hintergrund_gebremst(k.verbund, a, m)):
+                or not k.verbund.nimmt_arbeit(d.knoten) or hintergrund_gebremst(k.verbund, a, m)):
             continue
         budget = k.verbund.knoten[d.knoten].budget_gb(k.r.budget_reserve_gb)
         plan = planen(k.verbund, d.knoten, m.gb + budget * reserve_anteil, k.messwerk, familie=fam)
@@ -489,6 +489,9 @@ def gespraechsmodelle(verbund: Verbund) -> frozenset[str]:
           "nie Gesprächsmodelle der Anwendungen, nie Modelle, die in der Schonfrist (Regelwerk) genutzt wurden.")
 def einbettungsinstanzen_moeglich(k: Kontext) -> bool:
     v, fam, knoten = k.verbund, k.werte["familie"], k.knoten_quelle
+    if not v.nimmt_arbeit(knoten):
+        k.werte["instanz"] = f"{v.knoten[knoten].name}: Akku gesperrt, keine weiteren Instanzen"
+        return False
     alle = [m for m in v.instanzen(fam, knoten) if not m.zusatz or m.im_speicher]   # entladene weitere zählen nicht mehr
     grund = next((m for m in alle if not m.zusatz), None)
     if grund is None or grund.instanzen_hoechstens <= 1:
@@ -548,7 +551,8 @@ def alternative_geladen(k: Kontext) -> bool:
             if m.familie != fam or a.faehigkeit not in m.faehigkeiten or m.zustand not in (Modellzustand.GELADEN, Modellzustand.RECHNET):
                 continue
             d = k.verbund.dienste[m.dienst]
-            if d.extern or d.knoten is None or not d.nutzbar or not erlaubte_zone(k.verbund, a, d.knoten) or hintergrund_gebremst(k.verbund, a, m):
+            if (d.extern or d.knoten is None or not d.nutzbar or not erlaubte_zone(k.verbund, a, d.knoten) or not k.verbund.nimmt_arbeit(d.knoten)
+                    or hintergrund_gebremst(k.verbund, a, m)):
                 continue
             if len(k.verbund.belegung(m.kennung)) >= k.verbund.plaetze(m) or k.verbund.anfrage_frei_in_s(m.dienst, a.bedarf) > 0:
                 continue

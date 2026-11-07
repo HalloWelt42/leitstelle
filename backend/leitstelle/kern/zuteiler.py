@@ -139,7 +139,7 @@ def kandidaten(verbund: Verbund, auftrag: Auftrag, familie: str, mit_extern: boo
             continue
         if not zone_erlaubt(verbund, auftrag, m):
             continue
-        if d.knoten in verbund.knoten and verbund.knoten[d.knoten].akku_gesperrt:
+        if not verbund.nimmt_arbeit(d.knoten):
             if gebremst is not None:
                 k = verbund.knoten[d.knoten]
                 gebremst.append(f"{k.name}: Akku {k.akku_prozent} %, unter {verbund.regelwerk.akku_stopp_prozent:.0f} % keine neue Arbeit")

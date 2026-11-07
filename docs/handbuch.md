@@ -108,7 +108,8 @@ und den Hintergrund (ab Maschinenraum 0.15.0), darunter "Apps des Rechners" und 
 Rolle je Rechner (unter Knoten, Bearbeiten, "Bevorzugt für"): Arbeit dieser Fähigkeiten geht zuerst auf diesen Rechner,
 im Haus Sprachausgabe und Hören auf das MacBook 32 GB, Bilder und große Textmodelle auf das MacBook M4 Max 128 GB. Das
 Modell wählt immer die App; die Rolle entscheidet nur zwischen Rechnern mit demselben Modell. Ein Mac mit Akku unter
-30 % (Regelwerk, Gruppe "Läufer und Last") nimmt keine neue Arbeit an, bis er wieder 35 % hat; die Karte zeigt das.
+30 % (Regelwerk, Gruppe "Läufer und Last") nimmt keine neue Arbeit an und lädt keine Modelle, bis er wieder den Wert
+"Akku: wieder Arbeit ab" erreicht (im Haus 70 %, Entscheidung 07.11.2026); die Karte zeigt das.
 
 ### 5. Anwendungen
 

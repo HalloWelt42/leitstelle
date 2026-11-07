@@ -592,6 +592,12 @@ class Verbund(BaseModel):
             k.akku_gesperrt = False
         return k.akku_gesperrt if k.akku_gesperrt != vorher else None
 
+    def nimmt_arbeit(self, knoten: str | None) -> bool:
+        """Ob ein Rechner Arbeit annehmen darf: keine neuen Aufträge und kein Laden, solange sein Akku gesperrt ist. Eine
+        Wahrheit für Zuteiler und Selbststeuerung; externe Anbieter (ohne Rechner) nehmen immer Arbeit an."""
+        k = self.knoten.get(knoten) if knoten else None
+        return k is None or not k.akku_gesperrt
+
     # ── Vorrang (Regelwerk, Gruppe "Vorrang", LS-15) ─────────────────────
     def rang(self, a: Auftrag) -> int:
         """Rang des Auftrags nach seiner Fähigkeit; kleiner kommt zuerst."""

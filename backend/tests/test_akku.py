@@ -7,7 +7,7 @@ from leitstelle.kern.werte import Dienstzustand, Faehigkeit as F
 from leitstelle.kern.zuteiler import kandidaten
 from leitstelle.protokoll.knoten import Akku, Messwerte
 
-from conftest import lade, welt_mit
+from conftest import ausgefuehrt, lade, welt_mit
 from test_schlaf import _knoten, _warte_bis, aufbau
 
 
@@ -75,3 +75,35 @@ async def test_akku_meldung_im_betrieb(tmp_path):
         texte = [m["text"] for m in (await a.c.get("/api/lage")).json()["meldungen"]]
         assert any("Akku 25 %, unter 30 %: nimmt keine neue Arbeit an" in t for t in texte)
         assert any("Akku 40 %, wieder über 35 %: nimmt wieder Arbeit an" in t for t in texte)
+
+
+def test_s84_gesperrter_akku_ist_kein_ziel_der_selbststeuerung():
+    """Der Fall aus S07 (Bildauftrag wartet am Mac Studio, das MacBook hätte Platz), aber der Akku des MacBooks ist unter
+    30 %: die Leitstelle leitet nicht um, startet dort keinen Dienst und lädt dort kein Modell (LS-22, 07.11.2026: das
+    MacBook rechnete bei 7 % weiter)."""
+    from leitstelle.kern.werte import Auftragszustand as Z, Massnahmenart as A, Modellzustand
+    w = welt_mit()
+    v = w.verbund
+    v.akku_melden("mac-32", 20)
+    w.auftrag("zusage", F.TEXT, laufzeit_s=60)
+    k = w.auftrag("kiste", F.BILD_BESCHREIBEN, laufzeit_s=8)
+    w.laufen(60)
+    assert not ausgefuehrt(w, A.UMLEITEN)
+    assert v.dienste["laeufer-32"].zustand != Dienstzustand.BEREIT, "kein Dienststart auf dem gesperrten Mac"
+    assert all(not m.im_speicher for m in v.modelle_auf("mac-32") if m.dienst == "laeufer-32")
+    assert v.auftraege[k.kennung].zustand != Z.FERTIG or v.auftraege[k.kennung].knoten == "mac-128"
+    v.akku_melden("mac-32", 70)
+    w.laufen_bis_fertig(200)
+    assert v.auftraege[k.kennung].zustand == Z.FERTIG
+    assert not [m for m in v.modelle.values() if m.zustand == Modellzustand.LAEDT]
+
+
+def test_s85_einbettung_wird_auf_gesperrtem_mac_nicht_verstaerkt():
+    """Einbettung wartet auf dem MacBook mit gesperrtem Akku: keine weitere Instanz dort."""
+    from leitstelle.kern.regeln.bausteine import Kontext, einbettungsinstanzen_moeglich
+    w = welt_mit()
+    v = w.verbund
+    v.akku_melden("mac-32", 10)
+    k = Kontext(verbund=v, messwerk=w.messwerk, instanz="bge-m3@mac-32", knoten_quelle="mac-32",
+                werte={"familie": "bge-m3", "wartende": 3, "auftraege": []})
+    assert einbettungsinstanzen_moeglich(k) is False and "Akku gesperrt" in k.werte["instanz"]

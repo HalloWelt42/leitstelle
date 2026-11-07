@@ -260,8 +260,8 @@ class Regelwerk(BaseModel):
         "Docker-Rechners) wird Hintergrund auf dem Rechner gedrosselt wie bei der Fremdlast.", E.PROZENT, R.LAST, 1, 100, 1,
         szenario=Massnahmenart.HINTERGRUND_RECHNERLAST)] = 70.0
     akku_stopp_prozent: Annotated[float, Regelwert(
-        "Akku: keine Arbeit unter", "Hat ein Rechner weniger Akku, bekommt er keine neuen Aufträge, auch am Netzteil und auch keine "
-        "Sprachausgabe; Laufendes rechnet zu Ende, die Arbeit geht auf einen anderen Rechner. 0: aus.", E.PROZENT, R.LAST, 0, 100, 1)] = 30.0
+        "Akku: keine Arbeit unter", "Hat ein Rechner weniger Akku, bekommt er keine neuen Aufträge und lädt keine Modelle, auch am "
+        "Netzteil und auch keine Sprachausgabe; Laufendes rechnet zu Ende, die Arbeit geht auf einen anderen Rechner. 0: aus.", E.PROZENT, R.LAST, 0, 100, 1)] = 30.0
     akku_frei_ab_prozent: Annotated[float, Regelwert(
         "Akku: wieder Arbeit ab", "Ab diesem Ladestand nimmt ein gesperrter Rechner wieder Aufträge an (Abstand gegen Hin und Her).",
         E.PROZENT, R.LAST, 0, 100, 1)] = 35.0

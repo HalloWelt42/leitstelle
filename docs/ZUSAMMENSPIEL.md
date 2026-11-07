@@ -559,7 +559,7 @@ Einbettung und Dauerarbeit die niedrigste, Modelle nach einer Minute ohne Auftra
 | Verteilung | Rollen je Mac im Regelwerk: Sprachausgabe und Hören zuerst auf den kleinen Mac, große Modelle und Bilder auf den großen; Einbettung auf beiden. Ist der bevorzugte Mac belegt oder gesperrt, weicht der Auftrag auf den anderen aus |
 | Sprachausgabe auf einem Mac | solange sie dort läuft oder wartet, bekommt der Mac keine neuen Aufträge niedrigeren Rangs; Laufendes endet; die übrige Arbeit geht auf den anderen Mac oder wartet. Nachlauf 30 s nach dem letzten Schritt (Regelwerk) |
 | Einbettung | Masseneinbettung (Priorität Hintergrund) läuft je Mac nur, wenn dort nichts Höheres läuft oder wartet, und nutzt dann beide Macs zugleich; einzelne Suchanfragen (Normal oder höher) laufen sofort |
-| Akku | unter 30 % keine neuen Aufträge auf diesem Mac, auch am Netzteil und auch keine Sprachausgabe; Laufendes endet; wieder frei ab 35 % (beide Werte im Regelwerk) |
+| Akku | unter 30 % keine neuen Aufträge auf diesem Mac, auch am Netzteil und auch keine Sprachausgabe; Laufendes endet; auch kein Laden von Modellen dort; wieder frei ab 70 % (Nutzer 07.11.2026: "auf 70 % laden", vorher 35 %; beide Werte im Regelwerk) |
 | Entladen | jedes Modell in LM Studio und jeder Dienst des Maschinenraums 60 s nach dem letzten laufenden oder wartenden Auftrag für dieses Modell (Regelwerk), auch Einbettung und 80B. Ausgenommen nur Dienste mit Schutz im Maschinenraum ("Leitstelle darf nicht anhalten"); von außen Geladenes wird ebenso entladen |
 | Reihenfolge des Baus | 1 Entladen nach 60 s, 2 Rangfolge mit Pausieren und Nachlauf, 3 Verteilung nach Rollen mit Einbettung auf beiden Macs, 4 Akku-Stopp, 5 Auskunft für Apps, 6 Ketten abschaffen und Ausweichen nur aus der App-Liste |
 
