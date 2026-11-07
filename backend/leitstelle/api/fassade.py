@@ -21,6 +21,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import ValidationError
 
+from ..fach.auskunft import lageauskunft
 from ..fach.bildablage import ist_archiv
 from ..fach.fehler import Ablehnung, fehler_inhalt
 from ..fach.vermittlung import Bilderzeugung, Vorgang, Wartet
@@ -236,7 +237,7 @@ async def bilder(request: Request) -> Response:
 
 
 async def bearbeiten(request: Request) -> Response:
-    """Bilder bearbeiten (PROTOKOLL 6.4): ein Auftrag mit der Fähigkeit bild_bearbeiten, mindestens eine Bildvorlage. Als
+    """Bilder bearbeiten (PROTOKOLL 6.5): ein Auftrag mit der Fähigkeit bild_bearbeiten, mindestens eine Bildvorlage. Als
     Formular wie im OpenAI-Format (Datei im Feld `image`, auch mehrfach oder als `image[]`, die übrigen Felder wie beim
     Erzeugen) oder als JSON mit `images` in Base64. Gerechnet wird wie beim Erzeugen mit Vorlagen; die Bilder gehen nicht
     in die Bildablage, denn es sind Zwischenstände der Anwendung, die das fertige Bild selbst weitergibt."""
@@ -486,6 +487,45 @@ async def modelle(request: Request):
                                        "faehigkeiten": sorted(f.value for f in m.faehigkeiten), "gb": m.gb,
                                        "steckbrief": b.steckbrief(m).model_dump(mode="json")}})
     return {"object": "list", "data": daten}
+
+
+@router.get("/v1/lage")
+async def lage(request: Request):
+    """Auskunft für Apps (PROTOKOLL 6.5): Auslastung je App, Modelle je Rechner, geschätzte Dauer, Rangfolge und Priorität,
+    ohne Inhalte. Mit App-Schlüssel sind die eigenen Aufträge markiert."""
+    darf, app = _darf_lesen(request)
+    if not darf:
+        return fehler_antwort(request, "unbekannter_schluessel", "Schlüssel fehlt oder ist unbekannt.")
+    return lageauskunft(betrieb(request), app.kennung if app else None).model_dump(mode="json")
+
+
+#: Strom der Auskunft: so oft wird auf Änderungen geschaut, so lange darf er ohne Änderung still sein (Kommentar hält ihn offen)
+STROM_TAKT_S = 1.0
+STROM_STILL_S = 15.0
+
+
+@router.get("/v1/lage/strom")
+async def lage_strom(request: Request):
+    """Dieselbe Auskunft als Strom (Server-Sent Events): `event: lage` bei jeder Änderung, sonst alle 15 s ein Kommentar."""
+    darf, app = _darf_lesen(request)
+    if not darf:
+        return fehler_antwort(request, "unbekannter_schluessel", "Schlüssel fehlt oder ist unbekannt.")
+    b = betrieb(request)
+    fragt = app.kennung if app else None
+
+    async def sse() -> AsyncIterator[bytes]:
+        gesendet, still = -1, 0.0
+        while not await request.is_disconnected():
+            if b.aenderung != gesendet:
+                gesendet, still = b.aenderung, 0.0
+                yield f"event: lage\ndata: {lageauskunft(b, fragt).model_dump_json()}\n\n".encode()
+            elif still >= STROM_STILL_S:
+                still = 0.0
+                yield b": ruhig\n\n"
+            await asyncio.sleep(STROM_TAKT_S)
+            still += STROM_TAKT_S
+
+    return StreamingResponse(sse(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
 
 
 @router.get("/v1/steckbriefe")

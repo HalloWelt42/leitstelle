@@ -12,7 +12,7 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from ..kern.werte import Faehigkeit
+from ..kern.werte import Auftragszustand, Faehigkeit, Prioritaet
 from ..ports.dienste.bilder import SEED_GRENZE
 from .steckbrief import ANZAHL_MAX, Bildsteckbrief
 
@@ -129,3 +129,64 @@ class DienstSicht(BaseModel):
 class DienstListe(BaseModel):
     object: str = "list"
     data: list[DienstSicht]
+
+
+# ── Auskunft für Apps (PROTOKOLL 6.5, Arbeitslogik 07.11.2026, LS-18) ────────────────────────────────────────────────
+# Was jede App über das Haus lesen darf: Auslastung je App, Modelle je Rechner, geschätzte Dauer, Rangfolge und Priorität.
+# Nie Titel, Texte oder Eingaben eines Auftrags.
+
+class AuftragAuskunft(BaseModel):
+    """Ein offener Auftrag, ohne Inhalt."""
+
+    kennung: str
+    eigener: bool                       # gehört der fragenden App
+    faehigkeit: Faehigkeit
+    rang: int                           # Rang der Fähigkeit (Regelwerk "Rangfolge"), kleiner kommt zuerst
+    prioritaet: Prioritaet              # wie die App sie geschickt hat
+    zustand: Auftragszustand
+    modell: str | None                  # Familie, sobald zugeteilt oder verlangt
+    modell_name: str | None
+    rechner: str | None                 # Name des Rechners, auf dem er rechnet
+    seit_s: float                       # Sekunden seit Eingang
+    rest_s: float | None                # rechnet: geschätzte Restdauer; wartet: voraussichtliche Wartezeit; None: unbekannt
+
+
+class AppAuskunft(BaseModel):
+    name: str
+    eigene: bool
+    laufend: int
+    wartend: int
+    auftraege: list[AuftragAuskunft]
+
+
+class ModellAuskunft(BaseModel):
+    familie: str
+    name: str
+    zustand: str                        # geladen, rechnet, laedt
+    auftraege: int                      # laufende und zugeteilte
+
+
+class RechnerAuskunft(BaseModel):
+    name: str
+    erreichbar: bool
+    schlaeft: bool
+    cpu_prozent: float | None
+    frei_gb: float
+    budget_gb: float
+    akku_prozent: int | None
+    akku_gesperrt: bool                 # nimmt wegen des Akkus keine neue Arbeit an
+    vorrang: str | None                 # hat gerade Arbeit mit Vorrang (etwa "Stimme"); Niedrigeres geht anderswohin
+    bevorzugt_fuer: list[Faehigkeit]    # Rolle des Rechners
+    modelle: list[ModellAuskunft]       # geladen, rechnend oder ladend
+
+
+class Lageauskunft(BaseModel):
+    """`GET /v1/lage` und je Änderung im Strom `GET /v1/lage/strom`."""
+
+    fassung: str
+    zeit_s: float
+    hauptregler: str                    # normal, auslaufen, halt
+    lage: str                           # ruhig, angespannt, ...
+    rangfolge: dict[Faehigkeit, int]
+    apps: list[AppAuskunft]
+    rechner: list[RechnerAuskunft]

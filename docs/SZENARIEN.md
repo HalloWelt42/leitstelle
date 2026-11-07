@@ -258,6 +258,16 @@ Gegentest: an der Fassung davor (0.35.0) scheitern alle, die Regel fehlt dort.
 Gegentest an der Fassung 0.35.0 (07.11.2026 geprüft): S68 (Einbettung kam zuerst), S69 bis S71 und S74 scheitern, S75
 und S76 kennen den Akku nicht. S73 hielt schon dort (geladene Kopien mit freiem Platz wurden schon verteilt), S72 scheitert
 nur am fehlenden Feld der Rolle.
+
+### Auskunft für Apps (`test_auskunft.py`, LS-18, PROTOKOLL 6.5)
+
+| Nr | Szenario | Erwartung |
+|---|---|---|
+| S77 | Ein Textauftrag der App läuft (mit Titel und Text) | `GET /v1/lage`: App als eigene, Auftrag als eigener mit Fähigkeit, Rang 3, Modell, Rechner Mac Studio; Titel und Text stehen nirgends; Rechner mit geladenem Modell, Rangfolge Stimme 1, Einbettung 7 |
+| S78 | Unbekannter Schlüssel | 401 für Abfrage und Strom |
+| S79 | Strom | `text/event-stream`, zuerst `event: lage` mit der Auskunft |
+
+Gegentest: an der Fassung 0.36.0 fehlen beide Wege (404).
 | E21 | Echte Ports: Text strömt, Masseneinbettung per HTTP (Kopf hintergrund) | Zustand `wartet_ruhe`, Anfrage bleibt offen, Suche (normal) kommt sofort, Masse nach Text plus Ruhezeit mit Vektoren |
 | V08 | Regelwerk, Gruppe Nur bei Ruhe | drei Werte mit Möglichkeiten, Änderung im Prüfprotokoll mit Worten, falsche Werte abgelehnt, leere Liste schaltet ab |
 

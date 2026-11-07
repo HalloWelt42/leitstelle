@@ -493,6 +493,25 @@ sind Zwischenstände der Anwendung, die das fertige Bild selbst weitergibt. Eine
 nur ein Teil des Bildes geändert werden soll, schickt die Anwendung diesen Ausschnitt und setzt das Ergebnis selbst
 wieder ein.
 
+### 6.5 Auskunft für Apps (`GET /v1/lage`, `GET /v1/lage/strom`)
+
+Jede App kann lesen, was im Haus los ist, und damit selbst entscheiden, welches Modell sie wann und wie dringend
+verlangt (die Leitstelle wählt nie das Modell, nur den Rechner). Mit dem App-Schlüssel als Bearer; ohne Schlüssel nur
+aus dem Heimnetz. Inhalte stehen nie darin: keine Titel, keine Texte, keine Eingaben.
+
+| Feld | Inhalt |
+|---|---|
+| `fassung`, `zeit_s` | Fassung der Leitstelle, Zeitpunkt |
+| `hauptregler`, `lage` | `normal`, `auslaufen` oder `halt`; Lage (ruhig, angespannt, ...) |
+| `rangfolge` | Rang je Fähigkeit aus dem Regelwerk, kleiner kommt zuerst; die Priorität der App ordnet nur innerhalb eines Rangs |
+| `apps[]` | je App mit offenen Aufträgen: `name`, `eigene` (die fragende App), `laufend`, `wartend`, `auftraege[]` |
+| `apps[].auftraege[]` | `kennung`, `eigener`, `faehigkeit`, `rang`, `prioritaet` (0 Hintergrund bis 3 Dringend), `zustand`, `modell` (Familie), `modell_name`, `rechner` (Name), `seit_s`, `rest_s` (rechnet: geschätzte Restdauer, wartet: voraussichtliche Wartezeit, sonst null) |
+| `rechner[]` | `name`, `erreichbar`, `schlaeft`, `cpu_prozent`, `frei_gb`, `budget_gb`, `akku_prozent`, `akku_gesperrt` (nimmt wegen des Akkus keine neue Arbeit an), `vorrang` (gerade Arbeit mit Vorrang, etwa "Stimme": Niedrigeres geht anderswohin), `bevorzugt_fuer` (Rolle des Rechners), `modelle[]` mit `familie`, `name`, `zustand` (geladen, rechnet, laedt) und `auftraege` |
+
+Der Strom (`text/event-stream`) sendet dieselbe Auskunft als `event: lage` mit `data: <JSON>` bei jeder Änderung,
+sonst alle 15 s den Kommentar `: ruhig`. Wer nur ab und zu entscheidet, fragt `GET /v1/lage`; wer laufend mitlesen
+will (etwa um Masseneinbettung zu drosseln, solange Sprachausgabe läuft), hält den Strom offen.
+
 ## 7. Fehler und Gründe
 
 Gründe sind Wörter aus Listen, die Oberfläche übersetzt sie:

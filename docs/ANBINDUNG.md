@@ -136,6 +136,10 @@ Die Anwendung ändert nur die Adresse ihres Modell-Läufers und bekommt einen Sc
   Hinweis statt ihn zu verwerfen. Beim Auslaufen rechnet der Auftrag fertig.
 - Stufe-1-Anwendungen gelten als nicht anhaltbar und haben die Priorität, die am Schlüssel steht.
 
+Auskunft: Jede Anwendung darf über `GET /v1/lage` (und als Strom `GET /v1/lage/strom`) lesen, was gerade läuft und
+wartet, welche Modelle wo geladen sind, wie lange etwas voraussichtlich noch dauert und welche Rangfolge gilt
+(PROTOKOLL 6.5). Das Modell wählt immer die Anwendung; die Leitstelle wählt nur den Rechner.
+
 ### 2.3 Abnahme Stufe 1
 
 1. Vervollständigung mit Streaming läuft, Antwort gleich wie vorher.
