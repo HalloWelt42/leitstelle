@@ -250,3 +250,28 @@ async def test_r07_nicht_mehr_warten(tmp_path):
         assert "Schlafzustand von Hand beendet" in pruef
         r = await a.c.post(f"/api/knoten/{a.knoten}/schlaf_beenden")
         assert r.status_code == 404 and r.json()["grund"] == "unbekannt"
+
+
+async def test_r08_neue_anmeldung_holt_den_laeufer_aus_dem_ausfall(tmp_path):
+    """HELF-183: Der Rechner schlief ohne Meldung ein (aus dem Halbschlaf), die Leitstelle zählte Fehlschläge, der Läufer
+    stand im Ausfall mit wachsenden Prüfabständen. Meldet sich sein Maschinenraum wieder an, ist der Rechner da: seine
+    Dienste werden sofort geprüft, nicht erst nach dem nächsten Abstand (bis zu einem Tag)."""
+    uhr = Stelluhr()
+    async with aufbau(tmp_path, uhr=uhr, mit_takt=False) as a:
+        betrieb = a.app.state.betrieb
+        kennung = next(d["kennung"] for d in await _dienste(a) if d["art"] == "openai_kompatibel")
+        a.laeufer.aus = True
+        await a.agent.trennen()
+        for _ in range(8):                                             # Fehlschläge bis in den Ausfall, je zur nächsten Prüfung
+            faellig = betrieb.pruefstand[kennung].naechste_s if kennung in betrieb.pruefstand else uhr.jetzt()
+            uhr.vor(max(faellig - uhr.jetzt(), 0) + 1)
+            await betrieb.takt()
+        laeufer = next(d for d in await _dienste(a) if d["kennung"] == kennung)
+        assert laeufer["zustand"] == "ausfall" and betrieb.pruefstand[kennung].naechste_s - uhr.jetzt() > 60, laeufer
+        a.laeufer.aus = False
+        await a.agent.verbinden()                                      # Deckel auf: Maschinenraum meldet sich an
+
+        async def bereit():
+            d = next(x for x in await _dienste(a) if x["art"] == "openai_kompatibel")
+            return d["zustand"] == "bereit" and d["fehlschlaege"] == 0
+        await _warte_bis(bereit, 3)                                    # ohne Takt: sofort bei der Anmeldung geprüft

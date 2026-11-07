@@ -319,14 +319,29 @@ class Betrieb:
         return next((d.kennung for d in self.dienste.values() if d.art == Adapterart.AGENT and d.knoten == knoten), None)
 
     def agent_angemeldet(self, v: AgentVerbindung) -> None:
-        """Die Anmeldung des Maschinenraums hebt einen Schlaf auf: der Rechner ist wach."""
+        """Die Anmeldung des Maschinenraums hebt einen Schlaf auf: der Rechner ist wach. Auch ohne vermerkten Schlaf
+        (der Rechner verschwand ohne Meldung, HELF-183) ist er jetzt da: Dienste, die nicht antworteten, werden sofort
+        geprüft statt erst nach den wachsenden Abständen eines Ausfalls."""
         k = self.knoten[v.knoten]
         self.melden(f"Maschinenraum auf {k.name} verbunden ({v.anmeldung.betriebssystem}, Fassung {v.anmeldung.agent_version})")
         self.bus.senden(umschlag("knoten.angemeldet", {"knoten": k.kennung, "name": k.name, **v.anmeldung.model_dump(mode="json")}))
         kn = self.verbund.knoten.get(v.knoten)
         if kn is not None and kn.schlaeft_seit_s is not None:
             self._wecken(kn, f"{kn.name} ist aufgewacht nach {_schlafdauer(self.uhr.jetzt() - kn.schlaeft_seit_s)}")
+        elif kn is not None:
+            self._wieder_da(kn)
         self.geaendert()
+
+    def _wieder_da(self, k: Knoten) -> None:
+        """Der Rechner meldet sich wieder an, ohne dass ein Schlaf vermerkt war: die Prüfabstände seiner Dienste, die
+        nicht antworteten, gelten nicht mehr; sie werden sofort gefragt. Bereite Dienste bleiben unberührt."""
+        stumm = [d for d in self.verbund.dienste_auf(k.kennung) if d.zustand in (Dienstzustand.AUSFALL, Dienstzustand.NICHT_ERREICHBAR)]
+        if not stumm:
+            return
+        for d in stumm:
+            self.pruefstand.pop(d.kennung, None)
+        self.melden(f"{k.name} ist wieder da; {', '.join(d.name for d in stumm)} werden sofort geprüft")
+        self._nebenbei(self._knoten_pruefen(k.kennung))
 
     def agent_getrennt(self, knoten: str) -> None:
         """Ohne Agent gelten wieder die eingetragenen Werte des Rechners."""

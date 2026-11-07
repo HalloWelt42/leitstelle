@@ -299,6 +299,7 @@ demselben Rechner, wie LM Studio neben dem Maschinenraum.
 | R05 | Neustart der Leitstelle während des Schlafs | Rechner und Dienste weiter `schlaeft`; ein danach unbekannter Name auf ihm gibt `rechner_schlaeft`; nach dem Aufwachen geht der Chat |
 | R06 | Agent verschwindet ohne Meldung, Läufer antwortet nicht | 503 `dienst_nicht_erreichbar` (früher 403 `zone_nicht_erlaubt`), Retry-After 30, ohne Rechner |
 | R07 | "Nicht mehr warten" von Hand | Dienste geprüft, Rechner nicht erreichbar, Aufrufe `dienst_nicht_erreichbar`; Prüfprotokoll; ein zweites Mal 404 |
+| R08 | Rechner verschwindet ohne Schlafmeldung, Läufer im Ausfall mit langem Prüfabstand, dann meldet sich der Maschinenraum wieder an (HELF-183) | Dienste, die nicht antworteten, werden ohne Takt sofort geprüft: Läufer bereit, null Fehlschläge; bereite Dienste unberührt |
 
 ## 3c. Am Leitstand vorbei (`test_am_leitstand_vorbei.py`)
 
