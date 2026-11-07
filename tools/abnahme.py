@@ -39,6 +39,7 @@ class Warteschlange:
     zustand_weiterreichen: bool = False
     stand: str | None = None
     angehalten_wenn: str | None = None
+    ruhig: str | None = None                 # Befehl mit Rückgabe 0, sobald nichts mehr in Arbeit ist (vor dem Fenster abwarten)
     vorher: str = ""                         # Ausgabe von "anhalten" (Zustand davor)
     angefasst: bool = False
 
@@ -126,6 +127,10 @@ def warten_bis(bedingung: Callable[[], object], frist_s: float, takt_s: float = 
     return None
 
 
+def gelingt(befehl: str) -> bool:
+    return subprocess.run(befehl, shell=True, capture_output=True, text=True, timeout=120).returncode == 0
+
+
 def shell(befehl: str, eingabe: str = "") -> str:
     r = subprocess.run(befehl, shell=True, input=eingabe, capture_output=True, text=True, timeout=1900)
     if r.returncode != 0:
@@ -143,7 +148,7 @@ class Abnahme:
 
     def sprechen(self, text: str) -> tuple[httpx.Response, str | None]:
         r = self.ls.fassade.post(f"/v1/dienste/{self.haus.modelle['sprechen']}/v1/audio/speech",
-                                 json={"model": self.haus.modelle["sprechen"], "input": text, "voice": self.haus.modelle["stimme"]})
+                                 json={"input": text, "voice": self.haus.modelle["stimme"]})
         return r, r.headers.get("X-Leitstelle-Auftrag")
 
     def einbetten(self, texte: list[str]) -> tuple[httpx.Response, str | None]:
@@ -174,16 +179,21 @@ class Abnahme:
         e.gesehen = f"Prüffenster für {p.get('anwendung')}, Durchlass {p.get('durchlass')}; Titel im Text: {'ja' if 'geheim' in text else 'nein'}"
         e.ok = p.get("anwendung") == "Abnahme" and "geheim" not in text and {"apps", "rechner", "rangfolge"} <= set(a)
 
-    # L3 (LS-17, LS-16): Akku gesperrt -> Sprache auf dem großen Mac; frei -> auf dem kleinen (Rolle)
+    # L3 (LS-16, LS-17): ohne geladene Kopie lädt die Rolle auf dem kleinen Mac; Akku gesperrt -> auf dem großen
     def l3_akku_und_rolle(self, e: Ergebnis) -> None:
-        self.ls.akku(self.klein, 20)
-        r1, k1 = self.sprechen("Erster Satz der Abnahme.")
-        bei_sperre = self.rechner_des(k1)
+        dienst = self.haus.modelle["sprechen"]
+        frist = self.haus.fristen["entladen_s"] + self.haus.fristen["entladen_spielraum_s"]
+        leer = warten_bis(lambda: not any(self.geladen_auf(r, dienst) for r in (self.klein, self.gross)), frist, 3)
         self.ls.akku(self.klein, 75)
+        r1, k1 = self.sprechen("Erster Satz der Abnahme.")
+        frei = self.rechner_des(k1)
+        self.ls.akku(self.klein, 20)
         r2, k2 = self.sprechen("Zweiter Satz der Abnahme.")
-        frei = self.rechner_des(k2)
-        e.gesehen = f"Akku 20 %: {r1.status_code} auf {bei_sperre}; Akku 75 %: {r2.status_code} auf {frei}"
-        e.ok = r1.status_code == r2.status_code == 200 and bei_sperre == self.gross and frei == self.klein
+        bei_sperre = self.rechner_des(k2)
+        e.gesehen = (f"vorher {'keine Kopie geladen' if leer else 'noch eine Kopie geladen'}; Akku 75 %: {r1.status_code} auf {frei}; "
+                     f"Akku 20 %: {r2.status_code} auf {bei_sperre}")
+        e.ok = bool(leer) and r1.status_code == r2.status_code == 200 and frei == self.klein and bei_sperre == self.gross
+        self.ls.akku(self.klein, None)
 
     # L4 (LS-15): Vorrang der Sprache auf ihrem Rechner, Nachlauf
     def l4_vorrang(self, e: Ergebnis) -> None:
@@ -206,7 +216,7 @@ class Abnahme:
         e.ok = r.status_code == 200 and anzahl == 2
         self._einbettung_rechner = self.rechner_des(k)
 
-    # L6 (LS-14): nach dem letzten Auftrag entladen
+    # L6 (LS-14): nach dem letzten Auftrag entladen (kein anderer Auftrag dieses Modells läuft oder wartet)
     def l6_entladen(self, e: Ergebnis) -> None:
         r, k = self.einbetten(["Letzter Auftrag vor dem Entladen"])
         rechner = self.rechner_des(k)
@@ -215,7 +225,9 @@ class Abnahme:
         frist = self.haus.fristen["entladen_s"]
         weg = warten_bis(lambda: not self.geladen_auf(rechner, familie), frist + self.haus.fristen["entladen_spielraum_s"], 3)
         nach_s = time.monotonic() - ende
-        e.gesehen = f"{familie} auf {rechner}: {'entladen' if weg else 'noch geladen'} nach {nach_s:.0f} s"
+        andere = [a for x in self.ls.auskunft()["apps"] for a in x["auftraege"] if a["modell"] == familie and not a["eigener"]]
+        e.gesehen = (f"{familie} auf {rechner}: {'entladen' if weg else 'noch geladen'} nach {nach_s:.0f} s"
+                     + (f"; {len(andere)} Aufträge anderer Apps für dieses Modell offen" if andere else ""))
         e.ok = r.status_code == 200 and weg is not None and nach_s >= frist - 5
 
     # L7 (LS-20): Live-Arbeit wartet mit Grund, Sprache ausgenommen
@@ -231,7 +243,7 @@ class Abnahme:
     SZENARIEN = [
         ("L1", "LS-19", "Modellpflicht", "ohne Modell 400 modell_fehlt, Platzhalter 'auto' 404 kein_modell", "l1_modellpflicht"),
         ("L2", "LS-18", "Auskunft im Fenster", "Prüffenster der Abnahme sichtbar, keine Titel", "l2_auskunft"),
-        ("L3", "LS-17, LS-16", "Akku und Rolle", "Akku 20 %: Sprache auf dem großen Mac; 75 %: auf dem kleinen (Rolle)", "l3_akku_und_rolle"),
+        ("L3", "LS-17, LS-16", "Akku und Rolle", "ohne geladene Kopie: Sprache auf dem kleinen Mac (Rolle); Akku 20 %: auf dem großen", "l3_akku_und_rolle"),
         ("L4", "LS-15", "Vorrang der Sprache", "Vorrang auf dem Rechner der Sprache, frei erst nach dem Nachlauf", "l4_vorrang"),
         ("L5", "LS-16", "Einbettung im Fenster", "Einbettung der Abnahme rechnet", "l5_einbettung"),
         ("L6", "LS-14", "Entladen nach dem letzten Auftrag", "Einbettungsmodell nach der Frist entladen, nicht vorher", "l6_entladen"),
@@ -287,6 +299,9 @@ def main(argv: list[str] | None = None) -> int:
                 continue
             q.vorher, q.angefasst = shell(q.anhalten), True
             notizen.append(f"{q.name}: Warteschlange angehalten")
+            if q.ruhig:
+                ok = warten_bis(lambda: gelingt(q.ruhig), haus.fristen["ruhe_warten_s"], 5)
+                notizen.append(f"{q.name}: " + ("nichts mehr in Arbeit" if ok else "nach der Frist noch in Arbeit"))
         ls.pruefung_oeffnen(haus.dauer_s, "Abnahme LS-20")
         abnahme.fenster_auf_s = time.time()
         notizen.append("Prüffenster offen")
