@@ -7,6 +7,7 @@
   import { weg } from '../lib/weg.svelte';
   import { DIENSTZUSTAND, KNOTENZUSTAND, knotenzustand } from '../lib/wort';
   import AgentFeld from '../teile/AgentFeld.svelte';
+  import Akkuwert from '../teile/Akkuwert.svelte';
   import AmLeitstandVorbei from '../teile/AmLeitstandVorbei.svelte';
   import DockerRechner from '../teile/DockerRechner.svelte';
   import Laeuferlast from '../teile/Laeuferlast.svelte';
@@ -146,10 +147,13 @@
                           titel="Speicher: {gb(mw.speicher_belegt_gb)} von {gb(mw.speicher_gesamt_gb)} belegt (gemessen)" />
                     {#if mw.swap_gesamt_gb}<Ring wert={anteil(mw.swap_belegt_gb, mw.swap_gesamt_gb) ?? 0} name="Auslagerung"
                           titel="Auslagerung auf die Platte: {gb(mw.swap_belegt_gb)} von {gb(mw.swap_gesamt_gb)}. Hoch heißt: der Speicher reicht nicht, alles wird langsamer." />{/if}
+                    {#if mw.platte_gesamt_gb && mw.platte_frei_gb != null}<Ring wert={anteil(mw.platte_gesamt_gb - mw.platte_frei_gb, mw.platte_gesamt_gb) ?? 0} name="Platte"
+                          titel="Platte: {gb(mw.platte_gesamt_gb - mw.platte_frei_gb)} von {gb(mw.platte_gesamt_gb)} belegt, {gb(mw.platte_frei_gb)} frei" />{/if}
                   </div>
                 {/if}
                 <Speicherbalken knoten={k} modelle={bild.modelle} budgetmarke />
                 <div class="kk-werte">
+                  {#if k.agent.messwerte?.akku}<Akkuwert akku={k.agent.messwerte.akku} />{/if}
                   <span title="Modelle im Speicher"><i class="fa-solid fa-brain"></i><b>{gb(k.geladen_gb)}</b> Modelle</span>
                   <span title="Frei im Budget"><i class="fa-solid fa-memory"></i><b>{gb(Math.max(0, k.frei_gb))}</b> frei</span>
                   <span title="Belegt einschließlich System"><i class="fa-solid fa-chart-pie"></i><b>{prozent(k.belegt_anteil)}</b></span>

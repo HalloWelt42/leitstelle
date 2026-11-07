@@ -324,9 +324,25 @@ export interface Messwerte {
   cpu_prozent?: number | null;
   last_1m?: number | null;
   platte_frei_gb?: number | null;
+  platte_gesamt_gb?: number | null;
   grafik_prozent?: number | null;
   temperatur_c?: number | null;
   leistung_w?: number | null;
+  akku?: Akku | null;
+}
+/**
+ * Akku eines tragbaren Rechners (in `knoten.messwerte`); fehlt bei Rechnern ohne Akku. Fehlende Angaben sind None.
+ *
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "Akku".
+ */
+export interface Akku {
+  prozent: number;
+  netzteil: boolean;
+  laedt: boolean;
+  rest_min?: number | null;
+  kapazitaet_prozent?: number | null;
+  zyklen?: number | null;
 }
 /**
  * Am Leitstand vorbei (`knoten.fremde`): ohne verbundenen Maschinenraum oder ohne seine Beobachtung nicht beobachtet.

@@ -28,6 +28,8 @@
   .kk-werte span { white-space: nowrap; }
   .kk-werte i { color: var(--ls-text-3); margin-right: 6px; width: 18px; text-align: center; }
   .kk-werte b { font-family: var(--ls-schrift-zahl); font-weight: 600; color: var(--ls-text); }
+  .kk-werte .knapp, .kk-werte .knapp i, .kk-werte .knapp b { color: var(--ls-warnung); }
+  .kk-werte i.stecker { margin: 0 0 0 6px; width: auto; }
 
   /* Dienste mit Zustandspunkt und Wort */
   .kk-dienste ul { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 6px; }
@@ -90,7 +92,21 @@
     ? `<ul>${k.dienste.map(dk => { const d = dienst(dk); return `<li title="${d.name}: ${WORT.zustand[d.zustand]}, ${d.art}"><span class="punkt${punktKlasse(d.zustand)}"></span><span class="name">${d.name}</span><span class="wort">${WORT.zustand[d.zustand]}</span></li>`; }).join('')}</ul>`
     : `<div class="kk-leer">Keine Dienste gemeldet</div>`;
 
+  // Akku (HELF-187): Symbol nach Ladestand, Stecker am Netzteil; ohne Netzteil unter 20 % in Warnfarbe
+  const dauer = (min) => `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0')}`;
+  const akkuSymbol = (p) => p >= 90 ? 'full' : p >= 60 ? 'three-quarters' : p >= 35 ? 'half' : p >= 10 ? 'quarter' : 'empty';
+  const akku = (a) => {
+    if (!a) return '';
+    const lage = a.netzteil ? (a.laedt ? `lädt${a.rest_min ? `, voll in ${dauer(a.rest_min)}` : ''}` : 'am Netzteil')
+                            : `Akku${a.rest_min ? `, noch ${dauer(a.rest_min)}` : ''}`;
+    const titel = `Akku ${a.prozent} %, ${a.netzteil ? 'am Netzteil' : 'ohne Netzteil'}${a.netzteil ? (a.laedt ? ', lädt' : ', lädt nicht (Akku-Schonung von macOS hält ihn unter voll)') : ''}`
+      + `${a.kapazitaet_prozent ? `. Zustand: ${a.kapazitaet_prozent} % der ursprünglichen Kapazität` : ''}${a.zyklen ? `, ${a.zyklen} Ladezyklen` : ''}.`
+      + `${!a.netzteil && a.prozent < 20 ? ' Fast leer: der Rechner schläft bald ein.' : ''}`;
+    return `<span class="${!a.netzteil && a.prozent < 20 ? 'knapp' : ''}" title="${titel}"><i class="fa-solid fa-battery-${akkuSymbol(a.prozent)}"></i><b>${a.prozent} %</b> ${lage}${a.netzteil ? '<i class="fa-solid fa-plug stecker"></i>' : ''}</span>`;
+  };
+
   const werte = (k) => `<div class="kk-werte">
+      ${akku(k.akku)}
       ${k.temp ? `<span title="Temperatur des Prozessors"><i class="fa-solid fa-temperature-half"></i><b>${k.temp} °C</b></span>` : ''}
       <span title="Netzdurchsatz der letzten Minute in Megabit je Sekunde"><i class="fa-solid fa-network-wired"></i><b>${zahl(k.netz_mbit)}</b> Megabit</span>
       <span title="Aufträge, die gerade auf diesem Knoten rechnen"><i class="fa-solid fa-list-check"></i><b>${k.auftraege}</b> ${k.auftraege === 1 ? 'Auftrag' : 'Aufträge'}</span>
