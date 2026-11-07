@@ -3,11 +3,12 @@
   import { arbeit } from '../lib/arbeit.svelte';
   import { gb, komma, prozent, uhrzeit } from '../lib/format';
   import { tun } from '../lib/meldung.svelte';
-  import type { KnotenDaten, KnotenSicht, Lagebild, Zone } from '../lib/typen.gen';
+  import type { Faehigkeit as FaehigkeitArt, KnotenDaten, KnotenSicht, Lagebild, Zone } from '../lib/typen.gen';
   import { weg } from '../lib/weg.svelte';
-  import { DIENSTZUSTAND, KNOTENZUSTAND, knotenzustand } from '../lib/wort';
+  import { DIENSTZUSTAND, FAEHIGKEIT, KNOTENZUSTAND, knotenzustand } from '../lib/wort';
   import AgentFeld from '../teile/AgentFeld.svelte';
   import Akkuwert from '../teile/Akkuwert.svelte';
+  import Faehigkeit from '../teile/Faehigkeit.svelte';
   import AmLeitstandVorbei from '../teile/AmLeitstandVorbei.svelte';
   import DockerRechner from '../teile/DockerRechner.svelte';
   import Laeuferlast from '../teile/Laeuferlast.svelte';
@@ -47,7 +48,16 @@
   function beginnen(k: KnotenSicht) {
     bearbeiten = k.kennung;
     entwurf = { name: k.name, adresse: k.adresse, speicher_gb: k.speicher_gb, system_gb: k.system_gb, zone: k.zone as Zone,
-                budget_fest_gb: k.budget_fest_gb, hintergrund_von: k.hintergrund_von, hintergrund_bis: k.hintergrund_bis };
+                budget_fest_gb: k.budget_fest_gb, hintergrund_von: k.hintergrund_von, hintergrund_bis: k.hintergrund_bis,
+                bevorzugt_fuer: [...k.bevorzugt_fuer] };
+  }
+
+  /** Rolle des Rechners (LS-16): Fähigkeiten, deren Arbeit zuerst hierher geht; in der Reihenfolge der Aufzählung */
+  const ALLE_FAEHIGKEITEN = Object.keys(FAEHIGKEIT) as FaehigkeitArt[];
+  function rolleUmschalten(f: FaehigkeitArt) {
+    if (!entwurf) return;
+    const jetzt = entwurf.bevorzugt_fuer ?? [];
+    entwurf.bevorzugt_fuer = ALLE_FAEHIGKEITEN.filter((x) => (x === f ? !jetzt.includes(f) : jetzt.includes(x)));
   }
 
   async function speichern() {
@@ -131,6 +141,13 @@
               <label class="feld-l"><span>Hintergrund ab Stunde <small>leer: kein Zeitfenster</small></span><input class="eingabe" type="number" min="0" max="23" bind:value={entwurf.hintergrund_von} /></label>
               <label class="feld-l"><span>Hintergrund bis Stunde</span><input class="eingabe" type="number" min="0" max="23" bind:value={entwurf.hintergrund_bis} /></label>
             </div>
+            <div class="etikett" style="margin-top: var(--a3)">Bevorzugt für <small class="leise">Arbeit dieser Fähigkeiten geht zuerst auf diesen Rechner; das Modell wählt immer die App</small></div>
+            <div class="filter" style="margin: 6px 0 var(--a3)">
+              {#each ALLE_FAEHIGKEITEN as f (f)}
+                <button class="chip" class:aktiv={entwurf.bevorzugt_fuer?.includes(f)} onclick={() => rolleUmschalten(f)}
+                        title="{FAEHIGKEIT[f].wort}: {entwurf.bevorzugt_fuer?.includes(f) ? 'bevorzugt hierher; abwählen' : 'nicht bevorzugt; wählen'}"><i class="fa-solid {FAEHIGKEIT[f].symbol}"></i> {FAEHIGKEIT[f].wort}</button>
+              {/each}
+            </div>
             <div class="kk-knoepfe">
               <button class="knopf haupt" onclick={speichern}><i class="fa-solid fa-floppy-disk"></i> Speichern</button>
               <button class="knopf ohne" onclick={() => { bearbeiten = null; entwurf = null; }}>Abbrechen</button>
@@ -163,6 +180,14 @@
                   {#if k.agent.messwerte?.last_1m != null}<span title="Durchschnittliche Last der letzten Minute (wartende und laufende Prozesse)"><i class="fa-solid fa-gauge"></i><b>{komma(k.agent.messwerte.last_1m, 1)}</b> Last</span>{/if}
                   {#if k.agent.messwerte?.platte_frei_gb != null}<span title="Freier Platz auf der Platte"><i class="fa-solid fa-hard-drive"></i><b>{gb(k.agent.messwerte.platte_frei_gb)}</b> frei</span>{/if}
                 </div>
+                {#if k.bevorzugt_fuer.length}
+                  <div class="kk-rolle" title="Arbeit dieser Fähigkeiten geht zuerst auf diesen Rechner (Rolle); das Modell wählt immer die App">
+                    <span class="etikett">Bevorzugt für</span>{#each k.bevorzugt_fuer as f (f)}<Faehigkeit wert={f} />{/each}
+                  </div>
+                {/if}
+                {#if k.akku_gesperrt}
+                  <div class="hinweis warnung klein"><i class="fa-solid fa-battery-quarter"></i><span>Akku unter {bild.regelwerk.akku_stopp_prozent} %: nimmt keine neue Arbeit an, bis er wieder {bild.regelwerk.akku_frei_ab_prozent} % hat; Laufendes rechnet zu Ende.</span></div>
+                {/if}
                 {#if knotenzustand(k) === 'schlaeft'}
                   <div class="hinweis klein"><i class="fa-solid fa-moon"></i><span>Schläft seit {uhrzeit(k.schlaeft_seit_s)}. Aufträge an ihn warten in den Apps, bis er wach ist; seine Dienste werden bis dahin nicht geprüft.</span></div>
                 {/if}

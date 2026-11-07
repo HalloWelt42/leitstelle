@@ -280,6 +280,7 @@
   .seite-knoten .kk-werte span { white-space: nowrap; }
   .seite-knoten .kk-werte i { color: var(--text-3); margin-right: 6px; width: 18px; text-align: center; }
   .seite-knoten .kk-werte b { font-family: var(--schrift-zahl); font-weight: 600; color: var(--text); }
+  .seite-knoten .kk-rolle { display: flex; flex-wrap: wrap; align-items: center; gap: 6px var(--a2); }
 
   /* Dienste mit Zustandspunkt und Wort */
   .seite-knoten .kk-dienste ul { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 6px; }

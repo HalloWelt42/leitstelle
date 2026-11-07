@@ -19,7 +19,7 @@ from ..ports.ablage.eintraege import PruefEintrag
 from .betrieb import Betrieb
 from .fehler import Ablehnung
 
-Wert = bool | int | float | str | list[str]
+Wert = bool | int | float | str | list[str] | dict[str, int]
 
 
 class Wahl(BaseModel):
@@ -37,7 +37,7 @@ class RegelwertSicht(BaseModel):
     min: float | None
     max: float | None
     schritt: float | None
-    wahl: list[Wahl]                   # bei Einheit wahl und mehrfach: die möglichen Werte mit Wort
+    wahl: list[Wahl]                   # bei Einheit wahl, mehrfach und rang: die möglichen Werte mit Wort
     szenario: Massnahmenart | None     # gehört zu dieser Maßnahme; None: gilt für mehrere
 
 
@@ -92,6 +92,8 @@ def _json(wert: object) -> Wert:
     """Ein Wert des Regelwerks wie im JSON: Aufzählungen als ihr Wert, Listen als Liste dieser Werte."""
     if isinstance(wert, list):
         return [_json(x) for x in wert]
+    if isinstance(wert, dict):
+        return {str(_json(k)): v for k, v in wert.items()}
     return wert.value if isinstance(wert, Enum) else wert
 
 
@@ -100,6 +102,10 @@ def wert_text(feld: str, wert: Wert) -> str:
     e = regelwert(feld).einheit
     if e == Einheit.SCHALTER:
         return "an" if wert else "aus"
+    if e == Einheit.RANG:
+        woerter = dict(regelwert(feld).wahl)
+        raenge = sorted({r for r in _json(wert).values()})
+        return "; ".join(f"{r}: " + ", ".join(woerter.get(k, k) for k, x in _json(wert).items() if x == r) for r in raenge)
     if e in (Einheit.WAHL, Einheit.MEHRFACH):
         woerter = dict(regelwert(feld).wahl)
         if e == Einheit.WAHL:
@@ -122,7 +128,8 @@ def _zahl(x: float) -> str:
 
 
 #: Grenzen, die zusammengehören: anhalten darf nicht unter drosseln liegen (je Maß der Regel "Hintergrund bei Rechnerlast")
-GRENZPAARE = [("last_anhalten_ab_prozent", "last_drosseln_ab_prozent"), ("docker_anhalten_ab_prozent", "docker_drosseln_ab_prozent")]
+GRENZPAARE = [("last_anhalten_ab_prozent", "last_drosseln_ab_prozent"), ("docker_anhalten_ab_prozent", "docker_drosseln_ab_prozent"),
+              ("akku_frei_ab_prozent", "akku_stopp_prozent")]
 
 
 def _neu(r: Regelwerk, a: RegelwerkAenderung) -> Regelwerk:
@@ -141,6 +148,10 @@ def _neu(r: Regelwerk, a: RegelwerkAenderung) -> Regelwerk:
         elif rw.einheit == Einheit.MEHRFACH:
             if not isinstance(wert, list) or any(x not in {y for y, _ in rw.wahl} for x in wert):
                 raise Ablehnung("eingabe", f"{rw.titel} ist eine Auswahl aus: {', '.join(w for _, w in rw.wahl)}.")
+        elif rw.einheit == Einheit.RANG:
+            if (not isinstance(wert, dict) or any(k not in {y for y, _ in rw.wahl} for k in wert)
+                    or any(isinstance(x, bool) or not isinstance(x, int) or not rw.min <= x <= rw.max for x in wert.values())):
+                raise Ablehnung("eingabe", f"{rw.titel}: je Fähigkeit eine ganze Zahl von {rw.min:.0f} bis {rw.max:.0f}.")
         elif isinstance(wert, bool) or not isinstance(wert, (int, float)):
             raise Ablehnung("eingabe", f"{rw.titel} braucht eine Zahl.")
         elif rw.einheit == Einheit.ANZAHL and wert != int(wert):
@@ -148,7 +159,8 @@ def _neu(r: Regelwerk, a: RegelwerkAenderung) -> Regelwerk:
         elif (rw.min is not None and wert < rw.min) or (rw.max is not None and wert > rw.max):
             raise Ablehnung("eingabe", f"{rw.titel} geht von {wert_text(feld, rw.min)} bis {wert_text(feld, rw.max)}, nicht {wert_text(feld, wert)}.")
     try:
-        neu = Regelwerk.model_validate(r.model_dump() | a.werte | {"szenarien_an": r.szenarien_an | a.szenarien_an})
+        zusammen = {f: (getattr(r, f) | w if isinstance(w, dict) else w) for f, w in a.werte.items()}   # Rangfolge: einzelne Fähigkeiten
+        neu = Regelwerk.model_validate(r.model_dump() | zusammen | {"szenarien_an": r.szenarien_an | a.szenarien_an})
     except ValidationError as fehler:      # nach den Prüfungen oben nicht zu erwarten; dann mit dem Feld statt englischem Wortlaut
         feld = str(fehler.errors()[0]["loc"][0])
         raise Ablehnung("eingabe", f"{regelwert(feld).titel if feld in einstellbar() else feld} passt so nicht.") from fehler

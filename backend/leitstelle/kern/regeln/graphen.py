@@ -236,8 +236,20 @@ LAEUFER_OHNE_AUFTRAG = _graph("laeufer_ohne_auftrag", "Läufer arbeitet ohne Auf
     E(von="k1", nach="k2"), E(von="k2", nach="e_ok"),
 ])
 
+# Entladen nach Leerlauf (Arbeitslogik 07.11.2026, LS-14): jedes Modell und jeder Dienst, auf dem seit der Frist nichts
+# lief und auf den nichts wartet, wird entladen oder angehalten; nur der Schutz des Dienstes hält es. Pflege, keine
+# Umschichtung: zählt nicht zur Höchstzahl der Maßnahmen und nicht zum Flattern (kern/umschichter.py).
+LEERLAUF_ENTLADEN = _graph("leerlauf_entladen", "Entladen nach Leerlauf", Massnahmenart.LEERLAUF_ENTLADEN, [
+    K(id="a", art="ausloeser", baustein="ohne_auftrag_seit_frist"),
+    K(id="k1", art="aktion", baustein="modell_entladen"),
+    K(id="k2", art="aktion", baustein="melden", parameter={"text": "{modell} auf {knoten} entladen: {dauer} ohne Auftrag"}),
+    K(id="e_ok", art="ende", titel="entladen"),
+], [
+    E(von="a", nach="k1"), E(von="k1", nach="k2"), E(von="k2", nach="e_ok"),
+])
+
 VORLAGEN: list[Regelgraph] = [UMLEITEN, LEERLAUF, VORWAERMEN, KETTE, EXTERN, UMVERTEILEN, VERLAGERN, DOPPEL, HINTERGRUND, HINTERGRUND_RECHNERLAST,
-                              LAEUFER_OHNE_AUFTRAG, INSTANZ, EINBETTUNG_VERSTAERKEN, EINBETTUNG_ZURUECKBAUEN]
+                              LAEUFER_OHNE_AUFTRAG, INSTANZ, EINBETTUNG_VERSTAERKEN, EINBETTUNG_ZURUECKBAUEN, LEERLAUF_ENTLADEN]
 
 
 def vorlagen() -> list[Regelgraph]:

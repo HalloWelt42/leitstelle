@@ -31,6 +31,7 @@ class KnotenEintrag(BaseModel):
     budget_fest_gb: float | None = None
     hintergrund_von: int | None = None  # Stunde, ab der Hintergrundarbeit bevorzugt hierher darf
     hintergrund_bis: int | None = None
+    bevorzugt_fuer: list[Faehigkeit] = Field(default_factory=list)   # Rolle: Arbeit dieser Fähigkeiten zuerst hierher (LS-16)
     agent_fingerabdruck: str | None = None   # Schlüssel des Knoten-Agenten (nur Fingerabdruck zum Erkennen)
     agent_geheim: str | None = None          # derselbe Schlüssel verschlüsselt, zum Aufdecken
 

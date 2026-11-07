@@ -80,6 +80,12 @@ def _text_fuellen(vorlage: str, werte: dict, verbund: Verbund, lauf: Lauf) -> st
         return vorlage
 
 
+#: Pflege statt Umschichtung: Entladen nach Leerlauf folgt nur dem Bedarf der Apps (geladen wird auf Anforderung, entladen
+#: nach der Frist), es kann keinen Kreis bilden. Zählt nicht zur Höchstzahl je Fenster und hinterlässt keine Bewegung fürs
+#: Flattern; sonst sperrte das zweite Entladen ein oft gebrauchtes Modell für die Ruhezeit, und es bliebe geladen.
+PFLEGE = frozenset({Massnahmenart.LEERLAUF_ENTLADEN})
+
+
 class Umschichter:
     def __init__(self, graphen: list[Regelgraph]) -> None:
         self.graphen = graphen
@@ -122,7 +128,7 @@ class Umschichter:
 
     def _im_fenster(self, verbund: Verbund) -> int:
         r = verbund.regelwerk
-        return sum(1 for m in self.verlauf if m.zustand == Massnahmenzustand.AUSGEFUEHRT and verbund.zeit_s - m.zeit_s <= r.fenster_s)
+        return sum(1 for m in self.verlauf if m.zustand == Massnahmenzustand.AUSGEFUEHRT and m.art not in PFLEGE and verbund.zeit_s - m.zeit_s <= r.fenster_s)
 
     # ── Takt ─────────────────────────────────────────────────────────────
     def takt(self, verbund: Verbund, messwerk: Messwerk, vollzug: Vollzug) -> list[Massnahme]:
@@ -173,7 +179,7 @@ class Umschichter:
             fam = verbund.modelle[lauf.modelle_entladen[0]].familie
         knoten = lauf.knoten_ziel or lauf.knoten_quelle
         bewegungen: list[str] = []
-        for a in lauf.aktionen:
+        for a in ([] if lauf.art in PFLEGE else lauf.aktionen):
             if a.baustein == "modell_laden" and a.werte.get("modell") in verbund.modelle:
                 mm = verbund.modelle[a.werte["modell"]]
                 bewegungen.append(f"laden:{mm.familie}@{verbund.dienste[mm.dienst].knoten}")
@@ -194,6 +200,8 @@ class Umschichter:
     def _sperrgrund(self, lauf: Lauf, m: Massnahme, verbund: Verbund, knoten_belegt: set[str]) -> str | None:
         r = verbund.regelwerk
         jetzt = verbund.zeit_s
+        if m.art in PFLEGE:
+            return None                       # Pflege: keine Höchstzahl, kein Flattern, mehrere je Rechner und Takt
         if self._im_fenster(verbund) >= r.max_massnahmen_je_fenster:
             return f"Höchstzahl von {r.max_massnahmen_je_fenster} Maßnahmen je {r.fenster_s:.0f} s erreicht"
         for kz in (lauf.knoten_ziel, lauf.knoten_quelle):

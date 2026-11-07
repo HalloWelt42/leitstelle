@@ -49,6 +49,11 @@
 .seite .ansicht .stufen { display: flex; }
 /* Mehrfachauswahl im Regelwerk (etwa Fähigkeiten nur bei Ruhe): Stufenknöpfe, die umbrechen */
 .einstellung .wert .stufen.mehrfach { flex-wrap: wrap; justify-content: flex-end; max-width: 560px; }
+/* Rangfolge: je Fähigkeit eine Rangzahl, als Raster (Regelwert mit Einheit rang) */
+.einstellung .wert .raenge { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 190px), 1fr)); gap: var(--a2) var(--a3); width: min(100%, 620px); }
+.einstellung .wert .raenge label { display: flex; align-items: center; justify-content: space-between; gap: var(--a2); min-width: 0; }
+.einstellung .wert .raenge label span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.einstellung .wert .raenge .eingabe { width: 4.5em; flex: none; }
 @media (max-width: 1240px) { .seite .ansicht { display: none; } }
 
 /* Breiter Dialog (Anschluss, Stoppen) */

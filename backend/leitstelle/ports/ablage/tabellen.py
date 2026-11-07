@@ -23,6 +23,7 @@ class KnotenTabelle(Basis):
     budget_fest_gb: Mapped[float | None] = mapped_column(Float, nullable=True)
     hintergrund_von: Mapped[int | None] = mapped_column(Integer, nullable=True)
     hintergrund_bis: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    bevorzugt_fuer: Mapped[list[str]] = mapped_column(JSON, default=list)
     agent_fingerabdruck: Mapped[str | None] = mapped_column(String(64), nullable=True)
     agent_geheim: Mapped[str | None] = mapped_column(Text, nullable=True)
 

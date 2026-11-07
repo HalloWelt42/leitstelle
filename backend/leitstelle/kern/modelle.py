@@ -15,6 +15,7 @@ from .werte import (
     IM_SPEICHER,
     OFFENE_ZUSTAENDE,
     WARTENDE_ZUSTAENDE,
+    WORT,
     Auftragszustand,
     Betriebsmodus,
     Dienstzustand,
@@ -129,6 +130,11 @@ class Knoten(BaseModel):
     laeufer_umgehungen: list[str] = Field(default_factory=list)   # wer den Läufer am Leitstand vorbei anspricht (nach der Deutung)
     hintergrund_stufe: Hintergrundstufe = Hintergrundstufe.FREI   # Regel "Hintergrund bei Rechnerlast"
     hintergrund_grund: str = ""
+    vorrang_zuletzt_s: float | None = None    # zuletzt lief oder wartete hier Arbeit mit Vorrang (Regelwerk "Vorrang auf dem Rechner")
+    andere_arbeit_ende_s: float | None = None # Ende des letzten Auftrags hier, der nicht nur bei Ruhe läuft (Ruhe je Rechner, LS-16)
+    bevorzugt_fuer: set[Faehigkeit] = Field(default_factory=set)   # Rolle: Arbeit dieser Fähigkeiten zuerst hierher (LS-16)
+    akku_prozent: int | None = None           # Ladestand, wenn der Rechner einen Akku hat (Maschinenraum, LS-11)
+    akku_gesperrt: bool = False               # unter der Grenze: keine neuen Aufträge, bis der Akku wieder über "wieder Arbeit ab" ist
     hintergrund_seit_s: float | None = None
 
     @property
@@ -191,7 +197,6 @@ class Modell(BaseModel):
     gb: float                         # Bedarf: damit wird geplant
     parameter_mrd: float
     zustand: Modellzustand = Modellzustand.FREI
-    geschuetzt_fest: bool = False     # Einbettungsmodelle und ausdrücklich geschützte
     instanzen_hoechstens: int = 1     # so viele Instanzen darf die Leitstelle starten (Dienstdatei des Maschinenraums)
     zusatz: bool = False              # weitere Instanz (<familie>.<n>): weicht bei Speichermangel vor allen anderen
     schutz_vorgabe: bool | None = None  # vom Dienst vorgegeben (zum Beispiel Maschinenraum); geht der Regel vor
@@ -207,12 +212,11 @@ class Modell(BaseModel):
     # `dienst_gesperrt`, bis ein Mensch die Sperre dort aufhebt
     sperre: str | None = None
 
-    def geschuetzt(self, schutzgrenze_mrd: float) -> bool:
-        if self.schutz_vorgabe is not None:
-            return self.schutz_vorgabe
-        if self.zusatz:
-            return False                  # eine weitere Instanz hat die Leitstelle selbst gestartet; sie weicht zuerst
-        return self.geschuetzt_fest or self.parameter_mrd < schutzgrenze_mrd
+    @property
+    def geschuetzt(self) -> bool:
+        """Nur der Dienst schützt ein Modell (im Maschinenraum: "Leitstelle darf nicht anhalten"). Größe, Art und
+        Einbettung schützen nicht mehr (Arbeitslogik 07.11.2026, LS-14): alles weicht und wird nach Leerlauf entladen."""
+        return bool(self.schutz_vorgabe) and not self.zusatz
 
     @property
     def belegt_gb(self) -> float:
@@ -545,9 +549,70 @@ class Verbund(BaseModel):
         return Ruhe(frei=True)
 
     def auftrag_beendet(self, a: Auftrag) -> None:
-        """Ende eines Auftrags (fertig, abgebrochen, gescheitert, abgelehnt): endet andere Arbeit, beginnt die Ruhezeit neu."""
+        """Ende eines Auftrags (fertig, abgebrochen, gescheitert, abgelehnt): endet andere Arbeit, beginnt die Ruhezeit neu;
+        endet Arbeit mit Vorrang auf einem Rechner, beginnt dort der Nachlauf des Vorrangs."""
         if not self.nur_bei_ruhe(a):
             self.andere_arbeit_ende_s = self.zeit_s
+        if a.faehigkeit in self.regelwerk.vorrang_faehigkeiten and a.knoten in self.knoten:
+            self.knoten[a.knoten].vorrang_zuletzt_s = self.zeit_s
+        if not self.nur_bei_ruhe(a) and a.knoten in self.knoten:
+            self.knoten[a.knoten].andere_arbeit_ende_s = self.zeit_s
+
+    def ruhe_auf(self, knoten: str) -> Ruhe:
+        """Ruhe je Rechner (Arbeitslogik 07.11.2026, LS-16): Arbeit nur bei Ruhe darf auf einen Rechner, auf dem keine andere
+        Arbeit läuft, zugeteilt ist oder auf ihn wartet (Wartende ohne bekannten Rechner zählen für alle) und deren letzte
+        seit der Ruhezeit vorbei ist. So nutzt Masseneinbettung beide Macs, wenn beide frei sind."""
+        k = self.knoten.get(knoten)
+        name = k.name if k else knoten
+        hier = [a for a in self.andere_arbeit()
+                if (a.knoten == knoten if a.zustand in (Auftragszustand.LAEUFT, Auftragszustand.ZUGETEILT) else a.wartet_auf_knoten in (None, knoten))]
+        if hier:
+            apps = sorted({self.anwendungen[a.anwendung].name if a.anwendung in self.anwendungen else a.anwendung for a in hier})
+            return Ruhe(frei=False, grund=f"wartet auf Ruhe: auf {name} läuft oder wartet andere Arbeit ({', '.join(apps)})")
+        if k is not None and k.andere_arbeit_ende_s is not None:
+            rest = self.regelwerk.ruhe_ab_s - (self.zeit_s - k.andere_arbeit_ende_s)
+            if rest > 0:
+                return Ruhe(frei=False, grund=f"wartet auf Ruhe: auf {name} ist andere Arbeit eben zu Ende, Ruhe gilt nach {self.regelwerk.ruhe_ab_s:.0f} s",
+                            in_s=round(rest, 1))
+        return Ruhe(frei=True)
+
+    def akku_melden(self, knoten: str, prozent: int | None) -> bool | None:
+        """Neuer Ladestand eines Rechners (LS-17): unter "keine Arbeit unter" gesperrt, frei erst ab "wieder Arbeit ab". Gibt
+        den neuen Zustand zurück, wenn er sich ändert (True: gesperrt), sonst None."""
+        k = self.knoten.get(knoten)
+        if k is None:
+            return None
+        k.akku_prozent = prozent
+        r = self.regelwerk
+        vorher = k.akku_gesperrt
+        if prozent is None or r.akku_stopp_prozent <= 0:
+            k.akku_gesperrt = False
+        elif prozent < r.akku_stopp_prozent:
+            k.akku_gesperrt = True
+        elif prozent >= r.akku_frei_ab_prozent:
+            k.akku_gesperrt = False
+        return k.akku_gesperrt if k.akku_gesperrt != vorher else None
+
+    # ── Vorrang (Regelwerk, Gruppe "Vorrang", LS-15) ─────────────────────
+    def rang(self, a: Auftrag) -> int:
+        """Rang des Auftrags nach seiner Fähigkeit; kleiner kommt zuerst."""
+        return self.regelwerk.rangfolge.get(a.faehigkeit, 10)
+
+    def vorrang_auf(self, knoten: str) -> str | None:
+        """Hat ein Rechner gerade Arbeit mit Vorrang (läuft, ist zugeteilt, wartet auf ihn, oder ihr Nachlauf läuft)? Dann
+        welche Fähigkeit, sonst None."""
+        r = self.regelwerk
+        if not r.vorrang_faehigkeiten:
+            return None
+        for a in self.offene_auftraege():
+            if a.faehigkeit not in r.vorrang_faehigkeiten:
+                continue
+            if (a.zustand in (Auftragszustand.LAEUFT, Auftragszustand.ZUGETEILT) and a.knoten == knoten) or a.wartet_auf_knoten == knoten:
+                return WORT[a.faehigkeit.value]
+        k = self.knoten.get(knoten)
+        if k is not None and k.vorrang_zuletzt_s is not None and self.zeit_s - k.vorrang_zuletzt_s < r.vorrang_nachlauf_s:
+            return "Nachlauf nach " + ", ".join(WORT[f.value] for f in r.vorrang_faehigkeiten)
+        return None
 
     def erste_familie(self, auftrag: Auftrag) -> str | None:
         kette = self.kette(auftrag)

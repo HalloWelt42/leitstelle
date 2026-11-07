@@ -9,16 +9,15 @@ from conftest import ausgefuehrt, entlade, gesperrt, lade, welt_mit
 
 
 def test_s34_flattern_wird_erkannt_und_gesperrt():
-    """Ohne Verweildauer und Leerlaufgrenze würden zwei Bildmodelle auf dem MacBook ständig tauschen.
-    Der Flatterschutz sperrt nach dem ersten Hin und Her."""
-    # Schutzgrenze aus, damit beide Bildmodelle (GLM 9 Milliarden, Gemma 26 Milliarden) weichen dürfen
-    w = welt_mit(mindestverweildauer_s=0, leerlauf_s=0, bedarfsfrist_s=0, schutzgrenze_mrd=0, fenster_s=600, ruhezeit_s=1800)
+    """Ohne Bedarfsfrist würden zwei Bildmodelle auf dem MacBook ständig tauschen. Der Flatterschutz sperrt nach dem
+    ersten Hin und Her."""
+    w = welt_mit(bedarfsfrist_s=0, fenster_s=600, ruhezeit_s=1800)
     v = w.verbund
     v.dienste["laeufer-32"].zustand = Dienstzustand.BEREIT
     v.knoten["mac-32"].budget_fest_gb = 18.0        # neben Whisper mittel (1,5) passt GLM (11,8) oder Gemma (16,2), nie beide
     v.knoten["mac-128"].budget_fest_gb = 4.0         # Mac Studio hilft nicht
     for m in v.modelle_auf("mac-128"):
-        if not m.geschuetzt(v.regelwerk.schutzgrenze_mrd):
+        if not m.geschuetzt:
             entlade(w, m.kennung)
     v.anwendungen["kiste"].zonen = {Zone.HEIM}
     # abwechselnd: Kiste braucht GLM (11,8), Bildschmiede braucht Gemma (16,2 passt nicht neben GLM); je 5 s Arbeit
@@ -32,21 +31,26 @@ def test_s34_flattern_wird_erkannt_und_gesperrt():
     assert all(n <= 3 for n in wechsel.values()), f"kein Dauerwechsel: {wechsel}"
 
 
-def test_s35_mindestverweildauer_verhindert_hin_und_her():
-    w = welt_mit(schutzgrenze_mrd=0)
+def test_s35_im_wechsel_kommt_jeder_dran():
+    """Zwei Bildmodelle, die nicht nebeneinander passen, im Wechsel gebraucht: ohne Mindestverweildauer (LS-14) wechseln
+    sie nach Bedarf; die Bedarfsfrist lässt jedes nach seinem Auftrag stehen, bis es die Frist ungenutzt war. Jeder
+    Auftrag wird fertig, und es wird nie öfter geladen, als Aufträge kommen."""
+    w = welt_mit()
     v = w.verbund
     v.dienste["laeufer-32"].zustand = Dienstzustand.BEREIT
     v.knoten["mac-32"].budget_fest_gb = 18.0
     v.knoten["mac-128"].budget_fest_gb = 4.0
     for m in v.modelle_auf("mac-128"):
-        if not m.geschuetzt(v.regelwerk.schutzgrenze_mrd):
+        if not m.geschuetzt:
             entlade(w, m.kennung)
+    auftraege = []
     for i in range(20):
-        w.auftrag("kiste", F.BILD_BESCHREIBEN, laufzeit_s=4, zeit_s=10 + i * 60, festes_modell="glm-4.6v")
-        w.auftrag("bildschmiede", F.BILD_BESCHREIBEN, laufzeit_s=4, zeit_s=40 + i * 60, festes_modell="gemma-4-26b", prioritaet=P.NORMAL)
-    w.laufen(1200)
+        auftraege.append(w.auftrag("kiste", F.BILD_BESCHREIBEN, laufzeit_s=4, zeit_s=10 + i * 60, festes_modell="glm-4.6v"))
+        auftraege.append(w.auftrag("bildschmiede", F.BILD_BESCHREIBEN, laufzeit_s=4, zeit_s=40 + i * 60, festes_modell="gemma-4-26b", prioritaet=P.NORMAL))
+    w.laufen(1600)
+    assert all(v.auftraege[a.kennung].zustand == Z.FERTIG for a in auftraege), "jeder kommt dran"
     wechsel = w.wechsel_je_familie_knoten()
-    assert all(n <= 2 for n in wechsel.values()), f"höchstens ein Hin und Her je Modell in 20 Minuten: {wechsel}"
+    assert all(n <= 2 * 20 for n in wechsel.values()), f"nie mehr Wechsel als Aufträge: {wechsel}"
 
 
 def test_s36_hoechstzahl_massnahmen_je_fenster():
@@ -91,7 +95,7 @@ def _zufallslauf(saat: int, dauer_s: int = 3600):
         f = rnd.choice(faehigkeiten[app])
         w.auftrag(app, f, laufzeit_s=rnd.choice([3, 5, 8, 15, 30, 60]), zeit_s=zeit)
     # Invarianten je Schritt prüfen
-    geschuetzt_geladen: set[str] = {m.kennung for m in v.modelle.values() if m.im_speicher and m.geschuetzt(v.regelwerk.schutzgrenze_mrd) and not v.dienste[m.dienst].extern}
+    geschuetzt_geladen: set[str] = {m.kennung for m in v.modelle.values() if m.im_speicher and m.geschuetzt and not v.dienste[m.dienst].extern}
     for _ in range(dauer_s):
         w.schritt()
         for k in v.knoten.values():

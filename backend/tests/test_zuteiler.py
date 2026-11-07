@@ -182,16 +182,49 @@ def test_plaetze_je_modell_maschinenraum_bestimmt_eintrag_begrenzt(welt):
     assert v.plaetze(m) == 1
 
 
-def test_einbettung_zuerst(welt):
-    """Nutzer 18.10.2026: Einbettung hat höchste Priorität, vor jedem Text, auch einem dringenden; untereinander gilt
-    wieder die Priorität. Seit 31.10.2026 ausgenommen: Masseneinbettung (Hintergrund) ist Arbeit nur bei Ruhe und kommt
-    zuletzt; ohne die Regel (keine Fähigkeit nur bei Ruhe) gilt die alte Reihenfolge."""
+def test_s68_rangfolge_nach_faehigkeit(welt):
+    """Arbeitslogik 07.11.2026 (LS-15): die Rangfolge der Fähigkeit geht vor die Priorität der Anwendung. Sprachausgabe
+    vor Text vor Einbettung, auch eine dringende Textanfrage kommt nach einer normalen Sprachausgabe; innerhalb eines
+    Rangs gilt die Priorität. Masseneinbettung (nur bei Ruhe) kommt zuletzt."""
     text = welt.auftrag("zusage", F.TEXT, prioritaet=P.DRINGEND)
     spaet = welt.auftrag("fundus", F.EINBETTUNG, prioritaet=P.HINTERGRUND)
     such = welt.auftrag("fundus", F.EINBETTUNG, prioritaet=P.NORMAL)
-    assert [a.kennung for a in reihenfolge(welt.verbund)] == [such.kennung, text.kennung, spaet.kennung]
-    welt.verbund.regelwerk = welt.verbund.regelwerk.model_copy(update={"ruhe_faehigkeiten": []})
-    assert [a.kennung for a in reihenfolge(welt.verbund)] == [such.kennung, spaet.kennung, text.kennung]
+    text_normal = welt.auftrag("kiste", F.TEXT, prioritaet=P.NORMAL)
+    stimme = welt.auftrag("rufzeichen", F.STIMME, prioritaet=P.NORMAL)
+    assert [a.kennung for a in reihenfolge(welt.verbund)] == [stimme.kennung, text.kennung, text_normal.kennung, such.kennung, spaet.kennung]
+    welt.verbund.regelwerk = welt.verbund.regelwerk.model_copy(update={"rangfolge": {**welt.verbund.regelwerk.rangfolge, F.EINBETTUNG: 1}})
+    assert [a.kennung for a in reihenfolge(welt.verbund)][:2] == [such.kennung, stimme.kennung], "einstellbar: Einbettung auf Rang 1, dann Eingang"
+
+
+def test_s69_vorrang_sperrt_den_rechner_fuer_niedrigeres(welt):
+    """Läuft Sprachausgabe auf einem Rechner, bekommt er keine neue Arbeit niedrigeren Rangs; Laufendes rechnet zu Ende.
+    Nach ihrem Ende hält der Vorrang den Nachlauf (30 s), dann ist der Rechner wieder frei."""
+    from leitstelle.kern.zuteiler import vorrang_gesperrt
+    v = welt.verbund
+    stimme = welt.auftrag("rufzeichen", F.STIMME, laufzeit_s=30)
+    welt.laufen(6)
+    assert v.auftraege[stimme.kennung].zustand == Z.LAEUFT and v.auftraege[stimme.kennung].knoten == "mac-128"
+    text = welt.auftrag("codehilfe", F.TEXT, laufzeit_s=5)
+    assert vorrang_gesperrt(v, text, v.modelle["qwen80@128"]) == "Mac Studio hat Vorrang für Stimme"
+    welt.laufen(6)
+    assert not (v.auftraege[text.kennung].zustand == Z.LAEUFT and v.auftraege[text.kennung].knoten == "mac-128"), "nicht auf dem Rechner mit Vorrang"
+    welt.laufen(30)                                   # Sprachausgabe fertig, Nachlauf läuft
+    assert stimme.kennung not in {a.kennung for a in v.offene_auftraege()}
+    assert v.vorrang_auf("mac-128", ).startswith("Nachlauf")
+    welt.laufen(31)
+    assert v.vorrang_auf("mac-128") is None
+
+
+def test_s70_gleicher_rang_und_vorrangarbeit_sind_nie_gesperrt(welt):
+    from leitstelle.kern.zuteiler import vorrang_gesperrt
+    v = welt.verbund
+    welt.auftrag("rufzeichen", F.STIMME, laufzeit_s=20)
+    welt.laufen(3)
+    zweite = welt.auftrag("tubevault", F.STIMME, laufzeit_s=5)
+    assert vorrang_gesperrt(v, zweite, v.modelle["xtts@128"]) is None
+    v.regelwerk = v.regelwerk.model_copy(update={"vorrang_faehigkeiten": []})
+    text = welt.auftrag("codehilfe", F.TEXT, laufzeit_s=5)
+    assert vorrang_gesperrt(v, text, v.modelle["qwen80@128"]) is None, "ohne Vorrangfähigkeiten keine Sperre"
 
 
 def test_grenze_je_minute_des_externen_anbieters(welt):

@@ -15,7 +15,7 @@
 
   const SYMBOL: Record<Regelgruppe, string> = {
     selbststeuerung: 'fa-wand-magic-sparkles', speicher: 'fa-memory', ausweichen: 'fa-shuffle', hintergrund: 'fa-layer-group', ruhe: 'fa-moon',
-    einbettung: 'fa-diagram-project', last: 'fa-microchip',
+    einbettung: 'fa-diagram-project', last: 'fa-microchip', vorrang: 'fa-ranking-star',
   };
   const gruppen = $derived(regelbeschreibung.sicht?.gruppen ?? []);
   const gruppe = $derived(gruppen.find((g) => g.gruppe === weg.teil) ?? gruppen[0]);
@@ -63,6 +63,18 @@
           {#each w.wahl as x (x.wert)}<button class:an={liste.includes(String(x.wert))} aria-pressed={liste.includes(String(x.wert))}
                                               title="{x.wort}: {liste.includes(String(x.wert)) ? 'gilt, abwählen' : 'gilt nicht, wählen'}"
                                               onclick={() => aendern(w, umgeschaltet(w, liste, String(x.wert)))}>{x.wort}</button>{/each}
+        </span>
+      {:else if w.einheit === 'rang'}
+        {@const raenge = wert(w) as Record<string, number>}
+        <span class="raenge" role="group" aria-label={w.titel}>
+          {#each w.wahl as x (x.wert)}
+            <label title="{x.wort}: Rang {raenge[String(x.wert)]}; kleinere Zahl kommt zuerst">
+              <span>{x.wort}</span>
+              <input class="eingabe" type="number" min={w.min ?? 1} max={w.max ?? 20} step="1" value={raenge[String(x.wert)]}
+                     aria-label="Rang für {x.wort}"
+                     onchange={(e) => { const n = e.currentTarget.valueAsNumber; if (Number.isInteger(n) && n !== raenge[String(x.wert)]) aendern(w, { [String(x.wert)]: n }); }} />
+            </label>
+          {/each}
         </span>
       {:else if w.einheit === 'wahl'}
         <span class="stufen" title={w.erklaerung}>

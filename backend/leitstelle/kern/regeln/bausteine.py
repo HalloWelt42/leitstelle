@@ -90,18 +90,24 @@ def erwartete_wartezeit(k: Kontext, a: Auftrag) -> float:
             if belegt:
                 return max(k.messwerk.rest_s(x.anwendung, x.faehigkeit.value, x.fortschritt_s) for x in belegt)
         if a.zustand == Auftragszustand.WARTET_SPEICHER:
-            # Platz wird frei, wenn ein blockierendes Modell fertig rechnet oder seine Leerlauf-Frist abläuft
-            fristen = []
+            # Platz wird frei, wenn blockierende Modelle fertig rechnen oder ihre Bedarfsfrist abläuft. Gezählt wird, bis
+            # zusammen genug frei ist: ein einzelnes kleines Modell reicht meist nicht (früher schützte die Schutzgrenze
+            # die kleinen, darum fiel die Annahme "eines reicht" nicht auf; LS-14).
+            fehlt = (m.gb if m else 0.0) - v.frei_gb(a.wartet_auf_knoten)
+            fristen: list[tuple[float, float]] = []
             for b in v.modelle_auf(a.wartet_auf_knoten):
-                if not b.im_speicher or b.geschuetzt(k.r.schutzgrenze_mrd):
+                if not b.im_speicher or b.geschuetzt:
                     continue
                 belegt = v.belegung(b.kennung)
                 if belegt:
-                    fristen.append(max(k.messwerk.rest_s(x.anwendung, x.faehigkeit.value, x.fortschritt_s) for x in belegt) + k.messwerk.entladezeit_s)
+                    fristen.append((max(k.messwerk.rest_s(x.anwendung, x.faehigkeit.value, x.fortschritt_s) for x in belegt) + k.messwerk.entladezeit_s, b.gb))
                 elif b.letzte_nutzung_s is not None:
-                    fristen.append(max(0.0, k.r.bedarfsfrist_s - (v.zeit_s - b.letzte_nutzung_s)) + k.messwerk.entladezeit_s + k.messwerk.ladezeit_schaetzung(m.gb if m else 0.0))
-            if fristen:
-                return min(fristen)
+                    fristen.append((max(0.0, k.r.bedarfsfrist_s - (v.zeit_s - b.letzte_nutzung_s)) + k.messwerk.entladezeit_s, b.gb))
+            gewonnen = 0.0
+            for frist, gb in sorted(fristen):
+                gewonnen += gb
+                if gewonnen >= fehlt:
+                    return frist + k.messwerk.ladezeit_schaetzung(m.gb if m else 0.0)
             return 3600.0
     return k.messwerk.laufzeit(a.anwendung, a.faehigkeit.value).sekunden
 
@@ -223,6 +229,26 @@ def einbettung_ruhe(k: Kontext) -> list[Kontext]:
         aus.append(Kontext(verbund=v, messwerk=k.messwerk, instanz=f"{fam}@{knoten}", knoten_quelle=knoten, knoten_ziel=knoten,
                            modelle_entladen=[m.kennung for m in liste], aufwand_s=k.messwerk.entladezeit_s,
                            werte={"familie": fam, "anzahl": len(liste), "anlass": anlass}))
+    return aus
+
+
+@baustein("ohne_auftrag_seit_frist", "ausloeser", "Ohne Auftrag seit der Frist",
+          "Je geladenem Modell oder laufendem Dienst ein Lauf, wenn seit der Frist \"Entladen nach\" (Regelwerk) kein Auftrag mehr darauf lief "
+          "und keiner auf seine Familie wartet. Ausgenommen: Dienste mit Schutz im Maschinenraum, externe Anbieter und schlafende Rechner.")
+def ohne_auftrag_seit_frist(k: Kontext) -> list[Kontext]:
+    v, frist = k.verbund, k.r.entladen_nach_s
+    aus = []
+    for m in sorted(v.modelle.values(), key=lambda x: x.kennung):
+        d = v.dienste[m.dienst]
+        kn = v.knoten.get(d.knoten) if d.knoten else None
+        if d.extern or kn is None or kn.schlaeft or m.zustand != Modellzustand.GELADEN or m.geschuetzt or v.belegung(m.kennung):
+            continue
+        zuletzt = m.letzte_nutzung_s if m.letzte_nutzung_s is not None else m.geladen_seit_s
+        if zuletzt is None or v.zeit_s - zuletzt < frist or v.wartende_auf_familie(m.familie):
+            continue
+        aus.append(Kontext(verbund=v, messwerk=k.messwerk, instanz=m.kennung, knoten_quelle=d.knoten, knoten_ziel=d.knoten,
+                           modelle_entladen=[m.kennung], aufwand_s=k.messwerk.entladezeit_s,
+                           werte={"modell": m.name, "dauer": f"{v.zeit_s - zuletzt:.0f} s"}))
     return aus
 
 
@@ -386,7 +412,7 @@ def leerlaufmodell_vorhanden(k: Kontext) -> bool:
     k.aufwand_s = plan.aufwand_s
     # Gewinn: so lange würde der Auftrag ohne das Räumen warten (bis ein rechnendes Modell fertig ist; sonst unbestimmt lange)
     fristen = [max(k.messwerk.rest_s(x.anwendung, x.faehigkeit.value, x.fortschritt_s) for x in k.verbund.belegung(b.kennung))
-               for b in k.verbund.modelle_auf(k.knoten_quelle) if b.im_speicher and k.verbund.belegung(b.kennung) and not b.geschuetzt(k.r.schutzgrenze_mrd)]
+               for b in k.verbund.modelle_auf(k.knoten_quelle) if b.im_speicher and k.verbund.belegung(b.kennung) and not b.geschuetzt]
     k.gewinn_s = min(fristen) if fristen else 3600.0
     k.werte["leerlauf"] = plan.begruendung
     return True
@@ -573,19 +599,17 @@ def extern_dienst_vorhanden(k: Kontext) -> bool:
     return True
 
 
-@baustein("eine_kopie_ungenutzt", "pruefung", "Eine Kopie ungenutzt?", "Ist eine der Kopien ohne Auftrag, ohne wartenden Bedarf und über die Mindestverweildauer hinaus?")
+@baustein("eine_kopie_ungenutzt", "pruefung", "Eine Kopie ungenutzt?", "Ist eine der Kopien ohne Auftrag und ohne wartenden Bedarf?")
 def eine_kopie_ungenutzt(k: Kontext) -> bool:
-    """Sammelt alle Kopien, die weichen dürfen (geladen, ungeschützt, ohne Aufträge, ohne Wartende derselben Familie, Verweildauer um).
+    """Sammelt alle Kopien, die weichen dürfen (geladen, ungeschützt, ohne Aufträge, ohne Wartende derselben Familie).
     Die erste wird vorgemerkt; die Prüfung "Bedarf auf diesem Knoten?" wählt danach die Kopie, auf deren Knoten jemand wartet."""
     frei: list[str] = []
     for kennung in k.werte.get("instanzen", []):
         m = k.verbund.modelle[kennung]
-        if m.zustand != Modellzustand.GELADEN or m.geschuetzt(k.r.schutzgrenze_mrd) or k.verbund.belegung(m.kennung):
+        if m.zustand != Modellzustand.GELADEN or m.geschuetzt or k.verbund.belegung(m.kennung):
             continue
         knoten = k.verbund.dienste[m.dienst].knoten
         if any(a.wartet_auf_knoten == knoten and (a.wartet_auf_familie == m.familie) for a in k.verbund.wartende_auftraege()):
-            continue
-        if m.geladen_seit_s is not None and k.verbund.zeit_s - m.geladen_seit_s < k.r.mindestverweildauer_s:
             continue
         frei.append(m.kennung)
     if not frei:

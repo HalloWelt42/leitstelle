@@ -16,11 +16,16 @@ from leitstelle.simulation import Welt, standard_welt  # noqa: E402
 
 @pytest.fixture
 def welt() -> Welt:
-    return standard_welt()
+    return welt_mit()
 
 
-def welt_mit(**regeln) -> Welt:
-    return standard_welt(Regelwerk(**regeln))
+def welt_mit(leerlauf_entladen: bool = False, **regeln) -> Welt:
+    """Standard-Welt mit Regelwerk. Die Szenarien prüfen je eine Regel an vorgeladenen Modellen; "Entladen nach Leerlauf"
+    (LS-14) würde diese gleich im ersten Takt entladen und ist darum hier aus, außer ein Test schaltet sie ein
+    (test_leerlauf_entladen.py und das Zusammenspiel aller Regeln)."""
+    schalter = dict(regeln.pop("szenarien_an", {}))
+    schalter.setdefault(Massnahmenart.LEERLAUF_ENTLADEN, leerlauf_entladen)
+    return standard_welt(Regelwerk(szenarien_an=schalter, **regeln))
 
 
 def ausgefuehrt(w: Welt, art: Massnahmenart | None = None):

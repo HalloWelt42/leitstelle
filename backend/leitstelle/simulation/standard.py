@@ -28,14 +28,14 @@ def standard_verbund(regelwerk: Regelwerk | None = None) -> Verbund:
         Dienst(kennung="hoerer-32", name="Hörer MacBook", knoten="mac-32", art="hoeren_http", faehigkeiten={F.HOEREN}),
         Dienst(kennung="extern-anbieter", name="Externer Anbieter", knoten=None, art="extern_openai", faehigkeiten={F.TEXT, F.BILD_BESCHREIBEN}, extern=True, plaetze=4),
     ]}
-    def m(kennung, name, dienst, familie, faehigkeiten, gb, mrd, zustand=Modellzustand.FREI, fest=False):
+    def m(kennung, name, dienst, familie, faehigkeiten, gb, mrd, zustand=Modellzustand.FREI):
         f = set(faehigkeiten) if isinstance(faehigkeiten, (set, list, tuple)) else {faehigkeiten}
-        return Modell(kennung=kennung, name=name, dienst=dienst, familie=familie, faehigkeiten=f, gb=gb, parameter_mrd=mrd, zustand=zustand, geschuetzt_fest=fest,
+        return Modell(kennung=kennung, name=name, dienst=dienst, familie=familie, faehigkeiten=f, gb=gb, parameter_mrd=mrd, zustand=zustand,
                       geladen_seit_s=-100000.0 if zustand != Modellzustand.FREI else None, letzte_nutzung_s=-100000.0 if zustand != Modellzustand.FREI else None)
     v.modelle = {x.kennung: x for x in [
         # Mac Studio, Modell-Läufer
         m("qwen80@128", "Qwen3 Next 80B", "laeufer-128", "qwen-next-80b", {F.TEXT, F.UEBERSETZEN}, 84.7, 80, Modellzustand.GELADEN),
-        m("bge@128", "bge-m3 Einbettung", "laeufer-128", "bge-m3", F.EINBETTUNG, 1.1, 0.6, Modellzustand.GELADEN, fest=True),
+        m("bge@128", "bge-m3 Einbettung", "laeufer-128", "bge-m3", F.EINBETTUNG, 1.1, 0.6, Modellzustand.GELADEN),
         m("glm@128", "GLM 4.6V Flash", "laeufer-128", "glm-4.6v", F.BILD_BESCHREIBEN, 11.8, 9),
         m("gemma@128", "Gemma 4 26B", "laeufer-128", "gemma-4-26b", F.BILD_BESCHREIBEN, 16.2, 26),
         m("coder@128", "Qwen3 Coder Next", "laeufer-128", "qwen-coder-next", F.TEXT, 46.3, 80),
@@ -45,10 +45,10 @@ def standard_verbund(regelwerk: Regelwerk | None = None) -> Verbund:
         m("gemma@32", "Gemma 4 26B", "laeufer-32", "gemma-4-26b", F.BILD_BESCHREIBEN, 16.2, 26),
         m("klein@32", "Qwen3 4B", "laeufer-32", "qwen-4b", {F.TEXT, F.UEBERSETZEN}, 2.5, 4),
         # txt2voice
-        m("whisper@128", "Whisper groß v3", "txt2voice", "whisper-gross", F.HOEREN, 3.1, 1.5, Modellzustand.GELADEN, fest=True),
-        m("xtts@128", "Stimmklon", "txt2voice", "xtts", F.STIMME, 1.9, 0.5, Modellzustand.GELADEN, fest=True),
+        m("whisper@128", "Whisper groß v3", "txt2voice", "whisper-gross", F.HOEREN, 3.1, 1.5, Modellzustand.GELADEN),
+        m("xtts@128", "Stimmklon", "txt2voice", "xtts", F.STIMME, 1.9, 0.5, Modellzustand.GELADEN),
         # Hörer MacBook
-        m("whisperm@32", "Whisper mittel", "hoerer-32", "whisper-mittel", F.HOEREN, 1.5, 0.8, Modellzustand.GELADEN, fest=True),
+        m("whisperm@32", "Whisper mittel", "hoerer-32", "whisper-mittel", F.HOEREN, 1.5, 0.8, Modellzustand.GELADEN),
         # extern
         m("qwen35@extern", "Qwen3.6 35B (extern)", "extern-anbieter", "qwen-35b-extern", F.TEXT, 0, 35, Modellzustand.GELADEN),
         m("qwen27@extern", "Qwen3.8 27B (extern)", "extern-anbieter", "qwen-27b-extern", F.BILD_BESCHREIBEN, 0, 27, Modellzustand.GELADEN),

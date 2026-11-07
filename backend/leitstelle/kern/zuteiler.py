@@ -17,7 +17,7 @@ from .fenster import Bedarf
 from .messungen import Messwerk
 from .modelle import Auftrag, Modell, Verbund
 from .speicherplaner import planen
-from .werte import Auftragszustand, Betriebsmodus, Faehigkeit, Hintergrundstufe, Modellzustand, Prioritaet, Zone
+from .werte import Auftragszustand, Betriebsmodus, Hintergrundstufe, Modellzustand, Prioritaet, Zone
 from .text import komma, schlaf_satz
 
 
@@ -73,6 +73,33 @@ def wirksame_prioritaet(verbund: Verbund, a: Auftrag) -> int:
     return int(a.prioritaet)
 
 
+def rolle(verbund: Verbund, a: Auftrag, knoten: str | None) -> int:
+    """0, wenn der Rechner für die Fähigkeit des Auftrags bevorzugt ist (Rolle des Rechners, LS-16), sonst 1."""
+    k = verbund.knoten.get(knoten) if knoten else None
+    return 0 if k is not None and a.faehigkeit in k.bevorzugt_fuer else 1
+
+
+def rechner_der_kette(verbund: Verbund, a: Auftrag) -> set[str]:
+    """Die Rechner, auf denen ein Modell der Kette des Auftrags liegt (ohne externe Anbieter)."""
+    kette = set(verbund.kette(a))
+    return {verbund.dienste[m.dienst].knoten for m in verbund.modelle.values()
+            if m.familie in kette and verbund.dienste[m.dienst].knoten is not None}
+
+
+def vorrang_gesperrt(verbund: Verbund, a: Auftrag, m: Modell) -> str | None:
+    """Warum der Auftrag dieses Modell nicht bekommt, weil sein Rechner Arbeit mit Vorrang hat (Regelwerk "Vorrang auf dem
+    Rechner"); None: er darf. Arbeit mit Vorrang selbst und gleich oder höher eingestufte Arbeit sind nie gesperrt."""
+    r = verbund.regelwerk
+    if not r.vorrang_faehigkeiten or a.faehigkeit in r.vorrang_faehigkeiten:
+        return None
+    if verbund.rang(a) <= min(r.rangfolge.get(f, 10) for f in r.vorrang_faehigkeiten):
+        return None
+    knoten = verbund.dienste[m.dienst].knoten
+    if knoten is None or (was := verbund.vorrang_auf(knoten)) is None:
+        return None
+    return f"{verbund.knoten[knoten].name} hat Vorrang für {was}"
+
+
 def hintergrund_gebremst(verbund: Verbund, a: Auftrag, m: Modell) -> str | None:
     """Warum ein Hintergrundauftrag dieses Modell nach der Stufe seines Rechners gerade nicht bekommt; None: er darf.
     Angehalten: kein Hintergrund, auch nicht nach der Fairness-Frist (der Rechner gehört gerade dem Menschen).
@@ -90,7 +117,8 @@ def hintergrund_gebremst(verbund: Verbund, a: Auftrag, m: Modell) -> str | None:
     return None
 
 
-def kandidaten(verbund: Verbund, auftrag: Auftrag, familie: str, mit_extern: bool, gebremst: list[str] | None = None) -> list[Modell]:
+def kandidaten(verbund: Verbund, auftrag: Auftrag, familie: str, mit_extern: bool, gebremst: list[str] | None = None,
+               nur_knoten: set[str] | None = None) -> list[Modell]:
     """Alle Modellinstanzen einer Familie, die der Auftrag nutzen dürfte. Externe nur, wenn ausdrücklich
     gewünscht (festes Modell) oder wenn die Regel Extern ausweichen sie einbezieht. Was die Stufe des Hintergrunds
     verwehrt, fehlt; der Grund kommt nach `gebremst` (dann wartet der Auftrag, statt abgelehnt zu werden)."""
@@ -107,7 +135,14 @@ def kandidaten(verbund: Verbund, auftrag: Auftrag, familie: str, mit_extern: boo
             continue
         if not zone_erlaubt(verbund, auftrag, m):
             continue
-        if (grund := hintergrund_gebremst(verbund, auftrag, m)) is not None:
+        if d.knoten in verbund.knoten and verbund.knoten[d.knoten].akku_gesperrt:
+            if gebremst is not None:
+                k = verbund.knoten[d.knoten]
+                gebremst.append(f"{k.name}: Akku {k.akku_prozent} %, unter {verbund.regelwerk.akku_stopp_prozent:.0f} % keine neue Arbeit")
+            continue
+        if nur_knoten is not None and d.knoten not in nur_knoten:
+            continue                          # Arbeit nur bei Ruhe: dieser Rechner ist gerade nicht ruhig
+        if (grund := vorrang_gesperrt(verbund, auftrag, m)) is not None or (grund := hintergrund_gebremst(verbund, auftrag, m)) is not None:
             if gebremst is not None:
                 gebremst.append(grund)
             continue
@@ -162,10 +197,10 @@ def _mit_vergebenem(vergeben: dict[str, Bedarf], dienst: str, a: Auftrag) -> Bed
 
 def reihenfolge(verbund: Verbund) -> list[Auftrag]:
     """Arbeit nur bei Ruhe zuletzt (Nutzer 31.10.2026: "nicht so privilegiert, die können auch laufen, wenn nichts los
-    ist"); davor Einbettung zuerst (Nutzer 18.10.2026: "höchste Priorität"; kurz, und Suchen warten sonst hinter langen
-    Texten), dann nach Priorität, dann nach Eingang."""
+    ist"); davor nach dem Rang der Fähigkeit (Regelwerk "Rangfolge", Arbeitslogik 07.11.2026: Sprachausgabe zuerst,
+    Einbettung zuletzt), innerhalb eines Rangs nach Priorität der Anwendung, dann nach Eingang."""
     return sorted(verbund.wartende_auftraege(),
-                  key=lambda a: (verbund.nur_bei_ruhe(a), a.faehigkeit != Faehigkeit.EINBETTUNG, -wirksame_prioritaet(verbund, a), a.eingang_s))
+                  key=lambda a: (verbund.nur_bei_ruhe(a), verbund.rang(a), -wirksame_prioritaet(verbund, a), a.eingang_s))
 
 
 def platz(verbund: Verbund, a: Auftrag) -> tuple[int, int] | None:
@@ -189,16 +224,21 @@ def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> 
     for a in verbund.offene_auftraege():
         if a.zustand in (Auftragszustand.LAEUFT, Auftragszustand.ZUGETEILT):
             je_anwendung[a.anwendung] = je_anwendung.get(a.anwendung, 0) + 1
-    ruhe = verbund.ruhe()
+    ruhige = {k for k in verbund.knoten if verbund.ruhe_auf(k).frei}
 
     for a in reihenfolge(verbund):
         app = verbund.anwendungen[a.anwendung]
         if a.faehigkeit not in app.faehigkeiten:
             ergebnis.abgelehnt.append(Wartegrund(auftrag=a.kennung, zustand=Auftragszustand.ABGELEHNT, grund="faehigkeit_nicht_erlaubt", begruendung="Fähigkeit für diese Anwendung nicht erlaubt"))
             continue
-        if not ruhe.frei and verbund.nur_bei_ruhe(a):
-            ergebnis.wartend.append(Wartegrund(auftrag=a.kennung, zustand=Auftragszustand.WARTET_RUHE, begruendung=ruhe.grund, voraussichtlich_s=ruhe.in_s))
-            continue
+        nur_knoten: set[str] | None = None
+        if verbund.nur_bei_ruhe(a):
+            orte = rechner_der_kette(verbund, a)
+            if orte and not orte & ruhige:
+                naechste = min((verbund.ruhe_auf(k) for k in orte), key=lambda r: r.in_s if r.in_s is not None else float("inf"))
+                ergebnis.wartend.append(Wartegrund(auftrag=a.kennung, zustand=Auftragszustand.WARTET_RUHE, begruendung=naechste.grund, voraussichtlich_s=naechste.in_s))
+                continue
+            nur_knoten = ruhige
         if a.prioritaet == Prioritaet.HINTERGRUND and not verbund.hintergrund_erlaubt:
             ergebnis.wartend.append(Wartegrund(auftrag=a.kennung, zustand=Auftragszustand.EINGEREIHT, begruendung="Hintergrund ist am Hauptregler angehalten"))
             continue
@@ -220,17 +260,18 @@ def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> 
         # ihre Reihenfolge streng: das erste ihrer Modelle, das geht (einen Kandidaten hat); eine Alternative nur, wenn das
         # verlangte Modell nicht geht, nie, weil sie schon geladen ist
         if a.festes_modell:
-            suche = next(([fam] for fam in kette if kandidaten(verbund, a, fam, mit_extern)), kette[:1])
+            suche = next(([fam] for fam in kette if kandidaten(verbund, a, fam, mit_extern, nur_knoten=nur_knoten)), kette[:1])
         else:
             suche = kette if verbund.regelwerk.geladene_zuerst else kette[:1]
         geladene: list[tuple[int, Modell]] = []
         for i, fam in enumerate(suche):
-            for m in kandidaten(verbund, a, fam, mit_extern, gebremst):
+            for m in kandidaten(verbund, a, fam, mit_extern, gebremst, nur_knoten):
                 if (m.zustand in (Modellzustand.GELADEN, Modellzustand.RECHNET) and platz_frei(verbund, m, _mit_vergebenem(vergeben_bedarf, m.dienst, a))
                         and vergeben_plaetze.get(m.kennung, 0) < verbund.plaetze(m) - len(verbund.belegung(m.kennung))):
                     d = verbund.dienste[m.dienst]
                     bevorzugt = 0 if (a.prioritaet == Prioritaet.HINTERGRUND and verbund.hintergrund_knoten_bevorzugt and d.knoten == verbund.hintergrund_knoten_bevorzugt) else 1
-                    geladene.append((bevorzugt * 100 + i, m))
+                    belegt = (len(verbund.belegung(m.kennung)) + vergeben_plaetze.get(m.kennung, 0)) / max(1, verbund.plaetze(m))
+                    geladene.append(((bevorzugt, i, rolle(verbund, a, d.knoten), belegt), m))
         if geladene:
             i, m = sorted(geladene, key=lambda t: t[0])[0]
             d = verbund.dienste[m.dienst]
@@ -239,7 +280,7 @@ def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> 
         if gefunden is None:
             # 2. Erste Familie der Kette: geladen, aber belegt -> warten auf Platz; sonst laden, wenn es passt
             for fam in kette:
-                ks = kandidaten(verbund, a, fam, mit_extern, gebremst)
+                ks = kandidaten(verbund, a, fam, mit_extern, gebremst, nur_knoten)
                 if not ks:
                     continue
                 belegt = [m for m in ks if m.zustand in (Modellzustand.GELADEN, Modellzustand.RECHNET, Modellzustand.LAEDT)]
@@ -281,7 +322,7 @@ def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> 
                 passende = [(p, m, d) for p, m, d in plaene if p.passt and not p.entladen]
                 if passende:
                     bevorzugt = verbund.hintergrund_knoten_bevorzugt if a.prioritaet == Prioritaet.HINTERGRUND else None
-                    p, m, d = sorted(passende, key=lambda t: (0 if t[2].knoten == bevorzugt else 1, t[0].aufwand_s))[0]
+                    p, m, d = sorted(passende, key=lambda t: (0 if t[2].knoten == bevorzugt else 1, rolle(verbund, a, t[2].knoten), t[0].aufwand_s))[0]
                     gefunden = Zuteilung(auftrag=a.kennung, dienst=d.kennung, knoten=d.knoten, modell=m.kennung, laden=True, direkt=False,
                                          begruendung=f"{m.name} wird auf {d.name} {'gestartet' if d.maschinenraum else 'geladen'} ({komma(p.frei_gb)} GB frei, etwa {p.aufwand_s:.0f} s)")
                     geplanter_speicher[d.knoten] = geplanter_speicher.get(d.knoten, 0.0) + m.gb

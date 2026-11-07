@@ -249,9 +249,10 @@ class Betrieb:
         alt = self.verbund.knoten.get(k.kennung)
         fenster = (k.hintergrund_von, k.hintergrund_bis) if k.hintergrund_von is not None and k.hintergrund_bis is not None else None
         laufend = {f: getattr(alt, f) for f in ("erreichbar", "schlaeft_seit_s", "last", "laeufer_umgehungen", "hintergrund_stufe",
-                                                 "hintergrund_grund", "hintergrund_seit_s")} if alt else {}
+                                                 "hintergrund_grund", "hintergrund_seit_s", "vorrang_zuletzt_s", "andere_arbeit_ende_s",
+                                                 "akku_prozent", "akku_gesperrt")} if alt else {}
         self.verbund.knoten[k.kennung] = Knoten(kennung=k.kennung, name=k.name, zone=k.zone, speicher_gb=k.speicher_gb, system_gb=k.system_gb,
-                                                 hintergrund_fenster=fenster, budget_fest_gb=k.budget_fest_gb, **laufend)
+                                                 hintergrund_fenster=fenster, budget_fest_gb=k.budget_fest_gb, bevorzugt_fuer=set(k.bevorzugt_fuer), **laufend)
         v = self.agenten.verbindung(k.kennung)
         if v and v.messwerte:
             self.messwerte_uebernehmen(v)
@@ -553,6 +554,12 @@ class Betrieb:
             return
         k.speicher_gb = round(v.messwerte.speicher_gesamt_gb, 2)
         k.system_gb = round(max(0.0, v.messwerte.speicher_belegt_gb - self.verbund.belegt_bekannt_gb(v.knoten)), 2)
+        akku = v.messwerte.akku
+        if (gesperrt := self.verbund.akku_melden(v.knoten, akku.prozent if akku else None)) is not None:
+            r = self.verbund.regelwerk
+            self.melden(f"{k.name}: Akku {akku.prozent if akku else '-'} %, " + (f"unter {r.akku_stopp_prozent:.0f} %: nimmt keine neue Arbeit an"
+                        if gesperrt else f"wieder über {r.akku_frei_ab_prozent:.0f} %: nimmt wieder Arbeit an"))
+            self.anstossen()
         self.geaendert()
 
     async def agent_dienste(self, v: AgentVerbindung) -> None:
@@ -875,17 +882,16 @@ class Betrieb:
         return text + f" ({'Startdauer' if d.maschinenraum else 'Ladedauer'} noch nicht gemessen)", None
 
     def _modell_abgleichen(self, kennung: str, d: Dienst, mb: ModellBericht, steuerbar: bool, jetzt: float) -> None:
-        unbekannte_groesse = mb.parameter_mrd is None
         m = self.verbund.modelle.get(kennung)
         familie = mb.familie or mb.schluessel
         faehigkeiten = self.mit_proben(familie, set(mb.faehigkeiten))
         if m is None:
             m = Modell(kennung=kennung, name=mb.name, dienst=d.kennung, familie=familie, faehigkeiten=faehigkeiten, gb=mb.gb,
-                       parameter_mrd=mb.parameter_mrd or 0.0, geschuetzt_fest=mb.einbettung or unbekannte_groesse)
+                       parameter_mrd=mb.parameter_mrd or 0.0)
             self.verbund.modelle[kennung] = m
         else:
             m.name, m.faehigkeiten, m.gb = mb.name, faehigkeiten, mb.gb
-            m.parameter_mrd, m.geschuetzt_fest = mb.parameter_mrd or 0.0, mb.einbettung or unbekannte_groesse
+            m.parameter_mrd = mb.parameter_mrd or 0.0
         m.aufgabe = mb.aufgabe
         m.schutz_vorgabe, m.gb_jetzt, m.plaetze = mb.schutz, mb.gb_jetzt, mb.plaetze
         if mb.sperre != m.sperre:
@@ -1259,7 +1265,7 @@ class Betrieb:
         schluessel = f"{familie}.{stufe}"
         kennung = modell_kennung(dienst, schluessel)
         self.verbund.modelle[kennung] = Modell(kennung=kennung, name=f"{v.name} ({stufe})", aufgabe=v.aufgabe, dienst=dienst, familie=familie, faehigkeiten=set(v.faehigkeiten),
-                                               gb=v.gb, parameter_mrd=v.parameter_mrd, geschuetzt_fest=False, schutz_vorgabe=v.schutz_vorgabe,
+                                               gb=v.gb, parameter_mrd=v.parameter_mrd, schutz_vorgabe=v.schutz_vorgabe,
                                                instanzen_hoechstens=v.instanzen_hoechstens, zusatz=True, plaetze=v.plaetze)
         self.orte[kennung] = ModellOrt(schluessel=schluessel, weitere=(self.ort(vorbild).schluessel, stufe))
         self.modell_laden(kennung)

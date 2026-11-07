@@ -118,8 +118,8 @@ Budget = Speicher minus dem Größeren aus Reserve (18 GB) und System, oder ein 
 |---|---|---|
 | | GLM passt ohne Entladen | Plan passt, nichts zu entladen |
 | | Coder braucht 46 GB, mehrere ungenutzte Modelle | entlädt nur so viel wie nötig, größtes zuerst (qwen80) |
-| S13 | 80B-Modell als geschützt markiert | Plan passt nicht, Begründung nennt "geschützt" und bge-m3 |
-| S14 | 80B-Modell vor 10 s geladen | Plan passt nicht, "Mindestverweildauer" |
+| S13 | 80B-Modell vom Dienst geschützt (seit LS-14 schützt nur noch der Dienst) | Plan passt nicht, Begründung "vom Dienst geschützt"; ohne Schutz passt der Plan |
+| S14 | 80B-Modell vor 10 s geladen, ohne Auftrag | darf weichen: keine Mindestverweildauer mehr (LS-14) |
 | S15 | 80B-Modell rechnet | Plan passt nicht, aber "frei nach" ist bekannt und qwen80 steht unter blockiert durch |
 | | Nur Leerlauf: vor 60 s genutzt | mit Leerlaufgrenze 1800 s nicht entladbar, mit Bedarfsfrist 30 s entladbar, nach 5000 s immer |
 
@@ -140,8 +140,8 @@ Budget = Speicher minus dem Größeren aus Reserve (18 GB) und System, oder ein 
 |---|---|---|
 | S16 | 80B-Modell lange ungenutzt, Kiste braucht Platz, kein Ausweichen | eine Maßnahme mit Richtung entladen, "Leerlauf geräumt", qwen80 frei, Kiste fertig auf dem Mac Studio |
 | S16b | Textmodell rechnet noch 10 s, Gemma liegt ungenutzt daneben | zuerst "warten lohnt mehr" (Räumen dauert länger als Warten); sobald das Textmodell fertig ist, weicht Gemma und das eben genutzte Textmodell bleibt |
-| S17 | Das ungenutzte Modell ist geschützt | "kein Leerlauf, der weichen darf", bleibt geladen |
-| S18 | Ungenutzt, aber vor 30 s geladen | keine Maßnahme (Mindestverweildauer) |
+| S17 | Das ungenutzte Modell ist vom Dienst geschützt | "kein Leerlauf, der weichen darf", bleibt geladen |
+| S18 | Lange ungenutzt, aber vor 30 s geladen | Leerlauf räumen greift (keine Mindestverweildauer mehr, LS-14) |
 | S19 | Vor 10 s genutzt | keine Maßnahme innerhalb der Bedarfsfrist |
 
 ### Vorwärmen
@@ -173,7 +173,7 @@ Budget = Speicher minus dem Größeren aus Reserve (18 GB) und System, oder ein 
 | S26 | Kiste läuft nach Umleitung auf dem MacBook, das MacBook fällt aus | Maßnahme Umverteilen; der Auftrag ist abgebrochen mit Teilergebnis, Signal `auftrag.abgebrochen` mit Teilergebnis |
 | S27 | 23 Uhr: Nachtfenster des MacBooks beginnt | bevorzugter Knoten für Hintergrund ist das MacBook; um 9 Uhr wieder keiner |
 | S29 | Gemma auf beiden Macs, auf dem MacBook wartet GLM auf Platz | genau die ungenutzte Kopie auf dem MacBook weicht, die andere bleibt, Kiste wird dort fertig |
-| S30 | Gemma doppelt, niemand wartet; GLM doppelt | "kein Bedarf, Kopie bleibt"; GLM ist geschützt: "beide Kopien in Gebrauch oder geschützt" |
+| S30 | Gemma doppelt, niemand wartet; GLM doppelt, beide Kopien vom Dienst geschützt | "kein Bedarf, Kopie bleibt"; GLM: "beide Kopien in Gebrauch oder geschützt" |
 | S31 | TubeVault hört, dann wartet Kiste auf Speicher (Lage angespannt) | Hintergrund wird angehalten, der TubeVault-Auftrag pausiert; wird die Lage ruhig, läuft er weiter |
 
 ### Automatik und Graphprüfung
@@ -189,8 +189,8 @@ Budget = Speicher minus dem Größeren aus Reserve (18 GB) und System, oder ein 
 
 | Nr | Szenario | Erwartung |
 |---|---|---|
-| S34 | Ohne Verweildauer, Bedarfsfrist und Schutzgrenze würden GLM und Gemma auf dem MacBook alle 20 s tauschen | nach dem ersten Kreis (laden, entladen, wieder laden) wird Flattern erkannt, die Maßnahme gesperrt mit "Flattern erkannt", höchstens drei Wechsel je Familie |
-| S35 | Dieselbe Last mit Vorgaben | höchstens ein Hin und Her je Modell in 20 Minuten |
+| S34 | Ohne Bedarfsfrist würden GLM und Gemma auf dem MacBook alle 20 s tauschen | nach dem ersten Kreis (laden, entladen, wieder laden) wird Flattern erkannt, die Maßnahme gesperrt mit "Flattern erkannt", höchstens drei Wechsel je Familie |
+| S35 | Dieselbe Last mit Vorgaben (LS-14: ohne Mindestverweildauer) | jeder Auftrag wird fertig; nie mehr Wechsel als Aufträge |
 | S36 | Höchstzahl 2 je Fenster, sechs Fundus-Aufträge wollen extern | höchstens zwei Maßnahmen im Fenster, weitere gesperrt mit "Höchstzahl" |
 | S37 | Kiste umgeleitet, dann fällt das MacBook aus | Umverteilen reiht neu ein, der Auftrag wird nicht ein zweites Mal umgeleitet |
 | S38 | Drei Zufallsläufe (Saaten 1, 2, 3) über eine Stunde mit allen 8 Anwendungen und allen Fähigkeiten | je Schritt: Budget nie überschritten, Geschütztes nie entladen, Zone nie verletzt, extern nie ohne Erlaubnis; am Ende nichts verhungert, höchstens 8 Ladevorgänge je Familie und Knoten |
@@ -206,7 +206,7 @@ Budget = Speicher minus dem Größeren aus Reserve (18 GB) und System, oder ein 
 | S45 | Zwei Stunden mit 480 Aufträgen | Verlauf, Bewegungen und Sperren des Umschichters bleiben auf das Fenster begrenzt |
 | S46 | Ablehnungen und externe Wunschmodelle | Grundwörter `zone_nicht_erlaubt`, `kein_modell`, `faehigkeit_nicht_erlaubt`, `dienst_nicht_erreichbar`; Fundus bekommt das verlangte externe Modell |
 | S47 | Hintergrund am Hauptregler angehalten, Fairness-Frist 20 s | der Hintergrundauftrag bleibt eingereiht, auch nach der Frist; die Regel Hintergrund bei Lage schaltet ihn nicht ein |
-| S48 | Schutzvorgabe eines Dienstes | geht der Regel nach Parameterzahl vor: erlaubt der Dienst das Anhalten, darf auch ein Modell ohne Parameterzahl weichen; verbietet er es, bleibt auch ein großes stehen |
+| S48 | Schutzvorgabe eines Dienstes | erlaubt der Dienst das Anhalten, darf das Modell weichen; verbietet er es, bleibt auch ein großes stehen; eine weitere Instanz ist nie geschützt |
 | S49 | Bedarf und Ist-Wert | verplant (Budget) wird der Bedarf, als belegt gilt der gemessene Ist-Wert |
 
 ### Arbeit nur bei Ruhe (`test_nur_bei_ruhe.py`, HELF-89)
@@ -221,6 +221,43 @@ Budget = Speicher minus dem Größeren aus Reserve (18 GB) und System, oder ein 
 | S59 | Fairness-Frist 60 s, Hören läuft 400 s | Arbeit nur bei Ruhe rückt nicht auf, sie wartet weiter |
 | S60 | Sechs Stapel warten auf Ruhe, eine weitere Einbettungsinstanz ist geladen | kein Einbettung verstärken, Lage ruhig, die weitere Instanz weicht nach der Ruhe der Einbettung |
 | S61 | Anderer Auftrag wartet auf einen belegten Platz | zählt wie laufende Arbeit: die Einbettung wartet, bis auch er fertig ist plus Ruhezeit |
+
+### Entladen nach Leerlauf (`test_leerlauf_entladen.py`, LS-14, Arbeitslogik 07.11.2026)
+
+Jedes Modell und jeder Dienst wird die Frist "Entladen nach" (Vorgabe 60 s) nach dem letzten laufenden oder wartenden
+Auftrag entladen, auch kleine Modelle und die Einbettung; nur der Schutz des Dienstes hält es. Pflege statt Umschichtung:
+keine Höchstzahl je Fenster, kein Flattern, mehrere je Rechner und Takt. Die übrigen Szenarien laufen ohne diese Regel
+(sie prüfen je eine Regel an vorgeladenen Modellen).
+
+| Nr | Szenario | Erwartung |
+|---|---|---|
+| S62 | Einbettung (unter 1 Milliarde) zuletzt genutzt, 75 s nichts | entladen, Maßnahme "bge-m3 Einbettung auf Mac Studio entladen: ... ohne Auftrag" |
+| S63 | Dasselbe nach 45 s | bleibt geladen |
+| S64 | Ein Auftrag wartet auf die Familie (Hintergrund am Hauptregler angehalten) | bleibt geladen, auch weit über die Frist |
+| S64b | Ein Auftrag rechnet 100 s | bleibt; entladen erst 60 s nach seinem Ende |
+| S65 | Dienst schützt das Modell | bleibt, keine Maßnahme |
+| S66 | Dreimal gebraucht und entladen im Fenster, Höchstzahl 2 | dreimal entladen, nichts gesperrt, kein Kontingent verbraucht |
+| S67 | Automatik "Vorschlagen" | nur Vorschlag, bleibt geladen |
+
+Gegentest: an der Fassung davor (0.35.0) scheitern alle, die Regel fehlt dort.
+
+### Vorrang, Rolle und Akku (`test_zuteiler.py`, `test_verteilung.py`, `test_akku.py`, LS-15 bis LS-17)
+
+| Nr | Szenario | Erwartung |
+|---|---|---|
+| S68 | Sprachausgabe (normal), Text (dringend und normal), Suche und Masseneinbettung warten | Reihenfolge: Sprachausgabe, Text dringend, Text normal, Suche, Masseneinbettung; Einbettung auf Rang 1 gestellt kommt nach Eingang neben die Sprachausgabe |
+| S69 | Sprachausgabe läuft auf dem Mac Studio, ein Textauftrag kommt | Mac Studio für ihn gesperrt ("Mac Studio hat Vorrang für Stimme"), Nachlauf 30 s nach dem Ende, dann frei |
+| S70 | Zweite Sprachausgabe während der ersten; Vorrang ohne Fähigkeiten | nie gesperrt |
+| S71 | Dasselbe Modell auf beiden Macs geladen und frei, Rolle "bevorzugt für Bild beschreiben" | rechnet auf dem bevorzugten Mac; Rolle umgestellt, dann auf dem anderen |
+| S72 | Verlangtes Modell nur auf dem Mac Studio, MacBook bevorzugt | rechnet auf dem Mac Studio mit dem verlangten Modell (die Rolle ändert nie das Modell) |
+| S73 | Zwei Aufträge, je ein Platz auf beiden Macs | verteilen sich auf beide |
+| S74 | Hören läuft auf dem Mac Studio, Masseneinbettung kommt | rechnet auf dem ruhigen MacBook statt auf Ruhe im ganzen Haus zu warten |
+| S75 | Akku 31, 29, 33, 35 % | gesperrt ab unter 30 %, bleibt bis 35 %, dann frei |
+| S76 | MacBook bevorzugt, aber Akku 20 % | Auftrag geht auf den Mac Studio; Sprachausgabe nur auf dem MacBook hat keinen Kandidaten, Grund nennt den Akku |
+
+Gegentest an der Fassung 0.35.0 (07.11.2026 geprüft): S68 (Einbettung kam zuerst), S69 bis S71 und S74 scheitern, S75
+und S76 kennen den Akku nicht. S73 hielt schon dort (geladene Kopien mit freiem Platz wurden schon verteilt), S72 scheitert
+nur am fehlenden Feld der Rolle.
 | E21 | Echte Ports: Text strömt, Masseneinbettung per HTTP (Kopf hintergrund) | Zustand `wartet_ruhe`, Anfrage bleibt offen, Suche (normal) kommt sofort, Masse nach Text plus Ruhezeit mit Vektoren |
 | V08 | Regelwerk, Gruppe Nur bei Ruhe | drei Werte mit Möglichkeiten, Änderung im Prüfprotokoll mit Worten, falsche Werte abgelehnt, leere Liste schaltet ab |
 

@@ -120,6 +120,7 @@ class Massnahmenart(str, Enum):
     EINBETTUNG_ZURUECKBAUEN = "einbettung_zurueckbauen"
     LAEUFER_OHNE_AUFTRAG = "laeufer_ohne_auftrag"
     HINTERGRUND_RECHNERLAST = "hintergrund_rechnerlast"
+    LEERLAUF_ENTLADEN = "leerlauf_entladen"
 
 
 #: Szenarien, die ab Werk aus sind (die übrigen sind an); gilt auch für ein gespeichertes Regelwerk, das sie nicht kennt
@@ -168,6 +169,7 @@ WORT: dict[str, str] = {
     "hintergrund_lage": "Hintergrund bei Lage", "weitere_instanz": "Weitere Instanz",
     "einbettung_verstaerken": "Einbettung verstärken", "einbettung_zurueckbauen": "Einbettung zurückbauen",
     "laeufer_ohne_auftrag": "Läufer ohne Auftrag", "hintergrund_rechnerlast": "Hintergrund bei Rechnerlast",
+    "leerlauf_entladen": "Entladen nach Leerlauf",
     "bereit": "Bereit", "aus": "Aus", "startet": "Startet", "nicht_erreichbar": "Nicht erreichbar", "ausfall": "Ausfall", "schlaeft": "Schläft", "erreichbar": "Erreichbar",
     "leerlauf": "nach Leerlauf", "angefordert": "von Hand",
     "denken": "Denkt schrittweise", "programmieren": "Programmieren", "lange_texte": "Lange Texte", "schnell": "Schnell", "gruendlich": "Gründlich",

@@ -40,6 +40,11 @@ export function wertText(w: RegelwertSicht, wert: Wert): string {
   if (w.einheit === 'schalter') return wert ? 'an' : 'aus';
   if (w.einheit === 'wahl') return w.wahl.find((x) => x.wert === wert)?.wort ?? String(wert);
   if (w.einheit === 'mehrfach') return (wert as string[]).map((x) => w.wahl.find((y) => y.wert === x)?.wort ?? x).join(', ') || 'keine';
+  if (w.einheit === 'rang') {
+    const raenge = wert as Record<string, number>;
+    const stufen = [...new Set(Object.values(raenge))].sort((a, b) => a - b);
+    return stufen.map((r) => `${r}: ${Object.keys(raenge).filter((k) => raenge[k] === r).map((k) => w.wahl.find((y) => y.wert === k)?.wort ?? k).join(', ')}`).join('; ');
+  }
   const n = Number(wert);
   const zahl = (x: number) => x.toLocaleString('de-DE', { maximumFractionDigits: 2 });
   switch (w.einheit) {
@@ -59,7 +64,14 @@ export function wertText(w: RegelwertSicht, wert: Wert): string {
 }
 
 /** Gleiche Werte (Listen der Mehrfachauswahl nach Inhalt) */
-export const gleich = (a: Wert, b: Wert): boolean => (Array.isArray(a) && Array.isArray(b) ? a.length === b.length && a.every((x, i) => x === b[i]) : a === b);
+export const gleich = (a: Wert, b: Wert): boolean => {
+  if (Array.isArray(a) && Array.isArray(b)) return a.length === b.length && a.every((x, i) => x === b[i]);
+  if (a && b && typeof a === 'object' && typeof b === 'object') {
+    const x = a as Record<string, number>, y = b as Record<string, number>;
+    return Object.keys(x).length === Object.keys(y).length && Object.keys(x).every((k) => x[k] === y[k]);
+  }
+  return a === b;
+};
 
 /** Mehrfachauswahl: die Liste mit oder ohne `x`, in der Reihenfolge der Möglichkeiten (wie der Kern sie hält) */
 export const umgeschaltet = (w: RegelwertSicht, liste: string[], x: string): string[] =>

@@ -124,7 +124,8 @@ export type Massnahmenart =
   | 'einbettung_verstaerken'
   | 'einbettung_zurueckbauen'
   | 'laeufer_ohne_auftrag'
-  | 'hintergrund_rechnerlast';
+  | 'hintergrund_rechnerlast'
+  | 'leerlauf_entladen';
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "Massnahmenzustand".
@@ -153,7 +154,7 @@ export type Ausgang = 'ok' | 'abgelehnt' | 'gescheitert' | 'von_aussen';
  * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "Regelgruppe".
  */
-export type Regelgruppe = 'selbststeuerung' | 'speicher' | 'ausweichen' | 'hintergrund' | 'ruhe' | 'einbettung' | 'last';
+export type Regelgruppe = 'selbststeuerung' | 'speicher' | 'ausweichen' | 'hintergrund' | 'ruhe' | 'einbettung' | 'last' | 'vorrang';
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "Einheit".
@@ -170,7 +171,8 @@ export type Einheit =
   | 'faktor'
   | 'schalter'
   | 'wahl'
-  | 'mehrfach';
+  | 'mehrfach'
+  | 'rang';
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "Probenausgang".
@@ -241,16 +243,19 @@ export interface Regelwerk {
   max_umleitungen_je_auftrag: number;
   umschichter_takt_s: number;
   budget_reserve_gb: number;
-  schutzgrenze_mrd: number;
-  mindestverweildauer_s: number;
   bedarfsfrist_s: number;
-  leerlauf_s: number;
+  entladen_nach_s: number;
   arbeit_frist_s: number;
   arbeit_ab_anfragen: number;
   speicher_warnschwelle: number;
   geladene_zuerst: boolean;
   extern_schwelle_s: number;
   hintergrund_spaetestens_s: number;
+  rangfolge: {
+    [k: string]: number;
+  };
+  vorrang_faehigkeiten: Faehigkeit[];
+  vorrang_nachlauf_s: number;
   ruhe_faehigkeiten: Faehigkeit[];
   ruhe_bis_prioritaet: Prioritaet;
   ruhe_ab_s: number;
@@ -264,6 +269,8 @@ export interface Regelwerk {
   last_anhalten_ab_prozent: number;
   last_abstand_prozent: number;
   docker_drosseln_ab_prozent: number;
+  akku_stopp_prozent: number;
+  akku_frei_ab_prozent: number;
   docker_anhalten_ab_prozent: number;
   szenarien_an: {
     [k: string]: boolean;
@@ -290,6 +297,8 @@ export interface KnotenSicht {
   budget_fest_gb: number | null;
   hintergrund_von: number | null;
   hintergrund_bis: number | null;
+  bevorzugt_fuer: Faehigkeit[];
+  akku_gesperrt: boolean;
   agent: AgentSicht;
   fremde: FremdeSicht;
   last: LastSicht;
@@ -851,6 +860,7 @@ export interface KnotenEintrag {
   budget_fest_gb: number | null;
   hintergrund_von: number | null;
   hintergrund_bis: number | null;
+  bevorzugt_fuer: Faehigkeit[];
   agent_fingerabdruck: string | null;
   agent_geheim: string | null;
 }
@@ -953,8 +963,22 @@ export interface RegelwertSicht {
   titel: string;
   erklaerung: string;
   einheit: Einheit;
-  wert: boolean | number | string | string[];
-  vorgabe: boolean | number | string | string[];
+  wert:
+    | boolean
+    | number
+    | string
+    | string[]
+    | {
+        [k: string]: number;
+      };
+  vorgabe:
+    | boolean
+    | number
+    | string
+    | string[]
+    | {
+        [k: string]: number;
+      };
   min: number | null;
   max: number | null;
   schritt: number | null;
@@ -993,6 +1017,7 @@ export interface KnotenDaten {
   budget_fest_gb?: number | null;
   hintergrund_von?: number | null;
   hintergrund_bis?: number | null;
+  bevorzugt_fuer?: Faehigkeit[] | null;
 }
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
@@ -1079,7 +1104,14 @@ export interface SteckbriefEintrag {
  */
 export interface RegelwerkAenderung {
   werte?: {
-    [k: string]: boolean | number | string | string[];
+    [k: string]:
+      | boolean
+      | number
+      | string
+      | string[]
+      | {
+          [k: string]: number;
+        };
   };
   szenarien_an?: {
     [k: string]: boolean;

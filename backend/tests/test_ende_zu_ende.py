@@ -235,7 +235,7 @@ async def test_e08_speichermangel_beim_laufer_wird_mit_pausen_wiederholt_dann_ab
 async def test_e09_selbststeuerung_raeumt_leerlauf_fuer_wartenden_auftrag(tmp_path):
     """Echte Kette: Budget des Rechners reicht nicht für Bildmodell neben dem 80B, das 80B ist ungenutzt.
     Die Regel Leerlauf räumen entlädt es über den Läufer, lädt GLM, der Auftrag läuft."""
-    r = Regelwerk(bedarfsfrist_s=0, mindestverweildauer_s=0, umschichter_takt_s=0.5)
+    r = Regelwerk(bedarfsfrist_s=0, umschichter_takt_s=0.5)
     async with aufbau(tmp_path, speicher_gb=64.0, regelwerk=r) as (c, anw, lage, _):
         antwort = await anw.post("/chat/completions", json={"model": "zai-org/glm-4.6v-flash", "messages": []})
         assert antwort.status_code == 200, antwort.text
@@ -248,7 +248,7 @@ async def test_e09_selbststeuerung_raeumt_leerlauf_fuer_wartenden_auftrag(tmp_pa
 async def test_e18_erst_frei_dann_laden(tmp_path):
     """Das Entladen dauert, und der Läufer lässt GLM neben dem 80B nicht zu: die Leitstelle lädt erst, wenn das Entladen
     zurück ist, im ersten Versuch und ohne Ablehnung (vorher liefen beide nebeneinander, das Laden scheiterte)."""
-    r = Regelwerk(bedarfsfrist_s=0, mindestverweildauer_s=0, umschichter_takt_s=0.5)
+    r = Regelwerk(bedarfsfrist_s=0, umschichter_takt_s=0.5)
     async with aufbau(tmp_path, speicher_gb=64.0, regelwerk=r) as (c, anw, lage, _):
         lage.speicher_gb, lage.entladezeit_s = 50.0, 0.4
         antwort = await anw.post("/chat/completions", json={"model": "zai-org/glm-4.6v-flash", "messages": []})

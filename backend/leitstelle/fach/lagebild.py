@@ -191,6 +191,8 @@ class KnotenSicht(BaseModel):
     budget_fest_gb: float | None
     hintergrund_von: int | None
     hintergrund_bis: int | None
+    bevorzugt_fuer: list[Faehigkeit]     # Rolle des Rechners: Arbeit dieser Fähigkeiten zuerst hierher (LS-16)
+    akku_gesperrt: bool                  # Akku unter der Grenze: nimmt keine neue Arbeit an (LS-17)
     agent: AgentSicht
     fremde: FremdeSicht                # was am Leitstand vorbei auf Modelle dieses Rechners zugreift
     last: LastSicht                    # Last von Läufer und Rechner, Stufe des Hintergrunds
@@ -344,13 +346,14 @@ def lagebild(b: Betrieb) -> Lagebild:
         knoten.append(KnotenSicht(kennung=k.kennung, name=k.name, adresse=e.adresse, zone=k.zone, speicher_gb=k.speicher_gb, system_gb=k.system_gb,
                                   budget_gb=round(k.budget_gb(r.budget_reserve_gb), 2), geladen_gb=round(v.geladen_gb(k.kennung), 2),
                                   frei_gb=round(v.frei_gb(k.kennung), 2), belegt_anteil=round(v.belegt_anteil(k.kennung), 3), erreichbar=k.erreichbar,
-                                  zustand=k.zustand, schlaeft_seit_s=k.schlaeft_seit_s, budget_fest_gb=k.budget_fest_gb, hintergrund_von=e.hintergrund_von, hintergrund_bis=e.hintergrund_bis, agent=agent,
+                                  zustand=k.zustand, schlaeft_seit_s=k.schlaeft_seit_s, budget_fest_gb=k.budget_fest_gb, hintergrund_von=e.hintergrund_von, hintergrund_bis=e.hintergrund_bis,
+                                  bevorzugt_fuer=[f for f in Faehigkeit if f in k.bevorzugt_fuer], akku_gesperrt=k.akku_gesperrt, agent=agent,
                                   fremde=fremde_sicht(av.fremde if av else Fremdzugriffe(beobachtet=False), b.laeufer_direkt(k.kennung)),
                                   last=last_sicht(v, k)))
     dienste = [dienst_sicht(b, d) for d in b.dienste.values()]
     modelle = [ModellSicht(kennung=m.kennung, name=m.name, aufgabe=m.aufgabe, familie=m.familie, dienst=m.dienst, knoten=v.dienste[m.dienst].knoten if m.dienst in v.dienste else None,
                            faehigkeiten=sorted(m.faehigkeiten, key=lambda f: f.value), gb=m.gb, gb_jetzt=m.gb_jetzt, parameter_mrd=m.parameter_mrd, zustand=m.zustand,
-                           geschuetzt=m.geschuetzt(r.schutzgrenze_mrd), geladen_seit_s=m.geladen_seit_s, letzte_nutzung_s=m.letzte_nutzung_s,
+                           geschuetzt=m.geschuetzt, geladen_seit_s=m.geladen_seit_s, letzte_nutzung_s=m.letzte_nutzung_s,
                            auftraege_aktiv=m.auftraege_aktiv, belegt=len(v.belegung(m.kennung)), plaetze=v.plaetze(m), nutzung=v.nutzung(m.dienst, m.familie),
                            gehalten_von=w.titel if (w := v.arbeit_haelt(m.kennung)) else None, steckbrief=b.steckbrief(m), instanzen_hoechstens=m.instanzen_hoechstens, zusatz=m.zusatz,
                            ladesperre_bis_s=m.ladesperre_bis_s, ladesperre_grund=m.ladesperre_grund, sperre=m.sperre)

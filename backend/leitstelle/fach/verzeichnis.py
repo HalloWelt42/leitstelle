@@ -34,6 +34,7 @@ class KnotenDaten(BaseModel):
     budget_fest_gb: float | None = Field(default=None, gt=0, le=4096)
     hintergrund_von: int | None = Field(default=None, ge=0, le=23)
     hintergrund_bis: int | None = Field(default=None, ge=0, le=23)
+    bevorzugt_fuer: list[Faehigkeit] | None = None   # Rolle des Rechners (LS-16); None beim Ändern: bleibt, wie sie ist
 
 
 class Erkennung(BaseModel):
@@ -183,7 +184,7 @@ class Verzeichnis:
 
     # ── Rechner ──────────────────────────────────────────────────────────
     async def knoten_anlegen(self, d: KnotenDaten, wer: str) -> KnotenEintrag:
-        k = KnotenEintrag(kennung=uuid4().hex, **d.model_dump())
+        k = KnotenEintrag(kennung=uuid4().hex, **(d.model_dump() | {"bevorzugt_fuer": d.bevorzugt_fuer or []}))
         k.adresse = k.adresse.strip().lower()
         await self.b.ablage.knoten.speichern(k)
         self.b.knoten_setzen(k)
@@ -193,7 +194,10 @@ class Verzeichnis:
     async def knoten_aendern(self, kennung: str, d: KnotenDaten, wer: str) -> KnotenEintrag:
         if kennung not in self.b.knoten:
             raise Ablehnung("unbekannt", "Diesen Rechner gibt es nicht.")
-        k = self.b.knoten[kennung].model_copy(update=d.model_dump())
+        aenderung = d.model_dump()
+        if d.bevorzugt_fuer is None:
+            aenderung.pop("bevorzugt_fuer")
+        k = self.b.knoten[kennung].model_copy(update=aenderung)
         k.adresse = k.adresse.strip().lower()
         await self.b.ablage.knoten.speichern(k)
         self.b.knoten_setzen(k)

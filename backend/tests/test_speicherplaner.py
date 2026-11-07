@@ -27,31 +27,32 @@ def test_entlaedt_nur_so_viel_wie_noetig_groesste_zuerst(welt):
     assert "qwen80@128" in plan.entladen
 
 
-def test_s13_geschuetzte_und_zugeteilte_bleiben(welt):
-    welt.verbund.modelle["qwen80@128"].parameter_mrd = 8   # unter der Schutzgrenze
+def test_s13_nur_der_schutz_des_dienstes_haelt(welt):
+    """LS-14: Größe und Art schützen nicht mehr, nur der Dienst (Maschinenraum: Leitstelle darf nicht anhalten)."""
+    welt.verbund.modelle["qwen80@128"].schutz_vorgabe = True
     plan = planen(welt.verbund, "mac-128", 11.8, Messwerk(), familie="glm-4.6v")
     assert not plan.passt
-    assert "geschützt" in plan.begruendung
-    assert "bge-m3" in plan.begruendung
+    assert "vom Dienst geschützt" in plan.begruendung
+    welt.verbund.modelle["qwen80@128"].schutz_vorgabe = None
+    assert planen(welt.verbund, "mac-128", 11.8, Messwerk(), familie="glm-4.6v").passt
 
 
-def test_s14_mindestverweildauer_haelt(welt):
+def test_s14_frisch_geladenes_darf_weichen(welt):
+    """LS-14: keine Mindestverweildauer mehr; ohne Auftrag weicht auch ein gerade geladenes Modell."""
     welt.verbund.modelle["qwen80@128"].geladen_seit_s = welt.verbund.zeit_s - 10
     plan = planen(welt.verbund, "mac-128", 11.8, Messwerk(), familie="glm-4.6v")
-    assert not plan.passt
-    assert "Mindestverweildauer" in plan.begruendung
+    assert plan.passt and "qwen80@128" in plan.entladen
 
 
-def test_anforderung_bedarfsfrist_statt_mindestverweildauer(welt):
-    """HELF-161: frisch geladen, aber ohne Auftrag seit der Bedarfsfrist: ein Auftrag, der jetzt rechnen will, bekommt
-    den Platz; ohne Anforderung (Automatik) hält die Mindestverweildauer weiter."""
+def test_anforderung_bedarfsfrist(welt):
+    """HELF-161: ein Auftrag, der jetzt rechnen will, bekommt den Platz eines Modells, das die Bedarfsfrist keinen Auftrag
+    hatte; gerade gebraucht weicht es nicht."""
     m = welt.verbund.modelle["qwen80@128"]
     m.geladen_seit_s = welt.verbund.zeit_s - 120
     m.letzte_nutzung_s = welt.verbund.zeit_s - 90
-    assert not planen(welt.verbund, "mac-128", 11.8, Messwerk(), familie="glm-4.6v").passt
     plan = planen(welt.verbund, "mac-128", 11.8, Messwerk(), familie="glm-4.6v", anforderung=True)
     assert plan.passt and "qwen80@128" in plan.entladen
-    m.letzte_nutzung_s = welt.verbund.zeit_s - 10          # gerade gebraucht: auch bei Anforderung nicht
+    m.letzte_nutzung_s = welt.verbund.zeit_s - 10
     plan = planen(welt.verbund, "mac-128", 11.8, Messwerk(), familie="glm-4.6v", anforderung=True)
     assert not plan.passt and "Bedarfsfrist" in plan.begruendung
 
@@ -66,29 +67,29 @@ def test_s15_rechnendes_modell_mit_frei_nach(welt):
 
 
 def test_leerlauf_nur_wenn_lange_ungenutzt(welt):
-    welt.verbund.modelle["qwen80@128"].letzte_nutzung_s = welt.verbund.zeit_s - 60
+    """Leerlauf heißt: länger als "Entladen nach" (Vorgabe 60 s) ohne Auftrag."""
+    welt.verbund.modelle["qwen80@128"].letzte_nutzung_s = welt.verbund.zeit_s - 30
     plan = planen(welt.verbund, "mac-128", 11.8, Messwerk(), familie="glm-4.6v", nur_leerlauf=True)
     assert not plan.passt
-    plan = planen(welt.verbund, "mac-128", 11.8, Messwerk(), familie="glm-4.6v", nur_leerlauf=True, leerlauf_grenze_s=30)
+    plan = planen(welt.verbund, "mac-128", 11.8, Messwerk(), familie="glm-4.6v", nur_leerlauf=True, leerlauf_grenze_s=20)
     assert plan.passt, "mit kürzerer Frist (Bedarf) darf es weichen"
-    welt.verbund.modelle["qwen80@128"].letzte_nutzung_s = welt.verbund.zeit_s - 5000
+    welt.verbund.modelle["qwen80@128"].letzte_nutzung_s = welt.verbund.zeit_s - 61
     plan = planen(welt.verbund, "mac-128", 11.8, Messwerk(), familie="glm-4.6v", nur_leerlauf=True)
     assert plan.passt and plan.entladen == ["qwen80@128"]
 
 
-def test_s48_schutzvorgabe_des_dienstes_geht_der_regel_vor(welt):
-    """Ein Dienst ohne Parameterzahl (Maschinenraum) wäre nach der Regel geschützt; erlaubt sein Dienst das Anhalten,
-    darf er weichen. Verbietet er es, bleibt auch ein großes Modell stehen."""
+def test_s48_schutzvorgabe_des_dienstes(welt):
+    """Erlaubt der Dienst das Anhalten, darf es weichen; verbietet er es, bleibt auch ein großes Modell stehen. Eine weitere
+    Instanz der Leitstelle ist nie geschützt."""
     m = welt.verbund.modelle["qwen80@128"]
-    schutz = welt.verbund.regelwerk.schutzgrenze_mrd
-    m.parameter_mrd = 0
-    assert m.geschuetzt(schutz)
     m.schutz_vorgabe = False
-    assert not m.geschuetzt(schutz)
+    assert not m.geschuetzt
     plan = planen(welt.verbund, "mac-128", 11.8, Messwerk(), familie="glm-4.6v")
     assert plan.passt and "qwen80@128" in plan.entladen
-    m.parameter_mrd, m.schutz_vorgabe = 80, True
-    assert m.geschuetzt(schutz)
+    m.schutz_vorgabe = True
+    assert m.geschuetzt
+    m.zusatz = True
+    assert not m.geschuetzt
 
 
 def test_s49_verplant_wird_der_bedarf_belegt_ist_der_ist_wert(welt):

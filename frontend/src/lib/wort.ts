@@ -170,6 +170,7 @@ export const MASSNAHME: Record<Massnahmenart, { wort: string; symbol: string }> 
   einbettung_zurueckbauen: { wort: 'Einbettung zurückgebaut', symbol: 'fa-compress' },
   laeufer_ohne_auftrag: { wort: 'Läufer-Prozess beendet', symbol: 'fa-microchip' },
   hintergrund_rechnerlast: { wort: 'Hintergrund nach Rechnerlast', symbol: 'fa-gauge-high' },
+  leerlauf_entladen: { wort: 'Nach Leerlauf entladen', symbol: 'fa-eject' },
 };
 
 /** Prozesse des Modell-Läufers (knoten.last): Rolle, wie der Maschinenraum sie erkennt */

@@ -33,14 +33,13 @@ class Speicherplan(BaseModel):
 def entladbar(verbund: Verbund, m: Modell, jetzt: float, nur_leerlauf: bool, leerlauf_grenze_s: float | None = None,
               fuer_arbeit: str | None = None, anforderung: bool = False) -> tuple[bool, str]:
     """Ob ein Modell weichen darf, mit Grund, warum nicht. `fuer_arbeit`: die Arbeit, für die Platz gebraucht wird.
-    `anforderung`: ein Auftrag will jetzt rechnen (Zuteiler). Dann gilt statt der Mindestverweildauer die Bedarfsfrist:
-    ein Modell, das so lange keinen Auftrag hatte, weicht (HELF-161); die Mindestverweildauer hält nur gegen Entladen
-    ohne Anforderung (Automatik) und gegen das Hin und Her zwischen gerade gebrauchten Modellen."""
+    `anforderung`: ein Auftrag will jetzt rechnen (Zuteiler). Dann weicht ein Modell, das die Bedarfsfrist keinen Auftrag
+    hatte (HELF-161). Größe und Art schützen nicht (LS-14), nur der Schutz des Dienstes."""
     r = verbund.regelwerk
     if m.zustand != Modellzustand.GELADEN or verbund.belegung(m.kennung):
         return False, "rechnet, lädt oder ist schon zugeteilt"
-    if m.geschuetzt(r.schutzgrenze_mrd):
-        return False, "geschützt (vom Dienst vorgegeben, unter der Schutzgrenze oder Einbettung)"
+    if m.geschuetzt:
+        return False, "vom Dienst geschützt (Maschinenraum: Leitstelle darf nicht anhalten)"
     knoten = verbund.dienste[m.dienst].knoten
     if any(a.wartet_auf_knoten in (None, knoten) for a in verbund.wartende_auf_familie(m.familie)):
         return False, "ein Auftrag wartet darauf"     # wartet er auf einem anderen Rechner, hält er diese Kopie nicht
@@ -50,9 +49,7 @@ def entladbar(verbund: Verbund, m: Modell, jetzt: float, nur_leerlauf: bool, lee
         zuletzt = m.letzte_nutzung_s if m.letzte_nutzung_s is not None else m.geladen_seit_s
         if zuletzt is not None and jetzt - zuletzt < r.bedarfsfrist_s:
             return False, f"vor {jetzt - zuletzt:.0f} s zuletzt gebraucht (Bedarfsfrist {r.bedarfsfrist_s:.0f} s)"
-    elif m.geladen_seit_s is not None and jetzt - m.geladen_seit_s < r.mindestverweildauer_s:
-        return False, "Mindestverweildauer läuft noch"
-    grenze = r.leerlauf_s if leerlauf_grenze_s is None else leerlauf_grenze_s
+    grenze = r.entladen_nach_s if leerlauf_grenze_s is None else leerlauf_grenze_s
     if nur_leerlauf and m.letzte_nutzung_s is not None and jetzt - m.letzte_nutzung_s < grenze:
         return False, f"wurde vor {jetzt - m.letzte_nutzung_s:.0f} s zuletzt genutzt (Frist {grenze:.0f} s)"
     return True, "darf weichen"
@@ -87,7 +84,7 @@ def planen(verbund: Verbund, knoten: str, benoetigt_gb: float, messwerk: Messwer
                             aufwand_s=ladezeit + messwerk.entladezeit_s * len(entladen),
                             begruendung=f"passt nach Entladen von {namen} ({komma(gewonnen)} GB)")
     # Passt nicht: wann würde es? Wenn rechnende Modelle fertig sind und weichen könnten.
-    rechnende = [m for m in verbund.modelle_auf(knoten) if m.im_speicher and verbund.belegung(m.kennung) and not m.geschuetzt(verbund.regelwerk.schutzgrenze_mrd)]
+    rechnende = [m for m in verbund.modelle_auf(knoten) if m.im_speicher and verbund.belegung(m.kennung) and not m.geschuetzt]
     frei_nach = None
     blockiert = []
     for m in sorted(rechnende, key=lambda m: m.gb, reverse=True):

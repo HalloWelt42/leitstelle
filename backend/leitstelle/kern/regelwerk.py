@@ -33,6 +33,7 @@ class Einheit(str, Enum):
     SCHALTER = "schalter"             # an oder aus
     WAHL = "wahl"                     # einer aus mehreren Werten
     MEHRFACH = "mehrfach"             # beliebig viele aus mehreren Werten (Liste)
+    RANG = "rang"                     # je Auswahl eine Rangzahl, kleinere kommt zuerst (Zuordnung)
 
 
 class Regelgruppe(str, Enum):
@@ -43,6 +44,7 @@ class Regelgruppe(str, Enum):
     RUHE = "ruhe"
     EINBETTUNG = "einbettung"
     LAST = "last"
+    VORRANG = "vorrang"
 
 
 @dataclass(frozen=True)
@@ -62,6 +64,16 @@ GRUPPEN: dict[Regelgruppe, Gruppe] = {
                                              "die übrigen warten auf die nächste Ruhe."),
     Regelgruppe.EINBETTUNG: Gruppe("Einbettung", "Weitere Instanzen eines Einbettungsmodells bei Andrang und ihr Rückbau."),
     Regelgruppe.LAST: Gruppe("Läufer und Last", "Arbeiter des Modell-Läufers ohne Auftrag und Hintergrund bei Last des Menschen am Rechner."),
+    Regelgruppe.VORRANG: Gruppe("Vorrang", "Welche Arbeit zuerst kommt (Rangfolge nach Fähigkeit, die Priorität der Anwendung ordnet nur "
+                                           "innerhalb eines Rangs) und welche Arbeit einen Rechner für sich hat, solange sie läuft."),
+}
+
+#: Rangfolge ab Werk (Arbeitslogik 07.11.2026, LS-15): was ein Mensch gerade hört oder liest, zuerst; Dauerarbeit zuletzt
+RANG_VORGABE: dict[Faehigkeit, int] = {
+    Faehigkeit.STIMME: 1, Faehigkeit.HOEREN: 2, Faehigkeit.SPRECHER_TRENNEN: 2, Faehigkeit.SPRECHER_ERKENNEN: 2,
+    Faehigkeit.TEXT: 3, Faehigkeit.UEBERSETZEN: 3, Faehigkeit.WERKZEUG: 3, Faehigkeit.TON: 3,
+    Faehigkeit.BILD_BESCHREIBEN: 4, Faehigkeit.BILD_ERZEUGEN: 5, Faehigkeit.BILD_BEARBEITEN: 5, Faehigkeit.STIMME_KLONEN: 5,
+    Faehigkeit.MUSIK: 6, Faehigkeit.EINBETTUNG: 7,
 }
 
 
@@ -116,6 +128,10 @@ SZENARIEN: dict[Massnahmenart, Szenario] = {
                                                                            "Spielraum im Budget."),
     Massnahmenart.EINBETTUNG_ZURUECKBAUEN: Szenario(Regelgruppe.EINBETTUNG, "Weitere Einbettungsinstanzen, die die Ruhezeit nichts zu tun hatten, "
                                                                             "entlädt die Leitstelle; die Grundinstanz bleibt."),
+    Massnahmenart.LEERLAUF_ENTLADEN: Szenario(Regelgruppe.SPEICHER, "Läuft auf einem Modell oder Dienst seit der Frist \"Entladen nach\" kein "
+                                                                    "Auftrag mehr und wartet keiner darauf, entlädt die Leitstelle es (Modell-Läufer) "
+                                                                    "oder hält es an (Maschinenraum), auch kleine Modelle und die Einbettung. "
+                                                                    "Ausgenommen sind nur Dienste mit Schutz im Maschinenraum."),
     Massnahmenart.LAEUFER_OHNE_AUFTRAG: Szenario(Regelgruppe.LAST, "Rechnet ein Arbeiter des Modell-Läufers seit der Frist über der Schwelle, ohne "
                                                                    "dass die Leitstelle dort etwas rechnen lässt, beendet ihn der Maschinenraum; hängt ein "
                                                                    "Programm am Leitstand vorbei am Läufer, nur melden. Aus: nur melden, beenden von Hand."),
@@ -163,18 +179,13 @@ class Regelwerk(BaseModel):
     budget_reserve_gb: Annotated[float, Regelwert(
         "Reserve", "So viel Speicher eines Rechners bleibt für System und Programme; der Rest ist das Budget der Modelle (außer bei festem "
         "Budget des Rechners).", E.GB, R.SPEICHER, 0, 512, 0.5)] = 18.0
-    schutzgrenze_mrd: Annotated[float, Regelwert(
-        "Schutzgrenze", "Modelle mit weniger Parametern entlädt die Leitstelle nie von selbst: sie bringen kaum Platz und sind schnell wieder "
-        "gebraucht.", E.MILLIARDEN, R.SPEICHER, 0, 1000, 1)] = 10.0
-    mindestverweildauer_s: Annotated[float, Regelwert(
-        "Mindestverweildauer", "So lange bleibt ein Modell nach dem Laden mindestens, damit es kein Hin und Her gibt.",
-        E.SEKUNDEN, R.SPEICHER, 0, 86400, 60)] = 600.0
     bedarfsfrist_s: Annotated[float, Regelwert(
         "Bedarfsfrist", "Wartet ein Auftrag auf Platz, darf ein Modell weichen, das so lange keinen Auftrag hatte.",
         E.SEKUNDEN, R.SPEICHER, 0, 86400, 10)] = 60.0
-    leerlauf_s: Annotated[float, Regelwert(
-        "Leerlauf ab", "Ab dieser Zeit ohne Auftrag gilt ein Modell als Leerlauf (Freigeben von Hand, Doppel auflösen).",
-        E.SEKUNDEN, R.SPEICHER, 60, 604800, 60)] = 1800.0
+    entladen_nach_s: Annotated[float, Regelwert(
+        "Entladen nach", "So lange nach dem letzten laufenden oder wartenden Auftrag entlädt die Leitstelle ein Modell oder hält einen Dienst an; "
+        "ab dann gilt es auch als Leerlauf (Freigeben von Hand, Doppel auflösen).", E.SEKUNDEN, R.SPEICHER, 10, 86400, 10,
+        szenario=Massnahmenart.LEERLAUF_ENTLADEN)] = 60.0
     arbeit_frist_s: Annotated[float, Regelwert(
         "Frist begonnener Arbeit", "So lange nach ihrer letzten Nutzung hält eine begonnene Arbeit einer Anwendung ihre Modelle; für andere "
         "weichen sie nicht.", E.SEKUNDEN, R.SPEICHER, 0, 86400, 30)] = 300.0
@@ -195,6 +206,18 @@ class Regelwerk(BaseModel):
     hintergrund_spaetestens_s: Annotated[float, Regelwert(
         "Hintergrund spätestens nach", "Nach dieser Wartezeit rückt ein Hintergrundauftrag auf Normal, damit nichts verhungert (nicht bei "
         "Hintergrund angehalten wegen Rechnerlast, nicht für Arbeit nur bei Ruhe).", E.SEKUNDEN, R.HINTERGRUND, 60, 86400, 60)] = 900.0
+
+    rangfolge: Annotated[dict[Faehigkeit, int], Regelwert(
+        "Rangfolge", "Kleinere Zahl kommt zuerst; gleiche Zahl heißt gleicher Rang, dann entscheidet die Priorität der Anwendung, dann der "
+        "Eingang. Arbeit nur bei Ruhe kommt nach allem anderen.", E.RANG, R.VORRANG, 1, 20, 1,
+        wahl=tuple((f.value, WORT[f.value]) for f in Faehigkeit))] = Field(default_factory=lambda: dict(RANG_VORGABE))
+    vorrang_faehigkeiten: Annotated[list[Faehigkeit], Regelwert(
+        "Vorrang auf dem Rechner", "Läuft oder wartet Arbeit dieser Fähigkeiten auf einem Rechner, bekommt er keine neuen Aufträge eines "
+        "niedrigeren Rangs; Laufendes rechnet zu Ende, das Übrige geht auf einen anderen Rechner oder wartet.", E.MEHRFACH, R.VORRANG,
+        wahl=tuple((f.value, WORT[f.value]) for f in Faehigkeit))] = Field(default_factory=lambda: [Faehigkeit.STIMME])
+    vorrang_nachlauf_s: Annotated[float, Regelwert(
+        "Vorrang hält nach", "So lange nach dem letzten Schritt bleibt der Rechner für Niedrigeres gesperrt; überbrückt die Pausen zwischen "
+        "den Sätzen einer Vorlesung.", E.SEKUNDEN, R.VORRANG, 0, 3600, 5)] = 30.0
 
     ruhe_faehigkeiten: Annotated[list[Faehigkeit], Regelwert(
         "Fähigkeiten nur bei Ruhe", "Aufträge dieser Fähigkeiten (bis zur Priorität unten) sind Arbeit der niedrigsten Stufe: zugeteilt "
@@ -238,9 +261,27 @@ class Regelwerk(BaseModel):
         "Docker-Last drosseln ab", "Ab dieser Docker-Last (Container ohne die von Anwendungen mit Hintergrundarbeit, Anteil aller Kerne des "
         "Docker-Rechners) wird Hintergrund auf dem Rechner gedrosselt wie bei der Fremdlast.", E.PROZENT, R.LAST, 1, 100, 1,
         szenario=Massnahmenart.HINTERGRUND_RECHNERLAST)] = 70.0
+    akku_stopp_prozent: Annotated[float, Regelwert(
+        "Akku: keine Arbeit unter", "Hat ein Rechner weniger Akku, bekommt er keine neuen Aufträge, auch am Netzteil und auch keine "
+        "Sprachausgabe; Laufendes rechnet zu Ende, die Arbeit geht auf einen anderen Rechner. 0: aus.", E.PROZENT, R.LAST, 0, 100, 1)] = 30.0
+    akku_frei_ab_prozent: Annotated[float, Regelwert(
+        "Akku: wieder Arbeit ab", "Ab diesem Ladestand nimmt ein gesperrter Rechner wieder Aufträge an (Abstand gegen Hin und Her).",
+        E.PROZENT, R.LAST, 0, 100, 1)] = 35.0
     docker_anhalten_ab_prozent: Annotated[float, Regelwert(
         "Docker-Last anhalten ab", "Ab dieser Docker-Last wird Hintergrund auf dem Rechner nicht mehr zugeteilt, wie bei der Fremdlast; laufende "
         "Aufträge rechnen zu Ende.", E.PROZENT, R.LAST, 1, 100, 1, szenario=Massnahmenart.HINTERGRUND_RECHNERLAST)] = 90.0
+
+    @field_validator("rangfolge")
+    @classmethod
+    def _rang_je_faehigkeit(cls, werte: dict[Faehigkeit, int]) -> dict[Faehigkeit, int]:
+        """Jede Fähigkeit hat einen Rang, in der Reihenfolge der Aufzählung; eine neue Fähigkeit, die ein gespeichertes
+        Regelwerk nicht kennt, bekommt ihren Rang ab Werk."""
+        return {f: int(werte.get(f, RANG_VORGABE.get(f, 10))) for f in Faehigkeit}
+
+    @field_validator("vorrang_faehigkeiten")
+    @classmethod
+    def _vorrang_geordnet(cls, werte: list[Faehigkeit]) -> list[Faehigkeit]:
+        return [f for f in Faehigkeit if f in set(werte)]
 
     @field_validator("ruhe_faehigkeiten")
     @classmethod

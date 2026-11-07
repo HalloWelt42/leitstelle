@@ -128,7 +128,7 @@ def test_s17_leerlauf_nicht_bei_geschuetztem():
     w = welt_mit()
     w.verbund.knoten["mac-32"].budget_fest_gb = 4.0
     w.verbund.modelle["qwen80@128"].letzte_nutzung_s = -10000
-    w.verbund.modelle["qwen80@128"].parameter_mrd = 8          # unter der Schutzgrenze
+    w.verbund.modelle["qwen80@128"].schutz_vorgabe = True      # der Dienst schützt es (LS-14: nur noch der Dienst schützt)
     w.auftrag("kiste", F.BILD_BESCHREIBEN, laufzeit_s=5)
     w.laufen(60)
     assert not ausgefuehrt(w, A.LEERLAUF_RAEUMEN)
@@ -136,14 +136,15 @@ def test_s17_leerlauf_nicht_bei_geschuetztem():
     assert w.verbund.modelle["qwen80@128"].zustand != Modellzustand.FREI
 
 
-def test_s18_leerlauf_nicht_innerhalb_verweildauer():
+def test_s18_frisch_geladen_weicht_ohne_verweildauer():
+    """LS-14: keine Mindestverweildauer mehr; ein frisch geladenes, lange nicht genutztes Modell weicht für Wartende."""
     w = welt_mit()
     w.verbund.knoten["mac-32"].budget_fest_gb = 4.0
     w.verbund.modelle["qwen80@128"].letzte_nutzung_s = -10000
     w.verbund.modelle["qwen80@128"].geladen_seit_s = -30       # frisch geladen
     w.auftrag("kiste", F.BILD_BESCHREIBEN, laufzeit_s=5)
     w.laufen(60)
-    assert not ausgefuehrt(w, A.LEERLAUF_RAEUMEN)
+    assert ausgefuehrt(w, A.LEERLAUF_RAEUMEN)
 
 
 def test_s19_leerlauf_nicht_bei_kuerzlicher_nutzung():
@@ -344,9 +345,10 @@ def test_s30_doppel_ohne_bedarf_bleibt():
     w.laufen(20)
     assert not ausgefuehrt(w, A.DOPPEL_AUFLOESEN)
     assert "kein Bedarf, Kopie bleibt" in abschluesse(w, "doppel_aufloesen")
-    # GLM ist unter 10 Milliarden und damit geschützt: wird nie als Doppel aufgelöst
+    # Schützt der Dienst beide Kopien, wird nie aufgelöst (die Größe schützt nicht mehr, LS-14)
     lade(w, "glm@128")
     lade(w, "glm@32")
+    w.verbund.modelle["glm@128"].schutz_vorgabe = w.verbund.modelle["glm@32"].schutz_vorgabe = True
     w.laufen(10)
     assert "beide Kopien in Gebrauch oder geschützt" in abschluesse(w, "doppel_aufloesen")
 
@@ -419,7 +421,7 @@ def test_weitere_instanz_bei_andrang():
     w = welt_mit()
     v = w.verbund
     grund = v.modelle["whisperm@32"]
-    grund.instanzen_hoechstens, grund.geschuetzt_fest, grund.plaetze = 2, False, 1
+    grund.instanzen_hoechstens, grund.plaetze = 2, 1
     v.dienste["hoerer-32"].plaetze = 1
     w.messwerk.merke_laufzeit("rufzeichen", "hoeren", 300.0)
     erster = w.auftrag("rufzeichen", F.HOEREN, laufzeit_s=300, festes_modell="whisper-mittel")
@@ -445,7 +447,7 @@ def test_weitere_instanz_weicht_zuerst():
     v = w.verbund
     grund = v.modelle["qwen80@128"]
     zusatz = grund.model_copy(update={"kennung": "kleiner.2@laeufer-128", "familie": "klein", "gb": 2.0, "zusatz": True,
-                                      "geschuetzt_fest": False, "parameter_mrd": 20})
+                                      "parameter_mrd": 20})
     v.modelle[zusatz.kennung] = zusatz
     plan = planen(v, "mac-128", 11.8, Messwerk(), familie="glm-4.6v")
     assert plan.entladen[0] == zusatz.kennung
@@ -526,6 +528,8 @@ def test_einbettung_ohne_freigabe_bleibt_eine_instanz():
 def test_einbettung_spielraum_begrenzt_die_zahl():
     """Mit dem Spielraum der Vorgabe (4 GB) passt bei 5,2 GB frei nur eine weitere Instanz, auch wenn mehr warten."""
     w, v = _einbettung_vorbereiten(hoechstens=8)
+    for gebraucht in ("whisper@128", "xtts@128"):          # in der Schonfrist genutzt: weichen nicht für Einbettung
+        v.modelle[gebraucht].letzte_nutzung_s = v.zeit_s
     for _ in range(6):
         w.auftrag("fundus", F.EINBETTUNG, laufzeit_s=30)
     w.laufen(25)
