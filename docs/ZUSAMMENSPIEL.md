@@ -542,3 +542,32 @@ Aufträge hingen, außer bei Automatik "selbst".
 | Zonenfehler | 403 nur, wenn die Zone wirklich nicht passt; unangekündigt verschwundene Rechner geben 503 `dienst_nicht_erreichbar` |
 | Leerlaufschlaf während eines Auftrags | aufschieben, solange der Maschinenraum eine Anfrage durchreicht (Einstellung `schlaf.leerlauf_aufschieben`, Vorgabe an); Deckel, Menü und Ein-Taste wirken immer |
 | Geduld der Apps bei anderen Ausfällen | Einstellung "Geduld bei Ausfall" je App (Vorgabe 30 Minuten); der Schlaf zählt nicht dazu |
+
+## Entscheidung: Arbeitslogik (Dialog 07.11.2026)
+
+Nutzer: "Die Leitstelle darf nie entscheiden, welches der Modelle verwendet wird, das dürfen nur die Apps entscheiden."
+Dazu: Aufgaben auf beide Macs verteilen, Akku unter 30 % stoppt die Arbeit, Sprachausgabe hat die höchste Priorität,
+Einbettung und Dauerarbeit die niedrigste, Modelle nach einer Minute ohne Auftrag entladen. Ersetzt die Regeln
+"Entladen nur bei Not, nie unter 10B", "Einbettung bleibt immer geladen" und die Ketten der Leitstelle.
+
+| Frage | Entscheidung |
+|---|---|
+| Modellwahl | Ketten der Leitstelle entfallen. Jede App nennt immer selbst ihr Modell und ihre Ausweichliste in eigener Reihenfolge; ohne Modell lehnt die Leitstelle mit `modell_fehlt` ab. Die Apps mit Ketten (Atelier, Codeschmiede, Fundus, TubeVault, Vertonung, Übersetzer) bekommen eine eigene Einstellung |
+| Ausweichen | nur auf Modelle aus der Ausweichliste der App, in ihrer Reihenfolge; die Leitstelle wählt nur den Ort (Rechner, Instanz, Anbieter) für genau dieses Modell |
+| Auskunft für Apps | feste Abfrage in der Fassade (`GET /v1/lage`, mit dem App-Schlüssel) und ein Strom mit denselben Daten: je App laufende und wartende Aufträge mit Fähigkeit, Modell, Priorität, Rechner, geschätzter Restdauer; je Rechner Last, geladene und ladende Modelle. Keine Titel, Texte oder Prompts |
+| Vorrang | Rangfolge nach Fähigkeit im Regelwerk (einstellbar); die Priorität der App ordnet nur innerhalb derselben Fähigkeit. Vorgabe: 1 Sprachausgabe, 2 Hören, 3 Text und Übersetzen, 4 Bild beschreiben, 5 Bild erzeugen und bearbeiten, 6 Musik, 7 Einbettung |
+| Verteilung | Rollen je Mac im Regelwerk: Sprachausgabe und Hören zuerst auf den kleinen Mac, große Modelle und Bilder auf den großen; Einbettung auf beiden. Ist der bevorzugte Mac belegt oder gesperrt, weicht der Auftrag auf den anderen aus |
+| Sprachausgabe auf einem Mac | solange sie dort läuft oder wartet, bekommt der Mac keine neuen Aufträge niedrigeren Rangs; Laufendes endet; die übrige Arbeit geht auf den anderen Mac oder wartet. Nachlauf 30 s nach dem letzten Schritt (Regelwerk) |
+| Einbettung | Masseneinbettung (Priorität Hintergrund) läuft je Mac nur, wenn dort nichts Höheres läuft oder wartet, und nutzt dann beide Macs zugleich; einzelne Suchanfragen (Normal oder höher) laufen sofort |
+| Akku | unter 30 % keine neuen Aufträge auf diesem Mac, auch am Netzteil und auch keine Sprachausgabe; Laufendes endet; wieder frei ab 35 % (beide Werte im Regelwerk) |
+| Entladen | jedes Modell in LM Studio und jeder Dienst des Maschinenraums 60 s nach dem letzten laufenden oder wartenden Auftrag für dieses Modell (Regelwerk), auch Einbettung und 80B. Ausgenommen nur Dienste mit Schutz im Maschinenraum ("Leitstelle darf nicht anhalten"); von außen Geladenes wird ebenso entladen |
+| Reihenfolge des Baus | 1 Entladen nach 60 s, 2 Rangfolge mit Pausieren und Nachlauf, 3 Verteilung nach Rollen mit Einbettung auf beiden Macs, 4 Akku-Stopp, 5 Auskunft für Apps, 6 Ketten abschaffen und Ausweichen nur aus der App-Liste |
+
+Folgen, die beim Bau zu beachten sind:
+- Das 80B (rund 42 GB) wird nach jeder Pause von über einer Minute neu geladen; Gesprächsapps warten dann die Ladezeit.
+  Ladezeiten messen und im Verlauf zeigen, damit sich der Wert von 60 s an Messungen prüfen lässt.
+- Die Fähigkeit `stimme` umfasst heute Sprechen und Stimmklon; der Rang 1 ist für die Sprachausgabe gedacht. Beim Bau
+  klären, ob der Stimmklon (lange Hintergrundarbeit) eine eigene Fähigkeit oder einen eigenen Rang bekommt.
+- Die Arbeit-Frist (300 s, begonnene Arbeit hält ihre Modelle gegen andere) hält kein Modell mehr über die 60 s hinaus.
+- Bis Schritt 6 senden einige Apps kein Modell; die Ketten bleiben bis dahin in Kraft und werden zuletzt entfernt.
+- Szenarien in SZENARIEN.md für jeden Punkt, Gegentests an der alten Fassung.
