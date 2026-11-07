@@ -216,6 +216,13 @@ class Regelwerk(BaseModel):
     vorrang_nachlauf_s: Annotated[float, Regelwert(
         "Vorrang hält nach", "So lange nach dem letzten Schritt bleibt der Rechner für Niedrigeres gesperrt; überbrückt die Pausen zwischen "
         "den Sätzen einer Vorlesung.", E.SEKUNDEN, R.VORRANG, 0, 3600, 5)] = 30.0
+    pruefung_durchlass: Annotated[list[Faehigkeit], Regelwert(
+        "Durchlass in der Prüfung", "Im Prüffenster einer Abnahme wartet neue Arbeit aller anderen Anwendungen; Aufträge dieser "
+        "Fähigkeiten laufen trotzdem, damit etwa Vorlesen nie stockt (LS-20).", E.MEHRFACH, R.VORRANG,
+        wahl=tuple((f.value, WORT[f.value]) for f in Faehigkeit))] = Field(default_factory=lambda: [Faehigkeit.STIMME])
+    pruefung_hoechstens_s: Annotated[float, Regelwert(
+        "Prüffenster höchstens", "So lange darf ein Prüffenster offen sein; danach schließt es von selbst und alles läuft wie "
+        "vorher, auch wenn die Abnahme hängt.", E.SEKUNDEN, R.VORRANG, 60, 7200, 60)] = 1800.0
 
     ruhe_faehigkeiten: Annotated[list[Faehigkeit], Regelwert(
         "Fähigkeiten nur bei Ruhe", "Aufträge dieser Fähigkeiten (bis zur Priorität unten) sind Arbeit der niedrigsten Stufe: zugeteilt "

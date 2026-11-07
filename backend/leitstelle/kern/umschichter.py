@@ -142,6 +142,8 @@ class Umschichter:
             if not graph.aktiv or not r.szenarien_an.get(graph.art, graph.art not in SZENARIEN_AB_WERK_AUS):
                 continue
             for lauf in auswerten(graph, verbund, messwerk):
+                if lauf.auftrag and lauf.auftrag in verbund.auftraege and verbund.pruefung_haelt(verbund.auftraege[lauf.auftrag]):
+                    continue                  # im Prüffenster gehaltene Live-Arbeit löst keine Maßnahme aus (LS-20)
                 m = self._massnahme_aus_lauf(lauf, verbund)
                 if not lauf.aktionen:
                     m.zustand = Massnahmenzustand.GEPRUEFT_OHNE_AKTION if any(s.ergebnis == "nein" for s in lauf.weg) else Massnahmenzustand.NICHT_AUSGELOEST

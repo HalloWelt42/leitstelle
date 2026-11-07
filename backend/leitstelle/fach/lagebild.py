@@ -193,6 +193,7 @@ class KnotenSicht(BaseModel):
     hintergrund_bis: int | None
     bevorzugt_fuer: list[Faehigkeit]     # Rolle des Rechners: Arbeit dieser Fähigkeiten zuerst hierher (LS-16)
     akku_gesperrt: bool                  # Akku unter der Grenze: nimmt keine neue Arbeit an (LS-17)
+    akku_probe: int | None = None        # Probewert des Prüffensters statt des Messwerts (LS-20)
     agent: AgentSicht
     fremde: FremdeSicht                # was am Leitstand vorbei auf Modelle dieses Rechners zugreift
     last: LastSicht                    # Last von Läufer und Rechner, Stufe des Hintergrunds
@@ -295,6 +296,18 @@ class Meldung(BaseModel):
     text: str
 
 
+class PruefungSicht(BaseModel):
+    """Offenes Prüffenster (LS-20): wer durchkommt, bis wann, Probewerte."""
+
+    anwendung: str
+    anwendung_kennung: str
+    seit_s: float
+    bis_s: float
+    grund: str
+    durchlass: list[Faehigkeit]
+    akku_probe: dict[str, int]          # Rechnerkennung -> Probewert
+
+
 class Lagebild(BaseModel):
     version: str
     zeit_s: float
@@ -310,6 +323,7 @@ class Lagebild(BaseModel):
     modelle: list[ModellSicht]
     auftraege: list[AuftragSicht]
     anwendungen: list[AnwendungSicht]
+    pruefung: PruefungSicht | None = None
     massnahmen: list[Massnahme]
     meldungen: list[Meldung]
 
@@ -346,7 +360,7 @@ def lagebild(b: Betrieb) -> Lagebild:
                                   budget_gb=round(k.budget_gb(r.budget_reserve_gb), 2), geladen_gb=round(v.geladen_gb(k.kennung), 2),
                                   frei_gb=round(v.frei_gb(k.kennung), 2), belegt_anteil=round(v.belegt_anteil(k.kennung), 3), erreichbar=k.erreichbar,
                                   zustand=k.zustand, schlaeft_seit_s=k.schlaeft_seit_s, budget_fest_gb=k.budget_fest_gb, hintergrund_von=e.hintergrund_von, hintergrund_bis=e.hintergrund_bis,
-                                  bevorzugt_fuer=[f for f in Faehigkeit if f in k.bevorzugt_fuer], akku_gesperrt=k.akku_gesperrt, agent=agent,
+                                  bevorzugt_fuer=[f for f in Faehigkeit if f in k.bevorzugt_fuer], akku_gesperrt=k.akku_gesperrt, akku_probe=v.akku_probewert(k.kennung), agent=agent,
                                   fremde=fremde_sicht(av.fremde if av else Fremdzugriffe(beobachtet=False), b.laeufer_direkt(k.kennung)),
                                   last=last_sicht(v, k)))
     dienste = [dienst_sicht(b, d) for d in b.dienste.values()]
@@ -372,5 +386,15 @@ def lagebild(b: Betrieb) -> Lagebild:
                    for x in b.anwendungen.values()]
     return Lagebild(version=version(), zeit_s=b.uhr.jetzt(), modus=v.betriebsmodus, hintergrund_erlaubt=v.hintergrund_erlaubt,
                     hintergrund_an=v.hintergrund_an, lage=b.kern.lage, lage_grund=b.kern.lage_grund, automatik=r.automatik, regelwerk=r,
-                    knoten=knoten, dienste=dienste, modelle=modelle, auftraege=auftraege, anwendungen=anwendungen,
+                    knoten=knoten, dienste=dienste, modelle=modelle, auftraege=auftraege, anwendungen=anwendungen, pruefung=pruefung_sicht(b),
                     massnahmen=list(b.massnahmen)[:20], meldungen=[Meldung(zeit_s=z, text=t) for z, t in list(b.meldungen)[:30]])
+
+
+def pruefung_sicht(b: Betrieb) -> PruefungSicht | None:
+    v = b.verbund
+    f = v.prueffenster
+    if f is None or not v.pruefung_offen:
+        return None
+    app = v.anwendungen.get(f.anwendung)
+    return PruefungSicht(anwendung=app.name if app else f.anwendung, anwendung_kennung=f.anwendung, seit_s=f.seit_s, bis_s=f.bis_s,
+                         grund=f.grund, durchlass=list(v.regelwerk.pruefung_durchlass), akku_probe=dict(f.akku_probe))

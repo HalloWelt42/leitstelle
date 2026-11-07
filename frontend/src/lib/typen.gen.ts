@@ -225,6 +225,7 @@ export interface Lagebild {
   modelle: ModellSicht[];
   auftraege: AuftragSicht[];
   anwendungen: AnwendungSicht[];
+  pruefung: PruefungSicht | null;
   massnahmen: Massnahme[];
   meldungen: Meldung[];
 }
@@ -255,6 +256,8 @@ export interface Regelwerk {
   };
   vorrang_faehigkeiten: Faehigkeit[];
   vorrang_nachlauf_s: number;
+  pruefung_durchlass: Faehigkeit[];
+  pruefung_hoechstens_s: number;
   ruhe_faehigkeiten: Faehigkeit[];
   ruhe_bis_prioritaet: Prioritaet;
   ruhe_ab_s: number;
@@ -298,6 +301,7 @@ export interface KnotenSicht {
   hintergrund_bis: number | null;
   bevorzugt_fuer: Faehigkeit[];
   akku_gesperrt: boolean;
+  akku_probe: number | null;
   agent: AgentSicht;
   fremde: FremdeSicht;
   last: LastSicht;
@@ -718,6 +722,23 @@ export interface AnwendungSicht {
   gesperrt: boolean;
   sperrgrund: string;
   angelegt_s: number;
+}
+/**
+ * Offenes Prüffenster (LS-20): wer durchkommt, bis wann, Probewerte.
+ *
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "PruefungSicht".
+ */
+export interface PruefungSicht {
+  anwendung: string;
+  anwendung_kennung: string;
+  seit_s: number;
+  bis_s: number;
+  grund: string;
+  durchlass: Faehigkeit[];
+  akku_probe: {
+    [k: string]: number;
+  };
 }
 /**
  * This interface was referenced by `Leitstelle`'s JSON-Schema

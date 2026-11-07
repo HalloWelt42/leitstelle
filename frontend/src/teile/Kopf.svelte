@@ -4,7 +4,8 @@
   import { kanal } from '../lib/kanal.svelte';
   import { tun } from '../lib/meldung.svelte';
   import type { Betriebsmodus } from '../lib/typen.gen';
-  import { LAGE, MODUS } from '../lib/wort';
+  import { FAEHIGKEIT, LAGE, MODUS } from '../lib/wort';
+  import { uhrzeit } from '../lib/format';
 
   const bild = $derived(kanal.lagebild);
   const modus = $derived(bild?.modus ?? 'normal');
@@ -64,6 +65,13 @@
   </div>
 
   <div class="kopf-aktionen">
+    {#if bild?.pruefung}
+      {@const p = bild.pruefung}
+      <span class="lage auslaufen" title="Abnahme im Betrieb: nur {p.anwendung} bekommt neue Arbeit; {p.durchlass.map((f) => FAEHIGKEIT[f].wort).join(', ') || 'nichts'} läuft weiter, alles andere wartet mit Grund.{p.grund ? ` Grund: ${p.grund}.` : ''} Schließt spätestens {uhrzeit(p.bis_s)}.">
+        <i class="fa-solid fa-clipboard-check"></i>Prüfung bis {uhrzeit(p.bis_s)}</span>
+      <button class="knopf klein ohne" title="Prüffenster jetzt schließen: alles läuft wieder wie vorher" aria-label="Prüffenster schließen"
+              onclick={() => tun(() => api.pruefungSchliessen(), 'Prüffenster geschlossen')}><i class="fa-solid fa-xmark"></i></button>
+    {/if}
     <span class="lage {lage.klasse}" title={lage.satz}><span class="punkt" class:lebt={!!bild}></span>{lage.wort}</span>
   </div>
 </header>

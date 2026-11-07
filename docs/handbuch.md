@@ -149,6 +149,12 @@ Dienst anhalten, Archiv in den Datenordner entpacken, starten; Probe wie in Schr
 
 ## Wenn etwas klemmt
 
+- Apps warten mit dem Grund "Abnahme im Betrieb", im Kopf steht "Prüfung bis ...": ein Prüffenster ist offen
+  (`POST /api/pruefung`, für Abnahmen mit echten Aufträgen). Nur die Anwendung der Abnahme bekommt neue Arbeit,
+  Sprachausgabe läuft weiter (Regelwerk "Durchlass in der Prüfung"), Laufendes rechnet zu Ende. Es schließt nach
+  höchstens 30 min von selbst (Regelwerk "Prüffenster höchstens"), mit dem Kreuz im Kopf oder `DELETE /api/pruefung`;
+  ein Neustart schließt es auch. Steht an einer Karte "Probewert der Abnahme", gilt dort für den Akku ein Probewert
+  (`PUT /api/pruefung/akku`); mit dem Ende gilt wieder der Messwert.
 - Das Ausrollen bricht beim Bauen ab: ein Test ist rot oder die Oberfläche hat Typfehler; der alte Stand läuft weiter.
   Die Ausgabe des Baus nennt den Test.
 - Das Ausrollen wartet: es lässt laufende Aufträge auslaufen, höchstens `WARTEN_S` Sekunden (Vorgabe 600);

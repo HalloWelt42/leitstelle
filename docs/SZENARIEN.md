@@ -297,6 +297,17 @@ die Liste der App nimmt.
 
 Gegentest: an der Fassung davor (0.28.0) scheitern alle außer S54.
 
+### Prüffenster für die Abnahme im Betrieb (`test_pruefung.py`, LS-20)
+
+| Nr | Lage | Erwartet |
+|---|---|---|
+| S86 | Fenster für Kiste; Text von Fundus, Text von Kiste, Sprachausgabe von Rufzeichen; ein Auftrag lief schon vorher | Fundus wartet mit Grund "Abnahme im Betrieb", Kiste und Sprachausgabe rechnen, der vorher laufende wird fertig |
+| S87 | Fenster 120 s, Live-Auftrag wartet | nach der Frist schließt das Fenster von selbst, der Auftrag rechnet |
+| S88 | Messwert 50 %, Probewerte 20, 75, 20 %, dann Schließen | sperrt, gibt frei, sperrt; der Messwert ändert nichts am Probewert; nach dem Schließen gilt der Messwert mit der Sperre von vorher (frei) |
+| S89 | Fenster länger als erlaubt, unbekannte App, zweites Fenster | abgelehnt mit Grund |
+| S90 | Wie S07, aber im Fenster einer anderen App | gehaltene Live-Arbeit löst kein Umleiten aus |
+| S91 | Schnittstelle: Probewert ohne Fenster, öffnen, doppelt öffnen, Probewert, Lagebild, `/v1/lage`, schließen | 409, offen, 409, gesperrt mit Probewert und Meldung, sichtbar in Lagebild und Auskunft, danach wieder Messwert |
+
 ### Schlaf eines Rechners im Kern (`test_zuteiler.py`)
 
 | Nr | Szenario | Erwartung |

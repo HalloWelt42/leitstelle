@@ -116,6 +116,19 @@ def _mittel(reihe: list[tuple[float, float]], jetzt_s: float, frist_s: float) ->
     return sum(werte) / len(werte) if werte else None
 
 
+class Prueffenster(BaseModel):
+    """Abnahme im Betrieb (LS-20): solange es offen ist, bekommt nur die Anwendung der Abnahme neue Arbeit; Fähigkeiten aus
+    "Durchlass in der Prüfung" (Vorgabe Sprachausgabe) laufen weiter, alles andere wartet mit Grund. Laufendes rechnet zu
+    Ende. Es schließt von selbst nach seiner Frist und lebt nur im Speicher (ein Neustart schließt es)."""
+
+    anwendung: str                     # Kennung der Anwendung, die durchkommt
+    seit_s: float
+    bis_s: float
+    grund: str = ""
+    akku_probe: dict[str, int] = Field(default_factory=dict)   # Knoten -> Probewert des Akkus, nur solange das Fenster offen ist
+    akku_sperre_vorher: dict[str, bool] = Field(default_factory=dict)   # Sperre vor dem ersten Probewert, kommt danach zurück
+
+
 class Knoten(BaseModel):
     kennung: str
     name: str
@@ -133,7 +146,8 @@ class Knoten(BaseModel):
     vorrang_zuletzt_s: float | None = None    # zuletzt lief oder wartete hier Arbeit mit Vorrang (Regelwerk "Vorrang auf dem Rechner")
     andere_arbeit_ende_s: float | None = None # Ende des letzten Auftrags hier, der nicht nur bei Ruhe läuft (Ruhe je Rechner, LS-16)
     bevorzugt_fuer: set[Faehigkeit] = Field(default_factory=set)   # Rolle: Arbeit dieser Fähigkeiten zuerst hierher (LS-16)
-    akku_prozent: int | None = None           # Ladestand, wenn der Rechner einen Akku hat (Maschinenraum, LS-11)
+    akku_prozent: int | None = None           # Ladestand, der gilt: gemessen oder im Prüffenster der Probewert (LS-11, LS-20)
+    akku_gemessen: int | None = None          # Ladestand laut Maschinenraum; bleibt neben einem Probewert erhalten
     akku_gesperrt: bool = False               # unter der Grenze: keine neuen Aufträge, bis der Akku wieder über "wieder Arbeit ab" ist
     hintergrund_seit_s: float | None = None
 
@@ -347,6 +361,7 @@ class Verbund(BaseModel):
     stunde: int = 12                  # Uhrzeit für Zeitfenster
     massnahmen: list[Massnahme] = Field(default_factory=list)
     ereignisse: list[str] = Field(default_factory=list)
+    prueffenster: Prueffenster | None = None   # Abnahme im Betrieb (LS-20)
 
     # ── Nachschlagen ─────────────────────────────────────────────────────
     def dienste_auf(self, knoten: str) -> list[Dienst]:
@@ -576,11 +591,19 @@ class Verbund(BaseModel):
         return Ruhe(frei=True)
 
     def akku_melden(self, knoten: str, prozent: int | None) -> bool | None:
-        """Neuer Ladestand eines Rechners (LS-17): unter "keine Arbeit unter" gesperrt, frei erst ab "wieder Arbeit ab". Gibt
-        den neuen Zustand zurück, wenn er sich ändert (True: gesperrt), sonst None."""
+        """Neuer gemessener Ladestand eines Rechners (LS-17): unter "keine Arbeit unter" gesperrt, frei erst ab "wieder Arbeit
+        ab". Ein Probewert des Prüffensters geht dem Messwert vor. Gibt den neuen Zustand zurück, wenn er sich ändert (True:
+        gesperrt), sonst None."""
         k = self.knoten.get(knoten)
         if k is None:
             return None
+        k.akku_gemessen = prozent
+        return self._akku_bewerten(k)
+
+    def _akku_bewerten(self, k: Knoten) -> bool | None:
+        prozent = self.akku_probewert(k.kennung)
+        if prozent is None:
+            prozent = k.akku_gemessen
         k.akku_prozent = prozent
         r = self.regelwerk
         vorher = k.akku_gesperrt
@@ -591,6 +614,67 @@ class Verbund(BaseModel):
         elif prozent >= r.akku_frei_ab_prozent:
             k.akku_gesperrt = False
         return k.akku_gesperrt if k.akku_gesperrt != vorher else None
+
+    # ── Prüffenster (LS-20) ──────────────────────────────────────────────
+    @property
+    def pruefung_offen(self) -> bool:
+        f = self.prueffenster
+        return f is not None and self.zeit_s < f.bis_s
+
+    def pruefung_haelt(self, a: Auftrag) -> str | None:
+        """Warum ein Auftrag im Prüffenster warten muss; None: er darf (Anwendung der Abnahme oder Durchlass)."""
+        f = self.prueffenster
+        if not self.pruefung_offen or f is None or a.anwendung == f.anwendung or a.faehigkeit in self.regelwerk.pruefung_durchlass:
+            return None
+        rest = max(1, round((f.bis_s - self.zeit_s) / 60))
+        return f"Abnahme im Betrieb, noch höchstens {rest} min: neue Arbeit wartet bis zum Ende" + (f" ({f.grund})" if f.grund else "")
+
+    def pruefung_oeffnen(self, anwendung: str, dauer_s: float, grund: str = "") -> Prueffenster:
+        if anwendung not in self.anwendungen:
+            raise ValueError("Diese Anwendung gibt es nicht.")
+        hoechstens = self.regelwerk.pruefung_hoechstens_s
+        if not 0 < dauer_s <= hoechstens:
+            raise ValueError(f"Ein Prüffenster dauert höchstens {hoechstens:.0f} s.")
+        if self.pruefung_offen:
+            raise ValueError("Es ist schon ein Prüffenster offen.")
+        self.prueffenster = Prueffenster(anwendung=anwendung, seit_s=self.zeit_s, bis_s=self.zeit_s + dauer_s, grund=grund)
+        return self.prueffenster
+
+    def akku_probewert(self, knoten: str) -> int | None:
+        return self.prueffenster.akku_probe.get(knoten) if self.pruefung_offen and self.prueffenster else None
+
+    def pruefung_akku(self, knoten: str, prozent: int | None) -> bool | None:
+        """Probewert des Akkus setzen (None: wieder den Messwert); nur im offenen Prüffenster. Rückgabe wie akku_melden."""
+        if not self.pruefung_offen or self.prueffenster is None:
+            raise ValueError("Ein Probewert geht nur im offenen Prüffenster.")
+        k = self.knoten.get(knoten)
+        if k is None:
+            raise ValueError("Diesen Rechner gibt es nicht.")
+        f = self.prueffenster
+        vorher = k.akku_gesperrt
+        if prozent is None:
+            f.akku_probe.pop(knoten, None)
+            k.akku_gesperrt = f.akku_sperre_vorher.pop(knoten, k.akku_gesperrt)   # wie ohne Probe: der Abstand gilt am Messwert
+        else:
+            f.akku_sperre_vorher.setdefault(knoten, k.akku_gesperrt)
+            f.akku_probe[knoten] = prozent
+        self._akku_bewerten(k)
+        return k.akku_gesperrt if k.akku_gesperrt != vorher else None
+
+    def pruefung_schliessen(self) -> dict[str, bool]:
+        """Schließt das Fenster; Rechner mit Probewert gelten sofort wieder nach dem Messwert. Gibt die Rechner zurück, deren
+        Sperre sich dabei ändert (True: jetzt gesperrt)."""
+        f, self.prueffenster = self.prueffenster, None
+        wechsel: dict[str, bool] = {}
+        for kn, sperre in (f.akku_sperre_vorher if f else {}).items():
+            k = self.knoten.get(kn)
+            if k is None:
+                continue
+            vorher, k.akku_gesperrt = k.akku_gesperrt, sperre   # wie ohne Probe: der Abstand gilt am Messwert
+            self._akku_bewerten(k)
+            if k.akku_gesperrt != vorher:
+                wechsel[kn] = k.akku_gesperrt
+        return wechsel
 
     def nimmt_arbeit(self, knoten: str | None) -> bool:
         """Ob ein Rechner Arbeit annehmen darf: keine neuen Aufträge und kein Laden, solange sein Akku gesperrt ist. Eine

@@ -181,9 +181,18 @@ class RechnerAuskunft(BaseModel):
     budget_gb: float
     akku_prozent: int | None
     akku_gesperrt: bool                 # nimmt wegen des Akkus keine neue Arbeit an
+    akku_probe: bool = False            # der Ladestand ist ein Probewert einer Abnahme (LS-20)
     vorrang: str | None                 # hat gerade Arbeit mit Vorrang (etwa "Stimme"); Niedrigeres geht anderswohin
     bevorzugt_fuer: list[Faehigkeit]    # Rolle des Rechners
     modelle: list[ModellAuskunft]       # geladen, rechnend oder ladend
+
+
+class PruefungAuskunft(BaseModel):
+    """Offenes Prüffenster einer Abnahme (LS-20): neue Arbeit anderer Apps wartet bis `bis_s`, außer `durchlass`."""
+
+    anwendung: str
+    bis_s: float
+    durchlass: list[Faehigkeit]
 
 
 class Lageauskunft(BaseModel):
@@ -196,3 +205,4 @@ class Lageauskunft(BaseModel):
     rangfolge: dict[Faehigkeit, int]
     apps: list[AppAuskunft]
     rechner: list[RechnerAuskunft]
+    pruefung: PruefungAuskunft | None = None

@@ -24,6 +24,9 @@ class Leitstelle:
 
     def takt(self, verbund: Verbund, messwerk: Messwerk, vollzug: Vollzug) -> None:
         """Voller Takt: zuteilen (beurteilt die Lage), umschichten, erneut zuteilen."""
+        if verbund.prueffenster is not None and not verbund.pruefung_offen:
+            verbund.pruefung_schliessen()
+            verbund.melden("Prüffenster abgelaufen: alles läuft wieder wie vorher")
         self.zuteilen(verbund, messwerk, vollzug)
         self.umschichter.takt(verbund, messwerk, vollzug)
         # Nach Maßnahmen können Aufträge sofort zuteilbar sein (zum Beispiel nach Entladen)

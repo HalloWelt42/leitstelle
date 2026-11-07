@@ -44,6 +44,7 @@ export const api = {
   version: () => rufen<{ version: string }>('/version'),
   lage: () => rufen<Lagebild>('/lage'),
   kennzahlen: () => rufen<Kennzahlen>('/kennzahlen'),
+  pruefungSchliessen: () => rufen<{ offen: boolean }>('/pruefung', 'DELETE'),
   hauptregler: (modus: Betriebsmodus, hintergrund: boolean, grund = '') =>
     rufen<{ betroffene_auftraege: number }>('/hauptregler', 'POST', { modus, hintergrund, grund }),
 

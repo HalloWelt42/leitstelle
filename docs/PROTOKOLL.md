@@ -506,7 +506,9 @@ aus dem Heimnetz. Inhalte stehen nie darin: keine Titel, keine Texte, keine Eing
 | `rangfolge` | Rang je Fähigkeit aus dem Regelwerk, kleiner kommt zuerst; die Priorität der App ordnet nur innerhalb eines Rangs |
 | `apps[]` | je App mit offenen Aufträgen: `name`, `eigene` (die fragende App), `laufend`, `wartend`, `auftraege[]` |
 | `apps[].auftraege[]` | `kennung`, `eigener`, `faehigkeit`, `rang`, `prioritaet` (0 Hintergrund bis 3 Dringend), `zustand`, `modell` (Familie), `modell_name`, `rechner` (Name), `seit_s`, `rest_s` (rechnet: geschätzte Restdauer, wartet: voraussichtliche Wartezeit, sonst null) |
-| `rechner[]` | `name`, `erreichbar`, `schlaeft`, `cpu_prozent`, `frei_gb`, `budget_gb`, `akku_prozent`, `akku_gesperrt` (nimmt wegen des Akkus keine neue Arbeit an), `vorrang` (gerade Arbeit mit Vorrang, etwa "Stimme": Niedrigeres geht anderswohin), `bevorzugt_fuer` (Rolle des Rechners), `modelle[]` mit `familie`, `name`, `zustand` (geladen, rechnet, laedt) und `auftraege` |
+| `rechner[]` | `name`, `erreichbar`, `schlaeft`, `cpu_prozent`, `frei_gb`, `budget_gb`, `akku_prozent`, `akku_gesperrt` (nimmt wegen des Akkus keine neue Arbeit an), `akku_probe` (der Ladestand ist ein Probewert einer Abnahme), `akku_gesperrt` (nimmt wegen des Akkus keine neue Arbeit an), `vorrang` (gerade Arbeit mit Vorrang, etwa "Stimme": Niedrigeres geht anderswohin), `bevorzugt_fuer` (Rolle des Rechners), `modelle[]` mit `familie`, `name`, `zustand` (geladen, rechnet, laedt) und `auftraege` |
+
+| `pruefung` | offenes Prüffenster einer Abnahme (LS-20) oder `null`: `anwendung` (die einzige, die neue Arbeit bekommt), `bis_s`, `durchlass` (Fähigkeiten, die trotzdem laufen, Vorgabe `stimme`). Eigene Aufträge warten so lange mit dem Grund "Abnahme im Betrieb" |
 
 Der Strom (`text/event-stream`) sendet dieselbe Auskunft als `event: lage` mit `data: <JSON>` bei jeder Änderung,
 sonst alle 15 s den Kommentar `: ruhig`. Wer nur ab und zu entscheidet, fragt `GET /v1/lage`; wer laufend mitlesen

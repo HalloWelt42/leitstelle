@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from .. import version
 from ..kern.werte import Auftragszustand, Faehigkeit, Modellzustand
-from ..protokoll.fassade import AppAuskunft, AuftragAuskunft, Lageauskunft, ModellAuskunft, RechnerAuskunft
+from ..protokoll.fassade import AppAuskunft, AuftragAuskunft, Lageauskunft, ModellAuskunft, PruefungAuskunft, RechnerAuskunft
 
 if TYPE_CHECKING:
     from .betrieb import Betrieb
@@ -49,7 +49,13 @@ def lageauskunft(b: Betrieb, fragt: str | None) -> Lageauskunft:
             name=k.name, erreichbar=k.erreichbar, schlaeft=k.schlaeft,
             cpu_prozent=av.messwerte.cpu_prozent if av and av.messwerte else None,
             frei_gb=round(v.frei_gb(k.kennung), 2), budget_gb=round(k.budget_gb(r.budget_reserve_gb), 2),
-            akku_prozent=k.akku_prozent, akku_gesperrt=k.akku_gesperrt, vorrang=v.vorrang_auf(k.kennung),
+            akku_prozent=k.akku_prozent, akku_gesperrt=k.akku_gesperrt, akku_probe=v.akku_probewert(k.kennung) is not None,
+            vorrang=v.vorrang_auf(k.kennung),
             bevorzugt_fuer=[f for f in Faehigkeit if f in k.bevorzugt_fuer], modelle=modelle))
+    f = v.prueffenster if v.pruefung_offen else None
+    pruefung = None
+    if f is not None:
+        app = v.anwendungen.get(f.anwendung)
+        pruefung = PruefungAuskunft(anwendung=app.name if app else f.anwendung, bis_s=f.bis_s, durchlass=list(r.pruefung_durchlass))
     return Lageauskunft(fassung=version(), zeit_s=jetzt, hauptregler=v.betriebsmodus.value, lage=b.kern.lage.value,
-                        rangfolge=dict(r.rangfolge), apps=list(apps.values()), rechner=rechner_liste)
+                        rangfolge=dict(r.rangfolge), apps=list(apps.values()), rechner=rechner_liste, pruefung=pruefung)

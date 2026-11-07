@@ -250,7 +250,7 @@ class Betrieb:
         fenster = (k.hintergrund_von, k.hintergrund_bis) if k.hintergrund_von is not None and k.hintergrund_bis is not None else None
         laufend = {f: getattr(alt, f) for f in ("erreichbar", "schlaeft_seit_s", "last", "laeufer_umgehungen", "hintergrund_stufe",
                                                  "hintergrund_grund", "hintergrund_seit_s", "vorrang_zuletzt_s", "andere_arbeit_ende_s",
-                                                 "akku_prozent", "akku_gesperrt")} if alt else {}
+                                                 "akku_prozent", "akku_gemessen", "akku_gesperrt")} if alt else {}
         self.verbund.knoten[k.kennung] = Knoten(kennung=k.kennung, name=k.name, zone=k.zone, speicher_gb=k.speicher_gb, system_gb=k.system_gb,
                                                  hintergrund_fenster=fenster, budget_fest_gb=k.budget_fest_gb, bevorzugt_fuer=set(k.bevorzugt_fuer), **laufend)
         v = self.agenten.verbindung(k.kennung)
@@ -556,9 +556,7 @@ class Betrieb:
         k.system_gb = round(max(0.0, v.messwerte.speicher_belegt_gb - self.verbund.belegt_bekannt_gb(v.knoten)), 2)
         akku = v.messwerte.akku
         if (gesperrt := self.verbund.akku_melden(v.knoten, akku.prozent if akku else None)) is not None:
-            r = self.verbund.regelwerk
-            self.melden(f"{k.name}: Akku {akku.prozent if akku else '-'} %, " + (f"unter {r.akku_stopp_prozent:.0f} %: nimmt keine neue Arbeit an"
-                        if gesperrt else f"wieder über {r.akku_frei_ab_prozent:.0f} %: nimmt wieder Arbeit an"))
+            self._akku_melden(v.knoten, gesperrt)
             self.anstossen()
         self.geaendert()
 
@@ -944,6 +942,8 @@ class Betrieb:
         if jetzt - self._letzter_abgleich >= self.konfig.dienst_takt_s:
             await self.abgleichen()
         self._zeit_setzen()
+        if self.verbund.prueffenster is not None and not self.verbund.pruefung_offen:
+            await self._pruefung_zu("System", "Frist abgelaufen")
         if jetzt - self._letzte_umschichtung >= self.verbund.regelwerk.umschichter_takt_s:
             self._letzte_umschichtung = jetzt
             self.kern.takt(self.verbund, self.messwerk, self)
@@ -1195,6 +1195,57 @@ class Betrieb:
         self.bus.senden(umschlag("leitstelle.modus_gesetzt", {"modus": modus.value, "hintergrund": hintergrund_an, "betroffene_auftraege": betroffen}))
         self.anstossen()
         return betroffen
+
+    # ── Prüffenster (LS-20): Abnahme im Betrieb ───────────────────────────
+    async def pruefung_oeffnen(self, anwendung: str, dauer_s: float, grund: str, wer: str) -> None:
+        """Nur die Anwendung der Abnahme bekommt neue Arbeit, Durchlass-Fähigkeiten laufen weiter, alles andere wartet mit Grund."""
+        self._zeit_setzen()
+        try:
+            f = self.verbund.pruefung_oeffnen(anwendung, dauer_s, grund)
+        except ValueError as e:
+            raise Ablehnung("pruefung", str(e)) from None
+        name = self.verbund.anwendungen[anwendung].name
+        await self.ablage.pruefung.anhaengen(PruefEintrag(zeit_s=self.uhr.jetzt(), wer=wer, was=f"Prüffenster für {name} geöffnet, "
+                                                          f"{round((f.bis_s - f.seit_s) / 60)} min" + (f", Grund: {grund}" if grund else "")))
+        self.melden(f"Prüffenster offen: nur {name} bekommt neue Arbeit (höchstens {round((f.bis_s - f.seit_s) / 60)} min)")
+        self.anstossen()
+        self.geaendert()
+
+    async def pruefung_schliessen(self, wer: str, grund: str = "") -> None:
+        if self.verbund.prueffenster is None:
+            raise Ablehnung("pruefung", "Es ist kein Prüffenster offen.")
+        await self._pruefung_zu(wer, grund or "von Hand geschlossen")
+
+    async def _pruefung_zu(self, wer: str, grund: str) -> None:
+        wechsel = self.verbund.pruefung_schliessen()
+        await self.ablage.pruefung.anhaengen(PruefEintrag(zeit_s=self.uhr.jetzt(), wer=wer, was=f"Prüffenster geschlossen: {grund}"))
+        self.melden(f"Prüffenster geschlossen ({grund}): alles läuft wieder wie vorher")
+        for kn, gesperrt in wechsel.items():
+            self._akku_melden(kn, gesperrt)
+        self.anstossen()
+        self.geaendert()
+
+    async def pruefung_akku(self, knoten: str, prozent: int | None, wer: str) -> None:
+        """Probewert des Akkus im Prüffenster (None: wieder der Messwert)."""
+        try:
+            gesperrt = self.verbund.pruefung_akku(knoten, prozent)
+        except ValueError as e:
+            raise Ablehnung("pruefung", str(e)) from None
+        k = self.verbund.knoten[knoten]
+        await self.ablage.pruefung.anhaengen(PruefEintrag(zeit_s=self.uhr.jetzt(), wer=wer, was=f"Probewert Akku {k.name}: "
+                                                          + (f"{prozent} %" if prozent is not None else "wieder Messwert")))
+        if gesperrt is not None:
+            self._akku_melden(knoten, gesperrt)
+        self.anstossen()
+        self.geaendert()
+
+    def _akku_melden(self, knoten: str, gesperrt: bool) -> None:
+        k = self.verbund.knoten[knoten]
+        r = self.verbund.regelwerk
+        probe = " (Probewert der Prüfung)" if self.verbund.akku_probewert(knoten) is not None else ""
+        self.melden(f"{k.name}: Akku {k.akku_prozent if k.akku_prozent is not None else '-'} %{probe}, "
+                    + (f"unter {r.akku_stopp_prozent:.0f} %: nimmt keine neue Arbeit an" if gesperrt
+                       else f"wieder über {r.akku_frei_ab_prozent:.0f} %: nimmt wieder Arbeit an"))
 
     async def stoppen(self, kennung: str, sofort: bool, grund: str, wer: str) -> None:
         """Sofort: abbrechen mit Teilergebnis. Auslaufen: fertig rechnen lassen, danach die Anwendung sperren."""

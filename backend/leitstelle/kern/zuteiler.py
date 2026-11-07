@@ -235,6 +235,9 @@ def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> 
         if a.faehigkeit not in app.faehigkeiten:
             ergebnis.abgelehnt.append(Wartegrund(auftrag=a.kennung, zustand=Auftragszustand.ABGELEHNT, grund="faehigkeit_nicht_erlaubt", begruendung="Fähigkeit für diese Anwendung nicht erlaubt"))
             continue
+        if (gehalten := verbund.pruefung_haelt(a)) is not None:
+            ergebnis.wartend.append(Wartegrund(auftrag=a.kennung, zustand=Auftragszustand.EINGEREIHT, begruendung=gehalten))
+            continue
         wahl = verbund.modellwahl(a)
         if not wahl:
             ergebnis.abgelehnt.append(Wartegrund(auftrag=a.kennung, zustand=Auftragszustand.ABGELEHNT, grund="modell_fehlt", begruendung=MODELL_FEHLT))

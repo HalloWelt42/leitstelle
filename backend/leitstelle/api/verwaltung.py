@@ -26,6 +26,19 @@ class HauptreglerDaten(BaseModel):
     grund: str = Field(default="", max_length=300)
 
 
+class PruefungDaten(BaseModel):
+    """Prüffenster öffnen (LS-20): nur `anwendung` (Kennung) bekommt neue Arbeit, höchstens "Prüffenster höchstens" lang."""
+    anwendung: str = Field(min_length=1, max_length=64)
+    dauer_s: float = Field(gt=0, le=7200)
+    grund: str = Field(default="", max_length=300)
+
+
+class AkkuProbeDaten(BaseModel):
+    """Probewert des Akkus im Prüffenster; None: wieder der Messwert."""
+    knoten: str = Field(min_length=1, max_length=64)
+    prozent: int | None = Field(default=None, ge=0, le=100)
+
+
 class StoppDaten(BaseModel):
     modus: Literal["sofort", "auslaufen"]
     grund: str = Field(default="", max_length=300)
@@ -71,6 +84,26 @@ async def lage(request: Request):
 async def hauptregler(daten: HauptreglerDaten, request: Request):
     betroffen = await betrieb(request).hauptregler(daten.modus, daten.hintergrund, wer(request), daten.grund)
     return {"modus": daten.modus.value, "hintergrund": daten.hintergrund, "betroffene_auftraege": betroffen}
+
+
+@router.post("/pruefung")
+async def pruefung_oeffnen(daten: PruefungDaten, request: Request):
+    """Abnahme im Betrieb: Prüffenster öffnen (LS-20)."""
+    await _fachlich(betrieb(request).pruefung_oeffnen(daten.anwendung, daten.dauer_s, daten.grund, wer(request)))
+    return {"offen": True}
+
+
+@router.delete("/pruefung")
+async def pruefung_schliessen(request: Request):
+    await _fachlich(betrieb(request).pruefung_schliessen(wer(request)))
+    return {"offen": False}
+
+
+@router.put("/pruefung/akku")
+async def pruefung_akku(daten: AkkuProbeDaten, request: Request):
+    """Probewert des Akkus eines Rechners, nur im offenen Prüffenster."""
+    await _fachlich(betrieb(request).pruefung_akku(daten.knoten, daten.prozent, wer(request)))
+    return {"knoten": daten.knoten, "prozent": daten.prozent}
 
 
 @router.get("/kennzahlen")
