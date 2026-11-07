@@ -98,11 +98,25 @@ def test_b02b_aufgabenvorlagen_gehen_unveraendert_weiter():
                 "fuellen": {"anweisung": "Replace it with: {wunsch}.", "ohne_wunsch": "Replace it.", "sprache": "en", "signalfarbe": [255, 0, 255]}}
     s = Bildsteckbrief.model_validate({**STECKBRIEF, "modell": "qwen", "aufgaben": vorlagen})
     assert s.model_dump(mode="json")["aufgaben"] == {
-        "entfernen": {"anweisung": "Fill the magenta area.", "ohne_wunsch": None, "sprache": "en", "signalfarbe": [255, 0, 255]},
-        "fuellen": {"anweisung": "Replace it with: {wunsch}.", "ohne_wunsch": "Replace it.", "sprache": "en", "signalfarbe": [255, 0, 255]}}
+        "entfernen": {"anweisung": "Fill the magenta area.", "ohne_wunsch": None, "sprache": "en", "signalfarbe": [255, 0, 255], "beispiel": None},
+        "fuellen": {"anweisung": "Replace it with: {wunsch}.", "ohne_wunsch": "Replace it.", "sprache": "en", "signalfarbe": [255, 0, 255], "beispiel": None}}
     assert Bildsteckbrief.model_validate({**STECKBRIEF, "modell": "moss"}).aufgaben == {}
     with pytest.raises(ValidationError):
         Bildsteckbrief.model_validate({**STECKBRIEF, "modell": "qwen", "aufgaben": {"fuellen": {"anweisung": "x", "sprache": "englisch"}}})
+
+
+def test_b02c_beispiel_je_aufgabe_kommt_durch():
+    """B02c (LS-25, ATL-45 des Ateliers): ein Beispiel aus dem Portfolio (Motiv, Vorher, Nachher als data-URL, Dauer)
+    bleibt im Steckbrief erhalten; ohne Beispiel ist das Feld leer; ein Beispiel ohne Bild macht den Steckbrief unlesbar."""
+    from schein.bilddienst import STECKBRIEF
+    beispiel = {"motiv": "Bank am See", "vorher": "data:image/webp;base64,AAA", "nachher": "data:image/webp;base64,BBB", "dauer_s": 0.7}
+    vorlagen = {"entfernen": {"anweisung": "Remove.", "sprache": "en", "signalfarbe": [255, 0, 255], "beispiel": beispiel},
+                "fuellen": {"anweisung": "Fill {wunsch}.", "sprache": "en"}}
+    s = Bildsteckbrief.model_validate({**STECKBRIEF, "modell": "lama", "aufgaben": vorlagen}).model_dump(mode="json")["aufgaben"]
+    assert s["entfernen"]["beispiel"] == beispiel and s["fuellen"]["beispiel"] is None
+    with pytest.raises(ValidationError):
+        Bildsteckbrief.model_validate({**STECKBRIEF, "modell": "lama", "aufgaben": {"entfernen": {
+            "anweisung": "Remove.", "sprache": "en", "beispiel": {"vorher": "kein Bild", "nachher": "data:image/webp;base64,B"}}}})
 
 
 async def test_b03_fehler_je_antwortcode():

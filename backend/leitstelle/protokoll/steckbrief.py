@@ -84,6 +84,21 @@ GROESSEN_VORGABE = Groessenregel(raster=16, kante_min=256, kante_max=2048, pixel
 ANZAHL_MAX = 4                                               # Bilder je Anfrage, wenn das Modell nichts anderes sagt
 
 
+#: größtes Bild eines Beispiels (data-URL); die Bilddienste liefern rund 20 bis 30 KB je Bild
+BEISPIEL_BILD_MAX = 200_000
+
+
+class Aufgabenbeispiel(BaseModel):
+    """Was ein Bildmodell an einem festen Motiv macht (Portfolio des Bildwerks, ATL-45 des Ateliers): Vorher und Nachher als
+    kleine Bilder (data-URL), dazu die Dauer im Dienst beim Rechnen. Zum Vergleichen der Modelle; die Leitstelle reicht
+    es nur weiter (LS-25)."""
+
+    motiv: str = Field(default="", max_length=200)
+    vorher: str = Field(pattern=r"^data:image/", max_length=BEISPIEL_BILD_MAX)
+    nachher: str = Field(pattern=r"^data:image/", max_length=BEISPIEL_BILD_MAX)
+    dauer_s: float | None = Field(default=None, ge=0)
+
+
 class Aufgabenvorlage(BaseModel):
     """Wie ein Bildmodell eine Aufgabe (anweisen, entfernen, fuellen, erweitern) als Anweisung bekommt, wie sein Dienst
     es sagt: fester Text mit dem Platzhalter `{wunsch}` für die Worte des Nutzers, die Sprache, in die der Wunsch
@@ -94,6 +109,7 @@ class Aufgabenvorlage(BaseModel):
     ohne_wunsch: str | None = None                           # bei leerem Wunsch; fehlt sie, braucht die Aufgabe einen Wunsch
     sprache: str = Field(pattern=r"^[a-z]{2}$")              # ISO 639-1
     signalfarbe: tuple[int, int, int] | None = None          # RGB der markierten Fläche; ohne: die Aufgabe markiert nichts
+    beispiel: Aufgabenbeispiel | None = None                 # Vorher und Nachher an einem Motiv, zum Vergleichen (LS-25)
 
 
 class Bildsteckbrief(BaseModel):
