@@ -583,6 +583,9 @@ export interface Bildsteckbrief {
   lizenz_hinweis?: string | null;
   parameter_mrd?: number | null;
   quantisierung?: string | null;
+  aufgaben?: {
+    [k: string]: Aufgabenvorlage;
+  };
   abgerufen_s?: number;
 }
 /**
@@ -610,6 +613,21 @@ export interface Schrittregel {
   vorgabe: number;
   kleinste: number;
   groesste: number;
+}
+/**
+ * Wie ein Bildmodell eine Aufgabe (anweisen, entfernen, fuellen, erweitern) als Anweisung bekommt, wie sein Dienst
+ * es sagt: fester Text mit dem Platzhalter `{wunsch}` für die Worte des Nutzers, die Sprache, in die der Wunsch
+ * übersetzt wird, und die Signalfarbe der markierten Fläche. Die Leitstelle reicht das nur weiter; zusammensetzen tut
+ * die Anwendung.
+ *
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "Aufgabenvorlage".
+ */
+export interface Aufgabenvorlage {
+  anweisung: string;
+  ohne_wunsch?: string | null;
+  sprache: string;
+  signalfarbe?: [unknown, unknown, unknown] | null;
 }
 /**
  * Aus den jüngsten fertigen Aufträgen des Modells (Mittelwerte als Median, Ladezeit als gleitender Mittelwert).

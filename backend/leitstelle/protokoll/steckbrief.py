@@ -84,6 +84,18 @@ GROESSEN_VORGABE = Groessenregel(raster=16, kante_min=256, kante_max=2048, pixel
 ANZAHL_MAX = 4                                               # Bilder je Anfrage, wenn das Modell nichts anderes sagt
 
 
+class Aufgabenvorlage(BaseModel):
+    """Wie ein Bildmodell eine Aufgabe (anweisen, entfernen, fuellen, erweitern) als Anweisung bekommt, wie sein Dienst
+    es sagt: fester Text mit dem Platzhalter `{wunsch}` für die Worte des Nutzers, die Sprache, in die der Wunsch
+    übersetzt wird, und die Signalfarbe der markierten Fläche. Die Leitstelle reicht das nur weiter; zusammensetzen tut
+    die Anwendung."""
+
+    anweisung: str = Field(min_length=1)                     # mit {wunsch}, wenn die Aufgabe einen Wunsch aufnimmt
+    ohne_wunsch: str | None = None                           # bei leerem Wunsch; fehlt sie, braucht die Aufgabe einen Wunsch
+    sprache: str = Field(pattern=r"^[a-z]{2}$")              # ISO 639-1
+    signalfarbe: tuple[int, int, int] | None = None          # RGB der markierten Fläche; ohne: die Aufgabe markiert nichts
+
+
 class Bildsteckbrief(BaseModel):
     """Was ein Bildmodell annimmt, wie sein Dienst es selbst sagt (übliches Bildformat: `GET /v1/models`, Feld `steckbrief`
     des Modelleintrags). Die Leitstelle liest ihn nach jedem Start des Dienstes, hält ihn über Neustarts und prüft damit
@@ -104,7 +116,8 @@ class Bildsteckbrief(BaseModel):
     lizenz_hinweis: str | None = None                        # was die Lizenz für die Nutzung der Bilder heißt, in einem Satz
     parameter_mrd: float | None = None                       # Parameter des Bildteils
     quantisierung: str | None = None
-    abgerufen_s: float = 0.0                                 # wann die Leitstelle ihn zuletzt beim Dienst gelesen hat
+    aufgaben: dict[str, Aufgabenvorlage] = Field(default_factory=dict)   # je Aufgabe die Anweisungsvorlage des Modells (Bildwerk)
+    abgerufen_s: float = 0.0                               # wann die Leitstelle ihn zuletzt beim Dienst gelesen hat
 
     def namen(self) -> set[str]:
         """Alle Namen, unter denen eine Anwendung das Modell verlangen kann (klein geschrieben)."""

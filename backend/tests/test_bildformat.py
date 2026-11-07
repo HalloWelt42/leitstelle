@@ -17,6 +17,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from pydantic import ValidationError
 
 from conftest import ausgefuehrt, welt_mit
 from leitstelle.api.app import erstellen
@@ -87,6 +88,21 @@ async def test_b02_steckbrief_aus_der_modellliste():
             assert await ABLAUF.steckbrief(lambda d: weg.durchleiten("", d)) is None
         finally:
             await weg.schliessen()
+
+
+def test_b02b_aufgabenvorlagen_gehen_unveraendert_weiter():
+    """B02b (ATL-26 des Ateliers): die Aufgabenvorlagen des Modells (Anweisung mit {wunsch}, Sprache, Signalfarbe) kommen
+    unverändert in den Steckbrief; ein Dienst ohne Vorlagen hat keine; eine falsche Signalfarbe macht ihn unlesbar."""
+    from schein.bilddienst import STECKBRIEF
+    vorlagen = {"entfernen": {"anweisung": "Fill the magenta area.", "sprache": "en", "signalfarbe": [255, 0, 255]},
+                "fuellen": {"anweisung": "Replace it with: {wunsch}.", "ohne_wunsch": "Replace it.", "sprache": "en", "signalfarbe": [255, 0, 255]}}
+    s = Bildsteckbrief.model_validate({**STECKBRIEF, "modell": "qwen", "aufgaben": vorlagen})
+    assert s.model_dump(mode="json")["aufgaben"] == {
+        "entfernen": {"anweisung": "Fill the magenta area.", "ohne_wunsch": None, "sprache": "en", "signalfarbe": [255, 0, 255]},
+        "fuellen": {"anweisung": "Replace it with: {wunsch}.", "ohne_wunsch": "Replace it.", "sprache": "en", "signalfarbe": [255, 0, 255]}}
+    assert Bildsteckbrief.model_validate({**STECKBRIEF, "modell": "moss"}).aufgaben == {}
+    with pytest.raises(ValidationError):
+        Bildsteckbrief.model_validate({**STECKBRIEF, "modell": "qwen", "aufgaben": {"fuellen": {"anweisung": "x", "sprache": "englisch"}}})
 
 
 async def test_b03_fehler_je_antwortcode():
