@@ -581,3 +581,31 @@ nimmt nur Alternativen der App (Kennung `kette_ausweichen` bleibt wegen gespeich
 Regelwert "Geladene zuerst" entfällt, die Reihenfolge der App gilt streng. Gesprächsmodelle, die nie für Einbettung
 weichen, sind jetzt alle Modelle, die Text können. Die Simulation hält die Wahl in den simulierten Apps. Prüfung: S80
 bis S83, S22, S23.
+
+**Nachtrag Akku** (LS-22, 07.11.2026): Der Nutzer legte "wieder Arbeit ab" auf 70 % fest (vorher 35 %); der Wert steht
+im Regelwerk. Die Sperre gilt seit 0.37.1 auch für die Selbststeuerung: auf einem gesperrten Mac wird nicht umgeleitet,
+kein Dienst gestartet, kein Modell geladen und keine weitere Einbettungsinstanz gestartet (`Verbund.nimmt_arbeit`, eine
+Prüfung für Zuteiler und Regeln; S84, S85).
+
+## Entscheidung: Vorrang auf Wunsch (Dialog 07.11.2026, LS-23, noch nicht gebaut)
+
+Der Nutzer darf über eine App einzelne Aufträge höher stellen, etwa wenn gerade Musik oder ein Bild wichtig ist.
+
+1. Reserviert wird ein einzelner Auftrag: der Nutzer markiert ihn in der App als wichtig; der Vorrang endet mit dem
+   Auftrag.
+2. Ein wichtiger Auftrag geht allem vor, auch der Sprachausgabe.
+3. Laufende Arbeit auf dem Mac rechnet zu Ende; dort startet nichts Neues mehr, der wichtige Auftrag ist als nächster dran.
+4. Zwei wichtige Aufträge für denselben Mac: wer zuerst kam. Der zweite erfährt sofort, dass schon ein wichtiger läuft,
+   von welcher App und wie lange es etwa dauert.
+5. Auskunft vorher und danach: eine Einschätzung ohne Einreihen (erwartete Wartezeit, wer gerade Vorrang hat) und nach
+   dem Einreihen an jedem eigenen Auftrag in `/v1/lage` und im Strom, mit Grund und Restzeit. Die App entscheidet selbst,
+   ob sie aufschiebt.
+6. Jede App darf, aber nur auf ausdrückliche Angabe des Nutzers.
+7. Knopf "Wichtig" am Auftrag; jede App stellt in ihren Einstellungen ein, ob danach jedes Mal eine Bestätigung in der
+   Leiste kommt (mit erwarteter Wartezeit und wer verdrängt wird).
+8. Organisation: eine Wahrheit für alle Apps in `docs/ARBEITSLOGIK.md` (Modellwahl, Rangfolge, Vorrang, Auskunft, Akku,
+   Entladen). Die App-Seite baut der Appkern einmal (Knopf, Bestätigung, Einschätzung, Wartegrund), jede App nutzt nur
+   ihn; eine Architekturregel verbietet eigene Wege zur Leitstelle.
+
+Reihenfolge des Baus: ARBEITSLOGIK.md, Leitstelle (Kennzeichen am Auftrag, Einschätzung, Grund und Restzeit in der
+Auskunft, Szenarien), Appkern (Client und Baustein), Apps nacheinander, Architekturregel.
