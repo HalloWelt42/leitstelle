@@ -41,6 +41,7 @@ export function wertText(w: RegelwertSicht, wert: Wert): string {
   if (w.einheit === 'wahl') return w.wahl.find((x) => x.wert === wert)?.wort ?? String(wert);
   if (w.einheit === 'mehrfach') return (wert as string[]).map((x) => w.wahl.find((y) => y.wert === x)?.wort ?? x).join(', ') || 'keine';
   if (w.einheit === 'rang') {
+    if (typeof wert === 'number') return String(wert);   // Grenzen eines einzelnen Rangs (min, max)
     const raenge = wert as Record<string, number>;
     const stufen = [...new Set(Object.values(raenge))].sort((a, b) => a - b);
     return stufen.map((r) => `${r}: ${Object.keys(raenge).filter((k) => raenge[k] === r).map((k) => w.wahl.find((y) => y.wert === k)?.wort ?? k).join(', ')}`).join('; ');

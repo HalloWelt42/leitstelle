@@ -47,7 +47,8 @@
 </script>
 
 {#snippet regelwert(w: RegelwertSicht)}
-  <div class="einstellung">
+  <!-- die Rangfolge braucht die ganze Breite: Erklärung oben, Raster der Fähigkeiten darunter -->
+  <div class="einstellung" class:rangzeile={w.einheit === 'rang'}>
     <div>
       <div class="name">{w.titel}{#if vonHand(w)}<span class="marke-hand" title="Weicht von der Vorgabe ab">von Hand</span>{/if}</div>
       <div class="erklaerung">{w.erklaerung} Vorgabe {wertText(w, w.vorgabe)}{#if w.min != null && w.max != null}, einstellbar von {wertText(w, w.min)} bis {wertText(w, w.max)}{/if}.</div>
@@ -150,6 +151,9 @@
   .regel { padding: var(--a2) var(--a4); }
   .regel + .regel { margin-top: var(--a3); }
   .regel .einstellung { padding-left: 0; padding-right: 0; }
+  .rangzeile { grid-template-columns: minmax(0, 1fr); }
+  .rangzeile .wert { justify-content: flex-start; }
+  .rangzeile .raenge { width: 100%; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); }
   .regel .kopfzeile .name h2 { font-size: var(--gross); margin: 0; }
   .regel .kopfzeile .wert .zustand { min-width: 0; }
   .gemeinsam { font-size: var(--gross); margin: var(--a2) 0 0; }
