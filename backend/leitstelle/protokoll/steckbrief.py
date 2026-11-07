@@ -94,6 +94,7 @@ class Aufgabenbeispiel(BaseModel):
     es nur weiter (LS-25)."""
 
     motiv: str = Field(default="", max_length=200)
+    ausgang: str | None = Field(default=None, pattern=r"^data:image/", max_length=BEISPIEL_BILD_MAX)   # vor der Markierung, wo es sich unterscheidet
     vorher: str = Field(pattern=r"^data:image/", max_length=BEISPIEL_BILD_MAX)
     nachher: str = Field(pattern=r"^data:image/", max_length=BEISPIEL_BILD_MAX)
     dauer_s: float | None = Field(default=None, ge=0)

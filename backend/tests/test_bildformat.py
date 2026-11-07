@@ -109,7 +109,8 @@ def test_b02c_beispiel_je_aufgabe_kommt_durch():
     """B02c (LS-25, ATL-45 des Ateliers): ein Beispiel aus dem Portfolio (Motiv, Vorher, Nachher als data-URL, Dauer)
     bleibt im Steckbrief erhalten; ohne Beispiel ist das Feld leer; ein Beispiel ohne Bild macht den Steckbrief unlesbar."""
     from schein.bilddienst import STECKBRIEF
-    beispiel = {"motiv": "Bank am See", "vorher": "data:image/webp;base64,AAA", "nachher": "data:image/webp;base64,BBB", "dauer_s": 0.7}
+    beispiel = {"motiv": "Bank am See", "ausgang": "data:image/webp;base64,OOO", "vorher": "data:image/webp;base64,AAA",
+                "nachher": "data:image/webp;base64,BBB", "dauer_s": 0.7}
     vorlagen = {"entfernen": {"anweisung": "Remove.", "sprache": "en", "signalfarbe": [255, 0, 255], "beispiel": beispiel},
                 "fuellen": {"anweisung": "Fill {wunsch}.", "sprache": "en"}}
     s = Bildsteckbrief.model_validate({**STECKBRIEF, "modell": "lama", "aufgaben": vorlagen}).model_dump(mode="json")["aufgaben"]
