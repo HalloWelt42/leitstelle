@@ -609,3 +609,18 @@ Der Nutzer darf über eine App einzelne Aufträge höher stellen, etwa wenn gera
 
 Reihenfolge des Baus: ARBEITSLOGIK.md, Leitstelle (Kennzeichen am Auftrag, Einschätzung, Grund und Restzeit in der
 Auskunft, Szenarien), Appkern (Client und Baustein), Apps nacheinander, Architekturregel.
+
+**Umsetzung** (LS-23, LS-24, Leitstelle 0.39.0): Auftrag mit `art` (einzel, masse) und `wichtig`, Köpfe
+`X-Leitstelle-Art` und `X-Leitstelle-Wichtig`; Reihenfolge wichtig, dann Einzel vor Masse, dann Rang; ein wartender
+wichtiger Auftrag hält seinen Rechner frei (`freigehalten` im Zuteiler), die Vorrangsperre der Sprache gilt für ihn
+nicht. `POST /v1/einschaetzung` spielt einen Auftrag auf einer Kopie des Verbunds mit demselben Zuteiler durch. Die Regeln
+für alle Apps stehen in [ARBEITSLOGIK.md](ARBEITSLOGIK.md). Die Reservierung aus PROTOKOLL 4.7 (nie gebaut) ist ersetzt.
+
+## Grundsatz: Auslastung je Rechner (Nutzer 07.11.2026)
+
+"Wenn zwei Rechner rechnen, sollte es nie die Entscheidung geben, den anderen zu unterbrechen. Es muss immer klar sein,
+dass Auslastung pro Rechner zählt, weil diese sich nie gegenseitig beeinflussen." Geprüft und umgestellt: die Regel
+"Hintergrund bei Lage" beurteilt die Lage je Rechner und hält Hintergrund nur dort an (Entscheidung im Dialog: je Mac
+umbauen statt entfernen); die hausweite Ruhe (`Verbund.ruhe`, seit LS-16 ungenutzt) ist entfernt; Arbeit nur bei Ruhe
+wartet nur auf Rechner, auf denen sie rechnen dürfte, und ein gesperrter Akku gilt nicht als Ruhe. Die Lage des ganzen
+Hauses bleibt nur Anzeige. Szenario S99.

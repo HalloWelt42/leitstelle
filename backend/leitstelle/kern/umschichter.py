@@ -42,7 +42,7 @@ class Vollzug(Protocol):
     def laufende_abbrechen_mit_teilergebnis(self, knoten: str) -> None: ...
     def wartende_neu_einreihen(self, knoten: str) -> None: ...
     def bevorzugter_knoten(self, knoten: str | None) -> None: ...
-    def hintergrund(self, an: bool) -> None: ...
+    def hintergrund(self, knoten: str, an: bool, grund: str) -> None: ...
     def laeufer_prozess_beenden(self, knoten: str, pid: int) -> None: ...
     def hintergrund_stufe(self, knoten: str, stufe: Hintergrundstufe, grund: str) -> None: ...
 
@@ -52,9 +52,10 @@ def zuruecknehmen(verbund: Verbund, art: Massnahmenart, vollzug: Vollzug) -> lis
     Automatik nicht mehr selbst handelnd); sonst bliebe etwa ein gedrosselter Hintergrund gedrosselt, weil die Regel, die
     ihn freigäbe, nicht mehr läuft. Liefert die Sätze für den Verlauf."""
     saetze = []
-    if art == Massnahmenart.HINTERGRUND_LAGE and not verbund.hintergrund_an:
-        vollzug.hintergrund(True)
-        saetze.append('Hintergrund läuft wieder: die Regel "Hintergrund bei Lage" wirkt nicht mehr')
+    if art == Massnahmenart.HINTERGRUND_LAGE and (gehalten := [k for k in verbund.knoten.values() if k.hintergrund_lage_grund]):
+        for k in gehalten:
+            vollzug.hintergrund(k.kennung, True, "")
+            saetze.append(f'Hintergrund auf {k.name} läuft wieder: die Regel "Hintergrund bei Lage" wirkt nicht mehr')
     elif art == Massnahmenart.VERLAGERN and verbund.hintergrund_knoten_bevorzugt:
         vollzug.bevorzugter_knoten(None)
         saetze.append('Kein Rechner mehr bevorzugt für Hintergrund: die Regel "Verlagern" wirkt nicht mehr')
@@ -253,7 +254,7 @@ class Umschichter:
                 case "bevorzugten_knoten_setzen":
                     vollzug.bevorzugter_knoten(w["knoten"])
                 case "hintergrund_anhalten" | "hintergrund_fortsetzen":
-                    vollzug.hintergrund(w["an"])
+                    vollzug.hintergrund(w["knoten"], w["an"], w["grund"])
                 case "laeufer_prozess_beenden":
                     vollzug.laeufer_prozess_beenden(w["knoten"], w["pid"])
                 case baustein if baustein in STUFENAKTIONEN:

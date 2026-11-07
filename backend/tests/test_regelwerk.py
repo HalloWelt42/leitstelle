@@ -106,13 +106,13 @@ async def test_v07_abschalten_nimmt_den_zustand_der_regel_zurueck(tmp_path):
         k = (await c.post("/api/knoten", json={"name": "MacBook M4 Max 128 GB", "adresse": "127.0.0.1", "speicher_gb": 128})).json()["kennung"]
         b = app.state.betrieb
         b.hintergrund_stufe(k, Hintergrundstufe.GEDROSSELT, "Fremdlast im Mittel 62 %")
-        b.hintergrund(False)
+        b.hintergrund(k, False, "zwei Aufträge warten auf Speicher")
         r = await c.patch("/api/regelwerk", json={"szenarien_an": {"hintergrund_rechnerlast": False}})
         assert r.status_code == 200
         assert b.verbund.knoten[k].hintergrund_stufe == Hintergrundstufe.FREI and "wirkt nicht mehr" in b.verbund.knoten[k].hintergrund_grund
-        assert not b.verbund.hintergrund_an, "Hintergrund bei Lage wirkt noch"
+        assert b.verbund.knoten[k].hintergrund_lage_grund, "Hintergrund bei Lage wirkt noch"
         await c.patch("/api/regelwerk", json={"werte": {"automatik": "vorschlagen"}})
-        assert b.verbund.regelwerk.automatik == Automatik.VORSCHLAGEN and b.verbund.hintergrund_an
+        assert b.verbund.regelwerk.automatik == Automatik.VORSCHLAGEN and not b.verbund.knoten[k].hintergrund_lage_grund
         meldungen = [m["text"] for m in (await c.get("/api/lage")).json()["meldungen"]]
         assert any("Hintergrund auf MacBook M4 Max 128 GB freigegeben" in m for m in meldungen)
-        assert any(m.startswith("Hintergrund läuft wieder") for m in meldungen)
+        assert any(m.startswith("Hintergrund auf MacBook M4 Max 128 GB läuft wieder") for m in meldungen)

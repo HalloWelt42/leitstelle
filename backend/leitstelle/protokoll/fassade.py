@@ -12,7 +12,7 @@ from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from ..kern.werte import Auftragszustand, Faehigkeit, Prioritaet
+from ..kern.werte import Auftragsart, Auftragszustand, Faehigkeit, Prioritaet
 from ..ports.dienste.bilder import SEED_GRENZE
 from .steckbrief import ANZAHL_MAX, Bildsteckbrief
 
@@ -155,6 +155,9 @@ class AuftragAuskunft(BaseModel):
     rechner: str | None                 # Name des Rechners, auf dem er rechnet
     seit_s: float                       # Sekunden seit Eingang
     rest_s: float | None                # rechnet: geschätzte Restdauer; wartet: voraussichtliche Wartezeit; None: unbekannt
+    art: Auftragsart = Auftragsart.EINZEL   # Einzel oder Masse (LS-24)
+    wichtig: bool = False               # vom Nutzer als wichtig markiert (LS-23)
+    grund: str | None = None            # nur bei eigenen Aufträgen: warum er wartet (ohne Inhalte), etwa "freigehalten für ..."
 
 
 class AppAuskunft(BaseModel):
@@ -193,6 +196,35 @@ class PruefungAuskunft(BaseModel):
     anwendung: str
     bis_s: float
     durchlass: list[Faehigkeit]
+
+
+class Einschaetzungsanfrage(Modellwahl):
+    """`POST /v1/einschaetzung` (LS-23): so würde die App den Auftrag schicken; nichts wird eingereiht."""
+
+    faehigkeit: Faehigkeit | None = None         # ohne Angabe die erste, die Modell und App teilen
+    art: Auftragsart = Auftragsart.EINZEL
+    wichtig: bool = False
+
+
+class WichtigerAuftrag(BaseModel):
+    anwendung: str
+    faehigkeit: Faehigkeit
+    rechner: str | None
+    zustand: Auftragszustand
+    seit_s: float
+
+
+class Einschaetzung(BaseModel):
+    """Was mit dem Auftrag jetzt geschähe: sofort rechnen (mit Ladezeit) oder warten, wie lange etwa und warum. Die App
+    entscheidet damit selbst, ob sie aufschiebt."""
+
+    sofort: bool                        # bekäme jetzt einen Platz (auch wenn dafür erst geladen wird)
+    wartezeit_s: float | None           # geschätzt bis zum Start (Ladezeit oder Wartezeit); None: unbekannt
+    rechner: str | None                 # wo er rechnen würde oder worauf er wartet
+    grund: str                          # Begründung der Leitstelle, ohne Inhalte
+    vor_dir: int                        # so viele wartende Aufträge kämen vorher dran
+    wichtige: list[WichtigerAuftrag]    # offene, vom Nutzer als wichtig markierte Aufträge (auch anderer Apps)
+    abgelehnt: str | None = None        # Grundwort, wenn die Leitstelle ihn ablehnen würde (etwa modell_fehlt)
 
 
 class Lageauskunft(BaseModel):

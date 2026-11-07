@@ -21,16 +21,17 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import ValidationError
 
-from ..fach.auskunft import lageauskunft
+from ..fach.auskunft import einschaetzung, lageauskunft
 from ..fach.bildablage import ist_archiv
 from ..fach.fehler import Ablehnung, fehler_inhalt
 from ..fach.vermittlung import Bilderzeugung, Vorgang, Wartet
 from ..kern.modelle import Modell
-from ..kern.werte import GIB, WORT, Auftragszustand, Dienstzustand, Eignung, Faehigkeit, Modellzustand, Prioritaet, Zone
+from ..kern.werte import GIB, WORT, Auftragsart, Auftragszustand, Dienstzustand, Eignung, Faehigkeit, Modellzustand, Prioritaet, Zone
 from ..ports.ablage.eintraege import Adapterart
 from ..ports.ablage.eintraege import AnwendungEintrag
 from ..ports.dienste import Durchleitung
-from ..protokoll.fassade import Bereitschaft, BildAnfrage, BildAntwort, BildDaten, BildZusatz, DienstListe, DienstSicht, Modellwahl
+from ..protokoll.fassade import (Bereitschaft, BildAnfrage, BildAntwort, BildDaten, BildZusatz, DienstListe, DienstSicht, Einschaetzungsanfrage,
+                                 Modellwahl)
 from .gemeinsam import ablehnung_antwort, betrieb, fehler_antwort, konfig, vermittlung
 
 router = APIRouter()
@@ -84,6 +85,14 @@ def _titel(request: Request, faehigkeit: Faehigkeit) -> str:
 
 
 ARBEIT_ZEICHEN = re.compile(r"[A-Za-z0-9._:-]{1,64}")
+
+
+def _einordnung(request: Request) -> dict:
+    """X-Leitstelle-Art (`einzel` oder `masse`, LS-24) und X-Leitstelle-Wichtig (`ja`, LS-23: nur, wenn der Nutzer den
+    Auftrag in der App ausdrücklich als wichtig markiert hat). Unbekannte Werte zählen wie keine Angabe."""
+    art = request.headers.get("x-leitstelle-art", "").strip().lower()
+    wichtig = request.headers.get("x-leitstelle-wichtig", "").strip().lower() in ("ja", "1", "true")
+    return {"art": Auftragsart.MASSE if art == Auftragsart.MASSE.value else Auftragsart.EINZEL, "wichtig": wichtig}
 
 
 def _arbeit(request: Request) -> str | None:
@@ -154,7 +163,7 @@ async def _vermitteln(request: Request, pfad: str, faehigkeit: Faehigkeit) -> Re
     verm = vermittlung(request)
     try:
         v = verm.annehmen(app.kennung, faehigkeit, wahl.model, _prioritaet(request, app), titel, _arbeit(request), _extern(request), koerper=koerper,
-                          alternativen=wahl.alternativen)
+                          alternativen=wahl.alternativen, **_einordnung(request))
     except Ablehnung as a:
         return ablehnung_antwort(request, a)
 
@@ -293,7 +302,7 @@ async def _bildauftrag(request: Request, app: AnwendungEintrag, anfrage: BildAnf
         # die Wahl der Anwendung, vorab geprüft: kein Dienst startet für eine Anfrage, die keines ihrer Modelle annimmt
         familie, alternativen = verm.bildwahl(app.kennung, anfrage, faehigkeit)
         v = verm.annehmen(app.kennung, faehigkeit, familie, _prioritaet(request, app), _titel(request, faehigkeit),
-                          _arbeit(request), _extern(request), alternativen=alternativen)
+                          _arbeit(request), _extern(request), alternativen=alternativen, **_einordnung(request))
     except Ablehnung as a:
         return ablehnung_antwort(request, a)
     seed = verm.startwert(anfrage.seed)
@@ -388,7 +397,8 @@ async def _bilder_strom(request: Request, v: Vorgang, anfrage: BildAnfrage, seed
 
 # Köpfe, die nur einer Verbindung gelten oder die Leitstelle selbst auswertet
 OHNE_KOPF = {"host", "authorization", "content-length", "connection", "keep-alive", "transfer-encoding", "te", "trailer", "upgrade",
-             "x-leitstelle-titel", "x-leitstelle-prioritaet", "x-leitstelle-arbeit", "x-leitstelle-extern", "x-leitstelle-instanz"}
+             "x-leitstelle-titel", "x-leitstelle-prioritaet", "x-leitstelle-arbeit", "x-leitstelle-extern", "x-leitstelle-instanz",
+             "x-leitstelle-art", "x-leitstelle-wichtig"}
 
 
 async def dienst(request: Request, name: str, pfad: str) -> Response:
@@ -405,7 +415,7 @@ async def dienst(request: Request, name: str, pfad: str) -> Response:
     try:
         faehigkeit = verm.faehigkeit_fuer(app.kennung, familie)
         v = verm.annehmen(app.kennung, faehigkeit, name, _prioritaet(request, app), _titel(request, faehigkeit), _arbeit(request), _extern(request),
-                          instanz=_instanz(request, familie))
+                          instanz=_instanz(request, familie), **_einordnung(request))
     except Ablehnung as a:
         return ablehnung_antwort(request, a)
     anfrage = Durchleitung(methode=request.method, pfad=pfad, abfrage=request.url.query, inhalt=await request.body(),
@@ -503,6 +513,25 @@ async def lage(request: Request):
     if not darf:
         return fehler_antwort(request, "unbekannter_schluessel", "Schlüssel fehlt oder ist unbekannt.")
     return lageauskunft(betrieb(request), app.kennung if app else None).model_dump(mode="json")
+
+
+@router.post("/v1/einschaetzung")
+async def einschaetzung_route(request: Request):
+    """Einschätzung vor dem Senden (LS-23, PROTOKOLL 6.6): was mit diesem Auftrag jetzt geschähe; nichts wird eingereiht."""
+    app = _anwendung(request)
+    if app is None:
+        return fehler_antwort(request, "unbekannter_schluessel", "Schlüssel fehlt oder ist unbekannt (Kopf Authorization: Bearer ...).")
+    try:
+        anfrage = Einschaetzungsanfrage.model_validate(await request.json())
+    except (ValidationError, ValueError) as fehler:
+        return _eingabefehler(_eingabe_text(fehler) if isinstance(fehler, ValidationError) else "Inhalt ist kein JSON.")
+    verm = vermittlung(request)
+    try:
+        familie, alternativen = verm.modellwahl(anfrage.model, anfrage.alternativen)
+        faehigkeit = anfrage.faehigkeit or (verm.faehigkeit_fuer(app.kennung, familie) if familie else Faehigkeit.TEXT)
+    except Ablehnung as a:
+        return ablehnung_antwort(request, a)
+    return einschaetzung(betrieb(request), app.kennung, anfrage, faehigkeit, familie, alternativen).model_dump(mode="json")
 
 
 #: Strom der Auskunft: so oft wird auf Änderungen geschaut, so lange darf er ohne Änderung still sein (Kommentar hält ihn offen)

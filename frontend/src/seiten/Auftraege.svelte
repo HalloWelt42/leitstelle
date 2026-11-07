@@ -127,7 +127,7 @@
        onclick={() => waehlen(a.kennung)} onkeydown={(e) => e.key === 'Enter' && waehlen(a.kennung)}>
     <div class="symbol" title={f.wort}><i class="fa-solid {f.symbol}"></i></div>
     <div style="min-width:0">
-      <div class="titel">{a.titel || f.wort}</div>
+      <div class="titel">{a.titel || f.wort}{#if 'wichtig' in a && a.wichtig}<span class="einordnung" title="Vom Nutzer in der App als wichtig markiert: geht allem vor (LS-23)"><i class="fa-solid fa-star"></i> wichtig</span>{/if}{#if 'art' in a && a.art === 'masse'}<span class="einordnung" title="Teil einer Massenaufgabe: kommt nach Einzelarbeit und rechnet nur auf einem ruhigen Mac (LS-24)"><i class="fa-solid fa-layer-group"></i> Masse</span>{/if}</div>
       <div class="zweit"><span class="app">{anwendung(a.anwendung)}</span>{#if modell}<span>{modell}{a.knoten ? ` · ${knotenName(a.knoten)}` : a.extern ? ' · Extern' : ''}</span>{/if}
         <Zustand art="auftrag" wert={a.zustand} dreht /></div>
       {#if laeuft}<div class="balken lebt unbestimmt"><b></b></div>

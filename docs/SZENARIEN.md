@@ -308,6 +308,20 @@ Gegentest: an der Fassung davor (0.28.0) scheitern alle außer S54.
 | S90 | Wie S07, aber im Fenster einer anderen App | gehaltene Live-Arbeit löst kein Umleiten aus |
 | S91 | Schnittstelle: Probewert ohne Fenster, öffnen, doppelt öffnen, Probewert, Lagebild, `/v1/lage`, schließen | 409, offen, 409, gesperrt mit Probewert und Meldung, sichtbar in Lagebild und Auskunft, danach wieder Messwert |
 
+### Einzel, Masse und Wichtig (`test_einordnung.py`, LS-23, LS-24, ARBEITSLOGIK)
+
+| Nr | Lage | Erwartet |
+|---|---|---|
+| S92 | Masse-Sprache, Einzel-Einbettung, Einzel-Text | Text, Einbettung, dann die Masse: Einzel vor Masse über alle Fähigkeiten |
+| S93 | Einzelarbeit läuft auf dem Mac Studio, MacBook durch Akku gesperrt, Masse kommt | wartet auf Ruhe (Grund nennt nicht den Akku); MacBook frei: rechnet dort, der Mac Studio rechnet ungestört weiter |
+| S94 | Sprache dringend, Text, zwei wichtige | die wichtigen zuerst nach Eingang, dann Sprache, dann Text; wichtig ist nie "nur bei Ruhe" |
+| S95 | 80B rechnet, wichtiger Auftrag für das 80B wartet, Einbettung kommt | Laufendes wird fertig, die Einbettung wartet mit "freigehalten für ... Kiste", dann der wichtige, dann die Einbettung |
+| S96 | zwei wichtige für denselben Mac | wer zuerst kam; der zweite nennt die App des ersten |
+| S97 | Sprache läuft, normaler und wichtiger Text | der normale ist durch den Vorrang gesperrt, der wichtige nicht |
+| S98 | Fassade mit `X-Leitstelle-Art: masse`, `X-Leitstelle-Wichtig: ja`, unbekannten Werten | kommen am Auftrag an und stehen im Verlauf; Unbekanntes zählt wie keine Angabe |
+| S99 | Bild wartet auf Speicher auf dem Mac Studio (Hintergrund dort angehalten), Hintergrund für das MacBook kommt (`test_regelzweige.py`) | rechnet sofort auf dem MacBook: Enge auf einem Mac bremst den anderen nie |
+| S100 | `POST /v1/einschaetzung`: frei, ohne Modell, mit offenem wichtigem Auftrag, fremder Schlüssel | sofort mit Rechner; `modell_fehlt`; Liste der wichtigen; 401; nichts eingereiht |
+
 ### Schlaf eines Rechners im Kern (`test_zuteiler.py`)
 
 | Nr | Szenario | Erwartung |

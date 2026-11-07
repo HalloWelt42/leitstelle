@@ -36,6 +36,14 @@ class Eignung(str, Enum):
     GRUENDLICH = "gruendlich"         # beste Ergebnisse, auch auf Kosten der Zeit
 
 
+class Auftragsart(str, Enum):
+    """Was die App über einen Auftrag sagt (LS-24): ein einzelner, kleiner Auftrag oder Teil einer Massenaufgabe. Masse
+    kommt nach jeder Einzelarbeit und rechnet nur auf einem Mac, auf dem gerade nichts anderes läuft oder wartet."""
+
+    EINZEL = "einzel"
+    MASSE = "masse"
+
+
 class Prioritaet(IntEnum):
     HINTERGRUND = 0
     NORMAL = 1

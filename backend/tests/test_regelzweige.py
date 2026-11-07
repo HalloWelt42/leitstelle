@@ -162,7 +162,7 @@ def test_s19_leerlauf_nicht_bei_kuerzlicher_nutzung():
 def test_s20_vorwaermen_bei_angehaltenem_hintergrund():
     w = welt_mit()
     entlade(w, "qwen80@128")
-    w.verbund.hintergrund_an = False
+    w.verbund.hintergrund_erlaubt = False                       # Schalter am Hauptregler
     # Hintergrund-Lage-Regel würde den Hintergrund bei ruhiger Lage wieder einschalten: abschalten
     w.verbund.regelwerk.szenarien_an[A.HINTERGRUND_LAGE] = False
     t = w.auftrag("tubevault", F.TEXT, laufzeit_s=5)
@@ -172,14 +172,14 @@ def test_s20_vorwaermen_bei_angehaltenem_hintergrund():
     assert ausgefuehrt(w, A.VORWAERMEN), "Modell wird geladen, obwohl der Auftrag noch wartet"
     w.laufen(40)
     assert v.modelle["qwen80@128"].zustand == Modellzustand.GELADEN
-    w.verbund.hintergrund_an = True
+    w.verbund.hintergrund_erlaubt = True
     w.laufen(6)
     assert v.auftraege[t.kennung].zustand == Z.LAEUFT, "startet sofort, nichts mehr zu laden"
 
 
 def test_s21_vorwaermen_ohne_platz():
     w = welt_mit()
-    w.verbund.hintergrund_an = False
+    w.verbund.hintergrund_erlaubt = False                       # Schalter am Hauptregler
     w.verbund.regelwerk.szenarien_an[A.HINTERGRUND_LAGE] = False
     w.verbund.knoten["mac-32"].budget_fest_gb = 4.0
     w.auftrag("bildschmiede", F.BILD_BESCHREIBEN, laufzeit_s=5)   # Gemma, nirgends geladen, Mac Studio voll
@@ -361,12 +361,31 @@ def test_s31_hintergrund_bei_angespannter_lage_angehalten_und_fortgesetzt():
     assert w.verbund.auftraege[t.kennung].zustand == Z.LAEUFT
     k = w.auftrag("kiste", F.BILD_BESCHREIBEN, laufzeit_s=5)   # wartet auf Speicher -> Lage angespannt
     w.laufen(6)
-    assert not w.verbund.hintergrund_an
+    assert w.verbund.knoten["mac-128"].hintergrund_lage_grund == "ein Auftrag wartet auf Speicher auf Mac Studio"
+    assert not w.verbund.knoten["mac-32"].hintergrund_lage_grund, "der andere Rechner bleibt unberührt"
     assert w.verbund.auftraege[t.kennung].zustand == Z.PAUSIERT
     w.verbund.auftraege[k.kennung].zustand = Z.ABGEBROCHEN    # Lage wieder ruhig
     w.laufen(10)
-    assert w.verbund.hintergrund_an
+    assert not w.verbund.knoten["mac-128"].hintergrund_lage_grund
     assert w.verbund.auftraege[t.kennung].zustand in (Z.ZUGETEILT, Z.LAEUFT)
+
+
+def test_s99_enge_auf_einem_mac_bremst_den_anderen_nie():
+    """Nutzer 07.11.2026: "Wenn zwei Rechner rechnen, sollte es nie die Entscheidung geben, den anderen zu unterbrechen;
+    Auslastung zählt pro Rechner." Auf dem Mac Studio wartet ein Bild auf Speicher (Hintergrund dort angehalten); ein
+    Hintergrundauftrag für das MacBook rechnet trotzdem sofort."""
+    w = welt_mit()
+    w.verbund.knoten["mac-32"].budget_fest_gb = 4.0
+    w.verbund.regelwerk.szenarien_an[A.LEERLAUF_RAEUMEN] = False
+    w.auftrag("tubevault", F.HOEREN, laufzeit_s=100)
+    w.laufen(6)
+    w.auftrag("kiste", F.BILD_BESCHREIBEN, laufzeit_s=5)
+    w.laufen(6)
+    assert w.verbund.knoten["mac-128"].hintergrund_lage_grund
+    klein = w.auftrag("tubevault", F.HOEREN, laufzeit_s=5, festes_modell="whisper-mittel")
+    w.laufen(10)
+    x = w.verbund.auftraege[klein.kennung]
+    assert x.knoten == "mac-32" and x.zustand == Z.FERTIG
 
 
 # ── Automatik, Graphprüfung ──────────────────────────────────────────────

@@ -320,10 +320,14 @@ def modell_doppelt_geladen(k: Kontext) -> list[Kontext]:
     return aus
 
 
-@baustein("lage_wechsel", "ausloeser", "Lage wechselt", "Ein Lauf je Takt mit der aktuellen Lage; die Aktionen prüfen selbst, ob etwas zu tun ist.")
+@baustein("lage_wechsel", "ausloeser", "Lage wechselt", "Ein Lauf je Rechner und Takt mit der Lage dieses Rechners; was auf einem "
+          "anderen Rechner geschieht, zählt nie. Die Aktionen prüfen selbst, ob etwas zu tun ist.")
 def lage_wechsel(k: Kontext) -> list[Kontext]:
-    lage, grund = lagebeurteilung.beurteilen(k.verbund)
-    return [Kontext(verbund=k.verbund, messwerk=k.messwerk, instanz=lage.value, lage=lage, werte={"grund": grund})]
+    aus = []
+    for kn in sorted(k.verbund.knoten):
+        lage, grund = lagebeurteilung.knoten_beurteilen(k.verbund, kn)
+        aus.append(Kontext(verbund=k.verbund, messwerk=k.messwerk, instanz=f"{kn}:{lage.value}", lage=lage, knoten_quelle=kn, werte={"grund": grund}))
+    return aus
 
 
 # ── Prüfungen ────────────────────────────────────────────────────────────
@@ -652,9 +656,10 @@ def lage_ist(k: Kontext, lage: str = "angespannt") -> bool:
     return k.lage is not None and k.lage.value == lage
 
 
-@baustein("hintergrund_angehalten", "pruefung", "Hintergrund angehalten?", "Ist der Hintergrund gerade angehalten?")
+@baustein("hintergrund_angehalten", "pruefung", "Hintergrund angehalten?", "Ist der Hintergrund auf diesem Rechner wegen seiner Lage angehalten?")
 def hintergrund_angehalten(k: Kontext) -> bool:
-    return not k.verbund.hintergrund_an
+    kn = k.verbund.knoten.get(k.knoten_quelle) if k.knoten_quelle else None
+    return kn is not None and bool(kn.hintergrund_lage_grund)
 
 
 @baustein("umgehung_am_laeufer", "pruefung", "Umgehung am Läufer?",
@@ -759,14 +764,14 @@ def bevorzugten_knoten_setzen(k: Kontext) -> dict[str, Any]:
     return {"knoten": k.knoten_ziel}
 
 
-@baustein("hintergrund_anhalten", "aktion", "Hintergrund anhalten", "Hält Hintergrundaufträge an, interaktive laufen weiter.")
+@baustein("hintergrund_anhalten", "aktion", "Hintergrund anhalten", "Hält Hintergrundaufträge auf diesem Rechner an, interaktive laufen weiter; andere Rechner bleiben unberührt.")
 def hintergrund_anhalten(k: Kontext) -> dict[str, Any]:
-    return {"an": False}
+    return {"knoten": k.knoten_quelle, "an": False, "grund": k.werte.get("grund", "")}
 
 
-@baustein("hintergrund_fortsetzen", "aktion", "Hintergrund fortsetzen", "Lässt Hintergrundaufträge wieder laufen.")
+@baustein("hintergrund_fortsetzen", "aktion", "Hintergrund fortsetzen", "Lässt Hintergrundaufträge auf diesem Rechner wieder laufen.")
 def hintergrund_fortsetzen(k: Kontext) -> dict[str, Any]:
-    return {"an": True}
+    return {"knoten": k.knoten_quelle, "an": True, "grund": ""}
 
 
 @baustein("laeufer_prozess_beenden", "aktion", "Prozess des Läufers beenden",

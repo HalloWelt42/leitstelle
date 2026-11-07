@@ -49,3 +49,20 @@ def _beurteilen(verbund: Verbund) -> tuple[Lage, str]:
     if len(wach) < len(verbund.knoten):
         return Lage.RUHIG, "alle wachen Knoten erreichbar, keine Wartezeiten" if wach else "keine Wartezeiten"
     return Lage.RUHIG, "alle Knoten erreichbar, keine Wartezeiten"
+
+
+def knoten_beurteilen(verbund: Verbund, knoten: str) -> tuple[Lage, str]:
+    """Lage eines einzelnen Rechners (Nutzer 07.11.2026: "Auslastung zählt pro Rechner, weil diese sich nie gegenseitig
+    beeinflussen"): Engpass, wenn er mit offenen Aufträgen nicht erreichbar ist oder zwei Aufträge auf seinen Speicher
+    warten; angespannt bei einem wartenden Auftrag; sonst ruhig. Was auf einem anderen Rechner geschieht, zählt nie."""
+    k = verbund.knoten[knoten]
+    if k.schlaeft:
+        return Lage.RUHIG, f"{k.name} schläft"
+    if not k.erreichbar and any(a.knoten == knoten and a.offen for a in verbund.auftraege.values()):
+        return Lage.ENGPASS, f"{k.name} mit offenen Aufträgen nicht erreichbar"
+    warten = [a for a in verbund.auftraege.values() if a.zustand == Auftragszustand.WARTET_SPEICHER and a.wartet_auf_knoten == knoten]
+    if len(warten) >= 2:
+        return Lage.ENGPASS, f"{len(warten)} Aufträge warten auf Speicher auf {k.name}"
+    if warten:
+        return Lage.ANGESPANNT, f"ein Auftrag wartet auf Speicher auf {k.name}"
+    return Lage.RUHIG, f"auf {k.name} wartet niemand auf Speicher"

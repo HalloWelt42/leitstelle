@@ -8,7 +8,7 @@ from ..kern.leitstelle import Leitstelle
 from ..kern.messungen import Messwerk
 from ..kern.modelle import Auftrag, Verbund
 from ..kern.regeln.auswerter import Regelgraph
-from ..kern.werte import Auftragszustand, Dienstzustand, Faehigkeit, Hintergrundstufe, Massnahmenzustand, Modellzustand, Prioritaet
+from ..kern.werte import Auftragsart, Auftragszustand, Dienstzustand, Faehigkeit, Hintergrundstufe, Massnahmenzustand, Modellzustand, Prioritaet
 
 
 @dataclass
@@ -52,7 +52,8 @@ class Welt:
     # ── Aufträge anlegen ─────────────────────────────────────────────────
     def auftrag(self, anwendung: str, faehigkeit: Faehigkeit, laufzeit_s: float = 20.0, zeit_s: float | None = None,
                 prioritaet: Prioritaet | None = None, festes_modell: str | None = None, kennung: str | None = None,
-                extern: list[str] | None = None, alternativen: list[str] | None = None) -> Auftrag:
+                extern: list[str] | None = None, alternativen: list[str] | None = None, art: Auftragsart = Auftragsart.EINZEL,
+                wichtig: bool = False) -> Auftrag:
         """Ein Auftrag einer simulierten Anwendung. Wie eine echte nennt sie immer selbst ihr Modell: ohne `festes_modell`
         das erste ihrer Modellwahl für die Fähigkeit, die übrigen als Ausweichliste; hat sie keine, schickt sie keins."""
         self.laufnummer += 1
@@ -61,7 +62,8 @@ class Welt:
             festes_modell, alternativen = wahl[0], wahl[1:] if alternativen is None else alternativen
         a = Auftrag(kennung=kennung or f"a-{self.laufnummer:04d}", anwendung=anwendung, faehigkeit=faehigkeit,
                     prioritaet=app.prioritaet if prioritaet is None else prioritaet, eingang_s=self.verbund.zeit_s if zeit_s is None else zeit_s,
-                    laufzeit_s=laufzeit_s, festes_modell=festes_modell, alternativen=list(alternativen or []), extern_familien=list(extern or []))
+                    laufzeit_s=laufzeit_s, festes_modell=festes_modell, alternativen=list(alternativen or []), extern_familien=list(extern or []),
+                    art=art, wichtig=wichtig)
         if zeit_s is None or zeit_s <= self.verbund.zeit_s:
             self.verbund.auftraege[a.kennung] = a
         else:
@@ -168,11 +170,11 @@ class Welt:
         k = self.verbund.knoten[knoten]
         k.hintergrund_stufe, k.hintergrund_grund, k.hintergrund_seit_s = stufe, grund, self.verbund.zeit_s
 
-    def hintergrund(self, an: bool) -> None:
-        self.verbund.hintergrund_an = an
+    def hintergrund(self, knoten: str, an: bool, grund: str) -> None:
+        self.verbund.knoten[knoten].hintergrund_lage_grund = "" if an else (grund or "Lage des Rechners")
         if not an:
             for a in self.verbund.auftraege.values():
-                if a.prioritaet == Prioritaet.HINTERGRUND and a.zustand == Auftragszustand.LAEUFT and a.anhaltbar:
+                if a.prioritaet == Prioritaet.HINTERGRUND and a.zustand == Auftragszustand.LAEUFT and a.anhaltbar and a.knoten == knoten:
                     a.zustand = Auftragszustand.PAUSIERT
                     m = self.verbund.modelle[a.modell] if a.modell else None
                     if m:

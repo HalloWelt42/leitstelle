@@ -76,6 +76,7 @@
   .seite-auftraege .auftrag.gewaehlt { background: var(--karte); outline: 1px solid color-mix(in srgb, var(--akzent-flaeche) 55%, transparent); }
   .seite-auftraege .auftrag .symbol { display: grid; place-items: center; width: 34px; height: 34px; border-radius: var(--r2); background: color-mix(in srgb, var(--f) var(--toenung), transparent); color: var(--f); }
   .seite-auftraege .auftrag .titel { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .seite-auftraege .auftrag .titel .einordnung { margin-left: var(--a2); font-size: var(--marke); font-weight: 700; color: var(--akzent); letter-spacing: 0.04em; }
   .seite-auftraege .auftrag .zweit { display: flex; gap: var(--a3); align-items: center; font-size: var(--klein); color: var(--text-2); margin-top: 3px; flex-wrap: wrap; }
   .seite-auftraege .auftrag .zweit .app { color: var(--text); font-weight: 500; }
   .seite-auftraege .auftrag .balken { margin-top: 8px; }

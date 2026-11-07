@@ -84,17 +84,18 @@ def rolle(verbund: Verbund, a: Auftrag, knoten: str | None) -> int:
 
 
 def rechner_der_wahl(verbund: Verbund, a: Auftrag) -> set[str]:
-    """Die Rechner, auf denen ein Modell aus der Wahl der Anwendung liegt (ohne externe Anbieter)."""
-    wahl = set(verbund.modellwahl(a))
-    return {verbund.dienste[m.dienst].knoten for m in verbund.modelle.values()
-            if m.familie in wahl and verbund.dienste[m.dienst].knoten is not None}
+    """Die Rechner, auf denen der Auftrag ein Modell aus der Wahl der Anwendung nutzen dürfte (dieselbe Prüfung wie bei der
+    Zuteilung: Dienst bereit, Zone, Akku, Vorrang; ohne externe Anbieter). Arbeit nur bei Ruhe wartet auf einen dieser
+    Rechner, nicht auf einen, auf dem sie ohnehin nicht rechnen könnte."""
+    return {verbund.dienste[m.dienst].knoten for fam in verbund.modellwahl(a) for m in kandidaten(verbund, a, fam, False)
+            if verbund.dienste[m.dienst].knoten is not None}
 
 
 def vorrang_gesperrt(verbund: Verbund, a: Auftrag, m: Modell) -> str | None:
     """Warum der Auftrag dieses Modell nicht bekommt, weil sein Rechner Arbeit mit Vorrang hat (Regelwerk "Vorrang auf dem
     Rechner"); None: er darf. Arbeit mit Vorrang selbst und gleich oder höher eingestufte Arbeit sind nie gesperrt."""
     r = verbund.regelwerk
-    if not r.vorrang_faehigkeiten or a.faehigkeit in r.vorrang_faehigkeiten:
+    if a.wichtig or not r.vorrang_faehigkeiten or a.faehigkeit in r.vorrang_faehigkeiten:
         return None
     if verbund.rang(a) <= min(r.rangfolge.get(f, 10) for f in r.vorrang_faehigkeiten):
         return None
@@ -105,14 +106,18 @@ def vorrang_gesperrt(verbund: Verbund, a: Auftrag, m: Modell) -> str | None:
 
 
 def hintergrund_gebremst(verbund: Verbund, a: Auftrag, m: Modell) -> str | None:
-    """Warum ein Hintergrundauftrag dieses Modell nach der Stufe seines Rechners gerade nicht bekommt; None: er darf.
+    """Warum ein Hintergrundauftrag dieses Modell nach der Lage oder der Stufe seines Rechners gerade nicht bekommt; None: er darf.
     Angehalten: kein Hintergrund, auch nicht nach der Fairness-Frist (der Rechner gehört gerade dem Menschen).
     Gedrosselt: wirksam Hintergrund bekommt nur die Grundinstanz, keine weitere. Alles Übrige ist unberührt."""
     if a.prioritaet != Prioritaet.HINTERGRUND:
         return None
     knoten = verbund.dienste[m.dienst].knoten
     k = verbund.knoten.get(knoten) if knoten else None
-    if k is None or k.hintergrund_stufe == Hintergrundstufe.FREI:
+    if k is None:
+        return None
+    if k.hintergrund_lage_grund and wirksame_prioritaet(verbund, a) == int(Prioritaet.HINTERGRUND):
+        return f"Hintergrund auf {k.name} angehalten: {k.hintergrund_lage_grund}"   # Lage dieses Rechners, mit Fairness-Frist
+    if k.hintergrund_stufe == Hintergrundstufe.FREI:
         return None
     if k.hintergrund_stufe == Hintergrundstufe.ANGEHALTEN:
         return f"Hintergrund auf {k.name} angehalten: {k.hintergrund_grund}"
@@ -122,7 +127,7 @@ def hintergrund_gebremst(verbund: Verbund, a: Auftrag, m: Modell) -> str | None:
 
 
 def kandidaten(verbund: Verbund, auftrag: Auftrag, familie: str, mit_extern: bool, gebremst: list[str] | None = None,
-               nur_knoten: set[str] | None = None) -> list[Modell]:
+               nur_knoten: set[str] | None = None, freigehalten: dict[str, Auftrag] | None = None) -> list[Modell]:
     """Alle Modellinstanzen einer Familie, die der Auftrag nutzen dürfte. Externe nur, wenn ausdrücklich
     gewünscht (festes Modell) oder wenn die Regel Extern ausweichen sie einbezieht. Was die Stufe des Hintergrunds
     verwehrt, fehlt; der Grund kommt nach `gebremst` (dann wartet der Auftrag, statt abgelehnt zu werden)."""
@@ -146,6 +151,10 @@ def kandidaten(verbund: Verbund, auftrag: Auftrag, familie: str, mit_extern: boo
             continue
         if nur_knoten is not None and d.knoten not in nur_knoten:
             continue                          # Arbeit nur bei Ruhe: dieser Rechner ist gerade nicht ruhig
+        if freigehalten and d.knoten in freigehalten:
+            if gebremst is not None:
+                gebremst.append(wichtig_haelt(verbund, freigehalten[d.knoten], d.knoten))
+            continue                          # ein wichtiger Auftrag wartet auf diesen Rechner (LS-23)
         if (grund := vorrang_gesperrt(verbund, auftrag, m)) is not None or (grund := hintergrund_gebremst(verbund, auftrag, m)) is not None:
             if gebremst is not None:
                 gebremst.append(grund)
@@ -200,11 +209,24 @@ def _mit_vergebenem(vergeben: dict[str, Bedarf], dienst: str, a: Auftrag) -> Bed
 
 
 def reihenfolge(verbund: Verbund) -> list[Auftrag]:
-    """Arbeit nur bei Ruhe zuletzt (Nutzer 31.10.2026: "nicht so privilegiert, die können auch laufen, wenn nichts los
-    ist"); davor nach dem Rang der Fähigkeit (Regelwerk "Rangfolge", Arbeitslogik 07.11.2026: Sprachausgabe zuerst,
-    Einbettung zuletzt), innerhalb eines Rangs nach Priorität der Anwendung, dann nach Eingang."""
-    return sorted(verbund.wartende_auftraege(),
-                  key=lambda a: (verbund.nur_bei_ruhe(a), verbund.rang(a), -wirksame_prioritaet(verbund, a), a.eingang_s))
+    """Wichtige Aufträge zuerst, untereinander nach Eingang (LS-23: der Nutzer hat sie markiert, sie gehen allem vor). Dann
+    Einzelarbeit vor Masse und Arbeit nur bei Ruhe (LS-24; Nutzer 31.10.2026: "nicht so privilegiert, die können auch
+    laufen, wenn nichts los ist"); innerhalb davon nach dem Rang der Fähigkeit (Regelwerk "Rangfolge", Sprachausgabe
+    zuerst, Einbettung zuletzt), innerhalb eines Rangs nach Priorität der Anwendung, dann nach Eingang."""
+    def schluessel(a: Auftrag) -> tuple:
+        if a.wichtig:
+            return (0, 0, 0, 0, a.eingang_s)
+        return (1, int(verbund.nur_bei_ruhe(a)), verbund.rang(a), -wirksame_prioritaet(verbund, a), a.eingang_s)
+    return sorted(verbund.wartende_auftraege(), key=schluessel)
+
+
+def wichtig_haelt(verbund: Verbund, w: Auftrag, knoten: str) -> str:
+    """Grund für andere Arbeit, solange ein wichtiger Auftrag auf diesen Rechner wartet (LS-23, Auskunft an die App)."""
+    app = verbund.anwendungen.get(w.anwendung)
+    name = verbund.knoten[knoten].name if knoten in verbund.knoten else knoten
+    seit = max(0, round(verbund.zeit_s - w.eingang_s))
+    etwa = f", etwa {w.voraussichtlich_s:.0f} s" if w.voraussichtlich_s else ""
+    return f"{name} ist für einen wichtigen Auftrag von {app.name if app else w.anwendung} freigehalten (wartet seit {seit} s{etwa})"
 
 
 def platz(verbund: Verbund, a: Auftrag) -> tuple[int, int] | None:
@@ -228,7 +250,8 @@ def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> 
     for a in verbund.offene_auftraege():
         if a.zustand in (Auftragszustand.LAEUFT, Auftragszustand.ZUGETEILT):
             je_anwendung[a.anwendung] = je_anwendung.get(a.anwendung, 0) + 1
-    ruhige = {k for k in verbund.knoten if verbund.ruhe_auf(k).frei}
+    ruhige = {k for k in verbund.knoten if verbund.ruhe_auf(k).frei and verbund.nimmt_arbeit(k)}   # gesperrter Akku ist keine Ruhe
+    freigehalten: dict[str, Auftrag] = {}       # Rechner -> wichtiger Auftrag, der dort wartet (LS-23): dort startet nichts anderes
 
     for a in reihenfolge(verbund):
         app = verbund.anwendungen[a.anwendung]
@@ -249,12 +272,11 @@ def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> 
                 naechste = min((verbund.ruhe_auf(k) for k in orte), key=lambda r: r.in_s if r.in_s is not None else float("inf"))
                 ergebnis.wartend.append(Wartegrund(auftrag=a.kennung, zustand=Auftragszustand.WARTET_RUHE, begruendung=naechste.grund, voraussichtlich_s=naechste.in_s))
                 continue
-            nur_knoten = ruhige
+            # Ohne nutzbaren Rechner gerade (Akku, Hintergrundstufe, Vorrang): keine Einschränkung, dann nennt die Prüfung der
+            # Kandidaten den Grund und der Auftrag wartet damit, statt abgelehnt zu werden
+            nur_knoten = ruhige if orte else None
         if a.prioritaet == Prioritaet.HINTERGRUND and not verbund.hintergrund_erlaubt:
             ergebnis.wartend.append(Wartegrund(auftrag=a.kennung, zustand=Auftragszustand.EINGEREIHT, begruendung="Hintergrund ist am Hauptregler angehalten"))
-            continue
-        if a.prioritaet == Prioritaet.HINTERGRUND and not verbund.hintergrund_an and wirksame_prioritaet(verbund, a) == int(Prioritaet.HINTERGRUND):
-            ergebnis.wartend.append(Wartegrund(auftrag=a.kennung, zustand=Auftragszustand.EINGEREIHT, begruendung="Hintergrund ist angehalten"))
             continue
         if je_anwendung.get(a.anwendung, 0) >= app.gleichzeitig:
             ergebnis.wartend.append(Wartegrund(auftrag=a.kennung, zustand=Auftragszustand.EINGEREIHT, begruendung=f"Kontingent erreicht: {app.gleichzeitig} gleichzeitig"))
@@ -266,9 +288,9 @@ def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> 
         # 1. Die Reihenfolge der Anwendung gilt streng: das erste ihrer Modelle, das geht (einen Kandidaten hat), dort geladen
         # mit freiem Platz; eine Alternative nur, wenn das verlangte Modell nicht geht, nie, weil sie schon geladen ist (das
         # Ausweichen eines wartenden Auftrags auf eine geladene Alternative ist die Regel "Ausweichen")
-        erstes = next((fam for fam in wahl if kandidaten(verbund, a, fam, mit_extern, nur_knoten=nur_knoten)), wahl[0])
+        erstes = next((fam for fam in wahl if kandidaten(verbund, a, fam, mit_extern, nur_knoten=nur_knoten, freigehalten=freigehalten)), wahl[0])
         geladene: list[tuple[tuple[int, int, float], Modell]] = []
-        for m in kandidaten(verbund, a, erstes, mit_extern, gebremst, nur_knoten):
+        for m in kandidaten(verbund, a, erstes, mit_extern, gebremst, nur_knoten, freigehalten):
             if (m.zustand in (Modellzustand.GELADEN, Modellzustand.RECHNET) and platz_frei(verbund, m, _mit_vergebenem(vergeben_bedarf, m.dienst, a))
                     and vergeben_plaetze.get(m.kennung, 0) < verbund.plaetze(m) - len(verbund.belegung(m.kennung))):
                 d = verbund.dienste[m.dienst]
@@ -283,7 +305,7 @@ def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> 
         if gefunden is None:
             # 2. Das erste Modell der Wahl, das geht: geladen, aber belegt -> warten auf Platz; sonst laden, wenn es passt
             for fam in wahl:
-                ks = kandidaten(verbund, a, fam, mit_extern, gebremst, nur_knoten)
+                ks = kandidaten(verbund, a, fam, mit_extern, gebremst, nur_knoten, freigehalten)
                 if not ks:
                     continue
                 belegt = [m for m in ks if m.zustand in (Modellzustand.GELADEN, Modellzustand.RECHNET, Modellzustand.LAEDT)]
@@ -343,6 +365,8 @@ def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> 
             je_anwendung[a.anwendung] = je_anwendung.get(a.anwendung, 0) + 1
         elif warte:
             ergebnis.wartend.append(warte)
+            if a.wichtig and warte.wartet_auf_knoten and warte.wartet_auf_knoten not in freigehalten:
+                freigehalten[warte.wartet_auf_knoten] = a
         elif gebremst:
             ergebnis.wartend.append(Wartegrund(auftrag=a.kennung, zustand=Auftragszustand.EINGEREIHT, begruendung=gebremst[0]))
         else:

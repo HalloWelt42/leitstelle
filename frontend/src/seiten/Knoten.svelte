@@ -185,6 +185,9 @@
                     <span class="etikett">Bevorzugt für</span>{#each k.bevorzugt_fuer as f (f)}<Faehigkeit wert={f} />{/each}
                   </div>
                 {/if}
+                {#if k.hintergrund_lage}
+                  <div class="hinweis klein"><i class="fa-solid fa-pause"></i><span>Hintergrund hier angehalten: {k.hintergrund_lage}. Andere Rechner sind davon nicht berührt.</span></div>
+                {/if}
                 {#if k.akku_probe != null}
                   <div class="hinweis klein"><i class="fa-solid fa-flask"></i><span>Probewert der Abnahme: Akku gilt als <b class="zahl">{k.akku_probe} %</b>; mit dem Ende des Prüffensters gilt wieder der Messwert.</span></div>
                 {/if}

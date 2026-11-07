@@ -10,7 +10,7 @@ from ..kern.fenster import Frei, Nutzung
 from ..kern.modelle import Knoten, Massnahme, Regelwerk, Verbund
 from ..kern.rechnerlast import anwendung_des_containers, docker_mittel, fremd_mittel, hintergrund_anwendungen, laeuferarbeit, ohne_auftrag_seit
 from ..protokoll.steckbrief import Steckbrief
-from ..kern.werte import (Auftragszustand, Automatik, Betriebsmodus, Dienstzustand, Faehigkeit, Hintergrundstufe, Knotenzustand, Laeuferrolle, Lage,
+from ..kern.werte import (Auftragsart, Auftragszustand, Automatik, Betriebsmodus, Dienstzustand, Faehigkeit, Hintergrundstufe, Knotenzustand, Laeuferrolle, Lage,
                           Modellzustand, Zone)
 from ..ports.ablage.eintraege import DienstEintrag, Schritt
 from ..protokoll.knoten import Fremdzugriff, Fremdzugriffe, Messwerte
@@ -194,6 +194,7 @@ class KnotenSicht(BaseModel):
     bevorzugt_fuer: list[Faehigkeit]     # Rolle des Rechners: Arbeit dieser Fähigkeiten zuerst hierher (LS-16)
     akku_gesperrt: bool                  # Akku unter der Grenze: nimmt keine neue Arbeit an (LS-17)
     akku_probe: int | None = None        # Probewert des Prüffensters statt des Messwerts (LS-20)
+    hintergrund_lage: str = ""           # Regel "Hintergrund bei Lage": nicht leer heißt hier angehalten, mit Grund
     agent: AgentSicht
     fremde: FremdeSicht                # was am Leitstand vorbei auf Modelle dieses Rechners zugreift
     last: LastSicht                    # Last von Läufer und Rechner, Stufe des Hintergrunds
@@ -273,6 +274,8 @@ class AuftragSicht(BaseModel):
     voraussichtlich_s: float | None
     umgeleitet: int
     auslaufend: bool
+    art: Auftragsart = Auftragsart.EINZEL   # Einzel oder Masse, wie die App ihn meldet (LS-24)
+    wichtig: bool = False             # vom Nutzer als wichtig markiert (LS-23)
     schritte: list[Schritt]
 
 
@@ -313,7 +316,6 @@ class Lagebild(BaseModel):
     zeit_s: float
     modus: Betriebsmodus
     hintergrund_erlaubt: bool
-    hintergrund_an: bool
     lage: Lage
     lage_grund: str
     automatik: Automatik
@@ -360,7 +362,7 @@ def lagebild(b: Betrieb) -> Lagebild:
                                   budget_gb=round(k.budget_gb(r.budget_reserve_gb), 2), geladen_gb=round(v.geladen_gb(k.kennung), 2),
                                   frei_gb=round(v.frei_gb(k.kennung), 2), belegt_anteil=round(v.belegt_anteil(k.kennung), 3), erreichbar=k.erreichbar,
                                   zustand=k.zustand, schlaeft_seit_s=k.schlaeft_seit_s, budget_fest_gb=k.budget_fest_gb, hintergrund_von=e.hintergrund_von, hintergrund_bis=e.hintergrund_bis,
-                                  bevorzugt_fuer=[f for f in Faehigkeit if f in k.bevorzugt_fuer], akku_gesperrt=k.akku_gesperrt, akku_probe=v.akku_probewert(k.kennung), agent=agent,
+                                  bevorzugt_fuer=[f for f in Faehigkeit if f in k.bevorzugt_fuer], akku_gesperrt=k.akku_gesperrt, akku_probe=v.akku_probewert(k.kennung), hintergrund_lage=k.hintergrund_lage_grund, agent=agent,
                                   fremde=fremde_sicht(av.fremde if av else Fremdzugriffe(beobachtet=False), b.laeufer_direkt(k.kennung)),
                                   last=last_sicht(v, k)))
     dienste = [dienst_sicht(b, d) for d in b.dienste.values()]
@@ -379,13 +381,14 @@ def lagebild(b: Betrieb) -> Lagebild:
                                       titel=lauf.titel if lauf else "", zustand=a.zustand, begruendung=a.begruendung, modell=m.name if m else None,
                                       familie_wunsch=a.festes_modell, dienst=a.dienst, knoten=a.knoten, extern=a.extern, eingang_s=a.eingang_s,
                                       start_s=a.start_s, voraussichtlich_s=a.voraussichtlich_s, umgeleitet=a.umgeleitet,
-                                      auslaufend=bool(lauf and lauf.danach_sperren), schritte=list(lauf.schritte) if lauf else []))
+                                      auslaufend=bool(lauf and lauf.danach_sperren), art=a.art, wichtig=a.wichtig,
+                                      schritte=list(lauf.schritte) if lauf else []))
     anwendungen = [AnwendungSicht(kennung=x.kennung, name=x.name, prioritaet=int(x.prioritaet), faehigkeiten=sorted(x.faehigkeiten, key=lambda f: f.value),
                                   zonen=sorted(x.zonen, key=lambda z: z.value), extern_erlaubt=x.extern_erlaubt, gleichzeitig=x.gleichzeitig,
                                   docker_projekte=list(x.docker_projekte), bildarchiv=x.bildarchiv, gesperrt=x.gesperrt, sperrgrund=x.sperrgrund, angelegt_s=x.angelegt_s)
                    for x in b.anwendungen.values()]
     return Lagebild(version=version(), zeit_s=b.uhr.jetzt(), modus=v.betriebsmodus, hintergrund_erlaubt=v.hintergrund_erlaubt,
-                    hintergrund_an=v.hintergrund_an, lage=b.kern.lage, lage_grund=b.kern.lage_grund, automatik=r.automatik, regelwerk=r,
+                    lage=b.kern.lage, lage_grund=b.kern.lage_grund, automatik=r.automatik, regelwerk=r,
                     knoten=knoten, dienste=dienste, modelle=modelle, auftraege=auftraege, anwendungen=anwendungen, pruefung=pruefung_sicht(b),
                     massnahmen=list(b.massnahmen)[:20], meldungen=[Meldung(zeit_s=z, text=t) for z, t in list(b.meldungen)[:30]])
 

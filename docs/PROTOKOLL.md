@@ -202,15 +202,11 @@ Signale sind Zustandsmeldungen ohne Antwortpflicht. Eine Anwendung bekommt nur, 
 | `frage.auftrag` | `auftrag` | `antwort.auftrag`: vollständiger Stand |
 | `frage.lage` | leer | `antwort.lage` |
 
-### 4.7 Reservierung (für Stapelarbeit)
+### 4.7 Einordnung statt Reservierung
 
-| Art | Richtung | Nutzlast |
-|---|---|---|
-| `reservierung.anfragen` | Anwendung an Leitstelle | `faehigkeit`, `modell`, `umfang`, `dauer_s` (geschätzt), `prioritaet` |
-| `reservierung.bestaetigt` | Leitstelle an Anwendung | `reservierung`, `modell`, `knoten`, `gueltig_bis`; die Leitstelle hält das Modell geladen und zählt den Platz |
-| `reservierung.abgelehnt` | Leitstelle an Anwendung | `grund`, `voraussichtlich_in_s` |
-| `reservierung.freigeben` | Anwendung an Leitstelle | `reservierung` |
-| `reservierung.entzogen` | Leitstelle an Anwendung | `reservierung`, `grund` (dringend_vor, lage, nutzer) |
+Die früher hier beschriebene Reservierung für Stapelarbeit wurde nie gebaut und ist ersetzt (LS-23, LS-24): eine App
+meldet Massenarbeit je Auftrag als Masse und der Nutzer markiert einzelne Aufträge als wichtig; Reihenfolge und Wirkung
+stehen in [ARBEITSLOGIK.md](ARBEITSLOGIK.md), die Köpfe in 6.2, die Einschätzung vorab in 6.6.
 
 ### 4.8 Selbstauskunft: der Steckbrief je Modell
 
@@ -438,8 +434,10 @@ die zugleich die Verbindung offen halten. In der Oberfläche heißen solche Nach
 Priorität der Fassaden-Aufträge: Vorgabe der Anwendung; ein Kopf `X-Leitstelle-Prioritaet` kann sie je
 Aufruf absenken (nie heben), ebenso `X-Leitstelle-Titel` für einen lesbaren Titel (prozentkodiert, weil HTTP-Köpfe nur
 ASCII tragen), `X-Leitstelle-Arbeit` für die Arbeit, zu der die Anfrage gehört, `X-Leitstelle-Extern` für die
-Erlaubnisliste externer Modelle und `X-Leitstelle-Instanz` für Folgeaufrufe (ANBINDUNG). Mehr als diese fünf Köpfe
-gibt es nicht; wer mehr will, nutzt das Protokoll.
+Erlaubnisliste externer Modelle, `X-Leitstelle-Instanz` für Folgeaufrufe (ANBINDUNG), `X-Leitstelle-Art` (`einzel` oder
+`masse`, LS-24) und `X-Leitstelle-Wichtig` (`ja`, nur auf ausdrückliche Angabe des Nutzers, LS-23); was sie bewirken,
+steht in [ARBEITSLOGIK.md](ARBEITSLOGIK.md). Unbekannte Werte zählen wie keine Angabe. Mehr als diese sieben Köpfe gibt
+es nicht; wer mehr will, nutzt das Protokoll.
 
 Bindung an eine Instanz: läuft ein Dienst mehrfach (weitere Instanz auf demselben Rechner, ein zweiter Rechner),
 gehören zusammengehörige Aufrufe an dieselbe Instanz, etwa "rechnen" und danach "Ergebnis abholen". Jede Antwort einer
@@ -505,7 +503,7 @@ aus dem Heimnetz. Inhalte stehen nie darin: keine Titel, keine Texte, keine Eing
 | `hauptregler`, `lage` | `normal`, `auslaufen` oder `halt`; Lage (ruhig, angespannt, ...) |
 | `rangfolge` | Rang je Fähigkeit aus dem Regelwerk, kleiner kommt zuerst; die Priorität der App ordnet nur innerhalb eines Rangs |
 | `apps[]` | je App mit offenen Aufträgen: `name`, `eigene` (die fragende App), `laufend`, `wartend`, `auftraege[]` |
-| `apps[].auftraege[]` | `kennung`, `eigener`, `faehigkeit`, `rang`, `prioritaet` (0 Hintergrund bis 3 Dringend), `zustand`, `modell` (Familie), `modell_name`, `rechner` (Name), `seit_s`, `rest_s` (rechnet: geschätzte Restdauer, wartet: voraussichtliche Wartezeit, sonst null) |
+| `apps[].auftraege[]` | `kennung`, `eigener`, `faehigkeit`, `rang`, `prioritaet` (0 Hintergrund bis 3 Dringend), `zustand`, `modell` (Familie), `modell_name`, `rechner` (Name), `seit_s`, `rest_s` (rechnet: geschätzte Restdauer, wartet: voraussichtliche Wartezeit, sonst null), `art` (einzel, masse), `wichtig`, `grund` (nur bei eigenen wartenden: warum, ohne Inhalte) |
 | `rechner[]` | `name`, `erreichbar`, `schlaeft`, `cpu_prozent`, `frei_gb`, `budget_gb`, `akku_prozent`, `akku_gesperrt` (nimmt wegen des Akkus keine neue Arbeit an), `akku_probe` (der Ladestand ist ein Probewert einer Abnahme), `akku_gesperrt` (nimmt wegen des Akkus keine neue Arbeit an), `vorrang` (gerade Arbeit mit Vorrang, etwa "Stimme": Niedrigeres geht anderswohin), `bevorzugt_fuer` (Rolle des Rechners), `modelle[]` mit `familie`, `name`, `zustand` (geladen, rechnet, laedt) und `auftraege` |
 
 | `pruefung` | offenes Prüffenster einer Abnahme (LS-20) oder `null`: `anwendung` (die einzige, die neue Arbeit bekommt), `bis_s`, `durchlass` (Fähigkeiten, die trotzdem laufen, Vorgabe `stimme`). Eigene Aufträge warten so lange mit dem Grund "Abnahme im Betrieb" |
@@ -513,6 +511,22 @@ aus dem Heimnetz. Inhalte stehen nie darin: keine Titel, keine Texte, keine Eing
 Der Strom (`text/event-stream`) sendet dieselbe Auskunft als `event: lage` mit `data: <JSON>` bei jeder Änderung,
 sonst alle 15 s den Kommentar `: ruhig`. Wer nur ab und zu entscheidet, fragt `GET /v1/lage`; wer laufend mitlesen
 will (etwa um Masseneinbettung zu drosseln, solange Sprachausgabe läuft), hält den Strom offen.
+
+### 6.6 Einschätzung vor dem Senden (`POST /v1/einschaetzung`)
+
+Mit dem App-Schlüssel und einem Körper wie beim Senden: `model`, `alternativen`, dazu `faehigkeit` (ohne Angabe die
+erste, die Modell und App teilen), `art` (`einzel`, `masse`) und `wichtig`. Die Leitstelle spielt den Auftrag auf einer
+Kopie ihres Zustands mit demselben Zuteiler durch; nichts wird eingereiht.
+
+| Feld | Inhalt |
+|---|---|
+| `sofort` | bekäme jetzt einen Platz (auch wenn erst geladen wird) |
+| `wartezeit_s` | geschätzt bis zum Start: Ladezeit oder Wartezeit; null: unbekannt |
+| `rechner` | wo er rechnen würde oder worauf er wartet |
+| `grund` | Begründung der Leitstelle, ohne Inhalte (etwa "MacBook 32 GB ist für einen wichtigen Auftrag von ... freigehalten") |
+| `vor_dir` | so viele wartende Aufträge kämen vorher dran |
+| `wichtige[]` | offene, vom Nutzer als wichtig markierte Aufträge: `anwendung`, `faehigkeit`, `rechner`, `zustand`, `seit_s` |
+| `abgelehnt` | Grundwort, wenn die Leitstelle ihn ablehnen würde (etwa `modell_fehlt`), sonst null |
 
 ## 7. Fehler und Gründe
 

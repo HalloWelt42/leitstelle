@@ -107,6 +107,11 @@ export type Auftragszustand =
   | 'fehlgeschlagen'
   | 'abgelehnt';
 /**
+ * Was die App über einen Auftrag sagt (LS-24): ein einzelner, kleiner Auftrag oder Teil einer Massenaufgabe. Masse
+ * kommt nach jeder Einzelarbeit und rechnet nur auf einem Mac, auf dem gerade nichts anderes läuft oder wartet.
+ */
+export type Auftragsart = 'einzel' | 'masse';
+/**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "Massnahmenart".
  */
@@ -181,6 +186,14 @@ export type Probenausgang = 'belegt' | 'nicht_belegt' | 'unklar';
 export type Zone3 = 'heim' | 'fern' | 'extern';
 export type Prioritaet2 = 0 | 1 | 2 | 3;
 /**
+ * Was die App über einen Auftrag sagt (LS-24): ein einzelner, kleiner Auftrag oder Teil einer Massenaufgabe. Masse
+ * kommt nach jeder Einzelarbeit und rechnet nur auf einem Mac, auf dem gerade nichts anderes läuft oder wartet.
+ *
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "Auftragsart".
+ */
+export type Auftragsart1 = 'einzel' | 'masse';
+/**
  * This interface was referenced by `Leitstelle`'s JSON-Schema
  * via the `definition` "Ausgang".
  */
@@ -215,7 +228,6 @@ export interface Lagebild {
   zeit_s: number;
   modus: Betriebsmodus;
   hintergrund_erlaubt: boolean;
-  hintergrund_an: boolean;
   lage: Lage;
   lage_grund: string;
   automatik: Automatik;
@@ -302,6 +314,7 @@ export interface KnotenSicht {
   bevorzugt_fuer: Faehigkeit[];
   akku_gesperrt: boolean;
   akku_probe: number | null;
+  hintergrund_lage: string;
   agent: AgentSicht;
   fremde: FremdeSicht;
   last: LastSicht;
@@ -692,6 +705,8 @@ export interface AuftragSicht {
   voraussichtlich_s: number | null;
   umgeleitet: number;
   auslaufend: boolean;
+  art: Auftragsart;
+  wichtig: boolean;
   schritte: Schritt[];
 }
 /**

@@ -3,7 +3,9 @@
 Für Menschen und für KI-Agenten, die ein Programm an die Leitstelle anschließen. Diese Anweisung ist
 vollständig: wer sie befolgt, braucht keine weitere Absprache. Der Leitfaden der vier Stufen steht in
 [UMBAU.md](UMBAU.md), der Vertrag der Nachrichten in [PROTOKOLL.md](PROTOKOLL.md), die Zusagen der Leitstelle
-an ihre Teilnehmer in [ARCHITEKTUR.md](ARCHITEKTUR.md) Abschnitt 5 und unten in Abschnitt 8.
+an ihre Teilnehmer in [ARCHITEKTUR.md](ARCHITEKTUR.md) Abschnitt 5 und unten in Abschnitt 8. Wie die Leitstelle
+Aufträge ordnet und wo sie rechnen (Modellwahl, Einzel und Masse, Wichtig, Rangfolge, Rollen, Akku, Entladen, Auskunft),
+steht für alle Apps an einer Stelle: [ARBEITSLOGIK.md](ARBEITSLOGIK.md).
 
 Stand 16.10.2026, Fassung 0.4: Die Leitstelle läuft im Betrieb (Beispieladresse in diesem Text:
 `http://leitstelle:8530`; im Betrieb mit `docker-compose.yml` gilt HTTPS über den Vorschaltdienst auf Port 8531, mit

@@ -27,7 +27,7 @@ from ..kern.zuteiler import platz
 from ..kern.modelle import (Anwendung, Appslast, Appteillast, Auftrag, Containerlast, Dienst, Dockerlast, Knoten, Massnahme, Modell, Prozesslast,
                             Verbund)
 from ..kern.rechnerlast import arbeitet_ohne_auftrag, befund, datei, laeuferarbeit, last_uebernehmen, ohne_auftrag
-from ..kern.werte import (WORT, Auftragszustand, Betriebsmodus, Dienstzustand, Faehigkeit, Hintergrundstufe, Laeuferrolle, Massnahmenzustand,
+from ..kern.werte import (WORT, Auftragsart, Auftragszustand, Betriebsmodus, Dienstzustand, Faehigkeit, Hintergrundstufe, Laeuferrolle, Massnahmenzustand,
                           Modellzustand, Prioritaet, Zone)
 from ..konfig import Konfig
 from ..ports.ablage.eintraege import (Adapterart, AnwendungEintrag, AuftragEintrag, Ausgang, BetriebEinstellung, Bewegung, DienstEintrag,
@@ -249,7 +249,7 @@ class Betrieb:
         alt = self.verbund.knoten.get(k.kennung)
         fenster = (k.hintergrund_von, k.hintergrund_bis) if k.hintergrund_von is not None and k.hintergrund_bis is not None else None
         laufend = {f: getattr(alt, f) for f in ("erreichbar", "schlaeft_seit_s", "last", "laeufer_umgehungen", "hintergrund_stufe",
-                                                 "hintergrund_grund", "hintergrund_seit_s", "vorrang_zuletzt_s", "andere_arbeit_ende_s",
+                                                 "hintergrund_grund", "hintergrund_seit_s", "hintergrund_lage_grund", "vorrang_zuletzt_s", "andere_arbeit_ende_s",
                                                  "akku_prozent", "akku_gemessen", "akku_gesperrt")} if alt else {}
         self.verbund.knoten[k.kennung] = Knoten(kennung=k.kennung, name=k.name, zone=k.zone, speicher_gb=k.speicher_gb, system_gb=k.system_gb,
                                                  hintergrund_fenster=fenster, budget_fest_gb=k.budget_fest_gb, bevorzugt_fuer=set(k.bevorzugt_fuer), **laufend)
@@ -1053,9 +1053,11 @@ class Betrieb:
     # ── Aufträge ─────────────────────────────────────────────────────────
     def anlegen(self, anwendung: str, faehigkeit: Faehigkeit, festes_modell: str | None, prioritaet: Prioritaet | None, titel: str,
                 arbeit: str | None = None, extern: list[str] | None = None, instanz: str | None = None,
-                token: tuple[int, int] = (0, 0), alternativen: list[str] | None = None) -> tuple[Auftrag, Lauf]:
+                token: tuple[int, int] = (0, 0), alternativen: list[str] | None = None, art: Auftragsart = Auftragsart.EINZEL,
+                wichtig: bool = False) -> tuple[Auftrag, Lauf]:
         """`festes_modell` und `alternativen` sind die Wahl der Anwendung (Familien, in ihrer Reihenfolge); ohne Modell lehnt
-        der Zuteiler den Auftrag ab (`modell_fehlt`), die Leitstelle wählt keins."""
+        der Zuteiler den Auftrag ab (`modell_fehlt`), die Leitstelle wählt keins. `art` (Einzel oder Masse, LS-24) und
+        `wichtig` (vom Nutzer markiert, LS-23) sagt die Anwendung."""
         app = self.anwendungen[anwendung]
         if self.verbund.betriebsmodus == Betriebsmodus.HALT:
             raise Ablehnung("halt", "Der Hauptregler steht auf Halt; es wird nichts gerechnet.")
@@ -1065,12 +1067,13 @@ class Betrieb:
         a = Auftrag(kennung=uuid4().hex, anwendung=anwendung, faehigkeit=faehigkeit, prioritaet=app.prioritaet if prioritaet is None else prioritaet,
                     eingang_s=self.verbund.zeit_s, festes_modell=festes_modell, alternativen=list(alternativen or []), anhaltbar=False, laufzeit_s=0.0,
                     arbeit=f"{anwendung}:{arbeit}" if arbeit else None, extern_familien=list(extern or []), feste_instanz=instanz,
-                    token_ein_geschaetzt=token[0], token_aus_geschaetzt=token[1])
+                    token_ein_geschaetzt=token[0], token_aus_geschaetzt=token[1], art=art, wichtig=wichtig)
         self.verbund.arbeiten_aufraeumen()
         self.verbund.arbeit_zaehlen(a, titel)
         lauf = Lauf(a.kennung, titel)
         wahl = f", Modell {festes_modell} verlangt" + (f", sonst {', '.join(a.alternativen)}" if a.alternativen else "") if festes_modell else ""
-        lauf.notieren(a.eingang_s, Auftragszustand.EINGEREIHT, f"angenommen von {app.name}{wahl}")
+        einordnung = (", vom Nutzer als wichtig markiert" if wichtig else "") + (", Massenaufgabe" if art == Auftragsart.MASSE else "")
+        lauf.notieren(a.eingang_s, Auftragszustand.EINGEREIHT, f"angenommen von {app.name}{wahl}{einordnung}")
         self.verbund.auftraege[a.kennung] = a
         self.laeufe[a.kennung] = lauf
         self.anstossen()
@@ -1503,10 +1506,12 @@ class Betrieb:
     def bevorzugter_knoten(self, knoten: str | None) -> None:
         self.verbund.hintergrund_knoten_bevorzugt = knoten
 
-    def hintergrund(self, an: bool) -> None:
-        """Regel "Hintergrund bei Lage". Fassaden-Aufträge sind nicht anhaltbar; zurückgehalten wird nur, was
-        noch nicht läuft (der Zuteiler tut das). Der Schalter am Hauptregler ist davon getrennt."""
-        self.verbund.hintergrund_an = an
+    def hintergrund(self, knoten: str, an: bool, grund: str) -> None:
+        """Regel "Hintergrund bei Lage", je Rechner: nur dieser Rechner hält Hintergrund zurück, andere bleiben unberührt.
+        Fassaden-Aufträge sind nicht anhaltbar; zurückgehalten wird nur, was noch nicht läuft (der Zuteiler tut das). Der
+        Schalter am Hauptregler ist davon getrennt."""
+        if knoten in self.verbund.knoten:
+            self.verbund.knoten[knoten].hintergrund_lage_grund = "" if an else (grund or "Lage des Rechners")
 
     def hintergrund_stufe(self, knoten: str, stufe: Hintergrundstufe, grund: str) -> None:
         """Regel "Hintergrund bei Rechnerlast": die Stufe des Rechners; zurückgehalten wird nur, was noch nicht läuft (der

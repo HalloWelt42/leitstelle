@@ -16,6 +16,7 @@ from .werte import (
     OFFENE_ZUSTAENDE,
     WARTENDE_ZUSTAENDE,
     WORT,
+    Auftragsart,
     Auftragszustand,
     Betriebsmodus,
     Dienstzustand,
@@ -150,6 +151,7 @@ class Knoten(BaseModel):
     akku_gemessen: int | None = None          # Ladestand laut Maschinenraum; bleibt neben einem Probewert erhalten
     akku_gesperrt: bool = False               # unter der Grenze: keine neuen Aufträge, bis der Akku wieder über "wieder Arbeit ab" ist
     hintergrund_seit_s: float | None = None
+    hintergrund_lage_grund: str = ""         # Regel "Hintergrund bei Lage" je Rechner: nicht leer heißt angehalten, mit Grund
 
     @property
     def schlaeft(self) -> bool:
@@ -262,6 +264,8 @@ class Auftrag(BaseModel):
     anwendung: str
     faehigkeit: Faehigkeit
     prioritaet: Prioritaet
+    art: Auftragsart = Auftragsart.EINZEL   # Einzel oder Masse, sagt die App (Kopf X-Leitstelle-Art, LS-24)
+    wichtig: bool = False             # der Nutzer hat ihn in der App als wichtig markiert: geht allem vor (LS-23)
     eingang_s: float
     zustand: Auftragszustand = Auftragszustand.EINGEREIHT
     festes_modell: str | None = None  # Familie, die die Anwendung verlangt; ohne sie lehnt der Zuteiler ab (modell_fehlt)
@@ -353,10 +357,8 @@ class Verbund(BaseModel):
     arbeiten: dict[str, Arbeit] = Field(default_factory=dict)
     regelwerk: Regelwerk = Field(default_factory=Regelwerk)
     betriebsmodus: Betriebsmodus = Betriebsmodus.NORMAL
-    hintergrund_an: bool = True       # Regel "Hintergrund bei Lage" (mit Fairness: nach der Frist rückt Hintergrund trotzdem auf)
     hintergrund_erlaubt: bool = True  # Schalter am Hauptregler: aus heißt ohne Ausnahme angehalten
     hintergrund_knoten_bevorzugt: str | None = None
-    andere_arbeit_ende_s: float | None = None   # Ende des letzten Auftrags, der nicht "nur bei Ruhe" ist; None: seit dem Start keiner
     zeit_s: float = 0.0
     stunde: int = 12                  # Uhrzeit für Zeitfenster
     massnahmen: list[Massnahme] = Field(default_factory=list)
@@ -538,8 +540,13 @@ class Verbund(BaseModel):
 
     # ── Arbeit nur bei Ruhe (Regelwerk, Gruppe "Nur bei Ruhe") ───────────
     def nur_bei_ruhe(self, a: Auftrag) -> bool:
-        """Ist der Auftrag Arbeit der niedrigsten Stufe? Seine Fähigkeit steht in der Liste und seine Priorität, wie die
-        Anwendung sie schickt, liegt nicht über der Grenze (die Fairness-Frist hebt sie dafür nicht an)."""
+        """Ist der Auftrag Arbeit der niedrigsten Stufe? Die App meldet ihn als Masse (LS-24); oder, für Apps, die das noch
+        nicht melden, seine Fähigkeit steht in der Liste und seine Priorität liegt nicht über der Grenze. Wichtige Aufträge
+        nie (LS-23)."""
+        if a.wichtig:
+            return False
+        if a.art == Auftragsart.MASSE:
+            return True
         r = self.regelwerk
         return a.faehigkeit in r.ruhe_faehigkeiten and a.prioritaet <= r.ruhe_bis_prioritaet
 
@@ -547,26 +554,9 @@ class Verbund(BaseModel):
         """Offene Aufträge, die nicht nur bei Ruhe laufen: laufen, sind zugeteilt, warten oder sind pausiert."""
         return [a for a in self.offene_auftraege() if not self.nur_bei_ruhe(a)]
 
-    def ruhe(self) -> Ruhe:
-        """Darf Arbeit nur bei Ruhe jetzt ein Modell bekommen? Nur wenn keine andere Arbeit offen ist und die letzte seit der
-        Ruhezeit vorbei ist."""
-        andere = self.andere_arbeit()
-        if andere:
-            # Begründung ohne Zahlen, die sich ständig ändern: jede neue Begründung ist ein Schritt im Verlauf des Auftrags
-            apps = sorted({self.anwendungen[a.anwendung].name if a.anwendung in self.anwendungen else a.anwendung for a in andere})
-            return Ruhe(frei=False, grund=f"wartet auf Ruhe: andere Arbeit läuft oder wartet ({', '.join(apps)})")
-        if self.andere_arbeit_ende_s is not None:
-            rest = self.regelwerk.ruhe_ab_s - (self.zeit_s - self.andere_arbeit_ende_s)
-            if rest > 0:
-                return Ruhe(frei=False, grund=f"wartet auf Ruhe: andere Arbeit ist eben zu Ende, Ruhe gilt nach {self.regelwerk.ruhe_ab_s:.0f} s",
-                            in_s=round(rest, 1))
-        return Ruhe(frei=True)
-
     def auftrag_beendet(self, a: Auftrag) -> None:
-        """Ende eines Auftrags (fertig, abgebrochen, gescheitert, abgelehnt): endet andere Arbeit, beginnt die Ruhezeit neu;
+        """Ende eines Auftrags (fertig, abgebrochen, gescheitert, abgelehnt): endet andere Arbeit, beginnt auf seinem Rechner die Ruhezeit neu;
         endet Arbeit mit Vorrang auf einem Rechner, beginnt dort der Nachlauf des Vorrangs."""
-        if not self.nur_bei_ruhe(a):
-            self.andere_arbeit_ende_s = self.zeit_s
         if a.faehigkeit in self.regelwerk.vorrang_faehigkeiten and a.knoten in self.knoten:
             self.knoten[a.knoten].vorrang_zuletzt_s = self.zeit_s
         if not self.nur_bei_ruhe(a) and a.knoten in self.knoten:
