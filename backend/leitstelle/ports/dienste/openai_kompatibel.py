@@ -23,9 +23,9 @@ from ...protokoll.knoten import Selbstauskunft
 from .schnittstelle import Dienstbericht, DienstFehler, Durchleitung, ModellBericht, Verbrauch
 
 TEXT_FAEHIGKEITEN = {F.TEXT, F.UEBERSETZEN}
-#: nur der steuerbare Läufer: er liefert Wahrscheinlichkeiten je Token (`logprobs`, gemessen 08.11.2026); bei der einfachen
-#: OpenAI-Liste und externen Anbietern ist das nicht belegt
-LAEUFER_TEXT_FAEHIGKEITEN = TEXT_FAEHIGKEITEN | {F.EINORDNEN}
+#: Einordnen nur beim steuerbaren Läufer: er liefert Wahrscheinlichkeiten je Token (`logprobs`, gemessen 08.11.2026); bei der
+#: einfachen OpenAI-Liste und externen Anbietern ist das nicht belegt. Und nur ohne Denken: ein denkendes Modell schreibt die
+#: ersten Token ins Denkfeld, die Antwort hat dann keine Wahrscheinlichkeiten (gemessen an GLM 4.6V, 08.11.2026)
 MODELL_ERWEITERUNG = "leitstelle_modell"     # trägt den Modellnamen einer Anfrage bis zum Haken, der sie zählt
 
 
@@ -60,8 +60,10 @@ def ist_einbettung(typ: str, *namen: str) -> bool:
 def _faehigkeiten(typ: str, faehig: dict | None, *namen: str) -> tuple[set[F], bool]:
     if ist_einbettung(typ, *namen):
         return {F.EINBETTUNG}, True
-    f = set(LAEUFER_TEXT_FAEHIGKEITEN)
+    f = set(TEXT_FAEHIGKEITEN)
     faehig = faehig or {}
+    if not faehig.get("reasoning"):
+        f.add(F.EINORDNEN)
     if faehig.get("vision") or typ == "vlm":
         f.add(F.BILD_BESCHREIBEN)
     if faehig.get("trained_for_tool_use"):

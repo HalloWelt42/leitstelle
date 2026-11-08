@@ -561,8 +561,9 @@ Auftrag (`X-Leitstelle-Auftrag` nennt den letzten).
   je Aufruf. Mehr rechnet die Leitstelle in Runden: gleich große Gruppen, je Gruppe die stärkste, dann die Sieger
   gegeneinander. `wahrscheinlichkeiten` nennt dann nur die Möglichkeiten der letzten Runde. Eine Skala (`stufe`) wird
   nie geteilt. Mit `max_tokens` 1 antwortet der Läufer leer; die Leitstelle fragt 2 an.
-- **Welche Modelle:** die Textmodelle eines steuerbaren Läufers (er liefert `logprobs`). Externe Anbieter und Läufer,
-  die nur die OpenAI-Liste kennen, haben die Fähigkeit nicht.
+- **Welche Modelle:** die Textmodelle eines steuerbaren Läufers (er liefert `logprobs`), die nicht denken. Ein denkendes
+  Modell schreibt die ersten Token ins Denkfeld, die Antwort hat dann keine Wahrscheinlichkeiten (gemessen an GLM 4.6V,
+  08.11.2026). Externe Anbieter und Läufer, die nur die OpenAI-Liste kennen, haben die Fähigkeit nicht.
 - **Schreibvarianten** zählen zusammen (` A`, `A:`, `Ja`, `yes`), auch Wortanfänge: "nein" kommt beim 80B als erstes
   Token "ne". Fällt weniger als die Hälfte der Wahrscheinlichkeit auf passende Antworten, gibt es keine Wahl
   (`dienst_fehler`), statt einen kleinen Rest auf 100 % hochzurechnen.
