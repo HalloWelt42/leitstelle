@@ -13,6 +13,7 @@ class Faehigkeit(str, Enum):
     TEXT = "text"
     EINBETTUNG = "einbettung"
     UEBERSETZEN = "uebersetzen"
+    EINORDNEN = "einordnen"           # feste Möglichkeiten nach ihrer Wahrscheinlichkeit wählen (LS-26); hat jedes Textmodell eines Läufers
     HOEREN = "hoeren"
     BILD_BESCHREIBEN = "bild_beschreiben"
     BILD_ERZEUGEN = "bild_erzeugen"
@@ -167,7 +168,7 @@ class Automatik(str, Enum):
 
 
 WORT: dict[str, str] = {
-    "text": "Text", "einbettung": "Einbettung", "uebersetzen": "Übersetzen", "hoeren": "Hören",
+    "text": "Text", "einbettung": "Einbettung", "uebersetzen": "Übersetzen", "einordnen": "Einordnen", "hoeren": "Hören",
     "bild_beschreiben": "Bild beschreiben", "bild_erzeugen": "Bild erzeugen", "bild_bearbeiten": "Bild bearbeiten", "stimme": "Stimme", "stimme_klonen": "Stimmklon", "sprecher_erkennen": "Sprecher erkennen",
     "sprecher_trennen": "Sprecher trennen", "musik": "Musik", "werkzeug": "Werkzeuge", "ton": "Ton bearbeiten",
     "eingereiht": "Eingereiht", "wartet_speicher": "Wartet auf Speicher", "wartet_ruhe": "Wartet auf Ruhe", "zugeteilt": "Zugeteilt", "laeuft": "Läuft", "pausiert": "Pausiert",

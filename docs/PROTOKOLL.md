@@ -528,6 +528,48 @@ Kopie ihres Zustands mit demselben Zuteiler durch; nichts wird eingereiht.
 | `wichtige[]` | offene, vom Nutzer als wichtig markierte Aufträge: `anwendung`, `faehigkeit`, `rechner`, `zustand`, `seit_s` |
 | `abgelehnt` | Grundwort, wenn die Leitstelle ihn ablehnen würde (etwa `modell_fehlt`), sonst null |
 
+### 6.7 Einordnen (`POST /v1/einordnen`, LS-26)
+
+Ein Text und Fragen mit festen Möglichkeiten (Kategorie, Schlagworte, ja oder nein, eine Stufe). Das Modell schreibt
+keine Antwort: Es nennt nur einen Buchstaben (oder ja, nein), und die Leitstelle liest die Wahrscheinlichkeiten aller
+Möglichkeiten aus dem ersten Token (`logprobs` des Läufers). Das ist schneller als eine Antwort in JSON (gemessen am 80B,
+08.11.2026: 0,2 s je Frage statt 1,75 s) und liefert nie eine ungültige Form.
+
+Körper: `model` und `alternativen` wie immer, `text` (bis 200 000 Zeichen), wahlweise `anweisung` (ein Hinweis für alle
+Fragen, bis 2000 Zeichen) und `fragen`: je Schlüssel (`a-z`, `0-9`, `_`, `-`, höchstens 20 Fragen) eine Frage.
+
+| Feld der Frage | Inhalt |
+|---|---|
+| `art` | `auswahl` (Vorgabe: genau eine Möglichkeit), `ja_nein`, `stufe` (geordnet, die erste ist die niedrigste), `mehrfach` (jede Möglichkeit für sich, etwa Schlagworte) |
+| `frage` | die Frage, bis 2000 Zeichen |
+| `moeglichkeiten` | Schlüssel -> Beschreibung (bis 500 Zeichen), 2 bis 100; bei `ja_nein` keine; bei `stufe` höchstens 10 |
+
+Antwort: `antworten` je Frage, dazu `modell`, `anfragen` (Aufrufe des Modells) und `dauer_ms`; Köpfe wie bei jedem
+Auftrag (`X-Leitstelle-Auftrag` nennt den letzten).
+
+| Feld der Antwort | Inhalt |
+|---|---|
+| `wahl` | der Schlüssel; bei `ja_nein` `ja` oder `nein`; bei `mehrfach` die Liste aller mit mindestens 50 % |
+| `wahrscheinlichkeiten` | je Möglichkeit 0 bis 1; zusammen 1, bei `mehrfach` je Möglichkeit für sich |
+| `mittel` | bei `stufe`: erwartete Stufe (0 = erste), gewichtet mit den Wahrscheinlichkeiten; sonst null |
+| `runden` | über 10 Möglichkeiten mehr als 1 (siehe unten) |
+
+- **Je Aufruf ein Auftrag** der Fähigkeit `einordnen` (Rang 3 wie Text): Recht der App, Art, Wichtig, Priorität und
+  Titel aus den Köpfen gelten für jeden. Ohne `X-Leitstelle-Arbeit` gehören alle Aufrufe einer Anfrage zu einer Arbeit.
+  `auswahl` und `stufe` brauchen einen Aufruf je Frage, `ja_nein` einen, `mehrfach` einen je Möglichkeit.
+- **Grenzen des Läufers** (gemessen 08.11.2026): höchstens 10 Alternativen je Token, darum höchstens 10 Möglichkeiten
+  je Aufruf. Mehr rechnet die Leitstelle in Runden: gleich große Gruppen, je Gruppe die stärkste, dann die Sieger
+  gegeneinander. `wahrscheinlichkeiten` nennt dann nur die Möglichkeiten der letzten Runde. Eine Skala (`stufe`) wird
+  nie geteilt. Mit `max_tokens` 1 antwortet der Läufer leer; die Leitstelle fragt 2 an.
+- **Welche Modelle:** die Textmodelle eines steuerbaren Läufers (er liefert `logprobs`). Externe Anbieter und Läufer,
+  die nur die OpenAI-Liste kennen, haben die Fähigkeit nicht.
+- **Schreibvarianten** zählen zusammen (` A`, `A:`, `Ja`, `yes`).
+- **Die Werte sind nicht geeicht:** Bei einem mehrdeutigen Fall nannte das 80B 100 %. Sie taugen zum Entscheiden und
+  Sortieren, nicht als Maß, wie sicher eine Antwort wirklich stimmt.
+- **Fehler:** `eingabe` (400) bei unpassenden Fragen, bevor etwas eingereiht wird; `faehigkeit_nicht_erlaubt` (403)
+  ohne Recht `einordnen`; `dienst_fehler` (502), wenn das Modell keine Wahrscheinlichkeiten liefert oder mit keiner
+  der Möglichkeiten antwortet. Eine Wahl wird nie geraten.
+
 ## 7. Fehler und Gründe
 
 Gründe sind Wörter aus Listen, die Oberfläche übersetzt sie:

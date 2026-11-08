@@ -109,7 +109,7 @@ DOCKERNAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
 class AnwendungDaten(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     prioritaet: Prioritaet = Prioritaet.NORMAL
-    faehigkeiten: set[Faehigkeit] = Field(default_factory=lambda: {Faehigkeit.TEXT, Faehigkeit.EINBETTUNG, Faehigkeit.UEBERSETZEN, Faehigkeit.BILD_BESCHREIBEN, Faehigkeit.WERKZEUG})
+    faehigkeiten: set[Faehigkeit] = Field(default_factory=lambda: {Faehigkeit.TEXT, Faehigkeit.EINBETTUNG, Faehigkeit.UEBERSETZEN, Faehigkeit.EINORDNEN, Faehigkeit.BILD_BESCHREIBEN, Faehigkeit.WERKZEUG})
     zonen: set[Zone] = Field(default_factory=lambda: {Zone.HEIM})
     extern_erlaubt: bool = False
     gleichzeitig: int = Field(default=4, ge=1, le=64)

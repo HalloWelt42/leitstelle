@@ -20,7 +20,7 @@ stand: daaa2c6
 
 Die Leitstelle steht zwischen den Apps und allen KI-Diensten. Apps sprechen nur mit ihr, über die gewöhnliche
 Schnittstelle im OpenAI-Format (`/v1/chat/completions`, `/v1/embeddings`, `/v1/images/generations`, `/v1/models`) und
-über Fassadenwege zu den Diensten (`/v1/dienste/<name>/...`). Sie wählt je Auftrag Dienst, Modell und Rechner, reiht nach Priorität ein, plant
+über Fassadenwege zu den Diensten (`/v1/dienste/<name>/...`); feste Möglichkeiten ordnet sie über `/v1/einordnen` ein. Sie wählt je Auftrag Dienst, Modell und Rechner, reiht nach Priorität ein, plant
 den Speicher, lädt und entlädt Modelle und hält Dienste über den [[Maschinenraum]] des Rechners an oder startet sie.
 Die Oberfläche zeigt live, wer was rechnet und wer wartet. In Kopfzeile und Tab-Titel heißt sie "Leitstelle ·
 KI-Vermittlung".

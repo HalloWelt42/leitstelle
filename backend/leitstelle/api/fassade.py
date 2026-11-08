@@ -16,6 +16,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 from urllib.parse import unquote
+from uuid import uuid4
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
@@ -23,6 +24,7 @@ from pydantic import ValidationError
 
 from ..fach.auskunft import einschaetzung, lageauskunft
 from ..fach.bildablage import ist_archiv
+from ..fach.einordnen import einordnen
 from ..fach.fehler import Ablehnung, fehler_inhalt
 from ..fach.vermittlung import Bilderzeugung, Vorgang, Wartet
 from ..kern.modelle import Modell
@@ -30,8 +32,8 @@ from ..kern.werte import GIB, WORT, Auftragsart, Auftragszustand, Dienstzustand,
 from ..ports.ablage.eintraege import Adapterart
 from ..ports.ablage.eintraege import AnwendungEintrag
 from ..ports.dienste import Durchleitung
-from ..protokoll.fassade import (Bereitschaft, BildAnfrage, BildAntwort, BildDaten, BildZusatz, DienstListe, DienstSicht, Einschaetzungsanfrage,
-                                 Modellwahl)
+from ..protokoll.fassade import (Bereitschaft, BildAnfrage, BildAntwort, BildDaten, BildZusatz, DienstListe, DienstSicht, Einordnung,
+                                 Einordnungsanfrage, Einschaetzungsanfrage, Modellwahl)
 from .gemeinsam import ablehnung_antwort, betrieb, fehler_antwort, konfig, vermittlung
 
 router = APIRouter()
@@ -532,6 +534,53 @@ async def einschaetzung_route(request: Request):
     except Ablehnung as a:
         return ablehnung_antwort(request, a)
     return einschaetzung(betrieb(request), app.kennung, anfrage, faehigkeit, familie, alternativen).model_dump(mode="json")
+
+
+@router.post("/v1/einordnen")
+async def einordnen_route(request: Request):
+    """Einordnen (LS-26, PROTOKOLL 6.7): Text und Fragen mit festen Möglichkeiten; Antwort je Frage die Wahl und die
+    Wahrscheinlichkeiten. Jeder Aufruf des Modells ist ein Auftrag der Fähigkeit `einordnen` mit den Köpfen der Anfrage
+    (Titel, Priorität, Art, Wichtig); ohne eigene Arbeit gehören alle zu einer Arbeit dieser Anfrage."""
+    app = _anwendung(request)
+    if app is None:
+        return fehler_antwort(request, "unbekannter_schluessel", "Schlüssel fehlt oder ist unbekannt (Kopf Authorization: Bearer ...).")
+    try:
+        anfrage = Einordnungsanfrage.model_validate(await request.json())
+    except (ValidationError, ValueError) as fehler:
+        return _eingabefehler(_eingabe_text(fehler) if isinstance(fehler, ValidationError) else "Inhalt ist kein JSON.")
+    b, verm = betrieb(request), vermittlung(request)
+    titel, prioritaet, extern = _titel(request, Faehigkeit.EINORDNEN), _prioritaet(request, app), _extern(request)
+    arbeit, einordnung = _arbeit(request) or f"einordnen-{uuid4().hex[:12]}", _einordnung(request)
+    zuletzt: list[Vorgang] = []
+
+    async def rechnen(koerper: dict[str, Any]) -> bytes:
+        v = verm.annehmen(app.kennung, Faehigkeit.EINORDNEN, anfrage.model, prioritaet, titel, arbeit, extern, koerper=koerper,
+                          alternativen=anfrage.alternativen, **einordnung)
+        zuletzt[:] = [v]
+        teile: list[bytes] = []
+        try:
+            async with _solange_die_anwendung_wartet(request, v):
+                async for teil in verm.ausfuehren(v, "/v1/chat/completions", koerper, False):
+                    if not isinstance(teil, Wartet):
+                        teile.append(teil)
+        finally:
+            verm.aufraeumen(v)
+        if v.auftrag.zustand != Auftragszustand.FERTIG:
+            raise Ablehnung(v.auftrag.grund or "dienst_fehler", v.auftrag.begruendung or "abgebrochen", v.lauf.zusatz)
+        return b"".join(teile)
+
+    start = b.uhr.jetzt()
+    try:
+        antworten, anzahl = await einordnen(anfrage, rechnen)
+    except Ablehnung as a:
+        antwort = ablehnung_antwort(request, a)
+        if zuletzt:
+            antwort.headers.update(_kopf(request, zuletzt[0]))
+        return antwort
+    v = zuletzt[0]
+    kopf = _kopf(request, v) | {"X-Leitstelle-Modell": v.modellname} | ({"X-Leitstelle-Knoten": v.knoten} if v.knoten else {})
+    ergebnis = Einordnung(antworten=antworten, modell=v.modellname, anfragen=anzahl, dauer_ms=round((b.uhr.jetzt() - start) * 1000))
+    return JSONResponse(ergebnis.model_dump(mode="json"), headers=kopf)
 
 
 #: Strom der Auskunft: so oft wird auf Änderungen geschaut, so lange darf er ohne Änderung still sein (Kommentar hält ihn offen)

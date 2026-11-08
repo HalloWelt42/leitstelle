@@ -24,6 +24,7 @@ export type Faehigkeit =
   | 'text'
   | 'einbettung'
   | 'uebersetzen'
+  | 'einordnen'
   | 'hoeren'
   | 'bild_beschreiben'
   | 'bild_erzeugen'
@@ -669,6 +670,22 @@ export interface Aufgabenvorlage {
   ohne_wunsch?: string | null;
   sprache: string;
   signalfarbe?: [unknown, unknown, unknown] | null;
+  beispiel?: Aufgabenbeispiel | null;
+}
+/**
+ * Was ein Bildmodell an einem festen Motiv macht (Portfolio des Bildwerks, ATL-45 des Ateliers): Vorher und Nachher als
+ * kleine Bilder (data-URL), dazu die Dauer im Dienst beim Rechnen. Zum Vergleichen der Modelle; die Leitstelle reicht
+ * es nur weiter (LS-25).
+ *
+ * This interface was referenced by `Leitstelle`'s JSON-Schema
+ * via the `definition` "Aufgabenbeispiel".
+ */
+export interface Aufgabenbeispiel {
+  motiv?: string;
+  ausgang?: string | null;
+  vorher: string;
+  nachher: string;
+  dauer_s?: number | null;
 }
 /**
  * Aus den jüngsten fertigen Aufträgen des Modells (Mittelwerte als Median, Ladezeit als gleitender Mittelwert).

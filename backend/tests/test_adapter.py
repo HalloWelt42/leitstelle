@@ -22,7 +22,7 @@ def test_einbettung_im_mlx_format_wird_am_namen_erkannt():
     m, = OpenAIKompatibel._nativ(roh)
     assert m.einbettung and m.faehigkeiten == {F.EINBETTUNG}
     gespraech, = OpenAIKompatibel._nativ({**roh, "key": "qwen/qwen3-next-80b", "display_name": "Qwen3 Next 80B"})
-    assert not gespraech.einbettung and gespraech.faehigkeiten == {F.TEXT, F.UEBERSETZEN, F.WERKZEUG}
+    assert not gespraech.einbettung and gespraech.faehigkeiten == {F.TEXT, F.UEBERSETZEN, F.EINORDNEN, F.WERKZEUG}
     assert OpenAIKompatibel._einfach({"id": "nomic-embed-text"}).einbettung and not OpenAIKompatibel._einfach({"id": "gemma-3-27b"}).einbettung
 
 

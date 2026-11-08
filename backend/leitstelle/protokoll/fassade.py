@@ -10,7 +10,7 @@ import binascii
 import re
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from ..kern.werte import Auftragsart, Auftragszustand, Faehigkeit, Prioritaet
 from ..ports.dienste.bilder import SEED_GRENZE
@@ -238,3 +238,86 @@ class Lageauskunft(BaseModel):
     apps: list[AppAuskunft]
     rechner: list[RechnerAuskunft]
     pruefung: PruefungAuskunft | None = None
+
+
+# ── Einordnen (LS-26, PROTOKOLL 6.7) ─────────────────────────────────────
+SCHLUESSEL = re.compile(r"[a-z0-9_-]{1,64}")
+MOEGLICHKEITEN_MAX = 100             # je Frage; über 10 rechnet die Leitstelle in Runden
+FRAGEN_MAX = 20
+STUFEN_MAX = 10                      # eine Skala bleibt ein Aufruf: der Läufer nennt höchstens 10 Alternativen je Token
+
+
+class Fragart(str, Enum):
+    """Wie eine Frage beantwortet wird: genau eine Möglichkeit, ja oder nein, eine Stufe einer geordneten Skala, oder jede
+    Möglichkeit für sich (Schlagworte)."""
+
+    AUSWAHL = "auswahl"
+    JA_NEIN = "ja_nein"
+    STUFE = "stufe"
+    MEHRFACH = "mehrfach"
+
+
+class Frage(BaseModel):
+    art: Fragart = Fragart.AUSWAHL
+    frage: str = Field(min_length=1, max_length=2000)
+    moeglichkeiten: dict[str, str] = Field(default_factory=dict)   # Schlüssel -> Beschreibung; bei Stufen in ihrer Reihenfolge
+
+    @field_validator("moeglichkeiten")
+    @classmethod
+    def _schluessel(cls, werte: dict[str, str]) -> dict[str, str]:
+        if len(werte) > MOEGLICHKEITEN_MAX:
+            raise ValueError(f"Höchstens {MOEGLICHKEITEN_MAX} Möglichkeiten je Frage.")
+        for k, beschreibung in werte.items():
+            if not SCHLUESSEL.fullmatch(k):
+                raise ValueError(f"Schlüssel {k!r}: nur a-z, 0-9, _ und -, höchstens 64 Zeichen.")
+            if not beschreibung.strip() or len(beschreibung) > 500:
+                raise ValueError(f"Beschreibung zu {k}: 1 bis 500 Zeichen.")
+        return werte
+
+    @model_validator(mode="after")
+    def _passend(self) -> Frage:
+        if self.art == Fragart.JA_NEIN and self.moeglichkeiten:
+            raise ValueError("Eine Ja-Nein-Frage hat keine Möglichkeiten.")
+        if self.art != Fragart.JA_NEIN and len(self.moeglichkeiten) < 2:
+            raise ValueError("Mindestens zwei Möglichkeiten (außer bei ja_nein).")
+        if self.art == Fragart.STUFE and len(self.moeglichkeiten) > STUFEN_MAX:
+            raise ValueError(f"Höchstens {STUFEN_MAX} Stufen (eine Skala wird nicht in Runden geteilt).")
+        return self
+
+
+class Einordnungsanfrage(Modellwahl):
+    """`POST /v1/einordnen`: ein Text und Fragen dazu; das Modell schreibt keine Antwort, die Leitstelle liest die
+    Wahrscheinlichkeiten der Möglichkeiten."""
+
+    text: str = Field(min_length=1, max_length=200_000)
+    anweisung: str | None = Field(default=None, max_length=2000)   # Hinweis für alle Fragen, etwa worum es in der App geht
+    fragen: dict[str, Frage] = Field(min_length=1)
+
+    @field_validator("fragen")
+    @classmethod
+    def _fragen(cls, werte: dict[str, Frage]) -> dict[str, Frage]:
+        if len(werte) > FRAGEN_MAX:
+            raise ValueError(f"Höchstens {FRAGEN_MAX} Fragen je Anfrage.")
+        for k in werte:
+            if not SCHLUESSEL.fullmatch(k):
+                raise ValueError(f"Fragenschlüssel {k!r}: nur a-z, 0-9, _ und -, höchstens 64 Zeichen.")
+        return werte
+
+
+class Einordnungsantwort(BaseModel):
+    """Antwort auf eine Frage. `wahl`: der Schlüssel (bei ja_nein "ja" oder "nein"; bei mehrfach alle mit mindestens 50 %).
+    `wahrscheinlichkeiten`: je Möglichkeit 0 bis 1; bei mehrfach je Möglichkeit für sich, sonst zusammen 1 (nach Runden nur
+    die Möglichkeiten der letzten Runde). Die Werte sind die Sicht des Modells, nicht geeicht: zum Entscheiden und Sortieren,
+    nicht als Maß, wie sicher es wirklich stimmt."""
+
+    wahl: str | list[str]
+    wahrscheinlichkeiten: dict[str, float]
+    mittel: float | None = None          # bei Stufen: erwartete Stufe (0 = erste), gewichtet mit den Wahrscheinlichkeiten
+    runden: int = 1
+
+
+class Einordnung(BaseModel):
+    antworten: dict[str, Einordnungsantwort]
+    modell: str
+    anfragen: int                        # Aufrufe des Modells, je einer ein Auftrag
+    dauer_ms: int

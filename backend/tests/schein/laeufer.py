@@ -13,7 +13,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from fastapi import FastAPI, Request
@@ -56,6 +58,8 @@ class Lage:
     weitere_instanzen: bool = False  # Laden eines geladenen Modells legt eine weitere Instanz an (echter Läufer)
     einbettung_pause_s: float = 0.0  # Rechenzeit je Einbettungsanfrage
     einbettung_je_instanz: dict[str, int] = field(default_factory=dict)
+    # mit `logprobs`: Wahrscheinlichkeit je Token des ersten Antworttokens, aus dem Körper; ohne: die Vorgabe unten
+    wahrscheinlichkeiten: Callable[[dict], dict[str, float]] | None = None
 
     def belegt(self) -> float:
         return sum(m.gb * len(m.instanzen) for m in self.modelle.values())
@@ -158,6 +162,9 @@ def schein_laeufer(lage: Lage | None = None) -> FastAPI:
         modell = koerper["model"]
         stuecke = [f"Stück{i} " for i in range(L().stuecke)]
 
+        if koerper.get("logprobs"):
+            return _mit_wahrscheinlichkeiten(koerper, modell, (L().wahrscheinlichkeiten or _vorgabe)(koerper))
+
         if not koerper.get("stream"):
             L().gleichzeitig += 1
             L().gleichzeitig_hoechst = max(L().gleichzeitig_hoechst, L().gleichzeitig)
@@ -224,3 +231,23 @@ def schein_laeufer(lage: Lage | None = None) -> FastAPI:
                 "usage": {"prompt_tokens": len(texte), "total_tokens": len(texte)}}
 
     return app
+
+
+def _vorgabe(koerper: dict) -> dict[str, float]:
+    """Wie der echte Läufer bei einer Ja-Nein-Frage (Varianten der Schreibung) oder einer Auswahl mit Buchstaben."""
+    frage = str(koerper["messages"][-1]["content"])
+    return {"ja": 0.7, "Ja": 0.2, "nein": 0.1} if "ja oder nein" in frage else {"A": 0.7, " A": 0.05, "B": 0.2, "C": 0.05}
+
+
+def _mit_wahrscheinlichkeiten(koerper: dict, modell: str, werte: dict[str, float]) -> dict:
+    """Antwort mit `logprobs` wie der echte Läufer: höchstens 10 Alternativen, sonst Fehler; `max_tokens` 1 gibt leeren Inhalt."""
+    anzahl = int(koerper.get("top_logprobs") or 0)
+    if anzahl > 10:
+        return JSONResponse({"error": "Error in iterating prediction stream: ValueError: top_logprobs must be less than or equal to 10"}, status_code=500)
+    folge = sorted(werte.items(), key=lambda kv: -kv[1])[:max(anzahl, 1)]
+    oben = [{"token": tok, "logprob": math.log(p), "bytes": list(tok.encode())} for tok, p in folge]
+    leer = koerper.get("max_tokens") == 1
+    return {"id": "chatcmpl-schein", "object": "chat.completion", "model": modell,
+            "choices": [{"index": 0, "message": {"role": "assistant", "content": "" if leer else folge[0][0]},
+                         "logprobs": None if leer else {"content": [{**oben[0], "top_logprobs": oben}]}, "finish_reason": "length"}],
+            "usage": {"prompt_tokens": 7, "completion_tokens": 0 if leer else 1, "total_tokens": 8}}

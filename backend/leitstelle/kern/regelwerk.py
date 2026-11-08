@@ -72,7 +72,7 @@ GRUPPEN: dict[Regelgruppe, Gruppe] = {
 #: Rangfolge ab Werk (Arbeitslogik 07.11.2026, LS-15): was ein Mensch gerade hört oder liest, zuerst; Dauerarbeit zuletzt
 RANG_VORGABE: dict[Faehigkeit, int] = {
     Faehigkeit.STIMME: 1, Faehigkeit.HOEREN: 2, Faehigkeit.SPRECHER_TRENNEN: 2, Faehigkeit.SPRECHER_ERKENNEN: 2,
-    Faehigkeit.TEXT: 3, Faehigkeit.UEBERSETZEN: 3, Faehigkeit.WERKZEUG: 3, Faehigkeit.TON: 3,
+    Faehigkeit.TEXT: 3, Faehigkeit.UEBERSETZEN: 3, Faehigkeit.EINORDNEN: 3, Faehigkeit.WERKZEUG: 3, Faehigkeit.TON: 3,
     Faehigkeit.BILD_BESCHREIBEN: 4, Faehigkeit.BILD_ERZEUGEN: 5, Faehigkeit.BILD_BEARBEITEN: 5, Faehigkeit.STIMME_KLONEN: 5,
     Faehigkeit.MUSIK: 6, Faehigkeit.EINBETTUNG: 7,
 }

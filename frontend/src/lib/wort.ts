@@ -9,6 +9,7 @@ export const FAEHIGKEIT: Record<Faehigkeit, { wort: string; symbol: string; farb
   text: { wort: 'Text', symbol: 'fa-comment-dots', farbe: 'var(--himmel)', klasse: 'text' },
   einbettung: { wort: 'Einbettung', symbol: 'fa-diagram-project', farbe: 'var(--petrol)', klasse: 'einbettung' },
   uebersetzen: { wort: 'Übersetzen', symbol: 'fa-language', farbe: 'var(--tuerkis)', klasse: 'uebersetzen' },
+  einordnen: { wort: 'Einordnen', symbol: 'fa-tags', farbe: 'var(--himmel)', klasse: 'text' },
   hoeren: { wort: 'Hören', symbol: 'fa-ear-listen', farbe: 'var(--minze)', klasse: 'hoeren' },
   bild_beschreiben: { wort: 'Bild beschreiben', symbol: 'fa-image', farbe: 'var(--flieder)', klasse: 'bild' },
   bild_erzeugen: { wort: 'Bild erzeugen', symbol: 'fa-palette', farbe: 'var(--flieder)', klasse: 'bild' },

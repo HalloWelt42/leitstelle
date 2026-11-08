@@ -12,7 +12,7 @@
   let { bild }: { bild: Lagebild } = $props();
 
   const ALLE = Object.keys(FAEHIGKEIT) as F[];
-  const leer = (): AnwendungDaten => ({ name: '', prioritaet: 1, faehigkeiten: ['text', 'einbettung', 'uebersetzen', 'bild_beschreiben', 'werkzeug'], zonen: ['heim'], extern_erlaubt: false, gleichzeitig: 4, docker_projekte: [], bildarchiv: false });
+  const leer = (): AnwendungDaten => ({ name: '', prioritaet: 1, faehigkeiten: ['text', 'einbettung', 'uebersetzen', 'einordnen', 'bild_beschreiben', 'werkzeug'], zonen: ['heim'], extern_erlaubt: false, gleichzeitig: 4, docker_projekte: [], bildarchiv: false });
 
   let entwurf = $state<AnwendungDaten>(leer());
   let neuerSchluessel = $state<{ name: string; schluessel: string } | null>(null);

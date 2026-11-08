@@ -35,7 +35,7 @@ so entschieden ist in [ZUSAMMENSPIEL.md](ZUSAMMENSPIEL.md) (Abschnitte "Entschei
 2. **Einzel vor Masse**, über alle Fähigkeiten: eine einzelne Suche (Einbettung) kommt vor dem Vorlesen eines ganzen
    Buchs (Masse).
 3. Innerhalb von Einzel und innerhalb von Masse die **Rangfolge nach Fähigkeit** (Regelwerk "Rangfolge"; Vorgabe 1
-   Sprachausgabe; 2 Hören, Sprecher trennen und erkennen; 3 Text, Übersetzen, Werkzeuge, Tonbearbeitung; 4 Bild
+   Sprachausgabe; 2 Hören, Sprecher trennen und erkennen; 3 Text, Übersetzen, Einordnen, Werkzeuge, Tonbearbeitung; 4 Bild
    beschreiben; 5 Bilder erzeugen und bearbeiten, Stimmklon; 6 Musik; 7 Einbettung).
 4. Innerhalb eines Rangs die **Priorität der App**, dann der Eingang.
 
@@ -68,6 +68,10 @@ Inhalte (Titel, Texte, Eingaben) stehen nie in einer Auskunft.
 Wartezeit Massenarbeit aufschieben, interaktive Anfragen nicht nach wenigen Sekunden abbrechen (Wartezeit mindestens 30 s
 oder nach der Einschätzung).
 
+**Einordnen statt JSON-Antwort:** Wählt die App aus festen Möglichkeiten (Kategorie, Schlagworte, ja oder nein, Stufe),
+fragt sie `POST /v1/einordnen` (PROTOKOLL 6.7) statt das Modell eine JSON-Antwort schreiben zu lassen: schneller, nie
+ungültig, mit Wahrscheinlichkeit je Möglichkeit. Die Werte sind nicht geeicht; zum Entscheiden und Sortieren.
+
 ## 6. Wo es rechnet
 
 - **Rolle je Rechner** (Leitstelle, Knoten: "Bevorzugt für"): zwischen Rechnern mit demselben Modell gewinnt der
@@ -90,6 +94,7 @@ auch kleine Modelle und die Einbettung; nur der Schutz des Dienstes hält es. Ei
 
 - [ ] nennt bei jeder Anfrage ihr Modell (Einstellung der App, Auswahl aus dem Angebot der Leitstelle)
 - [ ] meldet Massenarbeit als `X-Leitstelle-Art: masse`
+- [ ] ordnet feste Möglichkeiten über `POST /v1/einordnen` ein, nicht über eine JSON-Antwort
 - [ ] setzt `X-Leitstelle-Wichtig: ja` nur auf ausdrückliche Angabe des Nutzers, mit Bestätigung nach ihrer Einstellung
 - [ ] zeigt Wartegrund und Wartezeit, statt still aufzugeben; Wartezeit interaktiv mindestens 30 s
 - [ ] spricht die Leitstelle nur über den Appkern an, nie Dienste oder Läufer direkt

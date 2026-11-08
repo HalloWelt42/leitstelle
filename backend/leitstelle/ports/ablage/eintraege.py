@@ -60,7 +60,7 @@ class AnwendungEintrag(BaseModel):
     schluessel_fingerabdruck: str
     schluessel_geheim: str
     prioritaet: Prioritaet = Prioritaet.NORMAL
-    faehigkeiten: set[Faehigkeit] = Field(default_factory=lambda: {Faehigkeit.TEXT, Faehigkeit.EINBETTUNG, Faehigkeit.UEBERSETZEN, Faehigkeit.BILD_BESCHREIBEN, Faehigkeit.WERKZEUG})
+    faehigkeiten: set[Faehigkeit] = Field(default_factory=lambda: {Faehigkeit.TEXT, Faehigkeit.EINBETTUNG, Faehigkeit.UEBERSETZEN, Faehigkeit.EINORDNEN, Faehigkeit.BILD_BESCHREIBEN, Faehigkeit.WERKZEUG})
     zonen: set[Zone] = Field(default_factory=lambda: {Zone.HEIM})
     extern_erlaubt: bool = False
     gleichzeitig: int = 4

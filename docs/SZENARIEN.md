@@ -355,6 +355,11 @@ OpenAI-Schnittstelle kennt. Rechner, Dienst und Anwendung werden über die Verwa
 | E15 | 60 Aufrufe von wenigen Millisekunden über die Dienstfassade und 20 sofortige Ablehnungen (ohne Modell: 400 `modell_fehlt`), alle gleichzeitig | jeder Auftrag steht mit seinem Endzustand im Verlauf (fertig oder abgelehnt), keine gescheiterte Schreibung; Speichern geht über die Schreibfolge |
 | E16 | Anwendung trennt während der Durchleitung über die Dienstfassade, vor dem Antwortkopf und mitten in der Antwort, bei langsamem Schließen | abgebrochen mit Grund `anwendung` im Verlauf, Speicher leer, das Modell wieder frei, die Antwort des Dienstes geschlossen |
 | E21 | Ein Modell wird am Leitstand vorbei entladen, ein anderes am Leitstand vorbei geladen; danach lädt und entlädt die Leitstelle selbst | beide fremden Bewegungen stehen dauerhaft in `/api/bewegungen` mit Ausgang `von_aussen` und dem Abstand zum letzten Blick; beim Start und bei eigenen Bewegungen (auch eigenen weiteren Instanzen, E19) nie |
+| E22 | Einordnen mit einer Auswahl und einer Ja-Nein-Frage (`test_einordnen.py`, LS-26) | zwei Aufrufe mit `logprobs`, 10 Alternativen, `max_tokens` 2, gleichem Anfang (Text vorn); Wahrscheinlichkeiten zusammen 1, ja und Ja zusammengezählt; Auftrag mit Fähigkeit `einordnen` |
+| E23 | 25 Möglichkeiten | drei gleich große Gruppen (9, 9, 7), dann die Sieger gegeneinander: vier Aufrufe, zwei Runden; Wahrscheinlichkeiten der letzten Runde |
+| E24 | Mehrfach (Schlagworte) und Stufe | je Möglichkeit ein Ja-Nein-Aufruf, Wahl alle ab 50 %; Stufe mit erwarteter Stufe `mittel` |
+| E25 | Unpassende Fragen, App ohne Recht | 400 mit deutschem Satz, nichts eingereiht; 403 `faehigkeit_nicht_erlaubt` |
+| E26 | Das Modell antwortet mit nichts Passendem | 502 `dienst_fehler` mit Grund, nie eine geratene Wahl |
 
 ## 3a. Knoten-Agent (`test_knoten_agent.py`; A07 bis A10 im Repo des Maschinenraums, `tests/test_dienste.py`)
 
