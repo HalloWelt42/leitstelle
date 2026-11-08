@@ -30,6 +30,14 @@ def test_lesen_zaehlt_schreibvarianten_zusammen():
     assert ja_lesen(_antwort({"ja": 0.6, "Ja": 0.2, "nein": 0.1, "Hmm": 0.1})) == pytest.approx(0.8 / 0.9)
 
 
+def test_nein_als_wortanfang_und_kein_hochrechnen_eines_rests():
+    """Gesehen am 80B (08.11.2026): "nein" kommt als erstes Token "ne"; ohne Erkennung wurde ein Rest von ja zu 100 %."""
+    assert ja_lesen(_antwort({"ne": 0.97, "nej": 0.01, "ja": 0.0001})) == pytest.approx(0.0001 / 0.9801, abs=1e-6)
+    assert ja_lesen(_antwort({"j": 0.9, "n": 0.1})) == pytest.approx(0.9)
+    with pytest.raises(Ablehnung):
+        ja_lesen(_antwort({"Vielleicht": 0.99, "ja": 0.01}))
+
+
 def test_lesen_ohne_passende_antwort_oder_wahrscheinlichkeiten():
     with pytest.raises(Ablehnung) as a:
         buchstaben_lesen(_antwort({"Z": 1.0}), ["a", "b"])

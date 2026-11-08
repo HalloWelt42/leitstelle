@@ -26,8 +26,9 @@ BUCHSTABEN = "ABCDEFGHIJ"
 JE_AUFRUF = len(BUCHSTABEN)          # höchstens so viele Alternativen nennt der Läufer je Token
 ANTWORT_TOKEN = 2                    # mit 1 antwortet der Läufer leer (gemessen 08.11.2026)
 JA, NEIN = "ja", "nein"
-JA_WOERTER = {"ja", "yes", "j", "y"}
-NEIN_WOERTER = {"nein", "no", "n"}
+JA_WOERTER = ("ja", "yes")             # erkannt auch am Anfang: das erste Token ist oft nur ein Teil des Worts
+NEIN_WOERTER = ("nein", "no", "nee", "nej")   # "nein" ist beim 80B "ne" + "in" (gemessen 08.11.2026)
+MINDEST_ANTEIL = 0.5                 # so viel der Wahrscheinlichkeit muss auf passende Antworten fallen, sonst keine Wahl
 STELLEN = 4                          # Nachkommastellen der Wahrscheinlichkeiten
 SYSTEM = ("Du ordnest einen Text ein. Antworte nur mit dem Buchstaben der passenden Möglichkeit oder mit ja oder nein, "
           "wie die Frage es verlangt, ohne weiteren Text.")
@@ -70,9 +71,15 @@ def _wort(token: str) -> str:
     return token.strip().strip(":.)\"'").lower()
 
 
+def _anfang(wort: str, woerter: tuple[str, ...]) -> bool:
+    return bool(wort) and any(w.startswith(wort) for w in woerter)
+
+
 def _verteilt(werte: dict[str, float], inhalt: str) -> dict[str, float]:
+    """Nur, wenn das Modell überwiegend mit einer der Möglichkeiten antwortete; ein winziger Rest würde sonst auf 100 %
+    hochgerechnet (gesehen 08.11.2026: "ne" für nein nicht erkannt, ein Rest von ja wurde zu 1)."""
     summe = sum(werte.values())
-    if summe <= 0:
+    if summe < MINDEST_ANTEIL:
         raise Ablehnung("dienst_fehler", f"Das Modell antwortete mit keiner der Möglichkeiten ({inhalt[:40]!r}).")
     return {k: v / summe for k, v in werte.items()}
 
@@ -94,9 +101,9 @@ def ja_lesen(roh: bytes) -> float:
     werte = {JA: 0.0, NEIN: 0.0}
     for token, p in paare:
         w = _wort(token)
-        if w in JA_WOERTER:
+        if _anfang(w, JA_WOERTER):
             werte[JA] += p
-        elif w in NEIN_WOERTER:
+        elif _anfang(w, NEIN_WOERTER):
             werte[NEIN] += p
     return _verteilt(werte, inhalt)[JA]
 

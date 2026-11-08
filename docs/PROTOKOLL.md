@@ -563,7 +563,9 @@ Auftrag (`X-Leitstelle-Auftrag` nennt den letzten).
   nie geteilt. Mit `max_tokens` 1 antwortet der Läufer leer; die Leitstelle fragt 2 an.
 - **Welche Modelle:** die Textmodelle eines steuerbaren Läufers (er liefert `logprobs`). Externe Anbieter und Läufer,
   die nur die OpenAI-Liste kennen, haben die Fähigkeit nicht.
-- **Schreibvarianten** zählen zusammen (` A`, `A:`, `Ja`, `yes`).
+- **Schreibvarianten** zählen zusammen (` A`, `A:`, `Ja`, `yes`), auch Wortanfänge: "nein" kommt beim 80B als erstes
+  Token "ne". Fällt weniger als die Hälfte der Wahrscheinlichkeit auf passende Antworten, gibt es keine Wahl
+  (`dienst_fehler`), statt einen kleinen Rest auf 100 % hochzurechnen.
 - **Die Werte sind nicht geeicht:** Bei einem mehrdeutigen Fall nannte das 80B 100 %. Sie taugen zum Entscheiden und
   Sortieren, nicht als Maß, wie sicher eine Antwort wirklich stimmt.
 - **Fehler:** `eingabe` (400) bei unpassenden Fragen, bevor etwas eingereiht wird; `faehigkeit_nicht_erlaubt` (403)
