@@ -358,7 +358,7 @@ OpenAI-Schnittstelle kennt. Rechner, Dienst und Anwendung werden über die Verwa
 | E22 | Einordnen mit einer Auswahl und einer Ja-Nein-Frage (`test_einordnen.py`, LS-26) | zwei Aufrufe mit `logprobs`, 10 Alternativen, `max_tokens` 2, gleichem Anfang (Text vorn); Wahrscheinlichkeiten zusammen 1, ja und Ja zusammengezählt; Auftrag mit Fähigkeit `einordnen` |
 | E23 | 25 Möglichkeiten | drei gleich große Gruppen (9, 9, 7), dann die Sieger gegeneinander: vier Aufrufe, zwei Runden; Wahrscheinlichkeiten der letzten Runde |
 | E24 | Mehrfach (Schlagworte) und Stufe | je Möglichkeit ein Ja-Nein-Aufruf, Wahl alle ab 50 %; Stufe mit erwarteter Stufe `mittel` |
-| E25 | Unpassende Fragen, App ohne Recht | 400 mit deutschem Satz, nichts eingereiht; 403 `faehigkeit_nicht_erlaubt` |
+| E25 | Unpassende Fragen, App ohne Recht, denkendes Modell | 400 mit deutschem Satz, nichts eingereiht; 403 `faehigkeit_nicht_erlaubt`; 404 `kein_modell` für ein denkendes Modell |
 | E26 | Das Modell antwortet mit nichts Passendem | 502 `dienst_fehler` mit Grund, nie eine geratene Wahl |
 
 ## 3a. Knoten-Agent (`test_knoten_agent.py`; A07 bis A10 im Repo des Maschinenraums, `tests/test_dienste.py`)

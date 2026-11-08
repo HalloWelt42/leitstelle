@@ -13,7 +13,7 @@ from leitstelle.fach.fehler import Ablehnung
 
 from test_ende_zu_ende import _warte_bis, _zustand, aufbau
 
-MODELL = "qwen/qwen3-next-80b"
+MODELL = "qwen/qwen3-coder-next"     # denkt nicht; das 80B des Schein-Läufers denkt (capabilities.reasoning)
 
 
 def _antwort(werte: dict[str, float] | None) -> bytes:
@@ -64,7 +64,7 @@ async def test_e22_auswahl_und_ja_nein_ueber_die_fassade(tmp_path):
         assert e["antworten"]["bereich"]["wahl"] == "garten"
         assert sum(e["antworten"]["bereich"]["wahrscheinlichkeiten"].values()) == pytest.approx(1.0)
         assert e["antworten"]["dringend"] == {"wahl": "ja", "wahrscheinlichkeiten": {"ja": 0.9, "nein": 0.1}, "mittel": None, "runden": 1}
-        assert e["anfragen"] == 2 and e["modell"] == "Qwen3 Next 80B"
+        assert e["anfragen"] == 2 and e["modell"] == "Qwen3 Coder Next"
         a, b = lage.anfragen[-2:]
         assert a["logprobs"] is True and a["top_logprobs"] == 10 and a["max_tokens"] == 2 and a["temperature"] == 0
         assert a["messages"][0] == b["messages"][0] and a["messages"][1]["content"].startswith("Text:\nRechnung vom Gärtner\n\nFrage:")
@@ -118,6 +118,8 @@ async def test_e25_recht_und_eingaben(tmp_path):
         r = await anw.post("/einordnen", json={"model": MODELL, "text": "t", "fragen": {"x": {"art": "ja_nein", "frage": "?"}}},
                            headers={"Authorization": f"Bearer {schluessel}"})
         assert r.status_code == 403 and r.json()["error"]["code"] == "faehigkeit_nicht_erlaubt", r.text
+        r = await anw.post("/einordnen", json={"model": "qwen/qwen3-next-80b", "text": "t", "fragen": {"x": {"art": "ja_nein", "frage": "?"}}})
+        assert r.status_code == 404 and r.json()["error"]["code"] == "kein_modell", "ein denkendes Modell ordnet nicht ein"
 
 
 async def test_e26_modell_ohne_passende_antwort(tmp_path):
