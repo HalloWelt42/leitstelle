@@ -8,8 +8,8 @@ Aufträge ordnet und wo sie rechnen (Modellwahl, Einzel und Masse, Wichtig, Rang
 steht für alle Apps an einer Stelle: [ARBEITSLOGIK.md](ARBEITSLOGIK.md).
 
 Stand 16.10.2026, Fassung 0.4: Die Leitstelle läuft im Betrieb (Beispieladresse in diesem Text:
-`http://leitstelle:8530`; im Betrieb mit `docker-compose.yml` gilt HTTPS über den Vorschaltdienst auf Port 8531, mit
-dem Zertifikat einer eigenen Zertifikatsstelle, der das Programm vertrauen muss, und `wss://` statt `ws://`). Fassade
+`https://leitstelle:8531`, nur HTTPS über den Vorschaltdienst, mit dem Zertifikat einer eigenen Zertifikatsstelle,
+der das Programm vertrauen muss, und `wss://` für den Kanal; den Kern direkt über http gibt es nur in der Entwicklung). Fassade
 (Stufe 1), Verwaltung, Oberfläche und Live-Kanal der Oberfläche sind in Betrieb und geprüft (siehe
 [SZENARIEN.md](SZENARIEN.md), Messungen in [MESSUNGEN.md](MESSUNGEN.md)). Anmeldung und Signale über den Kanal
 (Stufe 2 und 3) und die Bibliothek kommen mit Staffel 3 des [Plans](PLAN.md); die Schnittstellen hier sind
@@ -50,7 +50,7 @@ Die Anwendung ändert nur die Adresse ihres Modell-Läufers und bekommt einen Sc
 
 | Schritt | Tun | Prüfen |
 |---|---|---|
-| Adresse | Basisadresse auf `http://leitstelle:8530/v1` (mit oder ohne `/v1`, beides geht) | `GET /v1/models` liefert die erlaubten Modelle |
+| Adresse | Basisadresse auf `https://leitstelle:8531/v1` (mit oder ohne `/v1`, beides geht) | `GET /v1/models` liefert die erlaubten Modelle |
 | Schlüssel | `Authorization: Bearer <schluessel>`; den Schlüssel erzeugt die Leitstelle unter Anwendungen, Anwendung anmelden | Antwort ohne 401 |
 | Modellname | muss in jeder Anfrage stehen und darf bleiben wie er ist (jede Schreibweise des Läufers ist ein Alias); weitere Modelle als `alternativen` in eigener Reihenfolge. Fehlt er, kommt 400 `modell_fehlt` mit den Modellen zur Wahl; Platzhalter wie `auto` sind unbekannte Modelle (404 `kein_modell`) | `GET /v1/models` zeigt `x-leitstelle.geladen`; ohne `model` 400 `modell_fehlt` |
 | Zeitgrenzen | Lese-Zeitgrenze für laufende Arbeit entfernen; Verbindungsaufbau-Grenze bleibt (10 s). Die Leitstelle sendet alle 15 s einen SSE-Kommentar `: wartet, <grund>, etwa <n> s`, solange ein Auftrag wartet | eine Vervollständigung, die 3 Minuten wartet, bricht nicht ab |
@@ -172,7 +172,7 @@ Zeitgrenzen) kommt mit `anwendung.angemeldet` von der Leitstelle. Keine Zahl daz
 
 ### 3.2 Ablauf
 
-1. WebSocket auf `ws://leitstelle:8530/api/kanal` mit `Authorization: Bearer <schluessel>` öffnen
+1. WebSocket auf `wss://leitstelle:8531/api/kanal` mit `Authorization: Bearer <schluessel>` öffnen
    (`wss://` außerhalb des Heimnetzes, Pflicht für Zone extern).
 2. `anwendung.anmelden` senden mit `name`, `version`, `bibliothek`, `faehigkeiten` (gewünscht),
    `signale: true`, wenn Stufe 3 umgesetzt ist, sonst `false`.

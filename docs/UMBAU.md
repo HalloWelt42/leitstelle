@@ -8,7 +8,7 @@ ein Gewinn. Die Anweisung Schritt für Schritt mit Abnahme steht in [ANBINDUNG.m
 
 | Stufe | Name | Was die Anwendung tut | Was sie gewinnt | Aufwand |
 |---|---|---|---|---|
-| 1 | Fassade | Adresse des Modell-Läufers auf die Leitstelle umstellen (zum Beispiel `http://leitstelle:8530/v1`), Schlüssel als Bearer | zentrale Warteschlange, Speicherverwaltung, Aliasse, Verlauf, Kosten; keine Codeänderung | Minuten |
+| 1 | Fassade | Adresse des Modell-Läufers auf die Leitstelle umstellen (zum Beispiel `https://leitstelle:8531/v1`), Schlüssel als Bearer | zentrale Warteschlange, Speicherverwaltung, Aliasse, Verlauf, Kosten; keine Codeänderung | Minuten |
 | 2 | Anmeldung | `anwendung.anmelden` mit Name, Fähigkeiten, gewünschter Priorität; Herzschlag | eigene Rechte, Kontingent, sichtbar als Anwendung | eine Stunde mit der Bibliothek |
 | 3 | Signalkanal | WebSocket offen halten, auf `signal.*` reagieren: bei Speicher knapp Stapelarbeit zurückhalten, bei pausiert warten, bei gesperrt sauber melden, bei Modell bereit weitermachen | Anwendung verhält sich kooperativ statt blind in Fehler zu laufen | ein Tag |
 | 4 | Eigene Aufträge | Aufträge über das Protokoll statt über die Fassade: Fortschritt, Anhalten, Fortsetzen, Reservierung für Stapel, Teilergebnis bei Abbruch | lange Arbeiten werden steuerbar; die Leitstelle kann sie anhalten statt nur abbrechen | ein bis drei Tage je nach Umfang |
@@ -24,7 +24,7 @@ Drei Zeilen für Stufe 2 und 3:
 ```python
 from leitstelle import Leitstelle
 
-ls = Leitstelle("http://leitstelle.local:8530", schluessel=einstellungen.leitstelle_schluessel,
+ls = Leitstelle("https://leitstelle.local:8531", schluessel=einstellungen.leitstelle_schluessel,
                 name="Fundus", faehigkeiten=["text", "einbettung", "werkzeug"])
 
 @ls.signal("speicher")

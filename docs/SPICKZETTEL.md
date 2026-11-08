@@ -6,9 +6,9 @@ In den Beispielen heißt der Rechner der Leitstelle `leitstelle`; dort die eigen
 
 | Was | Wo |
 |---|---|
-| Oberfläche und Verwaltung | `http://leitstelle:8530/` (nur aus privaten Netzen und VPN) |
-| Fassade für Anwendungen | `http://leitstelle:8530/v1` mit `Authorization: Bearer <Schlüssel>` |
-| Gesundheit | `http://leitstelle:8530/gesundheit` |
+| Oberfläche und Verwaltung | `https://leitstelle:8531/` (nur aus privaten Netzen und VPN) |
+| Fassade für Anwendungen | `https://leitstelle:8531/v1` mit `Authorization: Bearer <Schlüssel>` |
+| Gesundheit | `https://leitstelle:8531/gesundheit` |
 | Entwürfe | `http://leitstelle:8535/mockups/index.html` |
 | Telefon | dieselbe Adresse; schmale Bildschirme bekommen die eigene Ansicht `/mobil` |
 
@@ -61,13 +61,13 @@ Oberfläche des Maschinenraums (`http://127.0.0.1:8540/`) unter Leitstelle eintr
 Grenzen der Bildmodelle, die eine Anwendung nutzen darf (`bild` ist null, bis der Dienst einmal lief):
 
 ```bash
-curl -s "http://leitstelle:8530/v1/steckbriefe?faehigkeit=bild_erzeugen" -H "Authorization: Bearer <Schlüssel>"
+curl -s "https://leitstelle:8531/v1/steckbriefe?faehigkeit=bild_erzeugen" -H "Authorization: Bearer <Schlüssel>"
 ```
 
 Ein Bild, mit Wartehinweisen im Strom (der erste Auftrag startet den Dienst, MOSS-Image bis 5 Minuten):
 
 ```bash
-curl -sN http://leitstelle:8530/v1/images/generations -H "Authorization: Bearer <Schlüssel>" -H "Content-Type: application/json" \
+curl -sN https://leitstelle:8531/v1/images/generations -H "Authorization: Bearer <Schlüssel>" -H "Content-Type: application/json" \
   -d '{"model": "bildwerk-moss-image", "prompt": "Ein Leuchtturm im Nebel", "size": "1024x1024", "seed": 42, "stream": true}'
 ```
 

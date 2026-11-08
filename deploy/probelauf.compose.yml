@@ -6,8 +6,6 @@ services:
   leitstelle:
     container_name: ${COMPOSE_PROJECT_NAME:?}-leitstelle
     image: ${COMPOSE_PROJECT_NAME:?}-leitstelle
-    ports: !override
-      - "127.0.0.1:${PROBE_PORT_LEITSTELLE:?}:8530"
   vorne:
     container_name: ${COMPOSE_PROJECT_NAME:?}-vorne
     ports: !override

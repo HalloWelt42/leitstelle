@@ -11,7 +11,7 @@ schluessel_orte:
   - "Pi: `tresor.schluessel` im Datenordner; ohne ihn sind die im Tresor gespeicherten Schlüssel und Zugänge nicht lesbar"
   - "Datenbank (verschlüsselt mit dem Tresor): Schlüssel der Anwendungen, der Knoten (Maschinenraum) und externer Anbieter"
 einrichten: einrichten.sh
-stand: daaa2c6
+stand: 7d74823
 ---
 
 # Leitstelle
@@ -32,9 +32,8 @@ mit dem Steckbrief des Modells (Größen, Schritte, Anzahl).
 
 Auf dem Pi laufen drei Container aus `docker-compose.yml`: der Kern mit Fassade und Oberfläche, davor der
 Vorschaltdienst mit HTTPS auf Port {{port:docker-compose.yml/vorne}} (Zertifikat der Hausstelle, Adresse für Apps und
-Browser) und die Entwürfe auf Port {{port:docker-compose.yml/entwuerfe}}. Im Übergang ist der Kern zusätzlich direkt
-über http auf Port {{port:docker-compose.yml/leitstelle}} erreichbar, bis alle Apps über HTTPS kommen. Alles ist nur
-aus privaten Netzen erreichbar; hinter dem Vorschaltdienst sieht der Kern den echten Aufrufer (X-Forwarded-For gilt
+Browser) und die Entwürfe auf Port {{port:docker-compose.yml/entwuerfe}}. Der Kern selbst ist von außen nicht
+erreichbar, nur über den Vorschaltdienst. Alles ist nur aus privaten Netzen erreichbar; hinter dem Vorschaltdienst sieht der Kern den echten Aufrufer (X-Forwarded-For gilt
 nur von der festen Adresse des Vorschaltdienstes, `LEITSTELLE_VORSCHALTUNG`).
 
 ## Was sie braucht
@@ -89,8 +88,8 @@ Ausrollen, bleibt alles stehen. Auf dem Zielrechner selbst geht dasselbe mit
 `LEITSTELLE_DATENORDNER={{umgebung:LEITSTELLE_DATENORDNER}} ./einrichten.sh` im Klon (ohne Aufräumen).
 
 Probe: `curl -s --cacert "$(mkcert -CAROOT)/rootCA.pem" https://<zielrechner>:{{port:docker-compose.yml/vorne}}/gesundheit`
-meldet `"version": "{{fassung}}"`, ebenso im Übergang `http://<zielrechner>:{{port:docker-compose.yml/leitstelle}}/gesundheit`,
-und `http://<zielrechner>:{{port:docker-compose.yml/entwuerfe}}/gesundheit` antwortet.
+meldet `"version": "{{fassung}}"`, und `http://<zielrechner>:{{port:docker-compose.yml/entwuerfe}}/gesundheit`
+antwortet.
 
 ### 4. Läufer und Knoten
 

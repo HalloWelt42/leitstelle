@@ -76,9 +76,10 @@ Was noch kommt (Anmeldung und Signale über den Kanal, Bibliotheken, Regeleditor
 docker compose up -d --build
 ```
 
-Dann `http://<rechner>:8530/` öffnen (nur aus privaten Netzen erreichbar), unter Dienste einen Modell-Läufer per
-Adresse anschließen, unter Anwendungen eine Anwendung anlegen und deren Schlüssel kopieren. Im Programm die
-Basisadresse auf `http://<rechner>:8530/v1` stellen und den Schlüssel als Bearer eintragen. Daten liegen in
+Dann `https://<rechner>:8531/` öffnen (nur aus privaten Netzen erreichbar; das Zertifikat der Hausstelle liegt in
+`zertifikate/`, `tools/ausrollen.sh` stellt es aus), unter Dienste einen Modell-Läufer per Adresse anschließen, unter
+Anwendungen eine Anwendung anlegen und deren Schlüssel kopieren. Im Programm die Basisadresse auf
+`https://<rechner>:8531/v1` stellen und den Schlüssel als Bearer eintragen. Daten liegen in
 `./daten` (oder `LEITSTELLE_DATENORDNER`). Einzelheiten: [docs/SPICKZETTEL.md](docs/SPICKZETTEL.md),
 Anbindung eigener Programme: [docs/ANBINDUNG.md](docs/ANBINDUNG.md).
 

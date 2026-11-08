@@ -40,7 +40,6 @@ if [ -z "${ZIEL:-}" ]; then
   DATEN="${DATEN:-$(ziel_wert LEITSTELLE_DATENORDNER)}"
   NAMEN="${NAMEN:-$(ziel_wert namen)}"
 fi
-KERN_PORT="$(ziel_wert port:kern)"
 VORNE_PORT="$(ziel_wert port:vorne)"
 ENTWUERFE_PORT="$(ziel_wert port:entwuerfe)"
 ORDNER="${ORDNER:-/home/${ZIEL%@*}/leitstelle}"
@@ -80,11 +79,10 @@ else
   echo "Zertifikat: ausgestellt für $NAMEN leitstelle.local, gültig bis $(openssl x509 -in "$ARBEIT/leitstelle.pem" -noout -enddate | cut -d= -f2)"
 fi
 HTTPS="https://$PI_HOST:$VORNE_PORT"
-# Laufende Aufträge über HTTPS, im Übergang (und beim ersten Ausrollen mit Vorschaltdienst) über den Kern direkt; eine
-# Zahl, auch wenn keiner antwortet (sonst meldete pipefail zwei Zeilen und das Warten liefe bis zur Grenze)
+# Laufende Aufträge über HTTPS; eine Zahl, auch wenn keiner antwortet (sonst meldete pipefail zwei Zeilen und das Warten
+# liefe bis zur Grenze)
 laufend() {
-  { curl -fsS -m 10 --cacert "$HAUSSTELLE" "$HTTPS/api/lage" 2>/dev/null \
-      || curl -fsS -m 10 "http://$PI_HOST:$KERN_PORT/api/lage" 2>/dev/null || true; } | python3 -c 'import sys, json
+  { curl -fsS -m 10 --cacert "$HAUSSTELLE" "$HTTPS/api/lage" 2>/dev/null || true; } | python3 -c 'import sys, json
 try:
     print(sum(1 for a in json.load(sys.stdin).get("auftraege", []) if a.get("zustand") in ("laeuft", "zugeteilt")))
 except ValueError:
@@ -111,20 +109,19 @@ aufraeumen() {
     || echo "Aufräumen auf $PI_HOST gescheitert; das Ausrollen selbst ist gelungen" >&2
 }
 
-# Gesund heißt: Kern direkt (Übergang, solange Apps noch über http kommen), Kern über HTTPS mit Prüfung gegen die
-# Hausstelle und die Entwürfe antworten
+# Gesund heißt: der Kern antwortet über HTTPS mit Prüfung gegen die Hausstelle (direkt ist er seit LS-6 von außen nicht
+# erreichbar) und die Entwürfe antworten
 gesund() {
-  curl -fsS "http://$PI_HOST:$KERN_PORT/gesundheit" >/dev/null 2>&1 \
-    && curl -fsS --cacert "$HAUSSTELLE" "$HTTPS/gesundheit" >/dev/null 2>&1 \
+  curl -fsS --cacert "$HAUSSTELLE" "$HTTPS/gesundheit" >/dev/null 2>&1 \
     && curl -fsS "http://$PI_HOST:$ENTWUERFE_PORT/gesundheit" >/dev/null 2>&1
 }
 for _ in $(seq 1 60); do
   if gesund; then
-    echo "Läuft: Leitstelle $HTTPS/ (direkt http://$PI_HOST:$KERN_PORT/)  Entwürfe http://$PI_HOST:$ENTWUERFE_PORT/  (Version $(curl -fsS --cacert "$HAUSSTELLE" "$HTTPS/gesundheit" | python3 -c 'import sys,json; print(json.load(sys.stdin)["version"])'))"
+    echo "Läuft: Leitstelle $HTTPS/  Entwürfe http://$PI_HOST:$ENTWUERFE_PORT/  (Version $(curl -fsS --cacert "$HAUSSTELLE" "$HTTPS/gesundheit" | python3 -c 'import sys,json; print(json.load(sys.stdin)["version"])'))"
     aufraeumen
     exit 0
   fi
   sleep 1
 done
-echo "Abbruch: Gesundheit auf $PI_HOST antwortet nicht (Kern :$KERN_PORT, HTTPS :$VORNE_PORT oder Entwürfe :$ENTWUERFE_PORT)" >&2
+echo "Abbruch: Gesundheit auf $PI_HOST antwortet nicht (HTTPS :$VORNE_PORT oder Entwürfe :$ENTWUERFE_PORT)" >&2
 exit 1

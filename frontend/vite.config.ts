@@ -3,7 +3,8 @@ import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { defineConfig } from 'vite';
 import { MARKE, marke } from './marke';
 
-// Entwicklung: Oberfläche auf 5530, Schnittstellen und Kanal vom Kern auf 8530
+// Entwicklung: Oberfläche auf 5530, Schnittstellen und Kanal vom Kern auf 8530 (lokal); gegen den Betrieb
+// LEITSTELLE_KERN=https://<pi>:8531 mit NODE_EXTRA_CA_CERTS auf das Zertifikat der Hausstelle
 const kern = process.env.LEITSTELLE_KERN ?? 'http://127.0.0.1:8530';
 
 // Fassung der gebauten Oberfläche aus der einzigen Quelle; weicht die des Kerns ab, lädt die Oberfläche neu (lib/fassung.svelte.ts)

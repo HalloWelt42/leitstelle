@@ -11,17 +11,28 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import ssl
+import subprocess
 import sys
 import urllib.request
 from pathlib import Path
 
-VORGABE_ADRESSE = "http://192.168.178.49:8530"
+VORGABE_ADRESSE = "https://192.168.178.49:8531"
+
+
+def tls_pruefung() -> ssl.SSLContext:
+    """Prüft gegen die Hausstelle (mkcert) zusätzlich zu den üblichen Stellen; die Leitstelle gibt es nur über HTTPS."""
+    kontext = ssl.create_default_context()
+    wurzel = subprocess.run(["mkcert", "-CAROOT"], capture_output=True, text=True, check=False).stdout.strip()
+    if wurzel and (Path(wurzel) / "rootCA.pem").is_file():
+        kontext.load_verify_locations(cafile=str(Path(wurzel) / "rootCA.pem"))
+    return kontext
 
 
 def anfrage(adresse: str, methode: str, pfad: str, daten: dict | None = None) -> dict:
     koerper = json.dumps(daten).encode() if daten is not None else None
     r = urllib.request.Request(f"{adresse}{pfad}", data=koerper, method=methode, headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(r, timeout=20) as antwort:
+    with urllib.request.urlopen(r, timeout=20, context=tls_pruefung()) as antwort:
         return json.load(antwort)
 
 
