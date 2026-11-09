@@ -1,5 +1,5 @@
 # Betrieb auf dem Pi: Apps und Browser kommen nur über HTTPS auf 8531 (Vorschaltdienst mit dem Zertifikat der Hausstelle
-# im Ordner zertifikate/, tools/ausrollen.sh stellt es aus), Entwürfe auf 8535. Der Kern (Fassade /v1, Verwaltung /api,
+# im Ordner zertifikate/, tools/ausrollen.sh stellt es aus), Entwürfe auf 8535 nur am Pi (im Heimnetz über den Vorbau). Der Kern (Fassade /v1, Verwaltung /api,
 # Oberfläche) lauscht auf 8530 nur im inneren Netz hinter dem Vorschaltdienst; seit LS-6 ist dieser Port nicht mehr
 # veröffentlicht. Daten (SQLite, Tresorschlüssel) im Ordner LEITSTELLE_DATENORDNER (Vorgabe ./daten); er gehört dem
 # Benutzer 1000.
@@ -40,7 +40,8 @@ services:
     image: leitstelle-entwuerfe
     container_name: leitstelle-entwuerfe
     ports:
-      - "8535:80"
+      # nur am Pi selbst (HELF-169): im Heimnetz über den Vorbau des Pi (HTTPS), die frühere Adresse leitet dorthin um
+      - "127.0.0.1:8535:80"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1/gesundheit"]
