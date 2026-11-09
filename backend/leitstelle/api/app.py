@@ -35,7 +35,7 @@ def erstellen(konfig: Konfig | None = None, uhr: Uhr | None = None, transport: h
         await db.oeffnen()
         bus = Ereignisbus()
         agenten = Agentenvermittlung()
-        betrieb = Betrieb(Ablage(db), Tresor(konfig.tresor_schluessel), uhr or Systemuhr(), adapter_fabrik(konfig.verbindung_s, transport, agenten),
+        betrieb = Betrieb(Ablage(db), Tresor(konfig.tresor_schluessel), uhr or Systemuhr(), adapter_fabrik(konfig.verbindung_s, transport, agenten, konfig.ca_datei),
                           bus, konfig, agenten)
         app.state.konfig, app.state.bus, app.state.betrieb = konfig, bus, betrieb
         app.state.vermittlung = Vermittlung(betrieb, konfig)

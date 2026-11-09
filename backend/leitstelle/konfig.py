@@ -37,6 +37,8 @@ class Konfig(BaseSettings):
     pruefung_hoechstens_s: float = Field(default=86400.0, description="größter Abstand zwischen zwei Prüfungen eines ausgefallenen Dienstes (ein Tag)")
     ausfall_ab_fehlschlag: int = Field(default=5, description="ab so vielen Fehlschlägen in Folge heißt der Zustand Ausfall statt nicht erreichbar")
     steckbrief_takt_s: float = Field(default=300.0, description="so oft holt die Leitstelle die Messwerte der Steckbriefe aus dem Verlauf")
+    ca_datei: Path | None = Field(default=None, description="Wurzel der Hausstelle (rootCA.pem): ihr vertraut die Leitstelle zusätzlich "
+                                  "zu den üblichen Stellen, wenn sie Rechner im Heimnetz über TLS anspricht (Durchleitung)")
     verbindung_s: float = Field(default=10.0, description="Grenze für den Verbindungsaufbau zu Diensten; Arbeit selbst hat keine Lese-Grenze")
     hinweis_s: float = Field(default=15.0, description="Abstand der Wartehinweise in Strömen der Fassade")
     wieder_s: float = Field(default=30.0, description="Retry-After bei 429 und 503: wann ein neuer Versuch Sinn hat")

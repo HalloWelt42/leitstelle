@@ -16,8 +16,10 @@ verwaltet die Sprachmodelle eines Rechners, der Maschinenraum alle übrigen KI-M
 etwa das [Klangwerk](https://github.com/HalloWelt42/klangwerk)) und meldet sie der Leitstelle als alternative Anbindung;
 jeder hat eine eigene Oberfläche. Die Leitstelle ist die zentrale Steuerung und Überwachung: Anwendungen sprechen nur
 mit ihr, sie wählt Dienst und Rechner, plant den Speicher, sorgt dafür, dass Ressourcen nicht überlaufen, und greift
-ein, wo es nötig ist; jedes Bit durchschleifen muss sie dafür nicht. Den Modell-Läufer spricht sie direkt an, Dienste
-des Maschinenraums startet, hält und erreicht sie über ihn. Die eigenen Webapps selbst startet und stoppt das
+ein, wo es nötig ist; jedes Bit durchschleifen muss sie dafür nicht. Dienste des Maschinenraums startet, hält und
+erreicht sie über ihn; auch den Modell-Läufer eines Rechners erreicht sie über die Durchleitung seines Maschinenraums
+(Adresse `laeufer://<knoten>`, ein Weg je Rechner, mit TLS aus der Hausstelle, Einstellung `LEITSTELLE_CA_DATEI`). Ein
+Läufer ohne Maschinenraum lässt sich weiter direkt per Adresse anschließen. Die eigenen Webapps selbst startet und stoppt das
 [Stellwerk](https://github.com/HalloWelt42/stellwerk); sie halten keine Modelle und nutzen KI nur über die Leitstelle.
 
 ```

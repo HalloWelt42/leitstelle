@@ -10,6 +10,7 @@ Nutzung, und er weicht nicht. Anfragen gehen weiterhin direkt an den Dienst, nic
 from __future__ import annotations
 
 import json
+import ssl
 from typing import Any
 
 import httpx
@@ -31,12 +32,13 @@ class AgentDienste:
     meldet_sich_selbst = True            # der Maschinenraum meldet sich; sein Zustand liegt schon vor
     ueberlast_status = frozenset({429})
 
-    def __init__(self, adresse: str, agenten: Agentenvermittlung, verbindung_s: float = 10.0) -> None:
+    def __init__(self, adresse: str, agenten: Agentenvermittlung, verbindung_s: float = 10.0, tls: ssl.SSLContext | bool = True) -> None:
+        """`tls`: Prüfung der Durchleitung über TLS (die üblichen Stellen und die Hausstelle)."""
         if not adresse.startswith(SCHEMA):
             raise ValueError(f"keine Agent-Adresse: {adresse}")
         self.knoten = adresse[len(SCHEMA):]
         self.agenten = agenten
-        self._client = httpx.AsyncClient(timeout=httpx.Timeout(connect=verbindung_s, read=None, write=None, pool=None))
+        self._client = httpx.AsyncClient(timeout=httpx.Timeout(connect=verbindung_s, read=None, write=None, pool=None), verify=tls)
 
     async def zustand(self) -> Dienstbericht:
         v = self.agenten.verbindung(self.knoten)

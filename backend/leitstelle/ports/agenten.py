@@ -41,11 +41,12 @@ class AgentVerbindung:
 
     @property
     def durchleitung(self) -> httpx.URL | None:
-        """Basis der Durchleitung: die Adresse, von der sich der Agent verbunden hat, mit dem Port aus seiner Anmeldung.
-        None, solange er keine Durchleitung meldet."""
+        """Basis der Durchleitung: die Adresse, von der sich der Agent verbunden hat, mit dem Port aus seiner Anmeldung,
+        über TLS, wenn er das meldet (HELF-166). None, solange er keine Durchleitung meldet."""
         if not self.adresse or not self.anmeldung.durchleitung_port:
             return None
-        return httpx.URL(scheme="http", host=self.adresse, port=self.anmeldung.durchleitung_port)
+        schema = "https" if self.anmeldung.durchleitung_tls else "http"
+        return httpx.URL(scheme=schema, host=self.adresse, port=self.anmeldung.durchleitung_port)
 
     def trennen(self) -> None:
         for f in self.offen.values():

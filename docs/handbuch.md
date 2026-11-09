@@ -11,7 +11,7 @@ schluessel_orte:
   - "Pi: `tresor.schluessel` im Datenordner; ohne ihn sind die im Tresor gespeicherten Schlüssel und Zugänge nicht lesbar"
   - "Datenbank (verschlüsselt mit dem Tresor): Schlüssel der Anwendungen, der Knoten (Maschinenraum) und externer Anbieter"
 einrichten: einrichten.sh
-stand: 1fc15d5
+stand: ffbb054
 ---
 
 # Leitstelle
@@ -96,8 +96,10 @@ meldet `"version": "{{fassung}}"`, und auf dem Zielrechner antwortet
 
 Aus der Sicherung stehen sie schon da. Frisch in der Oberfläche unter Dienste den Modell-Läufer des Macs per Adresse
 anschließen (Port 1234; Rechner mit Name und Speicher), dann unter Knoten beim Mac "Maschinenraum verbinden" und
-Adresse und Schlüssel in der Oberfläche des [[Maschinenraum]] unter Leitstelle eintragen. Den Läufer spricht die
-Leitstelle direkt an; der Maschinenraum beobachtet ihn (dort Einstellung `nachbar.modell_laeufer`, Vorgabe
+Adresse und Schlüssel in der Oberfläche des [[Maschinenraum]] unter Leitstelle eintragen. Danach beim Läufer die
+Adresse auf `laeufer://<kennung des knotens>` stellen: die Leitstelle erreicht ihn dann über die Durchleitung des
+Maschinenraums (ein Weg je Rechner, TLS mit der Hausstelle aus `zertifikate/rootCA.pem`), und er lauscht nur am Mac
+(HELF-166). Der Maschinenraum beobachtet ihn (dort Einstellung `nachbar.modell_laeufer`, Vorgabe
 `http://127.0.0.1:1234`): jeder Zugriff am Leitstand vorbei erscheint beim Knoten unter "Am Leitstand vorbei" und in der
 Übersicht, die Last seiner Prozesse unter "Läufer und Last".
 

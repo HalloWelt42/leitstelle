@@ -12,9 +12,12 @@ services:
     environment:
       # nur vom Vorschaltdienst gilt X-Forwarded-For als Herkunft (Netzprüfung, Prüfprotokoll)
       LEITSTELLE_VORSCHALTUNG: '["${LEITSTELLE_VORNE_IP:-10.201.53.2}"]'
+      # Hausstelle: die Durchleitungen der Maschinenräume sprechen TLS mit ihren Zertifikaten (HELF-166)
+      LEITSTELLE_CA_DATEI: /zertifikate/rootCA.pem
     networks: [innen]
     volumes:
       - ${LEITSTELLE_DATENORDNER:-./daten}:/daten
+      - ${LEITSTELLE_ZERTIFIKATE:-./zertifikate}/rootCA.pem:/zertifikate/rootCA.pem:ro
       # Ortszeit des Pi: Zeitfenster für Hintergrundarbeit und "heute" in den Kennzahlen hängen davon ab
       - /etc/localtime:/etc/localtime:ro
     restart: unless-stopped

@@ -20,6 +20,7 @@ from ..kern.text import aufzaehlung
 from ..kern.werte import Faehigkeit, Prioritaet, Zone
 from ..ports.ablage.eintraege import Adapterart, AliasEintrag, AnwendungEintrag, DienstEintrag, KnotenEintrag, PruefEintrag
 from ..ports.dienste import ModellBericht
+from ..ports.dienste.laeufer import SCHEMA as LAEUFER_SCHEMA
 from ..ports.tresor import fingerabdruck, neuer_anwendungsschluessel
 from .betrieb import Betrieb
 from .fehler import Ablehnung
@@ -166,6 +167,11 @@ def _nicht_aenderbar(e: DienstEintrag, felder: list[str]) -> Ablehnung:
 
 def _adresse_pruefen(adresse: str, extern: bool) -> str:
     adresse = adresse.strip().rstrip("/")
+    if adresse.startswith(LAEUFER_SCHEMA) and not extern:
+        # Modell-Läufer eines Rechners über die Durchleitung seines Maschinenraums (HELF-166)
+        if not adresse[len(LAEUFER_SCHEMA):]:
+            raise Ablehnung("adresse", "laeufer:// braucht die Kennung des Rechners, etwa laeufer://<knoten>.")
+        return adresse
     teile = urlparse(adresse)
     if teile.scheme not in ("http", "https") or not teile.hostname:
         raise Ablehnung("adresse", "Die Adresse muss mit http:// oder https:// beginnen und einen Rechner nennen.")
