@@ -111,14 +111,15 @@ class Vermittlung:
     # ── Annehmen ─────────────────────────────────────────────────────────
     def annehmen(self, anwendung: str, faehigkeit: Faehigkeit, modellwunsch: str | None, prioritaet: Prioritaet | None, titel: str,
                  arbeit: str | None = None, extern: list[str] | None = None, instanz: str | None = None, koerper: dict[str, Any] | None = None,
-                 alternativen: list[str] | None = None, art: Auftragsart = Auftragsart.EINZEL, wichtig: bool = False) -> Vorgang:
+                 alternativen: list[str] | None = None, art: Auftragsart = Auftragsart.EINZEL, wichtig: bool = False,
+                 rechner: list[str] | None = None) -> Vorgang:
         """Ein Aufruf wird ein Auftrag; aus dem Körper schätzt die Leitstelle seine Token für die Grenzen je Minute.
         `modellwunsch` und `alternativen` sind die Wahl der Anwendung (Namen, in ihrer Reihenfolge); ohne Modell lehnt der
         Zuteiler mit `modell_fehlt` ab und nennt die Modelle zur Wahl."""
         familie, ausweichliste = self.modellwahl(modellwunsch, alternativen or [])
         auftrag, lauf = self.betrieb.anlegen(anwendung, faehigkeit, familie, prioritaet, titel, arbeit, extern, instanz,
                                              token=token_schaetzen(koerper) if koerper else (0, 0), alternativen=ausweichliste,
-                                             art=art, wichtig=wichtig)
+                                             art=art, wichtig=wichtig, rechner=rechner)
         v = Vorgang(auftrag=auftrag, lauf=lauf)
         if lauf.ende.is_set():                         # sofort abgelehnt (Rechte, Zone, kein Modell)
             self._abschliessen(v, Auftragszustand.ABGELEHNT, lauf.grund, lauf.begruendung)

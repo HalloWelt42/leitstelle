@@ -1054,10 +1054,10 @@ class Betrieb:
     def anlegen(self, anwendung: str, faehigkeit: Faehigkeit, festes_modell: str | None, prioritaet: Prioritaet | None, titel: str,
                 arbeit: str | None = None, extern: list[str] | None = None, instanz: str | None = None,
                 token: tuple[int, int] = (0, 0), alternativen: list[str] | None = None, art: Auftragsart = Auftragsart.EINZEL,
-                wichtig: bool = False) -> tuple[Auftrag, Lauf]:
+                wichtig: bool = False, rechner: list[str] | None = None) -> tuple[Auftrag, Lauf]:
         """`festes_modell` und `alternativen` sind die Wahl der Anwendung (Familien, in ihrer Reihenfolge); ohne Modell lehnt
         der Zuteiler den Auftrag ab (`modell_fehlt`), die Leitstelle wählt keins. `art` (Einzel oder Masse, LS-24) und
-        `wichtig` (vom Nutzer markiert, LS-23) sagt die Anwendung."""
+        `wichtig` (vom Nutzer markiert, LS-23) und `rechner` (Kennungen, die sie bevorzugt, LS-28) sagt die Anwendung."""
         app = self.anwendungen[anwendung]
         if self.verbund.betriebsmodus == Betriebsmodus.HALT:
             raise Ablehnung("halt", "Der Hauptregler steht auf Halt; es wird nichts gerechnet.")
@@ -1067,12 +1067,14 @@ class Betrieb:
         a = Auftrag(kennung=uuid4().hex, anwendung=anwendung, faehigkeit=faehigkeit, prioritaet=app.prioritaet if prioritaet is None else prioritaet,
                     eingang_s=self.verbund.zeit_s, festes_modell=festes_modell, alternativen=list(alternativen or []), anhaltbar=False, laufzeit_s=0.0,
                     arbeit=f"{anwendung}:{arbeit}" if arbeit else None, extern_familien=list(extern or []), feste_instanz=instanz,
-                    token_ein_geschaetzt=token[0], token_aus_geschaetzt=token[1], art=art, wichtig=wichtig)
+                    token_ein_geschaetzt=token[0], token_aus_geschaetzt=token[1], art=art, wichtig=wichtig,
+                    rechner_wunsch=[k for k in (rechner or []) if k in self.verbund.knoten])
         self.verbund.arbeiten_aufraeumen()
         self.verbund.arbeit_zaehlen(a, titel)
         lauf = Lauf(a.kennung, titel)
         wahl = f", Modell {festes_modell} verlangt" + (f", sonst {', '.join(a.alternativen)}" if a.alternativen else "") if festes_modell else ""
-        einordnung = (", vom Nutzer als wichtig markiert" if wichtig else "") + (", Massenaufgabe" if art == Auftragsart.MASSE else "")
+        einordnung = ((", vom Nutzer als wichtig markiert" if wichtig else "") + (", Massenaufgabe" if art == Auftragsart.MASSE else "")
+                      + (f", bevorzugt {', '.join(self.verbund.knoten[k].name for k in a.rechner_wunsch)}" if a.rechner_wunsch else ""))
         lauf.notieren(a.eingang_s, Auftragszustand.EINGEREIHT, f"angenommen von {app.name}{wahl}{einordnung}")
         self.verbund.auftraege[a.kennung] = a
         self.laeufe[a.kennung] = lauf

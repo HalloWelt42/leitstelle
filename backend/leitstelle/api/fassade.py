@@ -33,7 +33,7 @@ from ..ports.ablage.eintraege import Adapterart
 from ..ports.ablage.eintraege import AnwendungEintrag
 from ..ports.dienste import Durchleitung
 from ..protokoll.fassade import (Bereitschaft, BildAnfrage, BildAntwort, BildDaten, BildZusatz, DienstListe, DienstSicht, Einordnung,
-                                 Einordnungsanfrage, Einschaetzungsanfrage, Modellwahl)
+                                 Einordnungsanfrage, Einschaetzungsanfrage, Modellwahl, RechnerOrt)
 from .gemeinsam import ablehnung_antwort, betrieb, fehler_antwort, konfig, vermittlung
 
 router = APIRouter()
@@ -90,11 +90,30 @@ ARBEIT_ZEICHEN = re.compile(r"[A-Za-z0-9._:-]{1,64}")
 
 
 def _einordnung(request: Request) -> dict:
-    """X-Leitstelle-Art (`einzel` oder `masse`, LS-24) und X-Leitstelle-Wichtig (`ja`, LS-23: nur, wenn der Nutzer den
-    Auftrag in der App ausdrücklich als wichtig markiert hat). Unbekannte Werte zählen wie keine Angabe."""
+    """X-Leitstelle-Art (`einzel` oder `masse`, LS-24), X-Leitstelle-Wichtig (`ja`, LS-23: nur, wenn der Nutzer den
+    Auftrag in der App ausdrücklich als wichtig markiert hat) und X-Leitstelle-Rechner (LS-28). Unbekannte Werte zählen
+    wie keine Angabe."""
     art = request.headers.get("x-leitstelle-art", "").strip().lower()
     wichtig = request.headers.get("x-leitstelle-wichtig", "").strip().lower() in ("ja", "1", "true")
-    return {"art": Auftragsart.MASSE if art == Auftragsart.MASSE.value else Auftragsart.EINZEL, "wichtig": wichtig}
+    return {"art": Auftragsart.MASSE if art == Auftragsart.MASSE.value else Auftragsart.EINZEL, "wichtig": wichtig,
+            "rechner": _rechner(request)}
+
+
+RECHNER_HOECHSTENS = 8
+
+
+def _rechner(request: Request) -> list[str]:
+    """X-Leitstelle-Rechner: Rechner, die die App bevorzugt, durch Komma getrennt in ihrer Reihenfolge (Kennung oder Name,
+    prozentkodiert wie der Titel, LS-28). Ein Wunsch: die Leitstelle nimmt den ersten, der gerade kann, sonst weicht sie
+    aus. Unbekannte Rechner zählen nicht; leer oder ohne Kopf entscheidet die Leitstelle allein."""
+    roh = unquote(request.headers.get("x-leitstelle-rechner", ""))
+    knoten = betrieb(request).verbund.knoten
+    nach_name = {k.name.casefold(): k.kennung for k in knoten.values()} | {k.casefold(): k for k in knoten}
+    wunsch: list[str] = []
+    for teil in roh.split(",")[:RECHNER_HOECHSTENS]:
+        if (k := nach_name.get(teil.strip().casefold())) and k not in wunsch:
+            wunsch.append(k)
+    return wunsch
 
 
 def _arbeit(request: Request) -> str | None:
@@ -667,7 +686,10 @@ async def dienste(request: Request):
         steckbrief = b.steckbrief(grund)
         aus.append(DienstSicht(kennung=familie, name=grund.name, aufgabe=grund.aufgabe, zweck=steckbrief.zweck, faehigkeiten=[f for f in Faehigkeit if f in faehig],
                                zustand=min((_bereitschaft(request, m) for m in instanzen), key=BEREITSCHAFT_VORRANG.index),
-                               rechner=sorted(b.verbund.knoten[k].name for k in knoten if k in b.verbund.knoten), bild=steckbrief.bild))
+                               rechner=sorted(b.verbund.knoten[k].name for k in knoten if k in b.verbund.knoten),
+                               orte=sorted((RechnerOrt(kennung=k, name=b.verbund.knoten[k].name) for k in knoten if k in b.verbund.knoten),
+                                           key=lambda o: o.name),
+                               bild=steckbrief.bild))
     return DienstListe(data=aus).model_dump(mode="json")
 
 

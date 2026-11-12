@@ -119,6 +119,13 @@ class Bereitschaft(str, Enum):
     NICHT_ERREICHBAR = "nicht_erreichbar"   # sein Maschinenraum meldet sich nicht
 
 
+class RechnerOrt(BaseModel):
+    """Ein Rechner, auf dem ein Dienst liegt: Kennung für den Kopf X-Leitstelle-Rechner (LS-28) und Name zum Zeigen."""
+
+    kennung: str
+    name: str
+
+
 class DienstSicht(BaseModel):
     """Ein Eintrag von `GET /v1/dienste`: ein Dienst im Maschinenraum, gleich auf wie vielen Rechnern er läuft."""
 
@@ -129,6 +136,7 @@ class DienstSicht(BaseModel):
     faehigkeiten: list[Faehigkeit]
     zustand: Bereitschaft
     rechner: list[str]                # Namen der Rechner, auf denen er liegt
+    orte: list[RechnerOrt] = []       # dieselben Rechner mit Kennung, für den Rechnerwunsch einer App (LS-28)
     bild: Bildsteckbrief | None = None   # Bilddienste: was ihr Modell annimmt (Größen, Schritte, Anzahl), sobald er einmal lief
 
 

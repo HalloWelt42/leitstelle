@@ -4,6 +4,7 @@ startet. Die Anwendung kennt nur Beschreibung, Größe, Anzahl und Startwert, ni
 
 from __future__ import annotations
 
+from unittest.mock import ANY
 import asyncio
 import base64
 import json
@@ -152,7 +153,7 @@ async def test_bilder_und_dienste_ueber_die_fassade(tmp_path):
             async with httpx.AsyncClient(base_url=url, timeout=60) as anw:
                 r = await anw.get("/v1/dienste", headers=bild)
                 assert r.status_code == 200 and r.json() == {"object": "list", "data": [
-                    {"kennung": "bildschmiede", "name": "Bildschmiede", "aufgabe": "Bilderzeugung", "zweck": "", "faehigkeiten": ["bild_erzeugen"], "zustand": "aus", "rechner": ["Mac Studio"],
+                    {"kennung": "bildschmiede", "name": "Bildschmiede", "aufgabe": "Bilderzeugung", "zweck": "", "faehigkeiten": ["bild_erzeugen"], "zustand": "aus", "rechner": ["Mac Studio"], "orte": [{"kennung": ANY, "name": "Mac Studio"}],
                      "bild": None}]}
                 assert (await anw.get("/v1/dienste", headers=text)).json()["data"] == []      # nur, was die Anwendung nutzen darf
                 assert (await anw.get("/v1/dienste", headers={"Authorization": "Bearer falsch"})).status_code == 401

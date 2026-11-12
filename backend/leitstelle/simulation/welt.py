@@ -53,7 +53,7 @@ class Welt:
     def auftrag(self, anwendung: str, faehigkeit: Faehigkeit, laufzeit_s: float = 20.0, zeit_s: float | None = None,
                 prioritaet: Prioritaet | None = None, festes_modell: str | None = None, kennung: str | None = None,
                 extern: list[str] | None = None, alternativen: list[str] | None = None, art: Auftragsart = Auftragsart.EINZEL,
-                wichtig: bool = False) -> Auftrag:
+                wichtig: bool = False, rechner: list[str] | None = None) -> Auftrag:
         """Ein Auftrag einer simulierten Anwendung. Wie eine echte nennt sie immer selbst ihr Modell: ohne `festes_modell`
         das erste ihrer Modellwahl für die Fähigkeit, die übrigen als Ausweichliste; hat sie keine, schickt sie keins."""
         self.laufnummer += 1
@@ -62,7 +62,7 @@ class Welt:
             festes_modell, alternativen = wahl[0], wahl[1:] if alternativen is None else alternativen
         a = Auftrag(kennung=kennung or f"a-{self.laufnummer:04d}", anwendung=anwendung, faehigkeit=faehigkeit,
                     prioritaet=app.prioritaet if prioritaet is None else prioritaet, eingang_s=self.verbund.zeit_s if zeit_s is None else zeit_s,
-                    laufzeit_s=laufzeit_s, festes_modell=festes_modell, alternativen=list(alternativen or []), extern_familien=list(extern or []),
+                    laufzeit_s=laufzeit_s, festes_modell=festes_modell, alternativen=list(alternativen or []), rechner_wunsch=list(rechner or []), extern_familien=list(extern or []),
                     art=art, wichtig=wichtig)
         if zeit_s is None or zeit_s <= self.verbund.zeit_s:
             self.verbund.auftraege[a.kennung] = a

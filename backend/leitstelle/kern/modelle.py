@@ -291,6 +291,7 @@ class Auftrag(BaseModel):
     arbeit: str | None = None         # Arbeit der Anwendung, zu der die Anfrage gehört (Kopf X-Leitstelle-Arbeit)
     extern_familien: list[str] = Field(default_factory=list)   # Erlaubnisliste der App für externe Modelle (Kopf X-Leitstelle-Extern)
     feste_instanz: str | None = None  # Folgeaufruf an genau diese Modellinstanz (Kopf X-Leitstelle-Instanz)
+    rechner_wunsch: list[str] = Field(default_factory=list)   # Rechner, die die App bevorzugt, in ihrer Reihenfolge (Kopf X-Leitstelle-Rechner, LS-28): ein Wunsch, die Leitstelle weicht aus
     token_ein_geschaetzt: int = 0     # aus der Länge der Anfrage, für die Grenzen je Minute; nach der Antwort zählt der echte Verbrauch
     token_aus_geschaetzt: int = 0     # höchstens so viele verlangt die Anfrage (max_tokens); 0: nicht bekannt
 

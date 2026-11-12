@@ -306,7 +306,7 @@ Für Anwendungen ohne Umbau. Basisadresse mit oder ohne `/v1` wird angenommen.
 | `POST /v1/audio/speech` | `auftrag.anlegen` (stimme) | Audio-Stream |
 | `POST /v1/images/generations` | `auftrag.anlegen` (bild_erzeugen) | Bilder als `b64_json`, mit und ohne Strom; `model` wählt den Bilddienst (Kennung oder Name seines Modells); den Ablauf des Bilddienstes kennt die Leitstelle, die Grenzen seines Modells prüft sie vorher (6.1) |
 | `POST /v1/images/edits` | `auftrag.anlegen` (bild_bearbeiten) | ein Bild nach Anweisung ändern: Formular wie im OpenAI-Format (Datei im Feld `image`) oder JSON mit `images`; mindestens eine Vorlage; sonst wie das Erzeugen, ohne Bildablage (6.4) |
-| `GET /v1/dienste` | Liste der Dienste | die Dienste im Maschinenraum, die die Anwendung nutzen darf, mit Zweck, Zustand, Rechner und bei Bilddiensten dem Bild-Steckbrief (6.2) |
+| `GET /v1/dienste` | Liste der Dienste | die Dienste im Maschinenraum, die die Anwendung nutzen darf, mit Zweck, Zustand, Rechner (`rechner` als Namen, `orte` mit Kennung und Name für `X-Leitstelle-Rechner`) und bei Bilddiensten dem Bild-Steckbrief (6.2) |
 | `GET, POST, PUT, PATCH, DELETE /v1/dienste/<name>/<pfad>` | `auftrag.anlegen` (Fähigkeit, die Dienst und Anwendung teilen) | jeder Dienst mit eigener Schnittstelle (Sprache, Bild, Musik): die Leitstelle startet ihn bei Bedarf über den Maschinenraum seines Rechners, plant seinen Bedarf ein und reicht Anfrage und Antwort unverändert durch (auch Binärdaten). `<name>` ist die Kennung des Dienstes im Maschinenraum (Dateiname der Dienstdatei) |
 | `GET /api/v0/models`, `GET /api/v1/models` | `frage.modelle` | nachgebildete Form des Modell-Läufers (Feld `state`, `loaded_instances`), weil mehrere Anwendungen genau diese Form lesen |
 
@@ -435,9 +435,10 @@ Priorität der Fassaden-Aufträge: Vorgabe der Anwendung; ein Kopf `X-Leitstelle
 Aufruf absenken (nie heben), ebenso `X-Leitstelle-Titel` für einen lesbaren Titel (prozentkodiert, weil HTTP-Köpfe nur
 ASCII tragen), `X-Leitstelle-Arbeit` für die Arbeit, zu der die Anfrage gehört, `X-Leitstelle-Extern` für die
 Erlaubnisliste externer Modelle, `X-Leitstelle-Instanz` für Folgeaufrufe (ANBINDUNG), `X-Leitstelle-Art` (`einzel` oder
-`masse`, LS-24) und `X-Leitstelle-Wichtig` (`ja`, nur auf ausdrückliche Angabe des Nutzers, LS-23); was sie bewirken,
-steht in [ARBEITSLOGIK.md](ARBEITSLOGIK.md). Unbekannte Werte zählen wie keine Angabe. Mehr als diese sieben Köpfe gibt
-es nicht; wer mehr will, nutzt das Protokoll.
+`masse`, LS-24), `X-Leitstelle-Wichtig` (`ja`, nur auf ausdrückliche Angabe des Nutzers, LS-23) und
+`X-Leitstelle-Rechner` (bevorzugte Rechner, Kennung oder Name, durch Komma, LS-28); was sie bewirken, steht in
+[ARBEITSLOGIK.md](ARBEITSLOGIK.md). Unbekannte Werte zählen wie keine Angabe. Mehr als diese acht Köpfe gibt es nicht;
+wer mehr will, nutzt das Protokoll.
 
 Bindung an eine Instanz: läuft ein Dienst mehrfach (weitere Instanz auf demselben Rechner, ein zweiter Rechner),
 gehören zusammengehörige Aufrufe an dieselbe Instanz, etwa "rechnen" und danach "Ergebnis abholen". Jede Antwort einer

@@ -83,6 +83,12 @@ def rolle(verbund: Verbund, a: Auftrag, knoten: str | None) -> int:
     return 0 if k is not None and a.faehigkeit in k.bevorzugt_fuer else 1
 
 
+def wunsch(a: Auftrag, knoten: str | None) -> int:
+    """Rang des Rechners im Wunsch der App (LS-28): 0 für den ersten Wunsch, ohne Wunsch oder nicht genannt hinter allen
+    genannten. Ein Wunsch ordnet nur unter Rechnern, die der Auftrag ohnehin nutzen darf; Regeln der Leitstelle gehen vor."""
+    return a.rechner_wunsch.index(knoten) if knoten in a.rechner_wunsch else len(a.rechner_wunsch)
+
+
 def rechner_der_wahl(verbund: Verbund, a: Auftrag) -> set[str]:
     """Die Rechner, auf denen der Auftrag ein Modell aus der Wahl der Anwendung nutzen dürfte (dieselbe Prüfung wie bei der
     Zuteilung: Dienst bereit, Zone, Akku, Vorrang; ohne externe Anbieter). Arbeit nur bei Ruhe wartet auf einen dieser
@@ -236,6 +242,40 @@ def platz(verbund: Verbund, a: Auftrag) -> tuple[int, int] | None:
     return (gleiche.index(a.kennung) + 1, len(gleiche)) if a.kennung in gleiche else None
 
 
+def _wunsch_satz(verbund: Verbund, a: Auftrag, knoten: str | None) -> str:
+    """Zur Begründung: wie der Rechner zum Wunsch der App steht (LS-28); ohne Wunsch nichts."""
+    if not a.rechner_wunsch:
+        return ""
+    if knoten == a.rechner_wunsch[0]:
+        return ", wie von der App gewünscht"
+    erster = verbund.knoten.get(a.rechner_wunsch[0])
+    return f", statt des gewünschten {erster.name if erster else a.rechner_wunsch[0]}"
+
+
+def _auf_wunschrechner_laden(verbund: Verbund, a: Auftrag, familie: str, mit_extern: bool, nur_knoten: set[str] | None,
+                             freigehalten: dict[str, Auftrag], rang_geladen: int, geplanter_speicher: dict[str, float],
+                             messwerk: Messwerk) -> Zuteilung | None:
+    """Eine Zuteilung zum Laden auf einem Rechner, den die App lieber hat als den, auf dem das Modell schon geladen ist
+    (LS-28), wenn es dort ohne Entladen passt; sonst None (dann rechnet es, wo es liegt)."""
+    if rang_geladen == 0 or not a.rechner_wunsch:
+        return None
+    besser = []
+    for m in kandidaten(verbund, a, familie, mit_extern, None, nur_knoten, freigehalten):
+        d = verbund.dienste[m.dienst]
+        if d.extern or m.zustand != Modellzustand.FREI or wunsch(a, d.knoten) >= rang_geladen or not m.ladbar(verbund.zeit_s):
+            continue
+        plan = planen(verbund, d.knoten, m.gb + geplanter_speicher.get(d.knoten, 0.0), messwerk, familie=m.familie, fuer_arbeit=a.arbeit,
+                      anforderung=True)
+        if plan.passt and not plan.entladen:
+            besser.append((wunsch(a, d.knoten), plan.aufwand_s, plan, m, d))
+    if not besser:
+        return None
+    _, _, p, m, d = min(besser, key=lambda t: (t[0], t[1]))
+    return Zuteilung(auftrag=a.kennung, dienst=d.kennung, knoten=d.knoten, modell=m.kennung, laden=True, direkt=False,
+                     begruendung=f"{m.name} wird auf {d.name} {'gestartet' if d.maschinenraum else 'geladen'}, wie von der App gewünscht "
+                                 f"({komma(p.frei_gb)} GB frei, etwa {p.aufwand_s:.0f} s)")
+
+
 def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> Zuteilergebnis:
     """Teilt alle wartenden Aufträge zu, soweit möglich. Verändert den Verbund nicht."""
     ergebnis = Zuteilergebnis()
@@ -296,12 +336,20 @@ def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> 
                 d = verbund.dienste[m.dienst]
                 bevorzugt = 0 if (a.prioritaet == Prioritaet.HINTERGRUND and verbund.hintergrund_knoten_bevorzugt and d.knoten == verbund.hintergrund_knoten_bevorzugt) else 1
                 belegt = (len(verbund.belegung(m.kennung)) + vergeben_plaetze.get(m.kennung, 0)) / max(1, verbund.plaetze(m))
-                geladene.append(((bevorzugt, rolle(verbund, a, d.knoten), belegt), m))
+                geladene.append(((bevorzugt, wunsch(a, d.knoten), rolle(verbund, a, d.knoten), belegt), m))
         if geladene:
             _, m = sorted(geladene, key=lambda t: t[0])[0]
             d = verbund.dienste[m.dienst]
-            gefunden = Zuteilung(auftrag=a.kennung, dienst=d.kennung, knoten=d.knoten, modell=m.kennung, laden=False, direkt=a.prioritaet >= Prioritaet.HOCH,
-                                 begruendung=f"{m.name} ist auf {d.name} geladen und frei" + (" (Direktweg)" if a.prioritaet >= Prioritaet.HOCH else ""))
+            # Wunsch der App (LS-28): liegt das Modell nur auf einem weniger gewünschten Rechner, lädt es der gewünschte,
+            # wenn es dort ohne Entladen passt; sonst rechnet es, wo es schon liegt
+            if (wunschladen := _auf_wunschrechner_laden(verbund, a, erstes, mit_extern, nur_knoten, freigehalten, wunsch(a, d.knoten),
+                                                        geplanter_speicher, messwerk)) is not None:
+                gefunden = wunschladen
+                geplanter_speicher[gefunden.knoten] = geplanter_speicher.get(gefunden.knoten, 0.0) + verbund.modelle[gefunden.modell].gb
+            else:
+                gefunden = Zuteilung(auftrag=a.kennung, dienst=d.kennung, knoten=d.knoten, modell=m.kennung, laden=False, direkt=a.prioritaet >= Prioritaet.HOCH,
+                                     begruendung=f"{m.name} ist auf {d.name} geladen und frei" + (" (Direktweg)" if a.prioritaet >= Prioritaet.HOCH else "")
+                                     + _wunsch_satz(verbund, a, d.knoten))
         if gefunden is None:
             # 2. Das erste Modell der Wahl, das geht: geladen, aber belegt -> warten auf Platz; sonst laden, wenn es passt
             for fam in wahl:
@@ -347,9 +395,11 @@ def zuteilen(verbund: Verbund, messwerk: Messwerk, mit_extern: bool = False) -> 
                 passende = [(p, m, d) for p, m, d in plaene if p.passt and not p.entladen]
                 if passende:
                     bevorzugt = verbund.hintergrund_knoten_bevorzugt if a.prioritaet == Prioritaet.HINTERGRUND else None
-                    p, m, d = sorted(passende, key=lambda t: (0 if t[2].knoten == bevorzugt else 1, rolle(verbund, a, t[2].knoten), t[0].aufwand_s))[0]
+                    p, m, d = sorted(passende, key=lambda t: (0 if t[2].knoten == bevorzugt else 1, wunsch(a, t[2].knoten), rolle(verbund, a, t[2].knoten),
+                                                              t[0].aufwand_s))[0]
                     gefunden = Zuteilung(auftrag=a.kennung, dienst=d.kennung, knoten=d.knoten, modell=m.kennung, laden=True, direkt=False,
-                                         begruendung=f"{m.name} wird auf {d.name} {'gestartet' if d.maschinenraum else 'geladen'} ({komma(p.frei_gb)} GB frei, etwa {p.aufwand_s:.0f} s)")
+                                         begruendung=f"{m.name} wird auf {d.name} {'gestartet' if d.maschinenraum else 'geladen'} ({komma(p.frei_gb)} GB frei, etwa {p.aufwand_s:.0f} s)"
+                                         + _wunsch_satz(verbund, a, d.knoten))
                     geplanter_speicher[d.knoten] = geplanter_speicher.get(d.knoten, 0.0) + m.gb
                     break
                 if plaene:

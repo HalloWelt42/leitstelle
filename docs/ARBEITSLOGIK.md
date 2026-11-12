@@ -24,7 +24,8 @@ so entschieden ist in [ZUSAMMENSPIEL.md](ZUSAMMENSPIEL.md) (Abschnitte "Entschei
 | Modell | `model`, dazu `alternativen` | Pflicht; Kennung, Alias oder Name. Die Reihenfolge der App gilt streng |
 | Art | Kopf `X-Leitstelle-Art: einzel` oder `masse` | Einzelauftrag (Vorgabe) oder Teil einer Massenaufgabe (Abschnitt 3) |
 | Wichtig | Kopf `X-Leitstelle-Wichtig: ja` | nur, wenn der Nutzer den Auftrag ausdrücklich als wichtig markiert hat (Abschnitt 4) |
-| Priorität | Kopf `X-Leitstelle-Prioritaet` | darf die Vorgabe der App absenken, nie heben |
+| Priorität | Kopf `X-Leitstelle-Prioritaet` | darf die Vorgabe der App absenken, nie heben; so stuft eine App ihre Dienste untereinander ab (etwa Vorlesen hoch, Massenübersetzung Hintergrund), die Obergrenze bleibt die Vorgabe der App in der Leitstelle |
+| Rechner | Kopf `X-Leitstelle-Rechner` | Rechner, die die App bevorzugt (Kennung oder Name, durch Komma, in ihrer Reihenfolge, LS-28). Ein Wunsch: die Leitstelle nimmt unter den Rechnern, die der Auftrag ohnehin nutzen darf, den ersten, der gerade kann; liegt das Modell nur auf einem weniger gewünschten Rechner, lädt sie es auf dem gewünschten, wenn es dort ohne Entladen passt, sonst rechnet es, wo es liegt. Regeln der Leitstelle (Verlagern, Vorrang, Akku, Ruhe) gehen vor, das Modell ändert sich nie. Ohne Kopf entscheidet die Leitstelle allein. Welche Rechner einen Dienst haben, sagt `GET /v1/dienste` (`orte`) |
 | Titel | Kopf `X-Leitstelle-Titel` | lesbarer Titel für die Oberfläche der Leitstelle; erscheint nie in der Auskunft an andere Apps |
 | Arbeit | Kopf `X-Leitstelle-Arbeit` | zusammengehörige Anfragen einer Arbeit (hält ihre Modelle) |
 | Extern, Instanz | Köpfe `X-Leitstelle-Extern`, `X-Leitstelle-Instanz` | externe Modelle erlauben; Folgeaufruf an dieselbe Instanz |

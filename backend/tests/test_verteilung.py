@@ -95,3 +95,44 @@ async def test_rolle_wird_gespeichert_und_bleibt_beim_aendern(tmp_path):
     async with leitstelle(tmp_path, mit_takt=False) as (_app, _url, c):
         k = next(x for x in (await c.get("/api/lage")).json()["knoten"] if x["kennung"] == kennung)
         assert k["bevorzugt_fuer"] == ["hoeren", "stimme"] and k["budget_fest_gb"] == 22
+
+
+# ── Rechnerwunsch der App (LS-28) ─────────────────────────────────────────────────────────────────────────────────────
+
+def test_wunsch_der_app_waehlt_zwischen_geladenen_kopien():
+    """Dasselbe Modell auf beiden Rechnern geladen und frei: der Wunsch der App entscheidet, auch gegen die Rolle."""
+    w = welt_mit()
+    v = _glm_auf_beiden(w)
+    v.knoten["mac-128"].bevorzugt_fuer = {F.BILD_BESCHREIBEN}
+    a = w.auftrag("kiste", F.BILD_BESCHREIBEN, laufzeit_s=5, festes_modell="glm-4.6v", rechner=["mac-32"])
+    w.laufen(6)
+    x = v.auftraege[a.kennung]
+    assert x.knoten == "mac-32"
+    b = w.auftrag("kiste", F.BILD_BESCHREIBEN, laufzeit_s=5, festes_modell="glm-4.6v")   # ohne Wunsch gilt die Rolle
+    w.laufen(6)
+    assert v.auftraege[b.kennung].knoten == "mac-128"
+
+
+def test_wunsch_weicht_aus_wenn_der_rechner_nicht_kann():
+    """Ein Wunsch, kein Zwang: ist der gewünschte Rechner voll belegt, rechnet die Kopie auf dem anderen."""
+    w = welt_mit()
+    v = _glm_auf_beiden(w)
+    v.modelle["glm@32"].plaetze = 1
+    erster = w.auftrag("kiste", F.BILD_BESCHREIBEN, laufzeit_s=30, festes_modell="glm-4.6v", rechner=["mac-32"])
+    w.laufen(2)
+    zweiter = w.auftrag("kiste", F.BILD_BESCHREIBEN, laufzeit_s=5, festes_modell="glm-4.6v", rechner=["mac-32"])
+    w.laufen(6)
+    assert v.auftraege[erster.kennung].knoten == "mac-32" and v.auftraege[zweiter.kennung].knoten == "mac-128"
+
+
+def test_wunsch_laedt_auf_dem_gewuenschten_rechner_wenn_es_passt():
+    """Das Modell liegt nur auf dem Mac Studio; die App wünscht das MacBook, dort ist Platz: es wird dort geladen. Ändert nie
+    das Modell."""
+    w = welt_mit()
+    v = w.verbund
+    v.dienste["laeufer-32"].zustand = Dienstzustand.BEREIT
+    lade(w, "glm@128")
+    a = w.auftrag("kiste", F.BILD_BESCHREIBEN, laufzeit_s=5, festes_modell="glm-4.6v", rechner=["mac-32"])
+    w.laufen(120)
+    x = v.auftraege[a.kennung]
+    assert x.knoten == "mac-32" and v.modelle[x.modell].familie == "glm-4.6v"
