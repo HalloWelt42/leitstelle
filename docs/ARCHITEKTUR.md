@@ -130,7 +130,7 @@ Schlüssel sind UUIDs; nach außen zeigen wir Wörter, nie Schlüssel.
 | Fähigkeit | was ein Auftrag braucht | Werteliste: text, einbettung, uebersetzen, hoeren, bild_beschreiben, bild_erzeugen, bild_bearbeiten, bild_freistellen, musik, stimme, stimme_klonen, werkzeug; erweiterbar über die Registry |
 | Anwendung | ein angemeldeter Verbraucher | Kennung, Name, Schlüssel (verschlüsselt), erlaubte Fähigkeiten, Zonen, Kostengrenze, Vorgabe-Priorität, Herkunft (Adressen), Umbau-Stufe, Signalkanal ja/nein |
 | Auftrag | eine Arbeit einer Anwendung | Kennung, Anwendung, Fähigkeit, Eingabe, Modellwahl der Anwendung (Modell und Ausweichliste, ihre Reihenfolge), Priorität, Zustand, Zuteilung (Dienst, Modell, Knoten), Fortschritt, Schritte, Begründung, Messwerte (Dauer, erstes Stück, Token), Kosten |
-| Regelwerk | alles Einstellbare an einem Ort | Prioritäten, Speicher je Knoten, Schutzgrenze, Leerlauf, Zeitgrenzen, Zeitfenster, Extern |
+| Regelwerk | alles Einstellbare an einem Ort | Prioritäten, Speicher je Knoten, Dienstschutz, Leerlauf, Zeitgrenzen, Zeitfenster, Extern |
 | Lage | Gesamtzustand des Verbunds | ruhig, angespannt, engpass; mit Begründung |
 | Nachricht | Umschlag des Protokolls | siehe PROTOKOLL.md |
 
@@ -292,7 +292,7 @@ und ein Abschluss. Die Leitstelle liefert die Szenarien aus 5.6 als Vorlagen mit
 - **Bausteine** mit festen Ein- und Ausgängen: Auslöser (Auftrag wartet auf Speicher, Modell im Leerlauf,
   Lage wechselt, Zeitfenster beginnt, Knoten fällt aus, Warteschlange enthält, Wartezeit überschreitet),
   Prüfungen (anderer Knoten mit Platz, Anwendung darf Zone, Gewinn gegen Kosten, Modell geschützt,
-  Mindestverweildauer vorbei, Dienst installiert, Tagesgrenze reicht, Alternative der Anwendung geladen), Aktionen (Dienst
+  Bedarfsfrist erreicht, Dienst installiert, Tagesgrenze reicht, Alternative der Anwendung geladen), Aktionen (Dienst
   starten, Modell laden, Modell entladen, Auftrag umleiten, Priorität ändern, Signal senden, Melden, Extern
   rechnen, Aufträge anhalten), Fluss (Ja oder Nein, Alle erfüllt, Eine erfüllt, Warten bis, Ende).
   Neue Bausteine kommen über eine Registry (Python-Klasse mit Parametern, Ein- und Ausgängen, Erklärung,

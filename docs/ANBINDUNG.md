@@ -452,8 +452,8 @@ Darauf dürfen sich Anwendungen und Dienste verlassen; es ist im Kern getestet (
 | Zusage | Bedeutung für den Teilnehmer |
 |---|---|
 | Nie ein rechnendes oder zugeteiltes Modell entladen | ein laufender Auftrag verliert sein Modell nie unter sich weg |
-| Geschützte Modelle (Einbettung, unter 10 Milliarden Parametern, ausdrücklich geschützt) bleiben | Einbettungen sind jederzeit da |
-| Entladen nur bei Bedarf: ein wartender Auftrag braucht den Platz, das Modell ist seit der Bedarfsfrist (Vorgabe 60 s) ohne Auftrag und die Mindestverweildauer (Vorgabe 10 min) ist vorbei | kein vorsorgliches Räumen, kein Hin und Her |
+| Ausdrücklich vom Dienst geschützte Modelle bleiben | Größe und Fähigkeit begründen keinen pauschalen Schutz |
+| Bei Bedarf gilt die Bedarfsfrist, ohne Bedarf kann die Leerlaufregel nach der Entladefrist räumen (jeweils Vorgabe 60 s); wartende und begonnene Arbeit bleiben geschützt | nachvollziehbare Freigabe ohne Abbruch laufender Arbeit |
 | Hintergrund rückt nach spätestens 15 Minuten auf Normal | Stapelarbeit verhungert nicht |
 | Höchstens eine Umleitung je Auftrag; Flattern (dieselbe Bewegung zweimal in 10 Minuten) sperrt die Beteiligten 30 Minuten | kein Dauerwechsel |
 | Jede Maßnahme nur, wenn der gemessene Gewinn den gemessenen Aufwand um den Faktor (Vorgabe 2) übersteigt | Umschichten lohnt sich für den Auftrag, der wartet |
