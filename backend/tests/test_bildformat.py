@@ -334,8 +334,8 @@ async def test_b08_moss_image_ueber_die_fassade(tmp_path):
         d = (await anw.get("/v1/dienste", headers=kopf)).json()["data"]
         # HELF-84: der echte Modellname, die Aufgabe kommt vom Maschinenraum aus der Fähigkeit; die Kennung bleibt
         assert m["x-leitstelle"]["name"] == "MOSS-Image" and m["x-leitstelle"]["aufgabe"] == "Bilderzeugung"
-        assert d == [{"kennung": "bildwerk-moss-image", "name": "MOSS-Image", "aufgabe": "Bilderzeugung", "faehigkeiten": ["bild_erzeugen"], "zustand": "aus",
-                      "zweck": "Bilder aus Text mit MOSS-Image: lange Beschreibungen, Schrift im Bild", "rechner": ["Mac Studio"], "orte": [{"kennung": ANY, "name": "Mac Studio"}], "bild": None}]
+        assert d == [{"kennung": "bildwerk-moss-image", "name": "MOSS-Image", "aufgabe": "Bilderzeugung", "faehigkeiten": ["bild_erzeugen", "bild_bearbeiten"], "zustand": "aus",
+                      "zweck": "Bilder aus Text mit MOSS-Image: lange Beschreibungen, Schrift im Bild", "rechner": ["Mac Studio"], "orte": [{"kennung": ANY, "name": "Mac Studio"}], "bild": None, "aufruf_erlaubt": True}]
 
         # vor dem ersten Start: die Vorgabegrenzen der Fassade, kein Start für eine Größe, die keiner annimmt
         r = await anw.post("/v1/images/generations", headers=kopf, json={"prompt": "x", "model": "bildwerk-moss-image", "size": "4096x4096"})

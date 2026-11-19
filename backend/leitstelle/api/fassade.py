@@ -487,18 +487,43 @@ def _erlaubte_modelle(request: Request, app: AnwendungEintrag | None) -> list[Mo
             zone = Zone.EXTERN if d.extern else (b.verbund.knoten[d.knoten].zone if d.knoten in b.verbund.knoten else None)
             if zone not in app.zonen:
                 continue
+            if d.extern and not app.extern_erlaubt:
+                continue
         aus.append(m)
     return aus
 
 
 def _sichtbare_modelle(request: Request, app: AnwendungEintrag | None) -> list[Modell]:
-    """Je Familie eine Instanz der erlaubten Modelle, geladene vor freien."""
+    """Vollständiger Katalog für jede App; Sichtbarkeit erteilt keine Aufrufrechte. Hier wird nichts geladen."""
     gesehen: dict[str, Modell] = {}
-    for m in _erlaubte_modelle(request, app):
+    b = betrieb(request)
+    for m in b.verbund.modelle.values():
+        if m.dienst not in b.verbund.dienste:
+            continue
         bisher = gesehen.get(m.familie)
-        if bisher is None or (m.zustand != Modellzustand.FREI and bisher.zustand == Modellzustand.FREI):
+        if bisher is None or (m.zustand in (Modellzustand.GELADEN, Modellzustand.RECHNET)
+                              and bisher.zustand not in (Modellzustand.GELADEN, Modellzustand.RECHNET)):
             gesehen[m.familie] = m
-    return list(gesehen.values())
+    return [gesehen[f] for f in sorted(gesehen)]
+
+
+def _katalogangaben(request: Request, app: AnwendungEintrag | None, m: Modell) -> dict:
+    """Fähigkeiten, Verfügbarkeit, Quellen und getrennte Aufrufrechte aller Instanzen einer Modellfamilie."""
+    b = betrieb(request)
+    instanzen = [x for x in b.verbund.modelle.values() if x.familie == m.familie and x.dienst in b.verbund.dienste]
+    erlaubt = {x.kennung for x in _erlaubte_modelle(request, app)} if app is not None else set()
+    faehigkeiten = set().union(*(x.faehigkeiten for x in instanzen))
+    orte = []
+    for x in instanzen:
+        d = b.verbund.dienste[x.dienst]
+        k = b.verbund.knoten.get(d.knoten or "")
+        orte.append({"knoten": d.knoten, "name": k.name if k else d.name,
+                     "quelle": "eigener_dienst" if d.maschinenraum else "extern" if d.extern else "modell_laeufer",
+                     "zustand": _bereitschaft(request, x).value, "sperre": x.sperre,
+                     "aufruf_erlaubt": x.kennung in erlaubt})
+    return {"geladen": any(x.zustand in (Modellzustand.GELADEN, Modellzustand.RECHNET) for x in instanzen),
+            "faehigkeiten": sorted(f.value for f in faehigkeiten), "aufruf_erlaubt": any(x.kennung in erlaubt for x in instanzen),
+            "orte": sorted(orte, key=lambda x: (x["name"], x["quelle"], x["zustand"]))}
 
 
 def _darf_lesen(request: Request) -> tuple[bool, AnwendungEintrag | None]:
@@ -519,10 +544,10 @@ async def modelle(request: Request):
     for m in _sichtbare_modelle(request, app):
         d = b.verbund.dienste[m.dienst]
         daten.append({"id": m.familie, "object": "model", "owned_by": "leitstelle",
-                      "x-leitstelle": {"name": m.name, "aufgabe": m.aufgabe, "geladen": m.zustand != Modellzustand.FREI, "knoten": d.knoten, "extern": d.extern,
+                      "x-leitstelle": {"name": m.name, "aufgabe": m.aufgabe, "knoten": d.knoten, "extern": d.extern,
                                        "knoten_name": b.verbund.knoten[d.knoten].name if d.knoten in b.verbund.knoten else None,
-                                       "faehigkeiten": sorted(f.value for f in m.faehigkeiten), "gb": m.gb,
-                                       "steckbrief": b.steckbrief(m).model_dump(mode="json")}})
+                                       "gb": m.speicherbedarf_gb,
+                                       "steckbrief": b.steckbrief(m).model_dump(mode="json"), **_katalogangaben(request, app, m)}})
     return {"object": "list", "data": daten}
 
 
@@ -552,7 +577,12 @@ async def einschaetzung_route(request: Request):
         faehigkeit = anfrage.faehigkeit or (verm.faehigkeit_fuer(app.kennung, familie) if familie else Faehigkeit.TEXT)
     except Ablehnung as a:
         return ablehnung_antwort(request, a)
-    return einschaetzung(betrieb(request), app.kennung, anfrage, faehigkeit, familie, alternativen).model_dump(mode="json")
+    einordnung = _einordnung(request)
+    for feld in ("art", "wichtig"):
+        if feld not in anfrage.model_fields_set:
+            setattr(anfrage, feld, einordnung[feld])
+    return einschaetzung(betrieb(request), app.kennung, anfrage, faehigkeit, familie, alternativen,
+                         prioritaet=_prioritaet(request, app), rechner=einordnung["rechner"]).model_dump(mode="json")
 
 
 @router.post("/v1/einordnen")
@@ -633,7 +663,7 @@ async def lage_strom(request: Request):
 
 @router.get("/v1/steckbriefe")
 async def steckbriefe(request: Request, faehigkeit: Faehigkeit | None = None, eignung: Eignung | None = None, sprache: str | None = None):
-    """Wofür welches Modell gemacht ist (PROTOKOLL 4.8), nur Modelle, die die Anwendung nutzen darf. Filter: Fähigkeit und
+    """Vollständige Modellsteckbriefe für jede App (PROTOKOLL 4.8). Filter: Fähigkeit und
     Eignung müssen passen; bei `sprache` zuerst die Modelle, die sie ausdrücklich können, dann die ohne Angabe."""
     darf, app = _darf_lesen(request)
     if not darf:
@@ -645,7 +675,8 @@ async def steckbriefe(request: Request, faehigkeit: Faehigkeit | None = None, ei
         if (faehigkeit and faehigkeit not in s.faehigkeiten) or (eignung and eignung not in s.eignung) or (sprache and s.sprachen and sprache not in s.sprachen):
             continue
         aus.append((0 if sprache and sprache in s.sprachen else 1, m.zustand == Modellzustand.FREI, m.name.lower(),
-                    {"id": m.familie, "name": m.name, "aufgabe": m.aufgabe, "geladen": m.zustand != Modellzustand.FREI, "steckbrief": s.model_dump(mode="json")}))
+                    {"id": m.familie, "name": m.name, "aufgabe": m.aufgabe, "steckbrief": s.model_dump(mode="json"),
+                     **_katalogangaben(request, app, m)}))
     return {"object": "list", "data": [x[3] for x in sorted(aus, key=lambda x: x[:3])]}
 
 
@@ -667,7 +698,7 @@ def _bereitschaft(request: Request, m: Modell) -> Bereitschaft:
 
 @router.get("/v1/dienste")
 async def dienste(request: Request):
-    """Die Dienste im Maschinenraum, die die Anwendung nutzen darf (PROTOKOLL 6.2): Kennung, Name, Aufgabe, Zweck, Fähigkeiten,
+    """Alle Dienste im Maschinenraum für jede App (PROTOKOLL 6.2): Kennung, Name, Aufgabe, Zweck, Fähigkeiten,
     Zustand, Rechner und bei Bilddiensten ihr Bild-Steckbrief; je Dienst ein Eintrag, gleich wie viele Instanzen auf wie
     vielen Rechnern laufen."""
     darf, app = _darf_lesen(request)
@@ -675,21 +706,22 @@ async def dienste(request: Request):
         return fehler_antwort(request, "unbekannter_schluessel", "Schlüssel fehlt oder ist unbekannt.")
     b = betrieb(request)
     gruppen: dict[str, list[Modell]] = {}
-    for m in _erlaubte_modelle(request, app):
-        if b.verbund.dienste[m.dienst].art == Adapterart.AGENT.value:
+    for m in b.verbund.modelle.values():
+        if m.dienst in b.verbund.dienste and b.verbund.dienste[m.dienst].art == Adapterart.AGENT.value:
             gruppen.setdefault(m.familie, []).append(m)
     aus = []
     for familie, instanzen in sorted(gruppen.items()):
         grund = next((m for m in instanzen if not m.zusatz), instanzen[0])
         knoten = {b.verbund.dienste[m.dienst].knoten for m in instanzen}
-        faehig = set().union(*(m.faehigkeiten for m in instanzen)) & (app.faehigkeiten if app else set(Faehigkeit))
+        faehig = set().union(*(m.faehigkeiten for m in instanzen))
         steckbrief = b.steckbrief(grund)
         aus.append(DienstSicht(kennung=familie, name=grund.name, aufgabe=grund.aufgabe, zweck=steckbrief.zweck, faehigkeiten=[f for f in Faehigkeit if f in faehig],
                                zustand=min((_bereitschaft(request, m) for m in instanzen), key=BEREITSCHAFT_VORRANG.index),
                                rechner=sorted(b.verbund.knoten[k].name for k in knoten if k in b.verbund.knoten),
                                orte=sorted((RechnerOrt(kennung=k, name=b.verbund.knoten[k].name) for k in knoten if k in b.verbund.knoten),
                                            key=lambda o: o.name),
-                               bild=steckbrief.bild))
+                               bild=steckbrief.bild,
+                               aufruf_erlaubt=_katalogangaben(request, app, grund)["aufruf_erlaubt"]))
     return DienstListe(data=aus).model_dump(mode="json")
 
 
@@ -719,7 +751,7 @@ async def modelle_v1(request: Request):
     aus = []
     for m in _sichtbare_modelle(request, app):
         ort = b.ort(m.kennung)
-        geladen = m.zustand != Modellzustand.FREI
+        geladen = m.zustand in (Modellzustand.GELADEN, Modellzustand.RECHNET)
         aus.append({"key": m.familie, "type": "embedding" if _typ(m) == "embeddings" else "llm", "display_name": m.name,
                     "params_string": f"{m.parameter_mrd:g}B" if m.parameter_mrd else None, "size_bytes": int(m.gb * GIB),
                     "max_context_length": ort.kontext, "capabilities": {"vision": Faehigkeit.BILD_BESCHREIBEN in m.faehigkeiten,

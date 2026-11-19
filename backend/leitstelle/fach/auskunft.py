@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from .. import version
-from ..kern.werte import Auftragszustand, Faehigkeit, Modellzustand
+from ..kern.werte import Auftragszustand, Faehigkeit, Modellzustand, Prioritaet
 from ..kern.modelle import Auftrag
 from ..kern.zuteiler import reihenfolge, zuteilen
 from ..protokoll.fassade import (AppAuskunft, AuftragAuskunft, Einschaetzung, Einschaetzungsanfrage, Lageauskunft, ModellAuskunft,
@@ -69,12 +69,14 @@ PROBE = "einschaetzung"
 
 
 def einschaetzung(b: Betrieb, fragt: str, anfrage: Einschaetzungsanfrage, faehigkeit: Faehigkeit, familie: str | None,
-                  alternativen: list[str]) -> Einschaetzung:
+                  alternativen: list[str], *, prioritaet: Prioritaet | None = None, rechner: list[str] | None = None) -> Einschaetzung:
     """Spielt den Auftrag auf einer Kopie des Verbunds durch, mit demselben Zuteiler wie im Betrieb (eine Wahrheit):
     bekäme er jetzt einen Platz, oder worauf wartet er, wie lange etwa und wer kommt vorher dran."""
     v = b.verbund.model_copy(deep=True)
-    a = Auftrag(kennung=PROBE, anwendung=fragt, faehigkeit=faehigkeit, prioritaet=v.anwendungen[fragt].prioritaet, eingang_s=v.zeit_s,
-                festes_modell=familie, alternativen=alternativen, art=anfrage.art, wichtig=anfrage.wichtig, laufzeit_s=0.0)
+    a = Auftrag(kennung=PROBE, anwendung=fragt, faehigkeit=faehigkeit,
+                prioritaet=v.anwendungen[fragt].prioritaet if prioritaet is None else min(prioritaet, v.anwendungen[fragt].prioritaet),
+                eingang_s=v.zeit_s, festes_modell=familie, alternativen=alternativen, art=anfrage.art, wichtig=anfrage.wichtig,
+                rechner_wunsch=list(rechner or []), laufzeit_s=0.0)
     v.auftraege[a.kennung] = a
     vor_dir = next((i for i, x in enumerate(reihenfolge(v)) if x.kennung == PROBE), 0)
     erg = zuteilen(v, b.messwerk)

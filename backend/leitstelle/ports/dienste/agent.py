@@ -4,7 +4,7 @@ Jeder Prozessdienst des Agenten erscheint als ein Modell: Starten ist Laden, Anh
 Speicherplanung, Hauptregler und Oberfläche ohne Sonderweg. Geplant wird mit dem Bedarf (höchster gemessener
 Wert, mindestens die Schätzung), nicht mit dem Augenblickswert: Dienste laden ihre Modelle oft erst bei Bedarf.
 Ob die Selbststeuerung einen Dienst anhalten darf, sagt seine Dienstdatei; arbeitet er gerade, zählt das als
-Nutzung, und er weicht nicht. Anfragen gehen weiterhin direkt an den Dienst, nicht durch die Leitstelle.
+Nutzung, und er weicht nicht. Anfragen laufen über die Leitstelle und die Durchleitung des Maschinenraums zum Dienst.
 """
 
 from __future__ import annotations

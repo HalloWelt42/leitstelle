@@ -255,7 +255,8 @@ Auskunft des Dienstes stehen. Was die Dienste selbst sagen:
 | Bilddienst im üblichen Bildformat (etwa die Dienste des Bildwerks) | unter `GET /v1/models` das Feld `steckbrief` des Modelleintrags: daraus `bild`, dazu Parameter und Quantisierung, wenn der Maschinenraum sie nicht nennt. Die Leitstelle liest ihn über die Durchleitung gleich nach jedem Start des Dienstes (und vor dem ersten Auftrag, wenn das nicht ging), hält ihn über Neustarts (Ablage `bildsteckbriefe`) und meldet eine Änderung im Verlauf |
 
 **Abfrage.** `GET /v1/steckbriefe` (Fassade, Schlüssel der Anwendung) mit den Filtern `faehigkeit`, `eignung` und
-`sprache` liefert nur Modelle, die die Anwendung nutzen darf (Fähigkeiten, Zonen, externe nur mit Erlaubnis).
+`sprache` liefert den vollständigen registrierten Katalog, eingeschränkt nur durch diese ausdrücklich gewählten Filter.
+Sichtbarkeit erteilt keine Aufrufrechte; `aufruf_erlaubt` meldet die allgemeine Berechtigung der Anwendung.
 Fähigkeit und Eignung müssen passen; bei `sprache` kommen zuerst die Modelle, die sie ausdrücklich können, dann die
 ohne Angabe, darin geladene vor freien. `GET /v1/models` trägt denselben Steckbrief je Eintrag unter
 `x-leitstelle.steckbrief`. Von Hand eintragen: `PUT /api/steckbriefe` (Verwaltung, Heimnetz) mit `familie`, `zweck`,
@@ -298,15 +299,15 @@ Für Anwendungen ohne Umbau. Basisadresse mit oder ohne `/v1` wird angenommen.
 
 | Endpunkt | Wird zu | Besonderheiten |
 |---|---|---|
-| `GET /v1/models` | `frage.modelle` | listet Namen und Aliasse, die die Anwendung nutzen darf (gesperrte nicht); Zustand im Feld `x-leitstelle` (Name, Aufgabe bei Diensten des Maschinenraums, geladen, Knoten, Zone) und dort der Steckbrief (4.8) |
-| `GET /v1/steckbriefe` | Selbstauskunft (4.8) | Steckbriefe der Modelle, die die Anwendung nutzen darf; Filter `faehigkeit`, `eignung`, `sprache` |
+| `GET /v1/models` | `frage.modelle` | listet alle registrierten Modellfamilien, auch ungeladene, gesperrte und derzeit nicht erreichbare; Zustand im Feld `x-leitstelle` (Name, Aufgabe bei Diensten des Maschinenraums, geladen, Knoten, Zone) und dort der Steckbrief (4.8) |
+| `GET /v1/steckbriefe` | Selbstauskunft (4.8) | Steckbriefe aller registrierten Modelle mit getrenntem `aufruf_erlaubt`; Filter `faehigkeit`, `eignung`, `sprache` |
 | `POST /v1/chat/completions` | `auftrag.anlegen` (text) | Streaming als SSE im OpenAI-Format; `usage` am Ende; `model` ist Pflicht (Name, Alias oder Instanz), `alternativen` (höchstens 8) die Ausweichliste der Anwendung, geht nicht an den Dienst; fehlt `model`, 400 `modell_fehlt` mit `error.x-leitstelle.modelle` |
 | `POST /v1/embeddings` | `auftrag.anlegen` (einbettung) | `model` ist Pflicht wie beim Chat; Alternativen nur mit gleichem Vektorraum nennen (Einbettungen sind modellgebunden) |
 | `POST /v1/audio/transcriptions` | `auftrag.anlegen` (hoeren) | multipart; lange Dateien laufen als Hintergrund-Auftrag, Antwort erst am Ende |
 | `POST /v1/audio/speech` | `auftrag.anlegen` (stimme) | Audio-Stream |
 | `POST /v1/images/generations` | `auftrag.anlegen` (bild_erzeugen) | Bilder als `b64_json`, mit und ohne Strom; `model` wählt den Bilddienst (Kennung oder Name seines Modells); den Ablauf des Bilddienstes kennt die Leitstelle, die Grenzen seines Modells prüft sie vorher (6.1) |
 | `POST /v1/images/edits` | `auftrag.anlegen` (bild_bearbeiten) | ein Bild nach Anweisung ändern: Formular wie im OpenAI-Format (Datei im Feld `image`) oder JSON mit `images`; mindestens eine Vorlage; sonst wie das Erzeugen, ohne Bildablage (6.4) |
-| `GET /v1/dienste` | Liste der Dienste | die Dienste im Maschinenraum, die die Anwendung nutzen darf, mit Zweck, Zustand, Rechner (`rechner` als Namen, `orte` mit Kennung und Name für `X-Leitstelle-Rechner`) und bei Bilddiensten dem Bild-Steckbrief (6.2) |
+| `GET /v1/dienste` | Liste der Dienste | alle registrierten Dienste im Maschinenraum mit `aufruf_erlaubt`, Zweck, Zustand, Rechner (`rechner` als Namen, `orte` mit Kennung und Name für `X-Leitstelle-Rechner`) und bei Bilddiensten dem Bild-Steckbrief (6.2) |
 | `GET, POST, PUT, PATCH, DELETE /v1/dienste/<name>/<pfad>` | `auftrag.anlegen` (Fähigkeit, die Dienst und Anwendung teilen) | jeder Dienst mit eigener Schnittstelle (Sprache, Bild, Musik): die Leitstelle startet ihn bei Bedarf über den Maschinenraum seines Rechners, plant seinen Bedarf ein und reicht Anfrage und Antwort unverändert durch (auch Binärdaten). `<name>` ist die Kennung des Dienstes im Maschinenraum (Dateiname der Dienstdatei) |
 | `GET /api/v0/models`, `GET /api/v1/models` | `frage.modelle` | nachgebildete Form des Modell-Läufers (Feld `state`, `loaded_instances`), weil mehrere Anwendungen genau diese Form lesen |
 
@@ -390,17 +391,24 @@ nicht läuft), dazu alle Gründe der Warteschlange (`rechner_schlaeft`, `halt`, 
 `images` derselben Anfrage; ob ein Modell es kann und wie viele, sagen `kann_bearbeiten`, `vorlagen_max` und `vorlagen_min` (über 0: das Modell rechnet nur mit Vorlage) im Steckbrief,
 was die Lizenz für die Bilder heißt `lizenz_hinweis`.
 
+Der Modellkatalog (`GET /v1/models`, `GET /v1/steckbriefe`) vereinigt eigene Modelldienste und die API
+des Modell-Läufers. Installierte, nachladbare Modelle erscheinen auch ungeladen. Abfragen starten keine Dienste
+und laden keine Modelle. `faehigkeiten` und `geladen` beschreiben die Modellfamilie; `orte` nennt je Instanz
+`knoten`, `name`, `quelle` (`eigener_dienst`, `modell_laeufer`, `extern`), `zustand`, `sperre` und `aufruf_erlaubt`.
+Bei `/v1/models` stehen diese Angaben unter `x-leitstelle`, bei Steckbriefen unmittelbar am Eintrag.
+Eine reine Katalogberechtigung ersetzt niemals die Aufrufprüfung.
+
 ### 6.2 Liste der Dienste
 
-`GET /v1/dienste` mit dem Schlüssel einer Anwendung: die Dienste im Maschinenraum (Sprache, Bild, Musik, ...), die
-sie nutzen darf (Fähigkeit und Zone). Je Dienst ein Eintrag, gleich wie viele Instanzen auf wie vielen Rechnern laufen;
+`GET /v1/dienste` mit dem Schlüssel einer Anwendung: alle registrierten Dienste im Maschinenraum (Sprache, Bild, Musik, ...). Je Dienst ein Eintrag, gleich wie viele Instanzen auf wie vielen Rechnern laufen;
 `name` ist der echte Modellname (ohne Modell die Aufgabe), `aufgabe` wofür der Dienst da ist (Spracherkennung,
 Sprachausgabe, Tonbearbeitung, Bilderzeugung ...; leer, wenn der Name es schon sagt), wie der Maschinenraum es aus den
 Fähigkeiten ableitet; Apps zeigen sie klein hinter dem Namen ("Whisper Large V3 · Spracherkennung") und wählen über
-die `kennung`, die bleibt. `faehigkeiten` nennt nur, was die Anwendung davon nutzen darf, `zweck` den Satz aus dem
+die `kennung`, die bleibt. `faehigkeiten` nennt sämtliche Fähigkeiten des Dienstes, `zweck` den Satz aus dem
 Steckbrief (die Dienstdatei), `bild` bei Bilddiensten den Bild-Steckbrief (4.8; null, bis der Dienst einmal lief).
-Gesperrte Dienste (im Maschinenraum nach einem Speicherabbruch oder von Hand) fehlen hier wie in `/v1/models` und
-`/v1/steckbriefe`, bis die Sperre aufgehoben ist. Ohne Schlüssel aus dem Heimnetz: alle.
+Gesperrte und nicht erreichbare Dienste bleiben sichtbar; ihr Zustand erklärt die Einschränkung.
+`aufruf_erlaubt` trennt die allgemeinen Aufrufrechte von der Sichtbarkeit. Konkrete Aufträge werden zusätzlich geprüft.
+Ohne Anwendungsschlüssel im erlaubten Heimnetz erteilt die Kataloganzeige keine Aufrufrechte.
 
 ```json
 {"object": "list", "data": [{"kennung": "bildwerk-moss-image", "name": "MOSS-Image", "aufgabe": "Bilderzeugung",
@@ -448,10 +456,9 @@ Leitstelle mit 409 `instanz_weg`, und der Vorgang beginnt von vorn. Der Appkern 
 dienst.gebunden():`.
 
 Externe Modelle (Zone extern): eine Anfrage geht nur dorthin, wenn die Leitstelle der Anwendung die Zone extern
-erlaubt und die Anwendung das Modell selbst will, also ausdrücklich als `model` verlangt oder in
-`X-Leitstelle-Extern` nennt (Namen durch Komma getrennt, prozentkodiert). Ohne den Kopf weicht die Leitstelle für
-diese Anfrage nie nach extern aus. Die Liste führt die Anwendung in ihren eigenen Einstellungen; sie entscheidet, wo
-die Qualität reicht.
+erlaubt, externe Nutzung freigegeben ist und die Anwendung das Modell ausdrücklich als `model` oder in
+`alternativen` des Auftrags nennt. `X-Leitstelle-Extern` ist eine Erlaubnisliste, keine zusätzliche Modellwahl.
+Die Leitstelle darf aus einer allgemeinen Erlaubnis keine fachliche Auswahl ableiten.
 
 ### 6.3 Bildablage für ein Bildarchiv
 
@@ -517,7 +524,9 @@ will (etwa um Masseneinbettung zu drosseln, solange Sprachausgabe läuft), hält
 
 Mit dem App-Schlüssel und einem Körper wie beim Senden: `model`, `alternativen`, dazu `faehigkeit` (ohne Angabe die
 erste, die Modell und App teilen), `art` (`einzel`, `masse`) und `wichtig`. Die Leitstelle spielt den Auftrag auf einer
-Kopie ihres Zustands mit demselben Zuteiler durch; nichts wird eingereiht.
+Kopie ihres Zustands mit demselben Zuteiler durch; nichts wird eingereiht. Die Auftragsköpfe für Priorität
+und Rechnerwunsch gelten auch hier. Für `art` und `wichtig` hat ein ausdrücklich gesetztes Körperfeld Vorrang
+vor dem entsprechenden Kopf. Die Priorität darf die Freigabe der Anwendung nur absenken.
 
 | Feld | Inhalt |
 |---|---|

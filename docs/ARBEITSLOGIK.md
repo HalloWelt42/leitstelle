@@ -15,7 +15,9 @@ so entschieden ist in [ZUSAMMENSPIEL.md](ZUSAMMENSPIEL.md) (Abschnitte "Entschei
    lassen nur nichts Neues mehr starten. Abbrechen ist allein Sache des Menschen (Hauptregler Halt, Stoppen).
 4. **Jede App kann sehen, was los ist**, vorher und während des Wartens (Abschnitt 5), und entscheidet selbst, ob sie
    aufschiebt.
-5. **Werte stehen im Regelwerk der Leitstelle** (Oberfläche, Regeln), nicht im Code einer App.
+5. **Jede App sieht alle registrierten Modelle mit Fähigkeiten**, auch ungeladene nachladbare Modelle
+   und eigene Modelldienste. Katalogabfragen laden nichts; Aufrufrechte und Verfügbarkeit bleiben getrennte Angaben.
+6. **Werte stehen im Regelwerk der Leitstelle** (Oberfläche, Regeln), nicht im Code einer App.
 
 ## 2. Was die App je Auftrag mitschickt
 

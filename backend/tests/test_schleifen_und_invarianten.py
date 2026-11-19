@@ -110,7 +110,7 @@ def _zufallslauf(saat: int, dauer_s: int = 3600):
             if a.zustand == Z.LAEUFT and a.extern:
                 assert v.anwendungen[a.anwendung].extern_erlaubt, "extern ohne Erlaubnis"
                 fam = v.modelle[a.modell].familie
-                assert v.verlangt(a, fam) or fam in a.extern_familien, "extern nur, was die App nennt oder erlaubt"
+                assert v.verlangt(a, fam), "extern nur die ausdrückliche Modellwahl dieses Auftrags"
     return w
 
 

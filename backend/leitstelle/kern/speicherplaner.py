@@ -1,10 +1,9 @@
 """Speicherplaner: passt ein Modell auf einen Knoten, und was müsste dafür weichen?
 
-Reine Funktion über den Verbund. Regeln (aus txt2voice und Zusage zusammengeführt):
-Budget je Knoten; nie entladen: geschützte Modelle (unter der Schutzgrenze oder Einbettung),
-rechnende Modelle, Modelle mit wartenden Aufträgen, Modelle, die eine begonnene Arbeit einer Anwendung
-gerade nutzt (außer für diese Arbeit selbst), Modelle innerhalb der Mindestverweildauer;
-nur so viel wie nötig, weitere Instanzen zuerst, dann die größten; Leerlauf-Entladen nur, wenn Platz gebraucht wird.
+Reine Funktion über den Verbund. Geschützte, rechnende, zugeteilte und für wartende Aufträge oder
+begonnene Arbeiten benötigte Modelle bleiben erhalten. Fristen richten sich nach Bedarf und Leerlauf.
+Nur so viel freigeben wie nötig: zusätzliche Instanzen zuerst, danach nach Speicherbedarf.
+Reserviert wird mindestens der Bedarf, bei höherem Ist-Verbrauch der gemessene Wert.
 Der Plan ist zugleich die Vorschau ("Speicher freigeben").
 """
 
@@ -70,14 +69,14 @@ def planen(verbund: Verbund, knoten: str, benoetigt_gb: float, messwerk: Messwer
     # weitere Instanzen weichen vor allen anderen, dann die größten (ZUSAMMENSPIEL Z3)
     kandidaten = sorted((m for m in verbund.modelle_auf(knoten) if m.familie not in verschont
                          and entladbar(verbund, m, jetzt, nur_leerlauf, leerlauf_grenze_s, fuer_arbeit, anforderung)[0]),
-                        key=lambda m: (m.zusatz, -m.gb if kleinste_zuerst else m.gb), reverse=True)
+                        key=lambda m: (m.zusatz, -m.speicherbedarf_gb if kleinste_zuerst else m.speicherbedarf_gb), reverse=True)
     entladen: list[str] = []
     gewonnen = 0.0
     for m in kandidaten:
         if frei + gewonnen >= benoetigt_gb:
             break
         entladen.append(m.kennung)
-        gewonnen += m.gb
+        gewonnen += m.speicherbedarf_gb
     if frei + gewonnen >= benoetigt_gb:
         namen = ", ".join(verbund.modelle[k].name for k in entladen)
         return Speicherplan(knoten=knoten, benoetigt_gb=benoetigt_gb, frei_gb=frei, passt=True, entladen=entladen,
@@ -87,10 +86,13 @@ def planen(verbund: Verbund, knoten: str, benoetigt_gb: float, messwerk: Messwer
     rechnende = [m for m in verbund.modelle_auf(knoten) if m.im_speicher and verbund.belegung(m.kennung) and not m.geschuetzt]
     frei_nach = None
     blockiert = []
-    for m in sorted(rechnende, key=lambda m: m.gb, reverse=True):
-        rest = max((messwerk.rest_s(a.anwendung, a.faehigkeit.value, a.fortschritt_s) for a in verbund.belegung(m.kennung)), default=0.0)
+    freiwerdend = sorted((max((messwerk.rest_s(a.anwendung, a.faehigkeit.value, a.fortschritt_s)
+                              for a in verbund.belegung(m.kennung)), default=0.0), m.kennung, m) for m in rechnende)
+    nach_ende = frei + gewonnen
+    for rest, _, m in freiwerdend:
         blockiert.append(m.kennung)
-        if frei + gewonnen + m.gb >= benoetigt_gb:
+        nach_ende += m.speicherbedarf_gb
+        if nach_ende >= benoetigt_gb:
             frei_nach = rest
             break
     gruende = "; ".join(f"{m.name}: {entladbar(verbund, m, jetzt, nur_leerlauf, leerlauf_grenze_s, fuer_arbeit, anforderung)[1]}" for m in verbund.modelle_auf(knoten) if m.im_speicher and m.kennung not in entladen)

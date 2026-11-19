@@ -13,8 +13,9 @@ ein Gewinn. Die Anweisung Schritt für Schritt mit Abnahme steht in [ANBINDUNG.m
 | 3 | Signalkanal | WebSocket offen halten, auf `signal.*` reagieren: bei Speicher knapp Stapelarbeit zurückhalten, bei pausiert warten, bei gesperrt sauber melden, bei Modell bereit weitermachen | Anwendung verhält sich kooperativ statt blind in Fehler zu laufen | ein Tag |
 | 4 | Eigene Aufträge | Aufträge über das Protokoll statt über die Fassade: Fortschritt, Anhalten, Fortsetzen, Reservierung für Stapel, Teilergebnis bei Abbruch | lange Arbeiten werden steuerbar; die Leitstelle kann sie anhalten statt nur abbrechen | ein bis drei Tage je nach Umfang |
 
-Rückbau gehört dazu: Was die Leitstelle übernimmt (Modell-Manager, Zeitgrenzen-Regel, Modell-Autowahl,
-Ausweichlisten von Adressen), wird in der Anwendung entfernt, nicht nur abgeschaltet.
+Rückbau gehört dazu: Was die Leitstelle übernimmt (Laden und Entladen, Zeitgrenzen-Regel,
+Ausweichlisten von Adressen), wird in der Anwendung entfernt, nicht nur abgeschaltet. Die fachliche Modellwahl und ausdrücklich
+benannte Modellalternativen bleiben vollständig bei der Anwendung.
 
 ## Die Bibliothek `leitstelle-client`
 
@@ -41,8 +42,8 @@ async for stueck in antwort.stuecke():
 ```
 
 Die Bibliothek kapselt Verbindung, Wiederverbindung, Herzschlag, Umschläge und die Fassade als Rückfall
-(ist die Leitstelle nicht erreichbar, kann die Anwendung optional direkt an den Modell-Läufer gehen,
-sichtbar als Zustand "ohne Leitstelle"). Alle Zeitgrenzen kommen aus der Leitstelle, keine Zahl steht
+Ist die Leitstelle nicht erreichbar, wartet die Anwendung oder meldet den Ausfall. Sie umgeht die
+Ressourcensteuerung nicht durch einen direkten Modellaufruf. Alle Zeitgrenzen kommen aus der Leitstelle, keine Zahl steht
 in der Anwendung.
 
 ## Stolpersteine, die die Leitstelle abfängt

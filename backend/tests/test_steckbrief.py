@@ -1,5 +1,5 @@
 """Steckbrief je Modell (PROTOKOLL 4.8): von Hand vor Dienst vor abgeleitet, Messwerte aus dem Verlauf, Weg über die
-Fassade nur für Modelle, die die Anwendung nutzen darf."""
+Fassade mit vollständiger Sicht und getrennten Aufrufrechten."""
 
 from __future__ import annotations
 

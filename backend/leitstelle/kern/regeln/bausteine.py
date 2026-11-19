@@ -568,12 +568,14 @@ def alternative_geladen(k: Kontext) -> bool:
     return False
 
 
-@baustein("anwendung_darf_extern", "pruefung", "Anwendung darf extern?", "Erlaubt die Leitstelle der Anwendung die Zone extern, und nennt die Anfrage externe Modelle auf ihrer Erlaubnisliste?")
+@baustein("anwendung_darf_extern", "pruefung", "Anwendung darf extern?", "Erlaubt die Leitstelle der Anwendung externe Nutzung, und enthält die ausdrückliche Modellwahl einen externen Dienst?")
 def anwendung_darf_extern(k: Kontext) -> bool:
     a = k.auftrag
     assert a is not None
     app = k.verbund.anwendungen[a.anwendung]
-    return app.extern_erlaubt and Zone.EXTERN in app.zonen and bool(a.extern_familien)
+    return app.extern_erlaubt and Zone.EXTERN in app.zonen and any(
+        k.verbund.dienste[m.dienst].extern and k.verbund.verlangt(a, m.familie)
+        for m in k.verbund.modelle.values())
 
 
 @baustein("wartezeit_ueber_schwelle", "pruefung", "Wartezeit über der Schwelle?", "Liegt die erwartete Wartezeit über der eingestellten Grenze für das Ausweichen?", schwelle_s=None)
@@ -586,7 +588,7 @@ def wartezeit_ueber_schwelle(k: Kontext, schwelle_s: float | None = None) -> boo
     return k.gewinn_s >= s
 
 
-@baustein("extern_dienst_vorhanden", "pruefung", "Externer Dienst mit dieser Fähigkeit?", "Gibt es einen externen Anbieter, der die Fähigkeit und möglichst ein Modell aus der Wahl der Anwendung bedient?")
+@baustein("extern_dienst_vorhanden", "pruefung", "Externer Dienst für die Modellwahl?", "Gibt es einen externen Anbieter für ein von der Anwendung in diesem Auftrag ausdrücklich gewähltes Modell?")
 def extern_dienst_vorhanden(k: Kontext) -> bool:
     a = k.auftrag
     assert a is not None
@@ -594,9 +596,9 @@ def extern_dienst_vorhanden(k: Kontext) -> bool:
     treffer = []
     for m in k.verbund.modelle.values():
         d = k.verbund.dienste[m.dienst]
-        if (d.extern and d.nutzbar and a.faehigkeit in m.faehigkeiten and a.faehigkeit in d.faehigkeiten and k.verbund.extern_erlaubt(a, m)
+        if (m.familie in wahl and d.extern and d.nutzbar and a.faehigkeit in m.faehigkeiten and a.faehigkeit in d.faehigkeiten and k.verbund.extern_erlaubt(a, m)
                 and k.verbund.anfrage_frei_in_s(d.kennung, a.bedarf) == 0):
-            rang = wahl.index(m.familie) if m.familie in wahl else len(wahl)
+            rang = wahl.index(m.familie)
             treffer.append((rang, m, d))
     if not treffer:
         return False

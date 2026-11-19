@@ -455,10 +455,12 @@ async def test_a13_speicherabbruch_bricht_den_auftrag_ab_und_nichts_startet_neu(
                 r = await anw.post("/v1/dienste/probe/arbeit", headers=kopf, content=b"{}")     # die Geduld der App versucht es wieder
                 assert r.status_code == 423 and r.json()["error"]["code"] == "dienst_gesperrt", r.text
                 assert "gesperrt" in r.json()["error"]["message"]
-                # HELF-84 (Befund HELF-87): gesperrt heißt auch nicht mehr angeboten, weder den Apps noch von Hand
+                # Vollständiger Katalog: gesperrt bleibt sichtbar, der Aufruf bleibt gesperrt.
                 for weg in ("/v1/models", "/v1/dienste", "/v1/steckbriefe"):
                     liste = (await anw.get(weg, headers=kopf)).json()["data"]
-                    assert all(x.get("id", x.get("kennung")) != "probe" for x in liste), (weg, liste)
+                    eintrag = next(x for x in liste if x.get("id", x.get("kennung")) == "probe")
+                    sicht = eintrag.get("x-leitstelle", eintrag)
+                    assert not sicht["aufruf_erlaubt"], (weg, sicht)
                 m = await _modell(c, "probe")
                 r = await c.post(f"/api/modelle/{m['kennung']}/laden")
                 assert r.status_code == 423 and "dienst_gesperrt" in r.text, r.text

@@ -1,4 +1,4 @@
-"""Zuteiler: welcher Dienst, welches Modell, welcher Knoten für einen wartenden Auftrag.
+"""Zuteiler: welche Dienstinstanz und welcher Knoten für die Modellwahl einer Anwendung verfügbar sind.
 
 Reihenfolge der Prüfung (ARCHITEKTUR 5.1): Rechte der Anwendung, Modellwahl der Anwendung, Speicher, Plätze,
 Priorität mit Fairness, Direktweg. Jede Entscheidung trägt eine Begründung in Worten. Arbeit "nur bei Ruhe" (Regelwerk)

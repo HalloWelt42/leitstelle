@@ -137,6 +137,7 @@ class DienstSicht(BaseModel):
     zustand: Bereitschaft
     rechner: list[str]                # Namen der Rechner, auf denen er liegt
     orte: list[RechnerOrt] = []       # dieselben Rechner mit Kennung, für den Rechnerwunsch einer App (LS-28)
+    aufruf_erlaubt: bool = True      # Katalogsichtbarkeit und Aufrufrechte sind getrennt (LS-30)
     bild: Bildsteckbrief | None = None   # Bilddienste: was ihr Modell annimmt (Größen, Schritte, Anzahl), sobald er einmal lief
 
 

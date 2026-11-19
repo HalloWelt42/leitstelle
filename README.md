@@ -2,7 +2,7 @@
 
 Zentrale Vermittlungsstelle für KI-Dienste im eigenen Netz. Die Leitstelle kennt die Rechner, die
 Dienste darauf (Modell-Läufer mit OpenAI-Schnittstelle und Programme wie Sprachsynthese, Spracherkennung,
-Bilderzeugung, die der Maschinenraum des Rechners startet und anhält) und externe Anbieter. Anwendungen geben Aufträge ab; die Leitstelle wählt Dienst und Modell,
+Bilderzeugung, die der Maschinenraum des Rechners startet und anhält) und externe Anbieter. Anwendungen geben Aufträge ab; die Anwendung bestimmt das Modell. Die Leitstelle wählt dessen Dienstinstanz und Rechner,
 reiht nach Priorität ein, lädt und entlädt Modelle nach gemessenem Bedarf, schichtet selbst um und zeigt alles
 live in einer Oberfläche: wer was rechnet, wer wartet und warum.
 

@@ -1,13 +1,23 @@
 # Architektur der Leitstelle
 
-Stand 16.10.2026, Entwurfsphase. Dieses Dokument ist die eine Wahrheit über Schichten, Verantwortungen
+Stand 19.11.2026. Dieses Dokument ist die eine Wahrheit über Schichten, Verantwortungen
 und Übergabepunkte. Was hier steht, gilt für Kern, Agenten, Adapter, Bibliotheken und Oberfläche.
 
 ## 1. Zweck in drei Sätzen
 
+Verbindliche Rollenverteilung: Die Anwendung entscheidet anhand der Fähigkeiten, welches Modell sie nutzt.
+Sie nennt es im Auftrag und kann ausdrücklich geordnete Alternativen mitgeben. Die Leitstelle erfindet
+keine Ersatzmodelle und trifft keine fachliche Modellwahl. Ist die Wahl nicht ausführbar, meldet sie den
+Grund an die Anwendung. Sie verteilt Speicher, Rechner und Instanzen, priorisiert Aufträge und gleicht
+Ausfälle innerhalb der Modellwahl der Anwendung aus.
+
+Jede Anwendung sieht den vollständigen registrierten Modellkatalog mit Fähigkeiten, Quellen und Zustand.
+Dazu gehören eigene Modelldienste und über die API des Modell-Läufers nachladbare Modelle, auch ungeladene.
+Eine Katalogabfrage startet oder lädt nichts. Sichtbarkeit und Aufrufrechte sind getrennt.
+
 Die Leitstelle kennt alle Rechner (Knoten), alle KI-Dienste darauf und alle Modelle im Verbund, dazu
-externe Anbieter. Anwendungen melden sich an und geben Aufträge ab; die Leitstelle wählt Dienst und
-Modell, reiht nach Priorität ein, verwaltet den Speicher und führt den Auftrag aus oder leitet ihn
+externe Anbieter. Anwendungen melden sich an und geben Aufträge ab; die Anwendung bestimmt das Modell. Die Leitstelle wählt dessen Dienstinstanz und
+Rechner, reiht nach Priorität ein, verwaltet den Speicher und führt den Auftrag aus oder leitet ihn
 durch. Zurück fließen Fortschritt, Ergebnis und Signale (Speicher knapp, pausiert, gesperrt, Modell
 bereit), damit sich jede Anwendung auf die Lage einstellen kann.
 
@@ -21,7 +31,7 @@ bereit), damit sich jede Anwendung auf die Lage einstellen kann.
   Sachen nicht vermischt werden").
 - **Die Leitstelle ist zentrale Steuerung und Überwachung** (Nutzer, 27.10.2026): sie sorgt dafür, dass Ressourcen
   nicht überlaufen, verteilt die Arbeit und greift sinnvoll ein; dafür muss sie nicht jedes Bit durchschleifen.
-  Anwendungen sprechen nur mit ihr (Fassade, auch `/v1/dienste/...`). Den Modell-Läufer spricht sie direkt an; die
+  Anwendungen sprechen nur mit ihr (Fassade, auch `/v1/dienste/...`). Den Modell-Läufer erreicht sie über die Durchleitung seines Maschinenraums; die
   Dienste des Maschinenraums lauschen nur auf ihrem Rechner und sind über seine Durchleitung erreichbar. Was an ihr
   vorbei auf Modelle eines Rechners zugreift und wie belastet Läufer, Apps des Stellwerks, Rechner und Docker-Rechner
   sind, meldet sein Maschinenraum (`knoten.fremde`, `knoten.last`); die Leitstelle zeigt es beim Knoten und in der
@@ -175,19 +185,20 @@ Reihenfolge der Prüfung:
 
 ### 5.2 Speicherplan (Speicherplaner)
 
-Löst die zwei bisherigen Modell-Manager (txt2voice, Zusage) ab und übernimmt ihre Regeln:
+Der Speicherplaner verteilt die Ressourcen, ohne Modelle fachlich auszuwählen:
 
-- Budget je Knoten (Vorgabe Gesamtspeicher minus 18 GB), echte Größen aus dem Dienst.
-- Nie entladen: Modelle unter der Schutzgrenze (Vorgabe 10 Milliarden Parameter), Einbettungsmodelle,
-  rechnende Modelle, Modelle mit wartenden Aufträgen.
-- Nur so viel entladen wie nötig, größte zuerst (einstellbar: älteste zuerst).
-- Leerlauf-Entladen ist aus; es wird nur entladen, wenn Platz für ein angefordertes Modell fehlt.
-- Nach dem Entladen wartet der Planer, bis der Knoten den Speicher wirklich freigemeldet hat
-  (Agent-Messwert), statt eine feste Pause zu raten; dann laden mit Wiederholung bei "nicht genug
-  Speicher".
-- Gesundheitsprüfungen laden nie ein Modell.
-- Der Plan ist eine reine Funktion und damit zugleich die **Vorschau** ("Speicher freigeben" zeigt
-  erst, was passieren würde).
+- Budget je Knoten: Gesamtspeicher abzüglich Reserve (Vorgabe 18 GB), unter Berücksichtigung der Systemmessung.
+- Reservierung je geladenem Modell: mindestens der gemeldete Bedarf, bei höherem Ist-Verbrauch dieser Messwert.
+- Nie entladen: ausdrücklich vom Dienst geschützte, rechnende oder zugeteilte Modelle; außerdem Modelle mit
+  passenden wartenden Aufträgen oder mit einer geschützten begonnenen Arbeit. Größe und Fähigkeit schützen nicht.
+- Nur so viel entladen wie nötig, zusätzliche Instanzen zuerst, dann die größten; für kleine Anforderungen
+  kann die kleinste passende Freigabe bevorzugt werden.
+- Bei unmittelbarem Bedarf gilt die Bedarfsfrist (Vorgabe 60 s ohne Nutzung). Die Leerlaufregel darf ungenutzte
+  Modelle auch ohne neuen Bedarf entladen (Vorgabe 60 s, sofern die Regel aktiv ist).
+- Freigabe durch laufende Modelle wird nach geschätztem Auftragsende kumuliert; laufende Aufträge werden nicht abgebrochen.
+- Nach dem Entladen wartet der Vollzug auf die tatsächliche Freigabe laut Rechnermessung.
+- Gesundheits- und Katalogabfragen laden nie ein Modell.
+- Der Plan ist eine reine Funktion und dient zugleich als Vorschau vor einer Freigabe.
 
 ### 5.3 Lage
 
@@ -230,13 +241,13 @@ Protokoll und lässt sich rückgängig machen oder als Regel abschalten ("so nic
 | Szenario | Maßnahme | Bedingungen |
 |---|---|---|
 | Ein Auftrag wartet auf Speicher am großen Rechner, ein anderer Rechner hat Platz | **Umleiten**: Modell dort laden, Auftrag dorthin zuteilen; fehlt der Dienst, startet ihn der Agent (installiert, aber nicht laufend) | Anwendung darf den Knoten (Zone), Modell passt, Gewinnschwelle erfüllt |
-| Ein Modell belegt Speicher ohne Auftrag, ein wartender Auftrag braucht den Platz | **Leerlauf räumen**: entladen, dann laden | nur bei Bedarf, nie geschützte oder rechnende Modelle, Bedarfsfrist (Vorgabe 60 s ohne Auftrag) erreicht, Mindestverweildauer vorbei; Gewinn ist die Wartezeit, die der Auftrag sonst hätte (bis ein rechnendes Modell fertig wäre, sonst unbestimmt lange) |
+| Ein Modell belegt Speicher ohne Auftrag, ein wartender Auftrag braucht den Platz | **Leerlauf räumen**: entladen, dann laden | nur bei Bedarf, nie geschützte oder rechnende Modelle, Bedarfsfrist (Vorgabe 60 s ohne Auftrag) erreicht; Gewinn ist die Wartezeit, die der Auftrag sonst hätte (bis ein rechnendes Modell fertig wäre, sonst unbestimmt lange) |
 | In der Warteschlange steht ein Auftrag für ein nicht geladenes Modell, irgendwo ist Platz | **Vorwärmen**: Modell laden, bevor der Auftrag an der Reihe ist | Platz ohne Entladen, oder Platz nach einem absehbaren Ende (Rest eines laufenden Auftrags) |
 | Ein Auftrag wartet, ein anderes Modell aus der Ausweichliste seiner Anwendung ist geladen und frei | **Auf Alternative ausweichen**: der Auftrag rechnet mit dieser Alternative, in der Reihenfolge der Anwendung | nur Modelle, die die Anwendung genannt hat; Gewinn (die Wartezeit) über dem Aufwand |
-| Erwartete Wartezeit über der Schwelle, Anwendung darf extern | **Extern ausweichen** | Tagesgrenze, Zone extern erlaubt, Schwelle (Vorgabe 2 min) |
-| Dienst oder Knoten fällt aus | **Umverteilen**: laufende Aufträge der Anwendung mit Teilergebnis melden, wartende auf andere Knoten | Fähigkeit anderswo vorhanden |
+| Erwartete Wartezeit über der Schwelle, Anwendung darf extern | **Extern ausweichen** | ausdrückliche Modellwahl im Auftrag, externe Nutzung erlaubt, Tagesgrenze, Zone extern erlaubt, Schwelle (Vorgabe 2 min) |
+| Dienst oder Knoten fällt aus | **Umverteilen**: laufende Aufträge der Anwendung mit Teilergebnis melden, wartende auf andere Knoten | dasselbe gewählte Modell oder eine ausdrücklich von der Anwendung benannte Alternative anderswo vorhanden |
 | Zeitfenster beginnt (Nacht) | **Verlagern** von Hintergrundarbeit auf den dafür freigegebenen Rechner | Regel Zeitfenster |
-| Dasselbe Modell auf zwei Rechnern, eines ohne Auftrag, anderswo fehlt Platz | **Doppel auflösen**: die ungenutzte Kopie entladen | nur bei Bedarf, Mindestverweildauer |
+| Dasselbe Modell auf zwei Rechnern, eines ohne Auftrag, anderswo fehlt Platz | **Doppel auflösen**: die ungenutzte Kopie entladen | Leerlauffrist erreicht, kein Schutz und keine Nutzung |
 | Lage wechselt auf angespannt oder Engpass | **Hintergrund bei Lage**: Hintergrundaufträge anhalten (nur zwischen Abschnitten), bei ruhiger Lage fortsetzen | Regel schaltbar; die Fairness bleibt: nach spätestens 15 min rückt Hintergrund auf Normal und läuft trotzdem |
 | Die Fremdlast eines Rechners (ohne Läufer, Dienste des Maschinenraums, Apps des Stellwerks und Container, also der Mensch und seine Programme) oder seine Docker-Last (Container ohne die von Anwendungen mit Hintergrundarbeit) liegt im Mittel über der Grenze | **Hintergrund bei Rechnerlast** (ZUSAMMENSPIEL Z6, Z6b): das höhere Maß gilt; gedrosselt bekommt Hintergrund dort nur die Grundinstanz einer Familie und weitere Instanzen ohne Auftrag weichen sofort, angehalten wird Hintergrund dort nicht mehr zugeteilt; Normales bleibt unberührt | Regel schaltbar, Vorgabe an; Fremdlast 50 und 75 %, Docker-Last 70 und 90 %, im Mittel über 60 s, zurück erst 10 Punkte darunter; angehalten gilt die Fairness nicht |
 | Ein Arbeiter des Modell-Läufers rechnet seit der Frist über der Schwelle, ohne dass die Leitstelle dort etwas rechnen lässt | **Läufer arbeitet ohne Auftrag** (Z6): den Arbeiter vom Maschinenraum beenden lassen; der Läufer lädt bei Bedarf neu | Regel schaltbar, Vorgabe aus (dann nur Befund und Knopf von Hand); nicht bei einer Umgehung am Läufer; Schwelle 50 % eines Kerns, Frist 5 min; Schleifenschutz wie alle Regeln |
@@ -252,12 +263,11 @@ Schleifenschutz (alles im Kern geprüft, siehe [SZENARIEN.md](SZENARIEN.md)):
 1. **Hauptregler vor Regelwerk**: bei Auslaufen und Halt wird nichts umgeschichtet.
 2. **Gewinnschwelle**: Maßnahme nur, wenn der geschätzte Gewinn den gemessenen Aufwand um den Faktor
    (Vorgabe 2) übersteigt; beim Ausweichen auf eine Alternative (Aufwand null) Faktor 1.
-3. **Mindestverweildauer** je Modell (Vorgabe 10 min): frisch Geladenes weicht nicht.
-4. **Bedarfsfrist** (Vorgabe 60 s): ein Modell weicht einem wartenden Auftrag erst, wenn es so lange
-   keinen Auftrag hatte. Ohne Bedarf wird nie entladen; die Leerlaufgrenze (Vorgabe 30 min) sagt nur, ab
-   wann ein Modell in den Listen als Leerlauf steht.
-5. **Schutzgrenze**: Modelle unter 10 Milliarden Parametern, Einbettungen und ausdrücklich geschützte
-   werden nie entladen; rechnende oder zugeteilte sowieso nicht.
+3. **Nutzungsschutz**: rechnende, zugeteilte und für wartende Aufträge benötigte Modelle weichen nicht.
+4. **Fristen**: bei neuem Bedarf gilt die Bedarfsfrist (Vorgabe 60 s), für Leerlauf die Entladefrist
+   (Vorgabe 60 s). Begonnene Arbeiten halten ihre Modelle für die eingestellte Arbeitsfrist.
+5. **Dienstschutz**: ausdrücklich geschützte Dienste werden nicht angehalten. Modellgröße und Einbettungsfähigkeit
+   begründen keinen pauschalen Schutz; eine frühere Schutzgrenze und Mindestverweildauer gelten nicht mehr.
 6. **Flattern**: dieselbe Bewegung (Laden oder Entladen derselben Familie auf demselben Knoten) zum
    zweiten Mal innerhalb des Fensters (Vorgabe 10 min) gilt als Flattern; die beteiligten Familien sind
    auf dem Knoten für die Ruhezeit (Vorgabe 30 min) gesperrt, die Maßnahme erscheint als gesperrt mit

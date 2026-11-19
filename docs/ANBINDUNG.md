@@ -75,10 +75,9 @@ Die Anwendung ändert nur die Adresse ihres Modell-Läufers und bekommt einen Sc
   Vertonung; 1 bis 64 Zeichen aus `A-Z a-z 0-9 . _ : -`, sonst zählt die Anfrage für sich). Ab der zweiten Anfrage gilt
   die Arbeit als begonnen: Modelle, die sie in den letzten `arbeit_frist_s` (Vorgabe 300 s) genutzt hat, entlädt die
   Leitstelle nicht für andere, nur für die Arbeit selbst. Der Appkern setzt den Kopf in jedem Auftrag von selbst.
-- `X-Leitstelle-Extern`: Erlaubnisliste der Anwendung für externe Modelle (Namen durch Komma, prozentkodiert). Nur
-  Modelle auf dieser Liste oder ausdrücklich als `model` verlangte dürfen nach extern; ohne den Kopf weicht die
-  Leitstelle für die Anfrage nie nach extern aus. Zusätzlich muss die Leitstelle der Anwendung die Zone extern
-  erlauben. Der Appkern liest die Liste aus der Einstellung "Ausweichen nach extern" der App.
+- `X-Leitstelle-Extern`: Erlaubnisliste der Anwendung für externe Modelle (Namen durch Komma, prozentkodiert).
+  Die Liste erweitert die Modellwahl nicht. Externe Modelle müssen ausdrücklich als `model` oder in
+  `alternativen` im Auftrag stehen. Zusätzlich müssen Anwendung und Zone die externe Nutzung erlauben. Der Appkern liest die Liste aus der Einstellung "Ausweichen nach extern" der App.
 - `X-Leitstelle-Instanz` (Antwort jeder Durchleitung und Folgeaufruf): an dieselbe Instanz wie der erste Aufruf,
   wenn ein Dienst mehrfach läuft (PROTOKOLL 6, Bindung). Ohne Bindung kann "Ergebnis abholen" bei einer anderen
   Instanz landen, die die Datei nicht hat.
@@ -105,7 +104,11 @@ Die Anwendung ändert nur die Adresse ihres Modell-Läufers und bekommt einen Sc
   Zweck, Eignung, Sprachen der Beschreibung und unter `bild` die Grenzen: Größen (Raster, Kanten, Fläche, Vorgabe,
   empfohlene Größen), Schritte (kleinste, größte, Vorgabe), höchstens Bilder je Anfrage, `kann_bearbeiten`, Lizenz.
   `bild` ist null, bis der Dienst einmal lief; dann gelten die Vorgabegrenzen (Kanten 256 bis 2048, durch 16 teilbar).
-- `GET /v1/dienste`: die Dienste im Maschinenraum, die die Anwendung nutzen darf, mit `kennung`, `name`, `zweck`,
+- Vollständiger Katalog für jede Anwendung: `GET /v1/models` zeigt alle registrierten Modelle, einschließlich
+  ungeladener nachladbarer Modelle des Modell-Läufers und eigener Modelldienste. Unter `x-leitstelle` stehen
+  `faehigkeiten`, `geladen`, `aufruf_erlaubt` und `orte` mit Quelle, Zustand und Sperre je Instanz.
+  Sichtbarkeit erteilt keine Rechte; Katalogabfragen starten und laden nichts.
+- `GET /v1/dienste`: alle registrierten Dienste im Maschinenraum, mit getrenntem Feld `aufruf_erlaubt`, mit `kennung`, `name`, `zweck`,
   `faehigkeiten`, `zustand` (`bereit`, `startet`, `aus`, `schlaeft`, `nicht_erreichbar`), `rechner` und bei
   Bilddiensten `bild` (PROTOKOLL 6.2).
 - `GET /v1/steckbriefe` (Filter `faehigkeit`, `eignung`, `sprache`): wofür welches Modell gemacht ist
@@ -113,7 +116,8 @@ Die Anwendung ändert nur die Adresse ihres Modell-Läufers und bekommt einen Sc
 - Externe Modelle gezielt wählen: bietet ein Anbieter ein Mischmodell mit wenigen aktiven Parametern und ein dichtes
   an, heißt das erste im Steckbrief `schnell` (für kurze Aufgaben) und das zweite `gruendlich` (für lange Texte und
   schwierige Fragen). Die Wahl bleibt bei der Anwendung: das gewünschte Modell als `model` nennen (und die Zone extern
-  erlaubt haben) oder auf die Erlaubnisliste setzen; die Leitstelle wählt dann nur beim Ausweichen. Grenzen je Minute
+  erlaubt haben) oder ausdrücklich als `alternativen` des Auftrags nennen. Eine Erlaubnisliste allein
+  ist keine Modellwahl. Grenzen je Minute
   des Anbieters (Anfragen, Token hinein und heraus) hält die Leitstelle ein; wer darüber läge, wartet mit Hinweis.
 - Mehr gleichzeitige Aufträge als erlaubt warten in der Warteschlange statt abgelehnt zu werden.
 - Das Modell wählt immer die Anwendung: `model` in jeder Anfrage, dazu wahlweise `alternativen` (höchstens 8 Namen, in
@@ -156,7 +160,8 @@ wartet, welche Modelle wo geladen sind, wie lange etwas voraussichtlich noch dau
 3. Halt am Hauptregler: die Anwendung zeigt einen Hinweis statt einer Fehlerspur.
 4. In der Leitstelle erscheint die Anwendung unter Anwendungen mit Name und Schlüssel, der Auftrag im
    Verlauf mit Dauer und Modell.
-5. Rückbau sichtbar: kein eigener Modell-Manager, keine Ausweichliste, keine Lese-Zeitgrenze.
+5. Rückbau sichtbar: keine eigene Lade- oder Entladeverwaltung, keine Ausweichliste von Adressen, keine Lese-Zeitgrenze.
+   Fachliche Modellwahl und benannte Modellalternativen bleiben bei der Anwendung.
 
 ## 3. Stufe 2: Anmeldung
 
@@ -471,7 +476,7 @@ Du bindest ein Programm an die Leitstelle an. Arbeite genau so:
 5. Ändere so wenig wie möglich: Adresse und Schlüssel aus der Konfiguration des Programms (Umgebung oder
    Einstellungsdatei, wie das Projekt es sonst hält), keine neuen Konfigurationsarten.
 6. Entferne, was die Leitstelle übernimmt (Abschnitt 2.1, Zeilen Zeitgrenzen, Ausweichlisten, eigene
-   Modellverwaltung). Abschalten reicht nicht, der Code geht raus. Nenne jede entfernte Datei oder
+   Lade- und Entladeverwaltung). Modellwahl und Modellalternativen bleiben in der Anwendung. Abschalten reicht nicht, der Code geht raus. Nenne jede entfernte Datei oder
    Funktion in `docs/LEITSTELLE.md`.
 7. Schreibe Tests gegen eine Attrappe, nie gegen die echte Leitstelle oder einen echten Läufer: für
    Stufe 1 einen Schein-Server mit den Antworten aus Abschnitt 2.2 (auch 429, 503, Abbruch mit

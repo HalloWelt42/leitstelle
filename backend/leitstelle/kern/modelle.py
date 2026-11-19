@@ -239,6 +239,11 @@ class Modell(BaseModel):
         """Was das Modell gerade wirklich belegt: gemessen, sonst seine Größe."""
         return self.gb_jetzt if self.gb_jetzt is not None else self.gb
 
+    @property
+    def speicherbedarf_gb(self) -> float:
+        """Mindestens den Bedarf reservieren; ein höherer gemessener Verbrauch bleibt vollständig berücksichtigt."""
+        return max(self.gb, self.belegt_gb) if self.im_speicher else self.gb
+
     def ladbar(self, jetzt_s: float) -> bool:
         """Darf jetzt ein Ladeversuch geplant werden? Nein, solange die Ladesperre läuft."""
         return self.ladesperre_bis_s is None or self.ladesperre_bis_s <= jetzt_s
@@ -389,7 +394,7 @@ class Verbund(BaseModel):
 
     def geladen_gb(self, knoten: str) -> float:
         """Verplanter Speicher der Modelle im Speicher (Bedarf)."""
-        return sum(m.gb for m in self.modelle_auf(knoten) if m.im_speicher)
+        return sum(m.speicherbedarf_gb for m in self.modelle_auf(knoten) if m.im_speicher)
 
     def belegt_bekannt_gb(self, knoten: str) -> float:
         """Was die bekannten Modelle gerade wirklich belegen; Grundlage, um den Rest dem System zuzurechnen."""
@@ -495,11 +500,10 @@ class Verbund(BaseModel):
 
     def extern_erlaubt(self, auftrag: Auftrag, modell: Modell) -> bool:
         """Daten verlassen das Heimnetz nur, wenn die Leitstelle der App die Zone extern erlaubt und die App das Modell
-        selbst will: ausdrücklich verlangt oder auf ihrer Erlaubnisliste (Nutzer 18.10.2026: "die apps selber entscheiden
-        per einstellungen welche dienste sie nutzen wollen")."""
+        selbst im Auftrag als Modell oder ausdrücklich geordnete Alternative verlangt. Eine allgemeine
+        Erlaubnisliste ist keine Modellwahl."""
         app = self.anwendungen[auftrag.anwendung]
-        return (app.extern_erlaubt and Zone.EXTERN in app.zonen
-                and (self.verlangt(auftrag, modell.familie) or modell.familie in auftrag.extern_familien))
+        return app.extern_erlaubt and Zone.EXTERN in app.zonen and self.verlangt(auftrag, modell.familie)
 
     def arbeit_haelt(self, modell: str, ausser: str | None = None) -> Arbeit | None:
         """Die begonnene Arbeit, die das Modell in der Frist genutzt hat; die fragende Arbeit selbst zählt nicht, sie

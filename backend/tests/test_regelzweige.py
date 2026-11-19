@@ -226,7 +226,7 @@ def test_s24_extern_ausweichen_ueber_schwelle():
     w.messwerk.merke_laufzeit("zusage", "text", 300.0)
     w.auftrag("zusage", F.TEXT, laufzeit_s=300)
     w.laufen(6)
-    ohne = w.auftrag("fundus", F.TEXT, laufzeit_s=5)                       # ohne Erlaubnisliste der App: nie extern
+    ohne = w.auftrag("fundus", F.TEXT, laufzeit_s=5, festes_modell="qwen-next-80b", alternativen=[])  # ohne ausdrückliche externe Modellwahl
     f = w.auftrag("fundus", F.TEXT, laufzeit_s=5, extern=["qwen-35b-extern"])
     w.laufen(20)
     v = w.verbund
