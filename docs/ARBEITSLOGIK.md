@@ -30,6 +30,7 @@ so entschieden ist in [ZUSAMMENSPIEL.md](ZUSAMMENSPIEL.md) (Abschnitte "Entschei
 | Rechner | Kopf `X-Leitstelle-Rechner` | Rechner, die die App bevorzugt (Kennung oder Name, durch Komma, in ihrer Reihenfolge, LS-28). Ein Wunsch: die Leitstelle nimmt unter den Rechnern, die der Auftrag ohnehin nutzen darf, den ersten, der gerade kann; liegt das Modell nur auf einem weniger gewünschten Rechner, lädt sie es auf dem gewünschten, wenn es dort ohne Entladen passt, sonst rechnet es, wo es liegt. Regeln der Leitstelle (Verlagern, Vorrang, Akku, Ruhe) gehen vor, das Modell ändert sich nie. Ohne Kopf entscheidet die Leitstelle allein. Welche Rechner einen Dienst haben, sagt `GET /v1/dienste` (`orte`) |
 | Titel | Kopf `X-Leitstelle-Titel` | lesbarer Titel für die Oberfläche der Leitstelle; erscheint nie in der Auskunft an andere Apps |
 | Arbeit | Kopf `X-Leitstelle-Arbeit` | zusammengehörige Anfragen einer Arbeit (hält ihre Modelle) |
+| Mehr Zeit | Kopf `X-Leitstelle-Halten` | so viele Sekunden soll das Modell nach diesem Auftrag geladen bleiben, weil die App gleich weiterarbeitet; gedeckelt durch "Halten höchstens", ein neuer Antrag derselben App ersetzt den alten, 0 gibt ihn frei (Abschnitt 7) |
 | Extern, Instanz | Köpfe `X-Leitstelle-Extern`, `X-Leitstelle-Instanz` | externe Modelle erlauben; Folgeaufruf an dieselbe Instanz |
 
 ## 3. Reihenfolge
@@ -93,9 +94,15 @@ ungültig, mit Wahrscheinlichkeit je Möglichkeit. Die Werte sind nicht geeicht;
 Jedes Modell und jeder Dienst wird "Entladen nach" (60 s) nach dem letzten laufenden oder wartenden Auftrag entladen,
 auch kleine Modelle und die Einbettung; nur der Schutz des Dienstes hält es. Ein wartender Auftrag hält sein Modell.
 
+Weiß eine App, dass sie gleich weiterarbeitet (die nächste Runde, die nächste Frage im Gespräch), beantragt sie mehr Zeit
+(`X-Leitstelle-Halten`). Das verhindert, dass ein großes Modell dauernd entladen und wieder geladen wird. Der Antrag gilt nur
+gegen das Entladen nach Leerlauf: braucht ein anderer Auftrag den Platz, weicht das Modell nach der Bedarfsfrist trotzdem. Er
+ersetzt nicht das Bündeln: eine App sammelt, was zusammengehört, und schickt es am Stück (HELF-265).
+
 ## 8. Pflichten der App (Prüfliste)
 
 - [ ] nennt bei jeder Anfrage ihr Modell (Einstellung der App, Auswahl aus dem Angebot der Leitstelle)
+- [ ] bündelt zusammengehörige Anfragen und beantragt mit `X-Leitstelle-Halten` mehr Zeit, wenn gleich weitere folgen
 - [ ] meldet Massenarbeit als `X-Leitstelle-Art: masse`
 - [ ] ordnet feste Möglichkeiten über `POST /v1/einordnen` ein, nicht über eine JSON-Antwort
 - [ ] setzt `X-Leitstelle-Wichtig: ja` nur auf ausdrückliche Angabe des Nutzers, mit Bestätigung nach ihrer Einstellung
@@ -111,5 +118,6 @@ auch kleine Modelle und die Einbettung; nur der Schutz des Dienstes hält es. Ei
 | Vorrang auf dem Rechner, Nachlauf | Vorrang | Sprachausgabe, 30 s | Vorgabe |
 | Ruhe ab | Nur bei Ruhe | 60 s | Vorgabe |
 | Entladen nach | Speicher und Laden | 60 s | Vorgabe |
+| Halten höchstens | Speicher und Laden | 600 s | Vorgabe |
 | Akku: keine Arbeit unter, wieder Arbeit ab | Läufer und Last | 30 %, 35 % | 30 %, 70 % |
 | Durchlass in der Prüfung, Prüffenster höchstens | Vorrang | Sprachausgabe, 1800 s | Vorgabe |

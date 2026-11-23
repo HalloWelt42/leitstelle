@@ -91,12 +91,19 @@ ARBEIT_ZEICHEN = re.compile(r"[A-Za-z0-9._:-]{1,64}")
 
 def _einordnung(request: Request) -> dict:
     """X-Leitstelle-Art (`einzel` oder `masse`, LS-24), X-Leitstelle-Wichtig (`ja`, LS-23: nur, wenn der Nutzer den
-    Auftrag in der App ausdrücklich als wichtig markiert hat) und X-Leitstelle-Rechner (LS-28). Unbekannte Werte zählen
-    wie keine Angabe."""
+    Auftrag in der App ausdrücklich als wichtig markiert hat) und X-Leitstelle-Rechner (LS-28). Dazu X-Leitstelle-Halten (HELF-265).
+    Unbekannte Werte zählen wie keine Angabe."""
     art = request.headers.get("x-leitstelle-art", "").strip().lower()
     wichtig = request.headers.get("x-leitstelle-wichtig", "").strip().lower() in ("ja", "1", "true")
     return {"art": Auftragsart.MASSE if art == Auftragsart.MASSE.value else Auftragsart.EINZEL, "wichtig": wichtig,
-            "rechner": _rechner(request)}
+            "rechner": _rechner(request), "halten_s": _halten(request)}
+
+
+def _halten(request: Request) -> float | None:
+    """X-Leitstelle-Halten: so viele Sekunden soll das Modell nach diesem Auftrag geladen bleiben, weil die App gleich
+    weiterarbeitet (HELF-265); 0 gibt ein früher beantragtes Halten frei. Gedeckelt durch das Regelwerk ("Halten höchstens")."""
+    roh = request.headers.get("x-leitstelle-halten", "").strip()
+    return float(roh) if re.fullmatch(r"\d{1,5}", roh) else None
 
 
 RECHNER_HOECHSTENS = 8

@@ -85,3 +85,63 @@ def test_s67_vorschlagen_entlaedt_nichts():
     w.laufen(75)
     assert w.verbund.modelle["bge@128"].zustand == Modellzustand.GELADEN
     assert [m for m in w.verbund.massnahmen if m.art == A.LEERLAUF_ENTLADEN and m.zustand == MZ.GEPLANT]
+
+
+# ── Mehr Zeit beantragen (HELF-265, Kopf X-Leitstelle-Halten) ───────────────────────────────────────────────────────────
+
+def _auftrag_mit_halten(w, halten_s: float | None, anwendung: str = "fundus") -> None:
+    w.auftrag(anwendung, F.EINBETTUNG, laufzeit_s=5, festes_modell="bge-m3", halten_s=halten_s)
+    w.laufen(8)
+
+
+def test_beantragte_zeit_haelt_das_modell_ueber_die_frist():
+    w = welt_mit(leerlauf_entladen=True, ruhe_faehigkeiten=[])
+    _genutzt(w, "bge@128")
+    _auftrag_mit_halten(w, 300)
+    w.laufen(250)
+    assert w.verbund.modelle["bge@128"].zustand == Modellzustand.GELADEN
+    w.laufen(80)
+    assert w.verbund.modelle["bge@128"].zustand == Modellzustand.FREI, "die beantragte Zeit ist um"
+
+
+def test_ohne_antrag_gilt_die_frist():
+    w = welt_mit(leerlauf_entladen=True, ruhe_faehigkeiten=[])
+    _genutzt(w, "bge@128")
+    _auftrag_mit_halten(w, None)
+    w.laufen(80)
+    assert w.verbund.modelle["bge@128"].zustand == Modellzustand.FREI
+
+
+def test_antrag_ist_gedeckelt_und_abschaltbar():
+    for hoechstens, nach in ((120, 150), (0, 80)):
+        w = welt_mit(leerlauf_entladen=True, ruhe_faehigkeiten=[], halten_hoechstens_s=hoechstens)
+        _genutzt(w, "bge@128")
+        _auftrag_mit_halten(w, 5000)
+        w.laufen(nach)
+        assert w.verbund.modelle["bge@128"].zustand == Modellzustand.FREI, hoechstens
+
+
+def test_null_gibt_nur_den_eigenen_antrag_frei():
+    w = welt_mit(leerlauf_entladen=True, ruhe_faehigkeiten=[])
+    _genutzt(w, "bge@128")
+    _auftrag_mit_halten(w, 300)
+    _auftrag_mit_halten(w, 0)
+    w.laufen(80)
+    assert w.verbund.modelle["bge@128"].zustand == Modellzustand.FREI
+    _genutzt(w, "bge@128")
+    _auftrag_mit_halten(w, 300, "fundus")
+    _auftrag_mit_halten(w, 0, "kiste")
+    w.laufen(80)
+    assert w.verbund.modelle["bge@128"].zustand == Modellzustand.GELADEN, "fundus hält es weiter"
+
+
+def test_gehaltenes_weicht_wenn_ein_auftrag_den_platz_braucht():
+    """Der Antrag gilt nur gegen das Entladen nach Leerlauf; entladbar fragt ihn nicht."""
+    from leitstelle.kern.speicherplaner import entladbar
+    w = welt_mit(leerlauf_entladen=True, ruhe_faehigkeiten=[])
+    _genutzt(w, "bge@128")
+    _auftrag_mit_halten(w, 600)
+    w.laufen(90)
+    m = w.verbund.modelle["bge@128"]
+    assert m.gehalten(w.verbund.zeit_s)
+    assert entladbar(w.verbund, m, w.verbund.zeit_s, nur_leerlauf=False, anforderung=True)[0]

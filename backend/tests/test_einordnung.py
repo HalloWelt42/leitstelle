@@ -117,6 +117,22 @@ async def test_s98_koepfe_der_fassade(tmp_path):
             assert ("Massenaufgabe" in texte) == (art == "masse") and ("als wichtig markiert" in texte) == wichtig
 
 
+async def test_halten_kommt_an_und_haelt_das_modell(tmp_path):
+    """X-Leitstelle-Halten (HELF-265) über die Fassade: steht in den Schritten und am Modell, gedeckelt; Unsinn zählt nicht."""
+    async with aufbau(tmp_path) as a:
+        v = a.app.state.betrieb.verbund
+        for kopf, erwartet in (("300", 300), ("99999", v.regelwerk.halten_hoechstens_s), ("viel", None)):
+            for m in v.modelle.values():
+                m.halten.clear()
+            r = await a.anw.post("/v1/chat/completions", json={"model": MODELL, "messages": [{"role": "user", "content": "Hallo"}]},
+                                 headers={"X-Leitstelle-Halten": kopf})
+            assert r.status_code == 200, r.text
+            eintrag = (await a.c.get(f"/api/auftraege/{r.headers['x-leitstelle-auftrag']}")).json()
+            assert ("hält das Modell danach" in " ".join(s["text"] for s in eintrag["schritte"])) == (erwartet is not None)
+            rest = [bis - v.zeit_s for m in v.modelle.values() for bis in m.halten.values()]
+            assert (not rest) if erwartet is None else len(rest) == 1 and erwartet - 30 < rest[0] <= erwartet
+
+
 async def test_s100_einschaetzung_vor_dem_senden(tmp_path):
     """POST /v1/einschaetzung spielt den Auftrag durch, ohne ihn einzureihen: frei heißt sofort; ohne Modell die Ablehnung
     mit Grundwort; ein offener wichtiger Auftrag steht in der Liste."""

@@ -234,7 +234,7 @@ def einbettung_ruhe(k: Kontext) -> list[Kontext]:
 
 @baustein("ohne_auftrag_seit_frist", "ausloeser", "Ohne Auftrag seit der Frist",
           "Je geladenem Modell oder laufendem Dienst ein Lauf, wenn seit der Frist \"Entladen nach\" (Regelwerk) kein Auftrag mehr darauf lief "
-          "und keiner auf seine Familie wartet. Ausgenommen: Dienste mit Schutz im Maschinenraum, externe Anbieter und schlafende Rechner.")
+          "und keiner auf seine Familie wartet. Ausgenommen: Modelle, für die eine Anwendung mehr Zeit beantragt hat, Dienste mit Schutz im Maschinenraum, externe Anbieter und schlafende Rechner.")
 def ohne_auftrag_seit_frist(k: Kontext) -> list[Kontext]:
     v, frist = k.verbund, k.r.entladen_nach_s
     aus = []
@@ -244,7 +244,7 @@ def ohne_auftrag_seit_frist(k: Kontext) -> list[Kontext]:
         if d.extern or kn is None or kn.schlaeft or m.zustand != Modellzustand.GELADEN or m.geschuetzt or v.belegung(m.kennung):
             continue
         zuletzt = m.letzte_nutzung_s if m.letzte_nutzung_s is not None else m.geladen_seit_s
-        if zuletzt is None or v.zeit_s - zuletzt < frist or v.wartende_auf_familie(m.familie):
+        if zuletzt is None or v.zeit_s - zuletzt < frist or m.gehalten(v.zeit_s) or v.wartende_auf_familie(m.familie):
             continue
         aus.append(Kontext(verbund=v, messwerk=k.messwerk, instanz=m.kennung, knoten_quelle=d.knoten, knoten_ziel=d.knoten,
                            modelle_entladen=[m.kennung], aufwand_s=k.messwerk.entladezeit_s,

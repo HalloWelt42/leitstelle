@@ -224,6 +224,8 @@ class Modell(BaseModel):
     # Hat der Dienst das Laden abgelehnt (zu wenig Speicher, Fehler), wird bis dahin kein neuer Versuch geplant
     ladesperre_bis_s: float | None = None
     ladesperre_grund: str = ""
+    # Von Anwendungen beantragte Zeit über den letzten Auftrag hinaus (Kopf X-Leitstelle-Halten, HELF-265), je Anwendung bis wann
+    halten: dict[str, float] = Field(default_factory=dict)
     # Vom Dienst gesperrt (der Maschinenraum hat ihn wegen Speicher beendet): kein Kandidat, Aufträge enden mit
     # `dienst_gesperrt`, bis ein Mensch die Sperre dort aufhebt
     sperre: str | None = None
@@ -233,6 +235,10 @@ class Modell(BaseModel):
         """Nur der Dienst schützt ein Modell (im Maschinenraum: "Leitstelle darf nicht anhalten"). Größe, Art und
         Einbettung schützen nicht mehr (Arbeitslogik 07.11.2026, LS-14): alles weicht und wird nach Leerlauf entladen."""
         return bool(self.schutz_vorgabe) and not self.zusatz
+
+    def gehalten(self, jetzt: float) -> bool:
+        """Hat eine Anwendung beantragt, dass es jetzt noch geladen bleibt? Gilt nur gegen das Entladen nach Leerlauf."""
+        return any(bis > jetzt for bis in self.halten.values())
 
     @property
     def belegt_gb(self) -> float:
@@ -297,6 +303,7 @@ class Auftrag(BaseModel):
     extern_familien: list[str] = Field(default_factory=list)   # Erlaubnisliste der App für externe Modelle (Kopf X-Leitstelle-Extern)
     feste_instanz: str | None = None  # Folgeaufruf an genau diese Modellinstanz (Kopf X-Leitstelle-Instanz)
     rechner_wunsch: list[str] = Field(default_factory=list)   # Rechner, die die App bevorzugt, in ihrer Reihenfolge (Kopf X-Leitstelle-Rechner, LS-28): ein Wunsch, die Leitstelle weicht aus
+    halten_s: float | None = None     # so lange soll das Modell nach diesem Auftrag bleiben (Kopf X-Leitstelle-Halten, HELF-265); None: nichts beantragt
     token_ein_geschaetzt: int = 0     # aus der Länge der Anfrage, für die Grenzen je Minute; nach der Antwort zählt der echte Verbrauch
     token_aus_geschaetzt: int = 0     # höchstens so viele verlangt die Anfrage (max_tokens); 0: nicht bekannt
 
@@ -561,11 +568,18 @@ class Verbund(BaseModel):
 
     def auftrag_beendet(self, a: Auftrag) -> None:
         """Ende eines Auftrags (fertig, abgebrochen, gescheitert, abgelehnt): endet andere Arbeit, beginnt auf seinem Rechner die Ruhezeit neu;
-        endet Arbeit mit Vorrang auf einem Rechner, beginnt dort der Nachlauf des Vorrangs."""
+        endet Arbeit mit Vorrang auf einem Rechner, beginnt dort der Nachlauf des Vorrangs. Hat seine Anwendung mehr Zeit für das
+        Modell beantragt, gilt sie ab jetzt; ein neuer Antrag derselben Anwendung ersetzt den alten (0 gibt es frei)."""
         if a.faehigkeit in self.regelwerk.vorrang_faehigkeiten and a.knoten in self.knoten:
             self.knoten[a.knoten].vorrang_zuletzt_s = self.zeit_s
         if not self.nur_bei_ruhe(a) and a.knoten in self.knoten:
             self.knoten[a.knoten].andere_arbeit_ende_s = self.zeit_s
+        if a.halten_s is not None and a.modell in self.modelle:
+            bis = self.zeit_s + min(a.halten_s, self.regelwerk.halten_hoechstens_s)
+            halten = self.modelle[a.modell].halten
+            halten[a.anwendung] = bis
+            for k in [k for k, x in halten.items() if x <= self.zeit_s]:
+                del halten[k]
 
     def ruhe_auf(self, knoten: str) -> Ruhe:
         """Ruhe je Rechner (Arbeitslogik 07.11.2026, LS-16): Arbeit nur bei Ruhe darf auf einen Rechner, auf dem keine andere

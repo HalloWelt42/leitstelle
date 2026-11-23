@@ -187,6 +187,9 @@ class Regelwerk(BaseModel):
         "Entladen nach", "So lange nach dem letzten laufenden oder wartenden Auftrag entlädt die Leitstelle ein Modell oder hält einen Dienst an; "
         "ab dann gilt es auch als Leerlauf (Freigeben von Hand, Doppel auflösen).", E.SEKUNDEN, R.SPEICHER, 10, 86400, 10,
         szenario=Massnahmenart.LEERLAUF_ENTLADEN)] = 60.0
+    halten_hoechstens_s: Annotated[float, Regelwert(
+        "Halten höchstens", "So lange nach ihrem letzten Auftrag darf eine Anwendung ein Modell geladen halten lassen, wenn sie mehr Zeit "
+        "beantragt. Braucht ein anderer Auftrag den Platz, weicht es trotzdem; 0 nimmt keine Anträge an.", E.SEKUNDEN, R.SPEICHER, 0, 86400, 30)] = 600.0
     arbeit_frist_s: Annotated[float, Regelwert(
         "Frist begonnener Arbeit", "So lange nach ihrer letzten Nutzung hält eine begonnene Arbeit einer Anwendung ihre Modelle; für andere "
         "weichen sie nicht.", E.SEKUNDEN, R.SPEICHER, 0, 86400, 30)] = 300.0

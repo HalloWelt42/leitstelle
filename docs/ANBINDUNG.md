@@ -75,6 +75,9 @@ Die Anwendung ändert nur die Adresse ihres Modell-Läufers und bekommt einen Sc
   Vertonung; 1 bis 64 Zeichen aus `A-Z a-z 0-9 . _ : -`, sonst zählt die Anfrage für sich). Ab der zweiten Anfrage gilt
   die Arbeit als begonnen: Modelle, die sie in den letzten `arbeit_frist_s` (Vorgabe 300 s) genutzt hat, entlädt die
   Leitstelle nicht für andere, nur für die Arbeit selbst. Der Appkern setzt den Kopf in jedem Auftrag von selbst.
+- `X-Leitstelle-Halten`: so viele Sekunden (0 bis 99999, gedeckelt durch den Regelwert "Halten höchstens", Vorgabe 600) soll
+  das Modell oder der Dienst nach diesem Auftrag geladen bleiben. Gilt nur gegen das Entladen nach Leerlauf, nicht gegen einen
+  Auftrag, der den Platz braucht; 0 gibt einen früheren Antrag der App frei.
 - `X-Leitstelle-Extern`: Erlaubnisliste der Anwendung für externe Modelle (Namen durch Komma, prozentkodiert).
   Die Liste erweitert die Modellwahl nicht. Externe Modelle müssen ausdrücklich als `model` oder in
   `alternativen` im Auftrag stehen. Zusätzlich müssen Anwendung und Zone die externe Nutzung erlauben. Der Appkern liest die Liste aus der Einstellung "Ausweichen nach extern" der App.

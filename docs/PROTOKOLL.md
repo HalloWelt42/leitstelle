@@ -443,9 +443,10 @@ Priorität der Fassaden-Aufträge: Vorgabe der Anwendung; ein Kopf `X-Leitstelle
 Aufruf absenken (nie heben), ebenso `X-Leitstelle-Titel` für einen lesbaren Titel (prozentkodiert, weil HTTP-Köpfe nur
 ASCII tragen), `X-Leitstelle-Arbeit` für die Arbeit, zu der die Anfrage gehört, `X-Leitstelle-Extern` für die
 Erlaubnisliste externer Modelle, `X-Leitstelle-Instanz` für Folgeaufrufe (ANBINDUNG), `X-Leitstelle-Art` (`einzel` oder
-`masse`, LS-24), `X-Leitstelle-Wichtig` (`ja`, nur auf ausdrückliche Angabe des Nutzers, LS-23) und
-`X-Leitstelle-Rechner` (bevorzugte Rechner, Kennung oder Name, durch Komma, LS-28); was sie bewirken, steht in
-[ARBEITSLOGIK.md](ARBEITSLOGIK.md). Unbekannte Werte zählen wie keine Angabe. Mehr als diese acht Köpfe gibt es nicht;
+`masse`, LS-24), `X-Leitstelle-Wichtig` (`ja`, nur auf ausdrückliche Angabe des Nutzers, LS-23),
+`X-Leitstelle-Rechner` (bevorzugte Rechner, Kennung oder Name, durch Komma, LS-28) und `X-Leitstelle-Halten` (Sekunden, die
+das Modell nach dem Auftrag geladen bleiben soll, HELF-265); was sie bewirken, steht in
+[ARBEITSLOGIK.md](ARBEITSLOGIK.md). Unbekannte Werte zählen wie keine Angabe. Mehr als diese neun Köpfe gibt es nicht;
 wer mehr will, nutzt das Protokoll.
 
 Bindung an eine Instanz: läuft ein Dienst mehrfach (weitere Instanz auf demselben Rechner, ein zweiter Rechner),
