@@ -21,6 +21,7 @@
         <span class="pg-zustand" title="Programm im Maschinenraum: die Leitstelle startet es, wenn ein Auftrag es braucht, und hält es an, wenn ein anderer den Speicher braucht">
           <Zustand art="modell" wert={m.zustand} wort={PROZESS[m.zustand]} dreht /></span>
       </div>
+      {#if m.fehlt}<div class="pg-satz klein" title="Die Modellprüfung im Maschinenraum findet das Modell nicht; für Apps ist der Dienst ausgeblendet, bis es wieder da ist"><i class="fa-solid fa-box-open"></i> Modell fehlt: {m.fehlt}</div>{/if}
       {#if m.steckbrief.zweck}<div class="pg-satz klein" title={m.steckbrief.zweck}>{m.steckbrief.zweck}</div>{/if}
       {#if m.steckbrief.bild}
         <div class="pg-regeln klein" title="Was das Bildmodell annimmt, wie sein Dienst es sagt; die Leitstelle prüft jede Anfrage damit, bevor sie ihn erreicht">

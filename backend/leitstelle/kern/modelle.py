@@ -229,6 +229,9 @@ class Modell(BaseModel):
     # Vom Dienst gesperrt (der Maschinenraum hat ihn wegen Speicher beendet): kein Kandidat, Aufträge enden mit
     # `dienst_gesperrt`, bis ein Mensch die Sperre dort aufhebt
     sperre: str | None = None
+    # Das Modell fehlt beim Dienst (Modellprüfung im Maschinenraum): kein Kandidat, für Apps unsichtbar, eine Anfrage
+    # endet sofort mit `modell_nicht_vorhanden`; kommt es zurück, ist es ohne Eingriff wieder da (LS-34)
+    fehlt: str | None = None
 
     @property
     def geschuetzt(self) -> bool:

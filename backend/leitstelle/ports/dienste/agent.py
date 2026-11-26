@@ -15,7 +15,7 @@ from typing import Any
 
 import httpx
 
-from ...protokoll.knoten import Befehl, Befehlsart, Prozesszustand
+from ...protokoll.knoten import Befehl, Befehlsart, Modellstand, Prozesszustand
 from ..agenten import AgentGetrennt, Agentenvermittlung
 from .openai_kompatibel import HttpStrom
 from .schnittstelle import Dienstbericht, DienstFehler, Durchleitung, ModellBericht, Strom
@@ -46,7 +46,8 @@ class AgentDienste:
             return Dienstbericht(erreichbar=False, meldung="Maschinenraum nicht verbunden")
         modelle = [ModellBericht(schluessel=p.kennung, name=p.name, aufgabe=p.aufgabe, faehigkeiten=set(p.faehigkeiten), gb=p.bedarf_gb, gb_jetzt=p.gb_jetzt,
                                  parameter_mrd=None, schutz=not p.anhalten_erlaubt, aktiv=p.aktiv, plaetze=p.plaetze, selbstauskunft=p.selbstauskunft, familie=p.instanz_von, instanzen_hoechstens=p.instanzen,
-                                 geladen=p.zustand in IM_SPEICHER, instanzen=[p.kennung] if p.zustand in IM_SPEICHER else [], sperre=p.sperre)
+                                 geladen=p.zustand in IM_SPEICHER, instanzen=[p.kennung] if p.zustand in IM_SPEICHER else [], sperre=p.sperre,
+                                 fehlt=(p.modell.grund or "Modell fehlt") if p.modell.stand == Modellstand.FEHLT else None)
                    for p in v.dienste.dienste]
         return Dienstbericht(erreichbar=True, steuerbar=True, modelle=modelle)
 

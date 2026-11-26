@@ -144,7 +144,7 @@ def kandidaten(verbund: Verbund, auftrag: Auftrag, familie: str, mit_extern: boo
         if auftrag.feste_instanz and m.kennung != auftrag.feste_instanz:
             continue                          # Folgeaufruf: nur die Instanz, die das Ergebnis hat
         d = verbund.dienste[m.dienst]
-        if auftrag.faehigkeit not in d.faehigkeiten or not d.nutzbar or m.sperre:
+        if auftrag.faehigkeit not in d.faehigkeiten or not d.nutzbar or m.sperre or m.fehlt:
             continue
         if d.extern and not mit_extern and not verbund.verlangt(auftrag, familie):
             continue
@@ -200,6 +200,10 @@ def ablehnungsgrund(verbund: Verbund, auftrag: Auftrag, wahl: list[str]) -> Wart
         m = in_zone[0]
         return absage("dienst_gesperrt", f"{m.name} ist gesperrt ({m.sperre}); er läuft erst wieder, wenn die Sperre im Maschinenraum "
                                          "von Hand aufgehoben ist")
+    if all(m.sperre or m.fehlt for m in in_zone):
+        m = next(x for x in in_zone if x.fehlt)
+        return absage("modell_nicht_vorhanden", f"{m.name}: Modell fehlt ({m.fehlt}); es ist wieder nutzbar, sobald es in der "
+                                                "Modellablage liegt")
     return absage("dienst_nicht_erreichbar", "der Dienst mit diesem Modell ist gerade nicht erreichbar")
 
 

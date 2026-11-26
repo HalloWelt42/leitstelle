@@ -254,6 +254,7 @@ class ModellSicht(BaseModel):
     ladesperre_bis_s: float | None
     ladesperre_grund: str
     sperre: str | None                 # vom Dienst gesperrt (Speicherabbruch im Maschinenraum): der Grund
+    fehlt: str | None = None           # das Modell fehlt beim Dienst (Modellprüfung im Maschinenraum): der Grund; für Apps unsichtbar
 
 
 class AuftragSicht(BaseModel):
@@ -371,7 +372,7 @@ def lagebild(b: Betrieb) -> Lagebild:
                            geschuetzt=m.geschuetzt, geladen_seit_s=m.geladen_seit_s, letzte_nutzung_s=m.letzte_nutzung_s,
                            auftraege_aktiv=m.auftraege_aktiv, belegt=len(v.belegung(m.kennung)), plaetze=v.plaetze(m), nutzung=v.nutzung(m.dienst, m.familie),
                            gehalten_von=w.titel if (w := v.arbeit_haelt(m.kennung)) else None, steckbrief=b.steckbrief(m), instanzen_hoechstens=m.instanzen_hoechstens, zusatz=m.zusatz,
-                           ladesperre_bis_s=m.ladesperre_bis_s, ladesperre_grund=m.ladesperre_grund, sperre=m.sperre)
+                           ladesperre_bis_s=m.ladesperre_bis_s, ladesperre_grund=m.ladesperre_grund, sperre=m.sperre, fehlt=m.fehlt)
                for m in sorted(v.modelle.values(), key=lambda x: (x.dienst, -x.gb))]
     auftraege = []
     for a in sorted(v.auftraege.values(), key=lambda x: x.eingang_s):

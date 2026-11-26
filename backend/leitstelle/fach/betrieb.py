@@ -895,6 +895,11 @@ class Betrieb:
         if mb.sperre != m.sperre:
             self.melden(f"{m.name} {'gesperrt: ' + mb.sperre if mb.sperre else 'wieder freigegeben (Sperre von Hand aufgehoben)'}")
             m.sperre = mb.sperre
+        if mb.fehlt != m.fehlt:
+            self.melden(f"{m.name}: Modell fehlt ({mb.fehlt})" if mb.fehlt else f"{m.name}: Modell wieder da")
+            m.fehlt = mb.fehlt
+            if not mb.fehlt:
+                m.ladesperre_bis_s, m.ladesperre_grund = None, ""     # zurück heißt: sofort wieder nutzbar
         # Einbettungsmodelle eines steuerbaren Läufers: Höchstzahl der Instanzen aus dem Eintrag des Dienstes (ZUSAMMENSPIEL Z5)
         eigene = d.einbettung_instanzen if mb.einbettung and steuerbar and not d.extern else 1
         m.instanzen_hoechstens, m.zusatz = max(mb.instanzen_hoechstens, eigene), mb.familie is not None
@@ -998,7 +1003,7 @@ class Betrieb:
         aus = set()
         for m in self.verbund.modelle.values():
             d = self.verbund.dienste.get(m.dienst)
-            if d is None or m.zusatz or faehigkeit not in m.faehigkeiten:
+            if d is None or m.zusatz or m.fehlt or faehigkeit not in m.faehigkeiten:
                 continue
             zone = Zone.EXTERN if d.extern else (self.verbund.knoten[d.knoten].zone if d.knoten in self.verbund.knoten else None)
             if zone in app.zonen:
@@ -1282,6 +1287,8 @@ class Betrieb:
         if laden:
             if m.sperre:
                 raise Ablehnung("dienst_gesperrt", f"{m.name} ist im Maschinenraum gesperrt ({m.sperre}); er startet erst, wenn die Sperre dort aufgehoben ist.")
+            if m.fehlt:
+                raise Ablehnung("modell_nicht_vorhanden", f"{m.name}: Modell fehlt ({m.fehlt}); es startet, sobald es in der Modellablage liegt.")
             self._zeit_setzen()
             self.modell_laden(modell)
         else:

@@ -322,7 +322,7 @@ async def test_a08_anfrage_an_einen_dienst_nur_ueber_die_leitstelle(tmp_path):
 def test_protokoll_von_agent_und_kern_ist_deckungsgleich():
     import leitstelle.protokoll.knoten as kern
     import maschinenraum.protokoll as spiegel
-    for name in ("KnotenAnmeldung", "Messwerte", "Prozesszustand", "Selbstauskunft", "ProzessBericht", "Dienstliste", "Befehlsart", "Befehl",
+    for name in ("KnotenAnmeldung", "Messwerte", "Prozesszustand", "Selbstauskunft", "Modellstand", "Modellpruefung", "ProzessBericht", "Dienstliste", "Befehlsart", "Befehl",
                  "BefehlErgebnis", "Faehigkeit", "Eignung", "Schlafgrund", "KnotenSchlaeft", "Fremdart", "Fremdzugriff", "Fremdzugriffe",
                  "Laeuferrolle", "Laeuferprozess", "DockerContainer", "DockerLast", "AppTeil", "AppsLast", "KnotenLast"):
         a, b = getattr(kern, name, None) or getattr(__import__("leitstelle.kern.werte", fromlist=[name]), name), getattr(spiegel, name)

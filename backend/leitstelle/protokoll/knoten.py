@@ -62,6 +62,19 @@ class Prozesszustand(str, Enum):
     GESTOERT = "gestoert"
 
 
+class Modellstand(str, Enum):
+    VORHANDEN = "vorhanden"      # die Modellprüfung der Dienstdatei fand alles
+    FEHLT = "fehlt"              # sie fand es nicht (auch Links ins Leere): der Dienst startet nicht
+    UNGEPRUEFT = "ungeprueft"    # keine Modellprüfung, oder sie selbst scheiterte (und ältere Maschinenräume)
+
+
+class Modellpruefung(BaseModel):
+    """Ob das Modell eines Dienstes da ist, aus seiner Modellprüfung, ohne ihn zu starten (MR-7)."""
+
+    stand: Modellstand = Modellstand.UNGEPRUEFT
+    grund: str = ""
+
+
 class Selbstauskunft(BaseModel):
     """Was ein Dienst über sich oder sein Modell sagt (PROTOKOLL 4.8): wofür er gemacht ist. Leer heißt: sagt nichts."""
 
@@ -92,6 +105,7 @@ class ProzessBericht(BaseModel):
     grenze_gb: float | None = None      # harte Grenze: darüber beendet der Agent ihn sofort; None: ohne Speicherwache
     sperre: str | None = None           # nach einem Speicherabbruch gesperrt (der Grund); startet erst wieder, wenn ein Mensch sie aufhebt
     meldung: str = ""
+    modell: Modellpruefung = Field(default_factory=Modellpruefung)   # fehlt das Modell, startet er nicht (Maschinenraum ab 0.25.0)
 
 
 class Dienstliste(BaseModel):

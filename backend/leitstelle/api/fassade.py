@@ -481,12 +481,12 @@ for basis in ("/v1", ""):     # Basisadresse mit oder ohne /v1
 def _erlaubte_modelle(request: Request, app: AnwendungEintrag | None) -> list[Modell]:
     """Alle Modellinstanzen, die die Anwendung nutzen darf (Fähigkeit und Zone); ohne Schlüssel aus dem Heimnetz alle.
     Gesperrte (im Maschinenraum nach einem Speicherabbruch oder von Hand) bietet die Leitstelle nicht an: sie nehmen bis
-    zum Aufheben der Sperre keinen Auftrag an (HELF-84)."""
+    zum Aufheben der Sperre keinen Auftrag an (HELF-84). Ebenso keine, deren Modell beim Dienst fehlt (LS-34)."""
     b = betrieb(request)
     aus = []
     for m in b.verbund.modelle.values():
         d = b.verbund.dienste.get(m.dienst)
-        if d is None or m.sperre:
+        if d is None or m.sperre or m.fehlt:
             continue
         if app is not None:
             if not (m.faehigkeiten & app.faehigkeiten):
@@ -501,11 +501,13 @@ def _erlaubte_modelle(request: Request, app: AnwendungEintrag | None) -> list[Mo
 
 
 def _sichtbare_modelle(request: Request, app: AnwendungEintrag | None) -> list[Modell]:
-    """Vollständiger Katalog für jede App; Sichtbarkeit erteilt keine Aufrufrechte. Hier wird nichts geladen."""
+    """Vollständiger Katalog für jede App; Sichtbarkeit erteilt keine Aufrufrechte. Hier wird nichts geladen. Was beim
+    Dienst kein Modell hat (Modellprüfung im Maschinenraum), fehlt hier wie bei einem Modell-Läufer, dessen Ordner es
+    nicht mehr enthält (Nutzer 26.11.2026: ausblenden); kommt es zurück, ist es wieder da."""
     gesehen: dict[str, Modell] = {}
     b = betrieb(request)
     for m in b.verbund.modelle.values():
-        if m.dienst not in b.verbund.dienste:
+        if m.dienst not in b.verbund.dienste or m.fehlt:
             continue
         bisher = gesehen.get(m.familie)
         if bisher is None or (m.zustand in (Modellzustand.GELADEN, Modellzustand.RECHNET)
@@ -517,7 +519,7 @@ def _sichtbare_modelle(request: Request, app: AnwendungEintrag | None) -> list[M
 def _katalogangaben(request: Request, app: AnwendungEintrag | None, m: Modell) -> dict:
     """Fähigkeiten, Verfügbarkeit, Quellen und getrennte Aufrufrechte aller Instanzen einer Modellfamilie."""
     b = betrieb(request)
-    instanzen = [x for x in b.verbund.modelle.values() if x.familie == m.familie and x.dienst in b.verbund.dienste]
+    instanzen = [x for x in b.verbund.modelle.values() if x.familie == m.familie and x.dienst in b.verbund.dienste and not x.fehlt]
     erlaubt = {x.kennung for x in _erlaubte_modelle(request, app)} if app is not None else set()
     faehigkeiten = set().union(*(x.faehigkeiten for x in instanzen))
     orte = []
@@ -714,8 +716,8 @@ async def dienste(request: Request):
     b = betrieb(request)
     gruppen: dict[str, list[Modell]] = {}
     for m in b.verbund.modelle.values():
-        if m.dienst in b.verbund.dienste and b.verbund.dienste[m.dienst].art == Adapterart.AGENT.value:
-            gruppen.setdefault(m.familie, []).append(m)
+        if m.dienst in b.verbund.dienste and b.verbund.dienste[m.dienst].art == Adapterart.AGENT.value and not m.fehlt:
+            gruppen.setdefault(m.familie, []).append(m)       # ohne Modell ausgeblendet wie in /v1/models (LS-34)
     aus = []
     for familie, instanzen in sorted(gruppen.items()):
         grund = next((m for m in instanzen if not m.zusatz), instanzen[0])

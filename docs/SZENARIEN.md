@@ -382,6 +382,7 @@ Prozessdienst.
 | A10 | Dienst wird in der Startzeit nicht erreichbar | Versuch wird beendet, Meldung mit der letzten Protokollzeile |
 | A11 | Der echte Kanal des Maschinenraums schläft ein und wacht auf | Leitstelle vermerkt sofort (unter 2 s), Dienstfassade 503 `rechner_schlaeft` mit Rechner; die Verbindung ruht; nach dem Aufwachen Anmeldung, Rechner erreichbar, Durchleitung wieder 200 |
 | A13 | Ein Dienst wächst im Auftrag über seine Grenze (HELF-85) | Der Maschinenraum meldet die Sperre, beendet ihn sofort; die App bekommt 507 `speicher`, der Auftrag endet als Abbruch mit dem Grund; ein neuer Aufruf 423 `dienst_gesperrt`, der Dienst startet nicht wieder; die Modellansicht zeigt die Sperre. Gesperrt wird er nicht mehr angeboten (`/v1/models`, `/v1/dienste`, `/v1/steckbriefe` ohne ihn, HELF-84), Starten von Hand gibt 423 `dienst_gesperrt` |
+| A14 | Das Modell eines Dienstes fehlt (entnommen oder Links ins Leere, LS-34) | Der Maschinenraum meldet `modell` `fehlt` mit Grund und startet ihn nicht; die Leitstelle blendet ihn für Apps aus (`/v1/models`, `/v1/dienste`), eine Anfrage an ihn endet sofort mit 503 `modell_nicht_vorhanden` und dem Grund; die Modellansicht zeigt "Modell fehlt". Kommt das Modell zurück, ist er ohne Eingriff wieder gelistet und nimmt Aufträge an (`test_modellstand.py`) |
 
 Die Beobachtung am Leitstand vorbei ist in diesen Tests aus: sie liest Prozesse und Verbindungen des Rechners, auf dem
 der Test läuft (je Takt Sekunden), und hielte damit die Dienstmeldungen auf.

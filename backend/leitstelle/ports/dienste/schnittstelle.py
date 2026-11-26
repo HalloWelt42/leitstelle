@@ -35,6 +35,7 @@ class ModellBericht(BaseModel):
     familie: str | None = None          # weitere Instanz: Familie der Grundinstanz (sonst gilt der Schlüssel)
     instanzen_hoechstens: int = 1       # so viele Instanzen darf die Leitstelle starten
     sperre: str | None = None           # vom Dienst gesperrt (Speicherabbruch im Maschinenraum): der Grund; nicht nutzbar, bis ein Mensch sie dort aufhebt
+    fehlt: str | None = None            # das Modell fehlt (Modellprüfung im Maschinenraum): der Grund; nicht nutzbar und für Apps unsichtbar, bis es wieder da ist
 
 
 class Dienstbericht(BaseModel):
