@@ -21,6 +21,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import ValidationError
+from starlette.requests import ClientDisconnect
 
 from ..fach.auskunft import einschaetzung, lageauskunft
 from ..fach.bildablage import ist_archiv
@@ -440,13 +441,19 @@ async def dienst(request: Request, name: str, pfad: str) -> Response:
     familie = b.familie_fuer(name)
     if familie is None:
         return ablehnung_antwort(request, b.unbekannt(name, "Dienst"))
+    # Erst die ganze Anfrage, dann der Auftrag: geht die Anwendung, während sie noch sendet, bleibt kein Auftrag zurück, der
+    # den Dienst für immer belegt und alle folgenden warten lässt
+    try:
+        inhalt = await request.body()
+    except ClientDisconnect:
+        return fehler_antwort(request, "eingabe", "Die Anfrage kam nicht vollständig an: die Anwendung hat die Verbindung getrennt.")
     try:
         faehigkeit = verm.faehigkeit_fuer(app.kennung, familie)
         v = verm.annehmen(app.kennung, faehigkeit, name, _prioritaet(request, app), _titel(request, faehigkeit), _arbeit(request), _extern(request),
                           instanz=_instanz(request, familie), **_einordnung(request))
     except Ablehnung as a:
         return ablehnung_antwort(request, a)
-    anfrage = Durchleitung(methode=request.method, pfad=pfad, abfrage=request.url.query, inhalt=await request.body(),
+    anfrage = Durchleitung(methode=request.method, pfad=pfad, abfrage=request.url.query, inhalt=inhalt,
                            kopf={k: w for k, w in request.headers.items() if k.lower() not in OHNE_KOPF})
     try:
         async with _solange_die_anwendung_wartet(request, v):
@@ -458,6 +465,9 @@ async def dienst(request: Request, name: str, pfad: str) -> Response:
         fehler = ablehnung_antwort(request, a)
         fehler.headers.update(_kopf(request, v))
         return fehler
+    except BaseException:
+        verm.aufraeumen(v)              # jeder andere Abbruch (auch ein abgebrochener Aufruf) schließt den Auftrag
+        raise
     kopf = {k: w for k, w in antwort.kopf.items() if k.lower() not in OHNE_KOPF} | _kopf(request, v) | {"X-Leitstelle-Modell": v.modellname}
     if v.auftrag.modell:
         kopf["X-Leitstelle-Instanz"] = v.auftrag.modell       # für Folgeaufrufe an dieselbe Instanz (Bindung)
