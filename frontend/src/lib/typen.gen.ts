@@ -29,6 +29,7 @@ export type Faehigkeit =
   | 'bild_beschreiben'
   | 'bild_erzeugen'
   | 'bild_bearbeiten'
+  | 'bild_erkennen'
   | 'stimme'
   | 'stimme_klonen'
   | 'sprecher_erkennen'

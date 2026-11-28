@@ -18,6 +18,7 @@ class Faehigkeit(str, Enum):
     BILD_BESCHREIBEN = "bild_beschreiben"
     BILD_ERZEUGEN = "bild_erzeugen"
     BILD_BEARBEITEN = "bild_bearbeiten"   # ein Bild nach Anweisung ändern; hat jedes Bildmodell, dessen Steckbrief kann_bearbeiten nennt
+    BILD_ERKENNEN = "bild_erkennen"   # Texte mit Rahmen und Gesichter in einem Bild finden (Apple Vision am Mac, LS-35)
     STIMME = "stimme"
     STIMME_KLONEN = "stimme_klonen"
     SPRECHER_ERKENNEN = "sprecher_erkennen"
@@ -169,7 +170,7 @@ class Automatik(str, Enum):
 
 WORT: dict[str, str] = {
     "text": "Text", "einbettung": "Einbettung", "uebersetzen": "Übersetzen", "einordnen": "Einordnen", "hoeren": "Hören",
-    "bild_beschreiben": "Bild beschreiben", "bild_erzeugen": "Bild erzeugen", "bild_bearbeiten": "Bild bearbeiten", "stimme": "Stimme", "stimme_klonen": "Stimmklon", "sprecher_erkennen": "Sprecher erkennen",
+    "bild_beschreiben": "Bild beschreiben", "bild_erzeugen": "Bild erzeugen", "bild_bearbeiten": "Bild bearbeiten", "bild_erkennen": "Bild erkennen", "stimme": "Stimme", "stimme_klonen": "Stimmklon", "sprecher_erkennen": "Sprecher erkennen",
     "sprecher_trennen": "Sprecher trennen", "musik": "Musik", "werkzeug": "Werkzeuge", "ton": "Ton bearbeiten",
     "eingereiht": "Eingereiht", "wartet_speicher": "Wartet auf Speicher", "wartet_ruhe": "Wartet auf Ruhe", "zugeteilt": "Zugeteilt", "laeuft": "Läuft", "pausiert": "Pausiert",
     "fertig": "Fertig", "abgebrochen": "Abgebrochen", "fehlgeschlagen": "Fehlgeschlagen", "abgelehnt": "Abgelehnt",

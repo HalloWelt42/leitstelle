@@ -285,6 +285,7 @@ Anwendung: sie nennt das gewünschte als `model` (bei externen zusätzlich mit E
 | stimme_klonen | `probe_url`, `text` | wie stimme |
 | bild_beschreiben | `bild_url` oder `bild` (data-URL), `frage` | `text` |
 | bild_erzeugen | `prompt`, `breite`, `hoehe`, `anzahl`, `seed`, `stil` | `bilder` (Liste von `datei_url`) |
+| bild_erkennen | Dienst `bild-erkennen` unter `/v1/dienste/bild-erkennen/erkennen`: `bild` (multipart), `sprachen` (etwa de-DE, en-US), `gesichter` (ja oder nein) | `breite`, `hoehe`, `texte` (Text, Rahmen in Anteilen von oben links, Sicherheit), `gesichter` (Rahmen, Sicherheit), `ms` |
 | bild_freistellen | `bild_url` | `datei_url` |
 | musik | `prompt`, `dauer_s`, `parameter` | `datei_url` |
 | werkzeug | `name`, `argumente` | `ergebnis` (frei) |
